@@ -936,7 +936,7 @@ class StockEntryService:
             if not taken or not si.quantity:
                 continue
             qty = sum(int(t["quantity_taken"]) for t in taken)
-            net_item = Decimal(str(si.subtotal or 0)) - Decimal(str(si.discount_amount or 0))
+            net_item = Decimal(str(si.subtotal or 0))   # subtotal JÁ é líquido do desconto do item (qtd x preço - desconto)
             # desconto dado na VENDA inteira (não no item): rateia pelo peso do item, igual ao money_ledger (receita = parte do total pago)
             if sale_subtotal and Decimal(str(sale_subtotal)) > 0 and sale_total is not None:
                 net_item = net_item * Decimal(str(sale_total)) / Decimal(str(sale_subtotal))
@@ -947,30 +947,43 @@ class StockEntryService:
 
         if by_id:
             rets = (await self.db.execute(
-                select(ReturnItem).where(ReturnItem.sale_item_id.in_(list(by_id)))
+                select(ReturnItem).where(ReturnItem.sale_item_id.in_(list(by_id)), ReturnItem.is_active == True)  # noqa: E712
             )).scalars().all()
+            by_item: Dict[int, list] = {}
             for r in rets:
-                si = by_id.get(r.sale_item_id)
-                if si is None or not r.quantity_returned:
-                    continue
+                if r.quantity_returned:
+                    by_item.setdefault(r.sale_item_id, []).append(r)
+            for sid, item_rets in by_item.items():
+                si = by_id[sid]
                 raw = si.sale_sources
                 sources = raw.get("sources", []) if isinstance(raw, dict) else (raw or [])
-                # Mesma regra do return_service: a devolução volta às entradas de origem, na ordem das fontes
-                remaining = r.quantity_returned
-                qty_back = 0
-                back_cost = Decimal('0.00')
-                for src in sources:
-                    if remaining <= 0:
-                        break
-                    take = min(int(src["quantity_taken"]), remaining)
-                    if src.get("entry_id") == entry.id:
-                        qty_back += take
-                        back_cost += Decimal(take) * Decimal(str(src["unit_cost"]))
-                    remaining -= take
-                if qty_back:
-                    out["units"] -= qty_back
-                    out["revenue"] -= Decimal(str(r.refund_amount or 0)) * Decimal(qty_back) / Decimal(r.quantity_returned)
-                    out["cost"] -= back_cost
+                total_q = sum(int(r.quantity_returned) for r in item_rets)
+                total_refund = sum((Decimal(str(r.refund_amount or 0)) for r in item_rets), Decimal('0.00'))
+                mine = [t for t in sources if t.get("entry_id") == entry.id]
+                # Fonte da verdade: cada fonte FIFO guarda quanto voltou (quantity_returned) e quanto foi com defeito
+                # (quantity_defective), gravados pela devolução (return_service). Assim a devolução fica no lote que
+                # recebeu a peça de volta, igual ao rastreio (stock_flow_service).
+                from app.services.stock_flow_service import has_source_marks, legacy_returns_by_source
+                if has_source_marks(sources):
+                    qty_back = sum(int(t.get("quantity_returned", 0)) for t in mine)
+                    qty_defect = sum(int(t.get("quantity_defective", 0)) for t in mine)
+                    back_cost = sum((Decimal(str(t.get("quantity_returned", 0))) * Decimal(str(t["unit_cost"])) for t in mine), Decimal('0.00'))
+                else:
+                    # venda antiga, sem marca nas fontes: mesma distribuição do return_service antigo (última fonte
+                    # primeiro), respeitando ReturnItem.restock (false = defeito: não volta, custo fica)
+                    dist = legacy_returns_by_source(sources, item_rets)
+                    qty_back = qty_defect = 0
+                    back_cost = Decimal('0.00')
+                    for src, d in zip(sources, dist):
+                        if src.get("entry_id") != entry.id:
+                            continue
+                        qty_back += d["returned"]
+                        qty_defect += d["defective"]
+                        back_cost += Decimal(d["returned"]) * Decimal(str(src["unit_cost"]))
+                if qty_back or qty_defect:
+                    out["units"] -= qty_back          # defeito conta como vendida: a peça não voltou
+                    out["revenue"] -= total_refund * Decimal(qty_back + qty_defect) / Decimal(total_q)
+                    out["cost"] -= back_cost          # custo da peça com defeito fica (prejuízo)
         return out
 
     async def link_to_trip(

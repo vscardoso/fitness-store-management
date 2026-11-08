@@ -299,3 +299,67 @@ async def period_by_product(
         })
     out.sort(key=lambda x: (-x["profit"], x["name"]))
     return out
+
+
+async def period_by_variant(
+    db: AsyncSession,
+    tenant_id: Optional[int],
+    start: Optional[date],
+    end: Optional[date],
+) -> dict:
+    """Igual a `period_by_product`, mas por (product_id, variant_id). Devolve
+    {(product_id, variant_id): {"revenue", "cost", "sold", "returned"}} (Decimal/int), mesma conta única:
+    valor pago rateado pelo subtotal do item, devolução abate no período em que aconteceu, custo das
+    peças que voltaram abate, defeito fica como custo."""
+    s_utc = e_utc = None
+    if start and end:
+        s_utc, e_utc = get_period_range_utc(start, end)
+
+    def in_range(col):
+        return [col >= s_utc, col <= e_utc] if s_utc is not None else []
+
+    def tenant(col):
+        return [col == tenant_id] if tenant_id is not None else []
+
+    rows: dict = defaultdict(lambda: {"revenue": D0, "cost": D0, "sold": 0, "returned": 0})
+
+    sale_filter = [*tenant(Sale.tenant_id), Sale.is_active == True, Sale.status.in_(VALID_STATUS), *in_range(Sale.created_at)]  # noqa: E712
+    items = (await db.execute(
+        select(SaleItem.sale_id, SaleItem.product_id, SaleItem.variant_id, SaleItem.quantity, SaleItem.unit_cost,
+               SaleItem.subtotal, SaleItem.unit_price, Sale.total_amount)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .where(and_(*sale_filter), SaleItem.is_active == True))).all()  # noqa: E712
+    sub_by_sale: dict = defaultdict(lambda: D0)
+    for sid, _p, _v, qty, _c, sub, price, _t in items:
+        sub_by_sale[sid] += _d(sub) if sub is not None else _d(price) * int(qty)
+    for sid, pid, vid, qty, cost, sub, price, total in items:
+        item_sub = _d(sub) if sub is not None else _d(price) * int(qty)
+        base = sub_by_sale[sid]
+        r = rows[(pid, vid)]
+        r["revenue"] += (item_sub / base * _d(total)) if base > 0 else D0
+        r["cost"] += _d(cost) * int(qty)
+        r["sold"] += int(qty)
+
+    ret_filter = [
+        *tenant(SaleReturn.tenant_id), SaleReturn.is_active == True, SaleReturn.status == "completed",  # noqa: E712
+        Sale.status != SaleStatus.CANCELLED, *in_range(SaleReturn.created_at),
+    ]
+    ritems = (await db.execute(
+        select(SaleReturn.id, SaleReturn.total_refund, ReturnItem.product_id, ReturnItem.variant_id,
+               ReturnItem.quantity_returned, ReturnItem.unit_cost, ReturnItem.restock, ReturnItem.refund_amount,
+               ReturnItem.unit_price)
+        .join(SaleReturn, SaleReturn.id == ReturnItem.return_id)
+        .join(Sale, Sale.id == SaleReturn.sale_id)
+        .where(and_(*ret_filter), ReturnItem.is_active == True))).all()  # noqa: E712
+    ref_by_ret: dict = defaultdict(lambda: D0)
+    for rid, _t, _p, _v, qty, _c, _rs, ref, price in ritems:
+        ref_by_ret[rid] += _d(ref) if ref is not None else _d(price) * int(qty)
+    for rid, tot, pid, vid, qty, cost, restock, ref, price in ritems:
+        item_ref = _d(ref) if ref is not None else _d(price) * int(qty)
+        base = ref_by_ret[rid]
+        r = rows[(pid, vid)]
+        r["revenue"] -= (item_ref / base * _d(tot)) if base > 0 else D0
+        r["returned"] += int(qty)
+        if restock:
+            r["cost"] -= _d(cost) * int(qty)
+    return dict(rows)

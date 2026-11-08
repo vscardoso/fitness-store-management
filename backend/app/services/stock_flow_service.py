@@ -16,8 +16,34 @@ from app.models.conditional_shipment import ConditionalShipment, ConditionalShip
 from app.models.entry_item import EntryItem
 from app.models.entry_item_event import EntryItemEvent
 from app.models.sale import Sale, SaleItem
+from app.models.sale_return import ReturnItem
 from app.services.money_ledger import VALID_STATUS
 from app.services.stock_ledger import REASONS, REMOVAL_REASONS
+
+
+def has_source_marks(sources) -> bool:
+    """A devolução já gravou `quantity_returned`/`quantity_defective` nas fontes? (vendas antigas não têm)."""
+    return any(("quantity_returned" in t) or ("quantity_defective" in t) for t in sources)
+
+
+def legacy_returns_by_source(sources, return_items) -> list:
+    """Venda ANTIGA (fontes sem marca): distribui as devoluções (ReturnItem, em ordem de id) pelas fontes, da última
+    para a primeira, igual ao return_service antigo, mas acumulando o que cada fonte já devolveu.
+    restock=False = peça com defeito (não volta ao estoque). Devolve [{'returned': n, 'defective': n}] por fonte."""
+    out = [{"returned": 0, "defective": 0} for _ in sources]
+    for r in sorted(return_items, key=lambda x: x.id):
+        remaining = int(r.quantity_returned or 0)
+        key = "returned" if r.restock else "defective"
+        for idx in range(len(sources) - 1, -1, -1):
+            if remaining <= 0:
+                break
+            livre = int(sources[idx]["quantity_taken"]) - out[idx]["returned"] - out[idx]["defective"]
+            if livre <= 0:
+                continue
+            take = min(livre, remaining)
+            out[idx][key] += take
+            remaining -= take
+    return out
 
 
 async def item_flows(db: AsyncSession, tenant_id: int, items: Iterable[EntryItem]) -> Dict[int, Dict[str, int]]:
@@ -27,7 +53,7 @@ async def item_flows(db: AsyncSession, tenant_id: int, items: Iterable[EntryItem
     product_ids = {i.product_id for i in items if i.product_id and not i.variant_id}
     sold: Dict[int, int] = {i: 0 for i in ids}
     if variant_ids or product_ids:
-        q = (select(SaleItem.sale_sources).join(Sale, Sale.id == SaleItem.sale_id)
+        q = (select(SaleItem.id, SaleItem.sale_sources).join(Sale, Sale.id == SaleItem.sale_id)
              .where(Sale.tenant_id == tenant_id, Sale.is_active == True, Sale.status.in_(VALID_STATUS),  # noqa: E712
                     SaleItem.is_active == True, SaleItem.sale_sources.is_not(None)))  # noqa: E712
         conds = []
@@ -36,11 +62,22 @@ async def item_flows(db: AsyncSession, tenant_id: int, items: Iterable[EntryItem
         if product_ids:
             conds.append(SaleItem.product_id.in_(product_ids))
         from sqlalchemy import or_
-        for (src,) in (await db.execute(q.where(or_(*conds)))).all():
-            for s in (src or {}).get("sources", []):
+        rows = (await db.execute(q.where(or_(*conds)))).all()
+        # vendas antigas (fontes sem marca): as devoluções vêm de ReturnItem
+        old_ids = [sid for sid, src in rows if (src or {}).get("sources") and not has_source_marks(src["sources"])]
+        rets_by_item: Dict[int, list] = {}
+        if old_ids:
+            for r in (await db.execute(select(ReturnItem).where(
+                    ReturnItem.sale_item_id.in_(old_ids), ReturnItem.is_active == True))).scalars().all():  # noqa: E712
+                rets_by_item.setdefault(r.sale_item_id, []).append(r)
+        for sid, src in rows:
+            sources = (src or {}).get("sources", [])
+            legacy = legacy_returns_by_source(sources, rets_by_item[sid]) if sid in rets_by_item else None
+            for idx, s in enumerate(sources):
                 eid = s.get("entry_item_id")
                 if eid in sold:
-                    sold[eid] += int(s.get("quantity_taken", 0)) - int(s.get("quantity_returned", 0))
+                    back = legacy[idx]["returned"] if legacy is not None else int(s.get("quantity_returned", 0))
+                    sold[eid] += int(s.get("quantity_taken", 0)) - back
 
     # peças que estão com a cliente agora (condicional enviado e ainda sem resposta)
     with_customer: Dict[int, int] = {i: 0 for i in ids}

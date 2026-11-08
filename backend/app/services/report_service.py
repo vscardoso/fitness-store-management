@@ -157,7 +157,7 @@ class ReportService:
             ProductVariant.size.label("variant_size"),
             ProductVariant.color.label("variant_color"),
             func.sum(SaleItem.quantity).label("quantity_sold"),
-            func.sum(SaleItem.quantity * SaleItem.unit_price).label("revenue"),
+            func.sum(func.coalesce(SaleItem.subtotal * Sale.total_amount / func.nullif(Sale.subtotal, 0), SaleItem.subtotal)).label("revenue"),
             func.sum(SaleItem.quantity * SaleItem.unit_cost).label("cost"),
         ).join(Sale, SaleItem.sale_id == Sale.id)\
         .outerjoin(ProductVariant, SaleItem.variant_id == ProductVariant.id)\
@@ -248,7 +248,7 @@ class ReportService:
             select(
                 cat_expr.label("name"),
                 func.coalesce(func.sum(SaleItem.quantity), 0).label("pieces"),
-                func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_price), 0).label("rev"),
+                func.coalesce(func.sum(func.coalesce(SaleItem.subtotal * Sale.total_amount / func.nullif(Sale.subtotal, 0), SaleItem.subtotal)), 0).label("rev"),
                 func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cost"),
             )
             .join(Sale, SaleItem.sale_id == Sale.id)

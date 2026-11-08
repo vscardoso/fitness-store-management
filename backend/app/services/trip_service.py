@@ -12,6 +12,7 @@ import json
 from app.models.trip import Trip, TripStatus
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.services import lot_cost_service
+from app.services.stock_flow_service import item_flows
 from app.repositories.trip_repository import TripRepository
 from app.repositories.stock_entry_repository import StockEntryRepository
 from app.repositories.entry_item_repository import EntryItemRepository
@@ -175,9 +176,12 @@ class TripService:
             items = await self.item_repo.get_by_entry(self.db, entry.id, tenant_id)
             total_items += len(items)
             
+            # vendidas = venda real pelas fontes FIFO (mesma fonte do rastreio do lote); peça baixada, perdida ou
+            # excluída NÃO conta como vendida
+            flows = await item_flows(self.db, tenant_id, [i for i in items if i.is_active])
             for item in items:
                 total_quantity_purchased += item.quantity_received
-                total_quantity_sold += (item.quantity_received - item.quantity_remaining)
+                total_quantity_sold += flows.get(item.id, {}).get("sold", 0)
         
         # Calcular sell-through rate
         sell_through_rate = 0.0
@@ -187,46 +191,19 @@ class TripService:
         # Total de custos (viagem + produtos)
         total_cost = float(trip.travel_cost_total) + float(total_invested)
 
-        # Calcular ROI real: receita gerada pelas vendas de produtos desta viagem
-        # Busca o subtotal das SaleItems cujas sale_sources referenciam entradas desta viagem
-        # Receita real: soma dos subtotais de SaleItems cujas fontes FIFO incluem
-        # entradas desta viagem. Parsing feito em Python para compatibilidade SQLite/PostgreSQL.
-        entry_ids_result = await self.db.execute(
-            text("""
-                SELECT id FROM stock_entries
-                WHERE trip_id = :trip_id
-                  AND is_active = true
-                  AND tenant_id = :tid
-            """),
-            {"tid": tenant_id, "trip_id": trip_id},
-        )
-        entry_ids = {row[0] for row in entry_ids_result.fetchall()}
-
+        # Receita real da viagem = soma do "Lucro por lote" das entradas dela (venda paga, líquida de devolução):
+        # mesma conta de StockEntryService.get_entry_analytics, que lê as fontes FIFO de cada venda.
+        from app.services.stock_entry_service import StockEntryService
+        lot_service = StockEntryService(self.db)
         trip_revenue = 0.0
-        if entry_ids:
-            from sqlalchemy import select as sa_select
-            sale_items_result = await self.db.execute(
-                sa_select(SaleItem.subtotal, SaleItem.sale_sources, Sale.subtotal, Sale.total_amount)
-                .join(Sale, SaleItem.sale_id == Sale.id)
-                .where(
-                    Sale.is_active == True,
-                    Sale.status == SaleStatus.COMPLETED,
-                    Sale.tenant_id == tenant_id,
-                    SaleItem.sale_sources.isnot(None),
-                )
-            )
-            for subtotal, sale_sources, sale_subtotal, sale_total in sale_items_result.fetchall():
-                if not sale_sources:
-                    continue
-                try:
-                    sources = json.loads(sale_sources)
-                    if any(src.get("entry_id") in entry_ids for src in sources):
-                        item_net = float(subtotal or 0)
-                        if sale_subtotal and float(sale_subtotal) > 0 and sale_total is not None:
-                            item_net = item_net * float(sale_total) / float(sale_subtotal)   # desconto dado na venda inteira
-                        trip_revenue += item_net
-                except (json.JSONDecodeError, TypeError):
-                    continue
+        for entry in entries:
+            if not entry.is_active:
+                continue
+            full = await self.entry_repo.get_by_id(self.db, entry.id, include_items=True, tenant_id=tenant_id)
+            if not full:
+                continue
+            stats = await lot_service._lot_sales_stats(full, tenant_id=tenant_id)
+            trip_revenue += float(stats["revenue"])
 
         # ROI = (Receita − Custo Total) / Custo Total × 100
         roi = round(((trip_revenue - total_cost) / total_cost * 100), 2) if total_cost > 0 else 0.0

@@ -890,95 +890,22 @@ async def get_top_products(
     start_date, end_date = get_period_dates(period)
     period_start_utc, period_end_utc = get_period_range_utc(start_date, end_date)
 
-    # Buscar itens vendidos no período agrupados por produto
-    top_q = (
-        select(
-            SaleItem.product_id,
-            Product.name.label("product_name"),
-            func.coalesce(func.sum(SaleItem.quantity), 0).label("qty_sold"),
-            func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_price), 0).label("revenue"),
-            func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv"),
-        )
-        .select_from(SaleItem)
-        .join(Sale, SaleItem.sale_id == Sale.id)
-        .join(Product, SaleItem.product_id == Product.id)
-        .where(
-            Sale.tenant_id == tenant_id,
-            Sale.created_at >= period_start_utc,
-            Sale.created_at <= period_end_utc,
-            Sale.is_active == True,
-            SaleItem.is_active == True,
-            Product.is_active == True,
-            # devolvida por inteiro também entra: a devolução abaixo é que abate (mesma regra de money_ledger)
-            Sale.status.in_([SaleStatus.COMPLETED, SaleStatus.PARTIALLY_REFUNDED, SaleStatus.REFUNDED]),
-        )
-        .group_by(SaleItem.product_id, Product.name)
-    )
-
-    res = await db.execute(top_q)
-    rows = res.fetchall()
-
-    # Buscar devoluções do período agrupadas por produto
-    # Baseado na data da devolução, não da venda original
-    returns_q = (
-        select(
-            ReturnItem.product_id,
-            func.coalesce(func.sum(ReturnItem.quantity_returned), 0).label("qty_returned"),
-            # valor de fato devolvido (já com o desconto da venda) e custo só das peças que voltaram ao estoque
-            func.coalesce(func.sum(ReturnItem.refund_amount), 0).label("revenue_returned"),
-            func.coalesce(func.sum(case((ReturnItem.restock == True, ReturnItem.quantity_returned * ReturnItem.unit_cost), else_=0)), 0).label("cmv_returned"),  # noqa: E712
-        )
-        .select_from(ReturnItem)
-        .join(SaleReturn, ReturnItem.return_id == SaleReturn.id)
-        .join(Sale, SaleReturn.sale_id == Sale.id)
-        .where(
-            Sale.status != SaleStatus.CANCELLED,
-            SaleReturn.tenant_id == tenant_id,
-            SaleReturn.created_at >= period_start_utc,
-            SaleReturn.created_at <= period_end_utc,
-            SaleReturn.status == "completed",
-            SaleReturn.is_active == True,
-            ReturnItem.is_active == True,
-        )
-        .group_by(ReturnItem.product_id)
-    )
-
-    res = await db.execute(returns_q)
-    returns_rows = res.fetchall()
-
-    # Criar dict de devoluções por produto
-    returns_by_product = {}
-    for row in returns_rows:
-        returns_by_product[row.product_id] = {
-            "qty_returned": int(row.qty_returned or 0),
-            "revenue_returned": float(row.revenue_returned or 0),
-            "cmv_returned": float(row.cmv_returned or 0),
-        }
-
+    # Conta única (money_ledger): valor pago (desconto da venda rateado), devolução abate no período em que
+    # aconteceu, custo das peças que voltaram abate; devolvida por inteiro some.
+    from app.services.money_ledger import period_by_product
+    ledger = await period_by_product(db, tenant_id, start_date, end_date)
     products = []
-    for row in rows:
-        # Valores de venda
-        qty_sold = int(row.qty_sold or 0)
-        revenue = float(row.revenue or 0)
-        cmv = float(row.cmv or 0)
-        
-        # Subtrair devoluções se houver
-        if row.product_id in returns_by_product:
-            ret = returns_by_product[row.product_id]
-            qty_sold = max(0, qty_sold - ret["qty_returned"])
-            revenue = max(0, revenue - ret["revenue_returned"])
-            cmv = max(0, cmv - ret["cmv_returned"])
-        
-        profit = revenue - cmv
-        margin = (profit / revenue * 100) if revenue > 0 else 0.0
+    for r in ledger:
+        if r["pieces_net"] <= 0 and r["revenue"] <= 0:
+            continue
         products.append({
-            "product_id": row.product_id,
-            "product_name": row.product_name,
-            "qty_sold": qty_sold,
-            "revenue": round(revenue, 2),
-            "cmv": round(cmv, 2),
-            "profit": round(profit, 2),
-            "margin_percent": round(margin, 1),
+            "product_id": r["product_id"],
+            "product_name": r["name"],
+            "qty_sold": r["pieces_net"],
+            "revenue": round(r["revenue"], 2),
+            "cmv": round(r["cost"], 2),
+            "profit": round(r["profit"], 2),
+            "margin_percent": r["margin_percent"],
         })
 
     # Total do período para calcular participação %
@@ -1086,7 +1013,15 @@ async def get_fifo_performance(
 
     # 2. Peças líquidas vendidas (mesma conta do início e dos relatórios)
     ledger = await period_totals(db, tenant_id, None, None)
-    net_sold = max(0, int(ledger.pieces_sold) - int(ledger.pieces_returned))
+    # peça devolvida com DEFEITO não volta ao estoque: continua contando como vendida (o custo dela fica como prejuízo)
+    defective = int((await db.execute(
+        select(func.coalesce(func.sum(ReturnItem.quantity_returned), 0))
+        .join(SaleReturn, SaleReturn.id == ReturnItem.return_id)
+        .join(Sale, Sale.id == SaleReturn.sale_id)
+        .where(SaleReturn.tenant_id == tenant_id, SaleReturn.is_active == True, SaleReturn.status == "completed",  # noqa: E712
+               Sale.status != SaleStatus.CANCELLED, ReturnItem.is_active == True, ReturnItem.restock == False)  # noqa: E712
+    )).scalar() or 0)
+    net_sold = max(0, int(ledger.pieces_sold) - max(int(ledger.pieces_returned) - defective, 0))
     other_out = max(0, total_received - total_remaining - net_sold)
     sell_through_rate = round((net_sold / total_received * 100) if total_received > 0 else 0.0, 1)
 
@@ -1122,7 +1057,8 @@ async def get_fifo_performance(
                 "sell_through": round(e["qty"] / received * 100, 1),
             })
     negative_roi_entries.sort(key=lambda x: x["roi"])
-    avg_margin = round((total_revenue - total_cost) / total_revenue * 100, 1) if total_revenue > 0 else 0.0
+    # margem = a mesma do Início (conta única, money_ledger)
+    avg_margin = round(float(ledger.margin_percent), 1) if ledger.revenue > 0 else 0.0
 
     # 4. Peças paradas: em estoque há mais de 30 dias e sem venda nenhuma nos últimos 30 dias
     corte = date.today() - timedelta(days=STAGNANT_DAYS)

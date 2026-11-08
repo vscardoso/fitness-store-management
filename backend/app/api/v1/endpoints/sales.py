@@ -2,14 +2,15 @@
 Endpoints de vendas - Criação, Listagem e Detalhes.
 """
 from app.core.timezone import br_day_end_utc, br_day_start_utc
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import date
 
 from app.core.database import get_db
 from app.schemas.sale import SaleCreate, SaleResponse, SaleWithDetails
-from app.services.sale_service import SaleService
+from app.services.sale_service import IdempotencyConflictError, SaleNotFoundError, SaleService
 from app.repositories.sale_repository import SaleRepository
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
@@ -32,9 +33,13 @@ async def create_sale(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=80),
 ):
     """
     Criar nova venda.
+
+    Idempotência: com o header `Idempotency-Key` (ou `client_request_id` no corpo), repetir o pedido na mesma loja
+    em até 24 h devolve a venda já criada (mesmo id e número), sem baixar o estoque de novo.
     
     Processo completo em 10 etapas:
     1. Valida estoque disponível para todos os itens
@@ -105,14 +110,27 @@ async def create_sale(
         }
     """
     sale_service = SaleService(db)
-    
+    if idempotency_key and idempotency_key.strip():
+        sale_data.client_request_id = idempotency_key.strip()
+    key = sale_data.client_request_id
+
     try:
         # Criar venda com o usuário atual como vendedor
-        sale = await sale_service.create_sale(
-            sale_data,
-            seller_id=current_user.id,
-            tenant_id=tenant_id,
-        )
+        try:
+            sale = await sale_service.create_sale(
+                sale_data,
+                seller_id=current_user.id,
+                tenant_id=tenant_id,
+            )
+        except IdempotencyConflictError as e:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        except IntegrityError:
+            # Corrida: outro pedido com a mesma chave gravou primeiro (restrição única). Devolve a venda que ganhou.
+            sale = await sale_service.find_replay(key, tenant_id, sale_data) if key else None
+            if sale is None:
+                raise
+        if getattr(sale, "_idempotent_replay", False):
+            return sale
         await AuditService.log(db, "SALE_CREATED",
             tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
             entity="sale", entity_id=sale.id,
@@ -137,6 +155,8 @@ async def create_sale(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except HTTPException:
+        raise
     except Exception as e:
         # Erros inesperados
         raise HTTPException(
@@ -159,6 +179,7 @@ async def list_sales(
     start_date: Optional[date] = Query(None, description="Data inicial (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Data final (YYYY-MM-DD)"),
     sale_number: Optional[str] = Query(None, description="Buscar por número da venda"),
+    status_filter: Optional[SaleStatus] = Query(None, alias="status", description="Filtrar por status da venda"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -192,33 +213,29 @@ async def list_sales(
         - GET /sales?start_date=2025-10-01&end_date=2025-10-31
         
     Note:
-        Se múltiplos filtros forem fornecidos, a prioridade é:
-        1. Período (start_date + end_date)
-        2. Cliente (customer_id)
-        3. Vendedor (seller_id)
-        4. Todos (sem filtro)
+        Os filtros se combinam (E): período (start_date e/ou end_date, dias do Brasil), cliente, vendedor,
+        status e número da venda. skip/limit valem sempre.
     """
     sale_repo = SaleRepository(db)
-    
+
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A data inicial não pode ser depois da data final.",
+        )
+
     try:
-        if sale_number and not (start_date and end_date):
-            # número da venda é único: sem período, busca só ela (antes o filtro era ignorado e vinha a venda mais recente)
-            one = await sale_repo.get_by_sale_number(sale_number, tenant_id=tenant_id)
-            sales = [one] if one else []
-        elif start_date and end_date:
-            sales = await sale_repo.get_by_date_range(
-                start_date, end_date,
-                tenant_id=tenant_id,
-                sale_number=sale_number,
-                skip=skip,
-                limit=limit,
-            )
-        elif customer_id:
-            sales = await sale_repo.get_by_customer(customer_id, tenant_id=tenant_id)
-        elif seller_id:
-            sales = await sale_repo.get_by_seller(seller_id, tenant_id=tenant_id)
-        else:
-            sales = await sale_repo.get_multi(skip=skip, limit=limit, tenant_id=tenant_id, include_relationships=True)
+        sales = await sale_repo.list_filtered(
+            tenant_id=tenant_id,
+            start_date=start_date,
+            end_date=end_date,
+            customer_id=customer_id,
+            seller_id=seller_id,
+            status=status_filter,
+            sale_number=sale_number,
+            skip=skip,
+            limit=limit,
+        )
 
         return sales
         
@@ -570,10 +587,8 @@ async def cancel_sale(
         return sale
         
     except ValueError as e:
-        error_msg = str(e).lower()
-        
-        # Determinar código de status apropriado
-        if "não encontrada" in error_msg or "not found" in error_msg:
+        # 404 pelo TIPO do erro (não pelo texto da mensagem)
+        if isinstance(e, SaleNotFoundError):
             status_code = status.HTTP_404_NOT_FOUND
         else:
             status_code = status.HTTP_400_BAD_REQUEST
@@ -755,56 +770,10 @@ async def get_period_report(
         # Buscar vendas do período
         sales = await sale_repo.get_by_date_range(start_date, end_date, tenant_id=tenant_id)
         
-        # Calcular totais
-        total_sales = sum(float(s.total_amount) for s in sales)
-        active_sales = [s for s in sales if s.status != SaleStatus.CANCELLED]
-        active_total = sum(float(s.total_amount) for s in active_sales)
-        
-        # Breakdown por status
-        status_breakdown = {}
-        for sale in sales:
-            sale_status = sale.status
-            status_breakdown[sale_status] = status_breakdown.get(sale_status, 0) + 1
-        
-        # Top produtos (se implementado no repositório)
-        top_products = []
-        try:
-            top_products_raw = await sale_repo.get_top_products(
-                start_date=start_date,
-                end_date=end_date,
-                limit=10,
-                tenant_id=tenant_id,
-            )
-            top_products = [
-                {
-                    "product_id": p["product_id"],
-                    "product_name": p["product_name"],
-                    "quantity_sold": p["total_quantity"],
-                    "revenue": float(p["total_revenue"])
-                }
-                for p in top_products_raw
-            ]
-        except AttributeError:
-            # Se método não existir, retornar lista vazia
-            pass
-        
-        # Calcular dias no período
-        days_in_period = (end_date - start_date).days + 1
-        
-        return {
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-            "period_days": days_in_period,
-            "total_sales": total_sales,
-            "sales_count": len(sales),
-            "active_sales_count": len(active_sales),
-            "cancelled_sales_count": len(sales) - len(active_sales),
-            "average_ticket": active_total / len(active_sales) if active_sales else 0.0,
-            "daily_average": total_sales / days_in_period if days_in_period > 0 else 0.0,
-            "status_breakdown": status_breakdown,
-            "top_products": top_products
-        }
-        
+        # Conta única (money_ledger): cancelada fora, devolução abate
+        from app.services.sales_period_report_service import period_report
+        return await period_report(db, tenant_id, start_date, end_date, sales)
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1081,138 +1050,15 @@ async def get_top_products(
         period_label = "Todo o período"
 
     try:
-        # Query para buscar top produtos (SQLAlchemy 2.x async)
-        from sqlalchemy import select as sa_select, and_
-        from sqlalchemy.orm import aliased
-
-        conditions = [
-            Sale.status == 'COMPLETED',
-            Sale.is_active == True,
-            SaleItem.is_active == True,
-        ]
-
-        # Filtro de tenant
-        if tenant_id is not None:
-            conditions.append(Sale.tenant_id == tenant_id)
-
-        # Filtro de período
-        if start_date:
-            conditions.append(Sale.created_at >= br_day_start_utc(start_date))
-        if end_date:
-            conditions.append(Sale.created_at < br_day_end_utc(end_date))
-
-        # Usar base_price em vez de Product.price (que agora é uma property)
-        query = (
-            sa_select(
-                Product.id.label('product_id'),
-                SaleItem.variant_id.label('variant_id'),
-                Product.name.label('product_name'),
-                Product.brand,
-                ProductVariant.sku.label('sku'),
-                ProductVariant.size.label('variant_size'),
-                ProductVariant.color.label('variant_color'),
-                Product.base_price.label('current_price'),
-                Category.name.label('category_name'),
-                func.sum(SaleItem.quantity).label('quantity_sold'),
-                # receita = parte do valor PAGO da venda (o desconto dado na venda inteira também conta)
-                func.sum(func.coalesce(SaleItem.subtotal * Sale.total_amount / func.nullif(Sale.subtotal, 0), SaleItem.subtotal)).label('total_revenue'),
-                func.sum(SaleItem.quantity * SaleItem.unit_cost).label('total_cost'),
-            )
-            .select_from(SaleItem)
-            .join(Sale, SaleItem.sale_id == Sale.id)
-            .outerjoin(ProductVariant, SaleItem.variant_id == ProductVariant.id)
-            .join(Product, Product.id == func.coalesce(SaleItem.product_id, ProductVariant.product_id))
-            .outerjoin(Category, Product.category_id == Category.id)
-            .where(and_(*conditions))
-            .group_by(
-                Product.id,
-                SaleItem.variant_id,
-                Product.name,
-                Product.brand,
-                ProductVariant.sku,
-                ProductVariant.size,
-                ProductVariant.color,
-                Product.base_price,
-                Category.name
-            )
-            .order_by(desc('quantity_sold'))
-            .limit(limit)
-        )
-
-        result = await db.execute(query)
-        results = result.all()
-
-        # Calcular totais gerais para porcentagem
-        total_query = (
-            sa_select(
-                func.sum(SaleItem.quantity).label('total_qty'),
-                func.sum(func.coalesce(SaleItem.subtotal * Sale.total_amount / func.nullif(Sale.subtotal, 0), SaleItem.subtotal)).label('total_rev'),
-            )
-            .select_from(SaleItem)
-            .join(Sale, SaleItem.sale_id == Sale.id)
-            .where(and_(*conditions))
-        )
-
-        total_result = await db.execute(total_query)
-        totals = total_result.first()
-        total_quantity = float(totals.total_qty or 0)
-        total_revenue = float(totals.total_rev or 0)
-
-        # Formatar resultados
-        products = []
-        max_quantity = 0
-
-        for idx, row in enumerate(results):
-            quantity = int(row.quantity_sold or 0)
-            revenue = float(row.total_revenue or 0)
-            cost = float(row.total_cost or 0)
-            profit = revenue - cost
-            margin = (profit / revenue * 100) if revenue > 0 else 0
-
-            if quantity > max_quantity:
-                max_quantity = quantity
-
-            variant_label_parts = []
-            if row.variant_color:
-                variant_label_parts.append(str(row.variant_color))
-            if row.variant_size:
-                variant_label_parts.append(str(row.variant_size))
-            variant_label = ' • '.join(variant_label_parts) if variant_label_parts else None
-
-            products.append({
-                "ranking": idx + 1,
-                "product_id": row.product_id,
-                "variant_id": row.variant_id,
-                "product_name": row.product_name,
-                "brand": row.brand or "",
-                "sku": row.sku or "",
-                "variant_size": row.variant_size,
-                "variant_color": row.variant_color,
-                "variant_label": variant_label,
-                "category": row.category_name or "Sem categoria",
-                "current_price": float(row.current_price or 0),
-                "quantity_sold": quantity,
-                "total_revenue": revenue,
-                "total_cost": cost,
-                "total_profit": profit,
-                "profit_margin": round(margin, 1),
-                "share_quantity": round((quantity / total_quantity * 100), 1) if total_quantity > 0 else 0,
-                "share_revenue": round((revenue / total_revenue * 100), 1) if total_revenue > 0 else 0,
-            })
-
-        # Adicionar barra de progresso relativa
-        for product in products:
-            product["progress"] = round((product["quantity_sold"] / max_quantity * 100), 1) if max_quantity > 0 else 0
-
+        # Conta única (money_ledger): venda parcial/totalmente devolvida entra, devolução abate
+        from app.services.sales_period_report_service import top_products_ranking
+        ranking = await top_products_ranking(db, tenant_id, start_date, end_date, limit)
         return {
             "period": period,
             "period_label": period_label,
             "start_date": start_date.isoformat() if start_date else None,
             "end_date": end_date.isoformat() if end_date else None,
-            "total_products": len(products),
-            "total_quantity_sold": int(total_quantity),
-            "total_revenue": total_revenue,
-            "products": products,
+            **ranking,
         }
 
     except Exception as e:
