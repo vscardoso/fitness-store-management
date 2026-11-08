@@ -113,7 +113,8 @@ class ManualTerminalProvider(BaseTerminalProvider):
     ) -> dict:
         """Cancela localmente."""
         await db.execute(
-            update(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
+            update(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id,
+                               Sale.status == SaleStatus.PENDING)
             .values(status=SaleStatus.CANCELLED)
         )
         await db.commit()

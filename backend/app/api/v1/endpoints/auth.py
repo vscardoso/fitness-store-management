@@ -21,7 +21,7 @@ from app.services.signup_service import SignupService
 from app.services.legal_service import client_ip
 from app.api.deps import get_current_active_user, require_role
 from app.core import rate_limit
-from app.services.team_limit import ensure_can_add_user
+from app.services.team_limit import ensure_can_add_user, user_slot_lock
 from app.models.user import UserRole
 from app.models.user import User
 from app.models.store import Store
@@ -63,8 +63,9 @@ async def register(
     auth_service = AuthService(db)
     
     try:
-        await ensure_can_add_user(db, admin.tenant_id)
-        user = await auth_service.register_user(user_data, tenant_id=admin.tenant_id)
+        async with user_slot_lock(db, admin.tenant_id):
+            await ensure_can_add_user(db, admin.tenant_id)
+            user = await auth_service.register_user(user_data, tenant_id=admin.tenant_id)
         return user
     except HTTPException:
         raise
@@ -148,6 +149,10 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuário inativo. Entre em contato com o administrador."
         )
+
+    # loja suspensa pelo admin não entra (a loja 2 nunca é bloqueada)
+    from app.core.store_suspension import ensure_store_not_suspended
+    await ensure_store_not_suspended(db, user.tenant_id)
 
     await rate_limit.aclear_email(credentials.email)
 

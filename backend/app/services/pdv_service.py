@@ -192,11 +192,34 @@ class PDVService:
         return await tp.get_payment_status(db, sale_id, tenant_id)
 
     async def cancel_order(self, db: AsyncSession, sale_id: int, tenant_id: int) -> dict:
+        sale = (await db.execute(
+            select(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if sale is None:
+            raise ValueError("Venda não encontrada.")
+        if sale.status != SaleStatus.PENDING:
+            raise ValueError(
+                "Só dá para cancelar por aqui um pagamento pendente. "
+                "Venda concluída se cancela pelo cancelamento de venda (só administrador), que devolve o estoque."
+            )
         provider = await self._get_sale_provider(db, sale_id, tenant_id)
         tp = get_terminal_provider(provider)
         return await tp.cancel_payment(db, sale_id, tenant_id)
 
     async def refund_order(self, db: AsyncSession, sale_id: int, tenant_id: int) -> dict:
+        sale = (await db.execute(
+            select(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if sale is None:
+            raise ValueError("Venda não encontrada.")
+        if sale.status != SaleStatus.COMPLETED:
+            raise ValueError("Só uma venda concluída e ainda sem devolução pode ser estornada.")
+        if (sale.payment_reference or "").startswith("manual_") or not (sale.payment_reference or ""):
+            # Sem integração: marcar "reembolsada" aqui não devolveria o estoque nem acertaria os pagamentos.
+            raise ValueError(
+                "Para estornar esta venda use Devolução (ou, sendo administrador, "
+                "\"Estornar erro de lançamento\" na venda): lá a peça volta ao estoque e o dinheiro fica certo."
+            )
         provider = await self._get_sale_provider(db, sale_id, tenant_id)
         tp = get_terminal_provider(provider)
         return await tp.refund_payment(db, sale_id, tenant_id)

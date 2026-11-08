@@ -15,7 +15,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
 from app.services.audit_service import AuditService
-from app.services.team_limit import ensure_can_add_user
+from app.services.team_limit import ensure_can_add_user, user_slot_lock
 from app.schemas.user import (
     TeamMemberCreate,
     TeamMemberUpdate,
@@ -126,29 +126,30 @@ async def create_team_member(
         )
 
     repo = UserRepository(db)
-    await ensure_can_add_user(db, current_user.tenant_id)
+    async with user_slot_lock(db, current_user.tenant_id):
+        await ensure_can_add_user(db, current_user.tenant_id)
 
-    # Verificar se email já existe globalmente
-    existing = await repo.get_by_email(member_data.email)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Já existe um usuário com este e-mail (em esta loja ou em outra: o e-mail é único em todo o sistema). Use outro e-mail para este membro."
-        )
+        # Verificar se email já existe globalmente
+        existing = await repo.get_by_email(member_data.email)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Já existe um usuário com este e-mail (em esta loja ou em outra: o e-mail é único em todo o sistema). Use outro e-mail para este membro."
+            )
 
-    # Criar usuário
-    user_dict = {
-        "email": member_data.email,
-        "full_name": member_data.full_name,
-        "phone": member_data.phone,
-        "hashed_password": get_password_hash(member_data.password),
-        "role": member_data.role,
-        "is_active": True,
-    }
+        # Criar usuário
+        user_dict = {
+            "email": member_data.email,
+            "full_name": member_data.full_name,
+            "phone": member_data.phone,
+            "hashed_password": get_password_hash(member_data.password),
+            "role": member_data.role,
+            "is_active": True,
+        }
 
-    new_user = await repo.create_for_tenant(current_user.tenant_id, user_dict)
-    await db.commit()
-    await db.refresh(new_user)
+        new_user = await repo.create_for_tenant(current_user.tenant_id, user_dict)
+        await db.commit()
+        await db.refresh(new_user)
 
     return _user_to_response(new_user)
 
@@ -349,14 +350,15 @@ async def activate_team_member(
         )
 
     repo = UserRepository(db)
-    await ensure_can_add_user(db, current_user.tenant_id)
+    async with user_slot_lock(db, current_user.tenant_id):
+        await ensure_can_add_user(db, current_user.tenant_id)
 
-    success = await repo.activate_in_tenant(user_id, current_user.tenant_id)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Membro da equipe não encontrado"
-        )
+        success = await repo.activate_in_tenant(user_id, current_user.tenant_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Membro da equipe não encontrado"
+            )
 
-    await db.commit()
+        await db.commit()
     return {"message": "Membro reativado com sucesso"}

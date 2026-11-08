@@ -11,6 +11,7 @@ from typing import List
 
 from app.core.database import get_db
 from app.core import rls
+from app.core.store_suspension import ensure_store_not_suspended
 from app.core.config import settings
 from app.repositories.user_repository import UserRepository
 from app.models.user import User, UserRole
@@ -62,8 +63,17 @@ async def get_current_user(
         )
 
         # Extrair user_id do payload
-        user_id: str = payload.get("sub")
+        # Só token de acesso serve aqui (refresh token não)
+        if payload.get("type") != "access":
+            raise credentials_exception
+        user_id = payload.get("sub")
         if user_id is None:
+            raise credentials_exception
+        try:
+            user_id = int(str(user_id))
+        except (TypeError, ValueError):
+            raise credentials_exception
+        if not (0 < user_id < 2**31):
             raise credentials_exception
 
     except ExpiredSignatureError:
@@ -89,6 +99,7 @@ async def get_current_user(
             raise credentials_exception
 
         await rls.set_tenant(db, user.tenant_id)
+        await ensure_store_not_suspended(db, user.tenant_id)   # loja suspensa pelo admin: 403 (a loja 2 nunca é bloqueada)
 
         logger.info(f"User {user_id} authenticated successfully")
         return user

@@ -279,19 +279,43 @@ async def get_loyalty_settings(
     return _loyalty_out(await _get_store(tenant_id, db))
 
 
+class LoyaltySettingsUpdate(BaseModel):
+    """Atualização parcial: só o que vier no corpo muda; o que faltar fica como está."""
+    enabled: Optional[bool] = None
+    spend_per_point: Optional[float] = Field(None, ge=0.01, le=10000)
+    point_value: Optional[float] = Field(None, ge=0, le=1000)
+    min_redeem: Optional[float] = Field(None, ge=0, le=100000)
+    expiry_days: Optional[int] = Field(None, ge=1, le=3650)  # null explícito = não vence
+
+
 @router.put("/loyalty-settings", response_model=LoyaltySettings)
 async def update_loyalty_settings(
-    data: LoyaltySettings,
+    data: LoyaltySettingsUpdate,
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_role([UserRole.ADMIN])),
 ):
+    sent = data.model_fields_set
+    if not sent:
+        raise HTTPException(
+            status_code=422,
+            detail="Envie pelo menos um campo da fidelidade (enabled, spend_per_point, point_value, min_redeem ou expiry_days).",
+        )
+    # campo obrigatório que veio como null não vale (só expiry_days aceita null)
+    for campo in sent - {"expiry_days"}:
+        if getattr(data, campo) is None:
+            raise HTTPException(status_code=422, detail=f"O campo {campo} não pode ser vazio.")
     store = await _get_store(tenant_id, db)
-    store.loyalty_enabled = data.enabled
-    store.loyalty_spend_per_point = Decimal(str(data.spend_per_point))
-    store.loyalty_point_value = Decimal(str(data.point_value))
-    store.loyalty_min_redeem = Decimal(str(data.min_redeem))
-    store.loyalty_expiry_days = data.expiry_days
+    if "enabled" in sent:
+        store.loyalty_enabled = data.enabled
+    if "spend_per_point" in sent:
+        store.loyalty_spend_per_point = Decimal(str(data.spend_per_point))
+    if "point_value" in sent:
+        store.loyalty_point_value = Decimal(str(data.point_value))
+    if "min_redeem" in sent:
+        store.loyalty_min_redeem = Decimal(str(data.min_redeem))
+    if "expiry_days" in sent:
+        store.loyalty_expiry_days = data.expiry_days
     await db.commit()
     return _loyalty_out(store)
 
