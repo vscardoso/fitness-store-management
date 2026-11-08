@@ -131,6 +131,10 @@ async def test_complete_business_flow(db: AsyncSession):
     result = await db.execute(select(Store).where(Store.id == tenant_id))
     store = result.scalar_one()
     assert store.name == "Fitness Pro"
+    # loja NOVA nasce com o programa de fidelidade desligado; a loja deste fluxo liga a regra de 1 ponto a cada R$ 10
+    assert store.loyalty_enabled is False
+    store.loyalty_enabled = True
+    await db.commit()
 
     # ========================================
     # PASSO 2: CATEGORIAS - Criar categorias
