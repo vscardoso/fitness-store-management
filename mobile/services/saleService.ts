@@ -4,6 +4,7 @@
  */
 
 import api from './api';
+import { finishSaleKey, saleKeyFor } from '@/utils/saleIdempotency';
 import type { 
   Sale, 
   SaleCreate, 
@@ -16,7 +17,9 @@ import type {
  */
 export const createSale = async (saleData: SaleCreate): Promise<Sale> => {
   try {
-    const { data } = await api.post<Sale>('/sales/', saleData);
+    // Idempotency-Key: repetir a mesma venda (duplo clique, nova tentativa após erro de rede) devolve a mesma venda
+    const { data } = await api.post<Sale>('/sales/', saleData, { headers: { 'Idempotency-Key': saleKeyFor(saleData) } });
+    finishSaleKey();
     return data;
   } catch (error) {
     throw error;

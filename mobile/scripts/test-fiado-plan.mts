@@ -1,6 +1,6 @@
 // Testes das parcelas do fiado no checkout. Rodar: node scripts/test-fiado-plan.mts
 import assert from 'node:assert/strict';
-import { defaultFirstDue, dueDates, splitAmount } from '../utils/fiadoPlan.ts';
+import { defaultFirstDue, dueDates, maxFiadoInstallments, splitAmount } from '../utils/fiadoPlan.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
@@ -11,6 +11,17 @@ t('parcelas em centavos com a sobra na última (igual ao servidor)', () => {
   assert.deepEqual(splitAmount(429.7, 2), [214.85, 214.85]);
   assert.deepEqual(splitAmount(0.05, 3), [0.01, 0.01, 0.03]);
   assert.equal(splitAmount(1234.56, 7).reduce((a, b) => a + Math.round(b * 100), 0), 123456);
+});
+t('limite de vezes: cada parcela fica com pelo menos R$ 1,00', () => {
+  assert.equal(maxFiadoInstallments(0.5), 1);
+  assert.equal(maxFiadoInstallments(1), 1);
+  assert.equal(maxFiadoInstallments(3.99), 3);
+  assert.equal(maxFiadoInstallments(7), 7);
+  assert.equal(maxFiadoInstallments(500), 12);
+  for (const total of [1, 2.5, 5, 11.99, 12, 100]) {
+    const k = maxFiadoInstallments(total);
+    assert.ok(Math.min(...splitAmount(total, k)) >= 1);
+  }
 });
 t('vencimento mensal no dia 31 cai no último dia do mês', () => {
   assert.deepEqual(dueDates(new Date(2026, 0, 31), 3, 30).map(iso), ['2026-01-31', '2026-02-28', '2026-03-31']);

@@ -44,7 +44,7 @@ import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import { dateToIso } from '@/utils/dateBr';
 import LoyaltyRedeemCard from '@/components/checkout/LoyaltyRedeemCard';
-import { FIADO_INTERVALS, type FiadoInterval, defaultFirstDue, dueDates, splitAmount } from '@/utils/fiadoPlan';
+import { FIADO_INTERVALS, type FiadoInterval, defaultFirstDue, dueDates, maxFiadoInstallments, splitAmount } from '@/utils/fiadoPlan';
 /**
  * Métodos de pagamento disponíveis
  */
@@ -1180,10 +1180,13 @@ export default function CheckoutScreen() {
                   </View>
                   <HScroll showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
                     <View style={styles.installmentChipsRow}>
-                      {installmentOptions.map((opt) => (
+                      {installmentOptions.map((opt) => {
+                        const tooMany = opt.value > maxFiadoInstallments(total);
+                        return (
                         <TouchableOpacity
                           key={opt.value}
-                          style={[styles.installmentChip, fiadoInstallments === opt.value && styles.installmentChipActive]}
+                          disabled={tooMany}
+                          style={[styles.installmentChip, fiadoInstallments === opt.value && styles.installmentChipActive, tooMany && { opacity: 0.4 }]}
                           onPress={() => { setFiadoInstallments(opt.value); haptics.selection(); }}
                         >
                           <Text style={[styles.installmentChipText, fiadoInstallments === opt.value && styles.installmentChipTextActive]}>
@@ -1195,9 +1198,13 @@ export default function CheckoutScreen() {
                             </Text>
                           )}
                         </TouchableOpacity>
-                      ))}
+                        );
+                      })}
                     </View>
                   </HScroll>
+                  {maxFiadoInstallments(total) < 12 && (
+                    <Text style={styles.installmentPickerHint}>Parcela mínima R$ 1,00</Text>
+                  )}
                   {fiadoInstallments > 1 && (
                     <View style={[styles.installmentChipsRow, { marginTop: 10 }]}>
                       {FIADO_INTERVALS.map((iv) => (

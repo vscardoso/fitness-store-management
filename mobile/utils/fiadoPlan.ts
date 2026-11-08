@@ -35,3 +35,12 @@ export function splitAmount(total: number, count: number): number[] {
   const part = Math.floor(cents / count);
   return Array.from({ length: count }, (_, k) => (k === count - 1 ? cents - part * (count - 1) : part) / 100);
 }
+
+/** Menor parcela que o servidor aceita (R$ 1,00). */
+export const FIADO_MIN_INSTALLMENT = 1;
+
+/** Maior número de vezes (até 12) que deixa cada parcela com pelo menos R$ 1,00; sempre pelo menos 1. */
+export function maxFiadoInstallments(total: number, max = 12): number {
+  const cents = Math.round(total * 100);
+  return Math.max(1, Math.min(max, Math.floor(cents / (FIADO_MIN_INSTALLMENT * 100))));
+}

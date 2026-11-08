@@ -146,6 +146,11 @@ export default function ClosingScreen() {
         {!!q.error && <Text style={styles.error}>{parseApiError(q.error)}</Text>}
         {!!data && (
           <>
+            {!!closed && !!closed.expenses_without_account_changed && (
+              <View style={[styles.card, styles.warn]}>
+                <Text style={styles.warnText}>Uma despesa sem conta foi lançada depois do fechamento deste mês.</Text>
+              </View>
+            )}
             {!!closed && closed.changed_since_close !== 0 && (
               <View style={[styles.card, styles.warn]}>
                 <Text style={styles.warnText}>

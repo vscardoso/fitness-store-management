@@ -108,7 +108,8 @@ export const setPixAccount = async (accountId: number): Promise<FinanceOverview>
 
 export const transferBetweenAccounts = async (body: {
   from_account_id: number; to_account_id: number; amount: number; description?: string; occurred_on?: string;
-}): Promise<FinanceOverview> => (await api.post<FinanceOverview>('/finance/transfers', body)).data;
+}): Promise<FinanceOverview & { warning?: string | null }> =>
+  (await api.post<FinanceOverview & { warning?: string | null }>('/finance/transfers', body)).data;
 
 export const listTransfers = async (): Promise<AccountTransfer[]> =>
   (await api.get<AccountTransfer[]>('/finance/transfers', { headers: { 'X-Skip-Loading': 'true' } })).data;
@@ -210,7 +211,7 @@ export interface MonthClosing {
   difference?: number;
   closed: null | {
     id: number; closed_at: string; closed_by_name: string | null; notes: string | null; counted_total: number;
-    difference: number; changed_since_close: number; is_latest: boolean;
+    difference: number; changed_since_close: number; expenses_without_account_changed?: boolean; is_latest: boolean;
   };
 }
 

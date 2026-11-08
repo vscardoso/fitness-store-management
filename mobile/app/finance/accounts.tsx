@@ -49,6 +49,7 @@ export default function AccountsScreen() {
   const [transfer, setTransfer] = useState<{ from: number | null; to: number | null; amount: string; note: string } | null>(null);
   const [newBank, setNewBank] = useState<{ name: string; amount: string } | null>(null);
   const [sheetError, setSheetError] = useState('');
+  const [transferWarning, setTransferWarning] = useState('');
   const [detail, setDetail] = useState<FinanceAccount | null>(null);
 
   const refresh = () => queryClient.invalidateQueries();
@@ -57,7 +58,7 @@ export default function AccountsScreen() {
       from_account_id: transfer!.from!, to_account_id: transfer!.to!, amount: parseMoneyBr(transfer!.amount) ?? 0,
       description: transfer!.note.trim() || undefined,
     }),
-    onSuccess: async () => { setTransfer(null); await refresh(); },
+    onSuccess: async (res) => { setTransfer(null); setTransferWarning(res?.warning || ''); await refresh(); },
     onError: (e) => setSheetError(parseApiError(e) || 'Não foi possível transferir.'),
   });
   const doBank = useMutation({
@@ -87,6 +88,12 @@ export default function AccountsScreen() {
         <ScrollView contentContainerStyle={[styles.content, desktop]}>
           {!!error && <Text style={styles.error}>{parseApiError(error)}</Text>}
           <CashStatusCard />
+        {!!transferWarning && (
+          <View style={[styles.card, styles.warn]}>
+            <Text style={styles.warnText}>{transferWarning}</Text>
+            <Button mode="text" compact onPress={() => setTransferWarning('')} style={styles.left}>Entendi</Button>
+          </View>
+        )}
           <View style={styles.card}>
             <Ionicons name="storefront-outline" size={32} color={brand.primary} />
             <Text style={styles.title}>A loja já funcionava antes do Provador?</Text>
@@ -288,6 +295,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.light.background },
   content: { padding: 16, paddingBottom: 48, gap: 12 },
   card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 8 },
+  warn: { borderColor: Colors.light.warning, backgroundColor: Colors.light.warningLight },
+  warnText: { fontSize: 14, lineHeight: 20, color: Colors.light.text, fontWeight: '700' },
   title: { fontSize: 16, fontWeight: '800', color: Colors.light.text },
   note: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary },
   label: { fontSize: 13, fontWeight: '700', color: Colors.light.textSecondary },
