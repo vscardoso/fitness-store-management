@@ -186,7 +186,14 @@ class EntryItem(BaseModel):
         Returns:
             int: Quantidade vendida (recebida - restante)
         """
-        return self.quantity_received - self.quantity_remaining
+        # tela de detalhe: `attach_flows` (stock_flow_service) põe aqui a venda REAL; sem isso vale recebido - restante
+        ov = self.__dict__.get("_sold_override")
+        return ov if ov is not None else self.quantity_received - self.quantity_remaining
+
+    @property
+    def quantity_removed(self) -> int:
+        """Peças que saíram sem venda (baixa, exclusão de variação, ajuste). Só preenchido pela tela de detalhe da entrada."""
+        return int(self.__dict__.get("_removed_override") or 0)
     
     @property
     def is_depleted(self) -> bool:

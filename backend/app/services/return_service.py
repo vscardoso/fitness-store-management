@@ -21,6 +21,7 @@ from app.schemas.return_schema import (
     ReturnItemResponse,
 )
 from app.services.fifo_service import FIFOService
+from app.services.stock_ledger import stock_reason
 from app.services.inventory_service import InventoryService
 from app.services.loyalty_service import LoyaltyService
 from app.services.stock_lock import lock_stock
@@ -403,7 +404,8 @@ class ReturnService:
                         if livre <= 0:
                             continue
                         voltar = min(livre, remaining_to_return)
-                        await self.fifo_service.item_repo.increase_quantity(self.db, source['entry_item_id'], voltar)
+                        with stock_reason("devolucao", ref=f"sale:{sale_item.sale_id}"):
+                            await self.fifo_service.item_repo.increase_quantity(self.db, source['entry_item_id'], voltar)
                         source['quantity_returned'] = int(source.get('quantity_returned', 0)) + voltar
                         back_cost += Decimal(str(source.get('unit_cost', 0))) * voltar
                         remaining_to_return -= voltar
@@ -574,6 +576,7 @@ class ReturnService:
             rv = l['variant']
             sources = await self.fifo_service.process_sale(
                 product_id=rv.product_id, quantity=l['quantity'], variant_id=rv.id, tenant_id=tenant_id,
+                reason="troca_saida", ref=f"sale:{sale.id}",
             )
             cost = sum((Decimal(str(s['quantity_taken'])) * Decimal(str(s['unit_cost'])) for s in sources), Decimal('0'))
             self.db.add(SaleItem(

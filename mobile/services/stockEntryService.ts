@@ -111,6 +111,44 @@ export async function getStockEntryAnalytics(id: number): Promise<LotAnalytics> 
   return response.data;
 }
 
+export interface EntryTrackingEvent {
+  when: string | null;
+  reason: string;
+  label: string;
+  delta: number;
+  after: number;
+  note?: string | null;
+  reconstructed: boolean;
+}
+
+export interface EntryTrackingRow {
+  item_id: number;
+  product_name?: string | null;
+  variant_label?: string | null;
+  variant_code?: string | null;
+  received: number;
+  sold: number;
+  with_customer: number;
+  removed: number;
+  removed_recorded: number;
+  removed_unrecorded: number;
+  remaining: number;
+  history: EntryTrackingEvent[];
+}
+
+export interface EntryTracking {
+  entry_id: number;
+  entry_code: string;
+  totals: { received: number; sold: number; with_customer: number; removed: number; remaining: number; removed_unrecorded: number; closed: boolean };
+  items: EntryTrackingRow[];
+}
+
+/** Rastreio das peças da entrada: para onde foi cada uma (vendida, com a cliente, saiu sem venda, em estoque). */
+export async function getEntryTracking(id: number): Promise<EntryTracking> {
+  const response = await api.get<EntryTracking>(`${ENTRIES_ENDPOINT}${id}/tracking`, skipLoading());
+  return response.data;
+}
+
 export interface LotCosts {
   entry_id: number;
   merchandise_cost: number;

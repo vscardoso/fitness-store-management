@@ -1069,6 +1069,8 @@ async def get_stock_entry(
             )
 
         logger.info(f"Entrada {entry_id} encontrada com {len(entry.entry_items)} itens")
+        from app.services.stock_flow_service import attach_flows
+        await attach_flows(db, tenant_id, entry)   # vendidas = venda real; o que saiu sem venda vem à parte
         return entry
 
     except HTTPException:
@@ -1082,6 +1084,25 @@ async def get_stock_entry(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar entrada: {str(e)}"
         )
+
+
+@router.get(
+    "/{entry_id}/tracking",
+    summary="Rastreio das peças da entrada",
+    description="Por peça: recebidas, vendidas, com a cliente, saíram sem venda (com o motivo quando há registro) e em estoque",
+)
+async def get_entry_tracking(
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from app.repositories.stock_entry_repository import StockEntryRepository
+    from app.services.stock_flow_service import tracking
+    entry = await StockEntryRepository().get_by_id(db, entry_id, include_items=True, tenant_id=tenant_id)
+    if not entry:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Entrada {entry_id} não encontrada")
+    return await tracking(db, tenant_id, entry)
 
 
 @router.get(

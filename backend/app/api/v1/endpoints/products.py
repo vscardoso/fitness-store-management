@@ -16,7 +16,7 @@ from app.schemas.product import (
     ProductQuantityAdjustRequest,
     ProductQuantityAdjustResponse,
 )
-from app.services.product_service import ProductService
+from app.services.product_service import ProductService, ProductHasEntries
 from app.repositories.product_repository import ProductRepository
 from app.repositories.inventory_repository import InventoryRepository
 from app.repositories.entry_item_repository import EntryItemRepository
@@ -1157,7 +1157,10 @@ async def delete_product(
     try:
         await product_service.delete_product(product_id, tenant_id=tenant_id)
         return None
-        
+
+    except ProductHasEntries as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail={"code": "product_has_entries", "message": str(e), "entries": e.entries})
     except ValueError as e:
         error_msg = str(e).lower()
         

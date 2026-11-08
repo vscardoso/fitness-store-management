@@ -34,6 +34,7 @@ from app.models.base import BaseModel
 import app.models.refresh_token  # noqa: F401 — estende Base diretamente
 import app.models.audit_log       # noqa: F401 — estende Base diretamente
 import app.services.short_code_service  # noqa: F401  (registra o número da etiqueta em variação nova)
+import app.services.stock_ledger  # noqa: F401  (livro de movimentos por lote: registra toda mudança de estoque)
 
 logger = logging.getLogger(__name__)
 

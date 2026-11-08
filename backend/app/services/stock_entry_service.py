@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.stock_ledger import with_stock_reason
 from app.core.timezone import now_brazil, today_brazil
 from app.models.stock_entry import StockEntry, EntryType
 from app.models.entry_item import EntryItem
@@ -1462,6 +1463,7 @@ class StockEntryService:
         # Aplicar paginação
         return performance_list[skip:skip+limit]
 
+    @with_stock_reason("edicao_item")
     async def update_entry_item(
         self,
         item_id: int,
@@ -2564,6 +2566,7 @@ class StockEntryService:
             await self.db.rollback()
             raise
 
+    @with_stock_reason("edicao_item")
     async def correct_entry_item(
         self,
         item_id: int,

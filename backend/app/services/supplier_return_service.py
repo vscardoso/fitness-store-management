@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.entry_item import EntryItem
+from app.services.stock_ledger import stock_reason
 from app.models.sale import SaleItem
 from app.models.sale_return import ReturnItem
 from app.models.stock_entry import EntryType, StockEntry
@@ -78,7 +79,9 @@ class SupplierReturnService:
             entry = (await self.db.execute(select(StockEntry).where(StockEntry.id == item.entry_id))).scalar_one()
 
             if from_stock:
-                item.quantity_remaining -= quantity   # sai do estoque até o fornecedor responder
+                with stock_reason("fornecedor_envio", user_id=user_id, ref=f"entry_item:{item.id}"):
+                    item.quantity_remaining -= quantity   # sai do estoque até o fornecedor responder
+                    await self.db.flush()
 
             sr = SupplierReturn(
                 supplier_id=item.supplier_id or entry.supplier_id, entry_id=entry.id, entry_item_id=item.id,
@@ -155,7 +158,9 @@ class SupplierReturnService:
                 await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
             elif outcome == "rejected":
                 if sr.from_stock:
-                    item.quantity_remaining += sr.quantity   # fornecedor recusou: a peça volta ao estoque
+                    with stock_reason("fornecedor_volta", ref=f"supplier_return:{sr.id}"):
+                        item.quantity_remaining += sr.quantity   # fornecedor recusou: a peça volta ao estoque
+                        await self.db.flush()
             else:
                 raise ValueError("Resultado inválido: use exchanged, credited ou rejected.")
 

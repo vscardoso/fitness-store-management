@@ -23,7 +23,7 @@ function ProductGroupCardBase({ product, onPress }: ProductGroupCardProps) {
   const hasVariants = product.variant_count > 1;
   // zerado que nunca vendeu é só catálogo (regra do Victor): não é "sem estoque"
   const catalogOnly = product.total_stock === 0 && !product.has_sales;
-  const stockText = product.total_stock > 0 ? `${product.total_stock} un.` : catalogOnly ? 'Só catálogo' : 'Sem estoque';
+  const stockText = product.total_stock > 0 ? `${product.total_stock} un.` : catalogOnly ? 'Cadastro guardado' : 'Sem estoque';
   const lowStockThreshold = product.min_stock_threshold ?? 3;
 
   const stockStatus = (() => {

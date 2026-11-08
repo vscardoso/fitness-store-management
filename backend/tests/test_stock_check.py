@@ -108,7 +108,7 @@ async def test_alerta_de_estoque_com_nome_enorme_cabe_na_coluna(async_session, t
     t_id, _token, cat = await _loja_api(async_session, test_user)
     p = await _produto_com_variacoes(async_session, t_id, cat, "N" * 300, [("Preto", "M", 3)])
     pid = p.id
-    async_session.add(Inventory(product_id=pid, quantity=0, min_stock=2, tenant_id=t_id))
+    async_session.add(Inventory(product_id=pid, quantity=1, min_stock=2, tenant_id=t_id))
     await async_session.commit()
     await AppNotificationService().sync_stock_alerts(async_session, t_id)
     await async_session.commit()

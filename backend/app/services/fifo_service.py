@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.entry_item_repository import EntryItemRepository
+from app.services.stock_ledger import stock_reason
 
 
 class FIFOService:
@@ -27,6 +28,21 @@ class FIFOService:
         self.item_repo = EntryItemRepository()
     
     async def process_sale(
+        self,
+        product_id: int,
+        quantity: int,
+        *,
+        variant_id: int | None = None,
+        tenant_id: int | None = None,
+        reason: str = "venda",
+        ref: str | None = None,
+        user_id: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        """Tira as peças dos lotes mais antigos. `reason` é o motivo que vai para o livro do estoque (venda, troca_saida, condicional_envio)."""
+        with stock_reason(reason, ref=ref, user_id=user_id):
+            return await self._process_sale(product_id, quantity, variant_id=variant_id, tenant_id=tenant_id)
+
+    async def _process_sale(
         self,
         product_id: int,
         quantity: int,
@@ -376,6 +392,18 @@ class FIFOService:
         }
     
     async def reverse_sale(
+        self,
+        sources: List[Dict[str, Any]],
+        *,
+        reason: str = "cancelamento_venda",
+        ref: str | None = None,
+        user_id: int | None = None,
+    ) -> bool:
+        """Devolve as peças aos lotes de onde saíram. `reason` vai para o livro do estoque."""
+        with stock_reason(reason, ref=ref, user_id=user_id):
+            return await self._reverse_sale(sources)
+
+    async def _reverse_sale(
         self,
         sources: List[Dict[str, Any]]
     ) -> bool:

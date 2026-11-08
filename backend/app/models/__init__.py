@@ -43,6 +43,7 @@ from .stock_count import StockCount, StockCountItem
 from .cash_register import CashSession, CashMovement
 from .finance import FinancialAccount, AccountTransfer, Payable, AccountEntry, MonthClosing
 from .loyalty import LoyaltyEntry
+from .entry_item_event import EntryItemEvent
 from .receivable import Receivable, ReceivablePayment
 from .entry_supplier_discount import EntrySupplierDiscount
 

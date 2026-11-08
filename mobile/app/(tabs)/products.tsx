@@ -42,6 +42,8 @@ function MobileProductsScreen() {
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
   const [showOnlyWithStock, setShowOnlyWithStock] = useState(false);
+  // cadastros zerados que nunca venderam ficam guardados para a próxima compra: fora da lista, a menos que se peça ou se busque
+  const [showCatalogOnly, setShowCatalogOnly] = useState(false);
   const headerScale = useRef(new Animated.Value(0.94)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslateY = useRef(new Animated.Value(24)).current;
@@ -185,6 +187,11 @@ function MobileProductsScreen() {
       filtered = allProducts.filter((product) => matchesProduct(product, searchQuery));
     }
 
+    // 1.1 cadastro guardado (zerado e nunca vendeu) não aparece na lista; a busca e o botão do rodapé o mostram
+    if (!searchQuery.trim() && !showCatalogOnly) {
+      filtered = filtered.filter((product: any) => !(product.total_stock <= 0 && !product.has_sales));
+    }
+
     // 2. FILTRO DE ESTOQUE
     if (showOnlyWithStock) {
       filtered = filtered.filter((product) => product.total_stock > 0);
@@ -199,7 +206,7 @@ function MobileProductsScreen() {
     }
 
     return filtered;
-  }, [data, allProductsData, searchQuery, showOnlyWithStock, showLowStock]);
+  }, [data, allProductsData, searchQuery, showOnlyWithStock, showLowStock, showCatalogOnly]);
 
   const handleProductPress = useCallback((product: ProductGrouped) => {
     router.push(`/products/${product.id}`);
@@ -303,11 +310,12 @@ function MobileProductsScreen() {
     );
   }
 
+  const keptCount = (data?.pages?.flat() ?? []).filter((p: any) => (p.total_stock ?? 0) <= 0 && !p.has_sales).length;
   const productCount = products?.length || 0;
   // composição do catálogo: o total de cadastros continua visível, mas só quem tem estoque conta como "em estoque"
   const inStockCount = (products ?? []).filter((p: any) => (p.total_stock ?? 0) > 0).length;
   const soldOutCount = (products ?? []).filter((p: any) => (p.total_stock ?? 0) <= 0 && p.has_sales).length;
-  const catalogOnlyCount = productCount - inStockCount - soldOutCount;
+  const catalogOnlyCount = showCatalogOnly ? productCount - inStockCount - soldOutCount : 0;
   const hasActiveFilter = showLowStock || showOnlyWithStock || !!searchQuery.trim();
 
   return (
@@ -323,7 +331,7 @@ function MobileProductsScreen() {
         >
         <PageHeader
           title="Produtos"
-          subtitle={showLowStock ? `${productCount} com estoque baixo` : `${inStockCount} em estoque${soldOutCount ? ` · ${soldOutCount} esgotado(s)` : ''}${catalogOnlyCount ? ` · ${catalogOnlyCount} só catálogo` : ''}`}
+          subtitle={showLowStock ? `${productCount} com estoque baixo` : `${inStockCount} em estoque${soldOutCount ? ` · ${soldOutCount} esgotado(s)` : ''}${catalogOnlyCount ? ` · ${catalogOnlyCount} cadastros guardados` : ''}`}
           rightActions={[
             { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
           ]}
@@ -461,7 +469,15 @@ function MobileProductsScreen() {
           windowSize={7}
           removeClippedSubviews
           ListFooterComponent={
-            isFetchingNextPage ? (
+            !hasNextPage && keptCount > 0 && !searchQuery.trim() ? (
+              <TouchableOpacity onPress={() => setShowCatalogOnly(v => !v)} style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={{ color: brandingColors.primary, fontWeight: '700', textAlign: 'center' }}>
+                  {showCatalogOnly
+                    ? 'Esconder os cadastros sem estoque'
+                    : `${keptCount} cadastro${keptCount !== 1 ? 's' : ''} sem estoque guardado${keptCount !== 1 ? 's' : ''} para a próxima compra. Toque para ver`}
+                </Text>
+              </TouchableOpacity>
+            ) : isFetchingNextPage ? (
               <View style={styles.loadingMore}>
                 <ActivityIndicator size="small" color={brandingColors.primary} />
                 <Text style={styles.loadingMoreText}>Carregando mais...</Text>

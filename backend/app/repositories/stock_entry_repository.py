@@ -513,11 +513,14 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             return False
         
         # Desativar todos os entry_items desta entrada
-        await db.execute(
-            update(EntryItem)
-            .where(EntryItem.entry_id == entry_id)
-            .values(is_active=False, quantity_remaining=0)
-        )
+        # pelo ORM (não UPDATE em massa) para o livro do estoque registrar cada lote que saiu
+        from app.services.stock_ledger import stock_reason
+        itens = (await db.execute(select(EntryItem).where(EntryItem.entry_id == entry_id))).scalars().all()
+        with stock_reason("entrada_excluida", ref=f"entry:{entry_id}", note="entrada excluída"):
+            for it in itens:
+                it.is_active = False
+                it.quantity_remaining = 0
+            await db.flush()
         
         # Desativar a entrada
         entry.is_active = False

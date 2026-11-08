@@ -14,6 +14,7 @@ from app.models.inventory import Inventory, InventoryMovement, MovementType
 from app.models.product_variant import ProductVariant
 from app.models.store import Store
 from app.repositories.entry_item_repository import EntryItemRepository
+from app.services.stock_ledger import stock_reason
 
 REASONS = {"perda": MovementType.DAMAGE, "avaria": MovementType.DAMAGE, "furto": MovementType.DAMAGE, "ajuste": MovementType.ADJUSTMENT}
 
@@ -59,7 +60,7 @@ class StockWriteoffService:
         return {"ok": True, "items": done, "total_pecas": sum(d["quantity"] for d in done)}
 
     async def write_off(self, *, tenant_id: int, user_id: int | None, reason: str, note: str | None,
-                        merged: Dict[int, int], label: str) -> List[Dict[str, Any]]:
+                        merged: Dict[int, int], label: str, ledger_reason: str = "baixa_conferencia") -> List[Dict[str, Any]]:
         """Baixa FIFO (da entrada mais antiga) com movimento de estoque e motivo. Não faz commit: quem chama decide.
         Usada pela conferência e pela exclusão de variação com peças (motivo 'ajuste')."""
         moves: Dict[int, int] = {}  # product_id -> total baixado
@@ -79,7 +80,10 @@ class StockWriteoffService:
                 if left <= 0:
                     break
                 take = min(item.quantity_remaining, left)
-                if not await self.items.decrease_quantity(self.db, item.id, take):
+                with stock_reason(ledger_reason, user_id=user_id, ref=f"variant:{variant_id}",
+                                  note=f"{reason}" + (f": {note.strip()}" if note and note.strip() else "")):
+                    ok = await self.items.decrease_quantity(self.db, item.id, take)
+                if not ok:
                     raise WriteoffError(f"Variação {variant_id}: não foi possível baixar o lote {item.id}.")
                 left -= take
             moves[variant.product_id] = moves.get(variant.product_id, 0) + qty

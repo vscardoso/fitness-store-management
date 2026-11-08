@@ -692,6 +692,7 @@ export interface EntryItemResponse extends EntryItem {
   quantity_remaining: number;
   total_cost: number;
   quantity_sold: number;
+  quantity_removed?: number;
   depletion_percentage: number;
   is_depleted: boolean;
   product_name?: string;

@@ -194,11 +194,29 @@ export default function ProductDetailsScreen() {
       }, 100);
     },
     onError: (error: any) => {
+      const detail = error.response?.data?.detail;
+      // produto com entrada: a exclusão é feita pela entrada (fica registrada), não pela lixeira
+      if (detail && typeof detail === 'object' && detail.code === 'product_has_entries' && Array.isArray(detail.entries) && detail.entries.length) {
+        const entries = detail.entries as { id: number; code: string }[];
+        setDialog({
+          visible: true,
+          type: 'warning',
+          title: 'Este produto tem entrada de estoque',
+          message: `Ele entrou na entrada ${entries.map(e => e.code).join(', ')}. Para tirá-lo, abra a entrada e use "Excluir" no produto (só vale se não vendeu), ou dê baixa na Conferência de Estoque com o motivo. Assim o custo e as peças continuam rastreados.`,
+          confirmText: 'Abrir a entrada',
+          cancelText: 'Agora não',
+          onConfirm: () => {
+            setDialog(d => ({ ...d, visible: false }));
+            router.push(`/entries/${entries[0].id}` as any);
+          },
+        });
+        return;
+      }
       setDialog({
         visible: true,
         type: 'danger',
         title: 'Não foi possível excluir',
-        message: error.response?.data?.detail || error.message || 'Erro ao deletar produto',
+        message: (typeof detail === 'string' ? detail : detail?.message) || error.message || 'Erro ao deletar produto',
         confirmText: 'OK',
         cancelText: '',
         onConfirm: () => setDialog({ ...dialog, visible: false }),
@@ -220,17 +238,13 @@ export default function ProductDetailsScreen() {
    * Confirmar deleção
    */
   const handleDelete = () => {
-    const stock = inventory?.quantity ?? 0;
-    const hasStock = stock > 0;
-
+    // quem decide é o servidor: produto com entrada é levado para a tela da entrada (ver onError acima)
     setDialog({
       visible: true,
-      type: hasStock ? 'warning' : 'danger',
-      title: hasStock ? 'Excluir produto com estoque?' : 'Confirmar exclusão',
-      message: hasStock
-        ? `"${product?.name}" possui ${stock} unidade${stock !== 1 ? 's' : ''} em estoque sem vendas.\n\nO estoque será zerado e o produto excluído. Esta ação não pode ser desfeita.`
-        : `Tem certeza que deseja excluir "${product?.name}"?`,
-      confirmText: hasStock ? 'Sim, excluir e zerar estoque' : 'Excluir',
+      type: 'danger',
+      title: 'Confirmar exclusão',
+      message: `Tem certeza que deseja excluir "${product?.name}"?`,
+      confirmText: 'Excluir',
       cancelText: 'Cancelar',
       onConfirm: () => {
         setDialog({ ...dialog, visible: false });

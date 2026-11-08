@@ -103,6 +103,7 @@ class EntryItemResponse(EntryItemBase):
     # Campos calculados
     total_cost: Decimal = Field(..., description="Custo total (quantity × unit_cost)")
     quantity_sold: int = Field(default=0, description="Quantidade vendida")
+    quantity_removed: int = Field(default=0, description="Saíram sem venda (baixa, exclusão, ajuste)")
     depletion_percentage: float = Field(default=0.0, description="Porcentagem de depleção")
     is_depleted: bool = Field(default=False, description="Se está totalmente esgotado")
 

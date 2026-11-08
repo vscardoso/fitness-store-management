@@ -8,6 +8,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+import os
+os.environ.setdefault("STOCK_LEDGER_STRICT", "1")  # estoque mexido sem motivo derruba o teste (app/services/stock_ledger.py)
+
 from app.main import app
 from app.models.base import BaseModel
 from app import models  # Importa todos os modelos para registrar tabelas no metadata

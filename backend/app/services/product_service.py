@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
+from app.services.stock_ledger import stock_reason
 from app.repositories.inventory_repository import InventoryRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.entry_item_repository import EntryItemRepository
@@ -16,6 +17,14 @@ from app.core.timezone import now_brazil
 
 # Logger global do módulo
 logger = logging.getLogger(__name__)
+
+
+class ProductHasEntries(ValueError):
+    """Produto com entrada de estoque: a exclusão tem que passar pela entrada (ver delete_product)."""
+    def __init__(self, entries):
+        self.entries = entries
+        codes = ", ".join(str(e["code"]) for e in entries[:3])
+        super().__init__(f"Este produto tem entrada de estoque ({codes}). Exclua pela entrada ou dê baixa na Conferência.")
 
 
 class ProductService:
@@ -572,12 +581,14 @@ class ProductService:
                     items = (await self.db.execute(q)).scalars().all()
 
                 remaining = take
-                for it in items:
-                    if remaining <= 0:
-                        break
-                    can_take = min(it.quantity_remaining, remaining)
-                    it.quantity_remaining -= int(can_take)
-                    remaining -= int(can_take)
+                with stock_reason("ajuste_estoque", ref=f"product:{product_id}", note="ajuste manual da quantidade do produto"):
+                    for it in items:
+                        if remaining <= 0:
+                            break
+                        can_take = min(it.quantity_remaining, remaining)
+                        it.quantity_remaining -= int(can_take)
+                        remaining -= int(can_take)
+                    await self.db.flush()
 
                 if remaining > 0:
                     # Não deveria acontecer, pois new_quantity < current_qty
@@ -600,6 +611,23 @@ class ProductService:
             await self.db.rollback()
             raise
     
+    async def _ledger_zero_items(self, product_id: int, tenant_id: int) -> None:
+        """Zera as peças dos lotes do produto pelo ORM (o livro do estoque registra cada lote) antes do UPDATE que os desativa."""
+        from sqlalchemy import or_
+        from app.models.entry_item import EntryItem
+        from app.models.product_variant import ProductVariant
+        items = (await self.db.execute(
+            select(EntryItem).where(
+                EntryItem.tenant_id == tenant_id, EntryItem.is_active == True, EntryItem.quantity_remaining > 0,  # noqa: E712
+                or_(EntryItem.product_id == product_id,
+                    EntryItem.variant_id.in_(select(ProductVariant.id).where(ProductVariant.product_id == product_id))),
+            )
+        )).scalars().all()
+        with stock_reason("produto_excluido", ref=f"product:{product_id}", note="produto excluído com peças em estoque"):
+            for it in items:
+                it.quantity_remaining = 0
+            await self.db.flush()
+
     async def delete_product(self, product_id: int, *, tenant_id: int) -> bool:
         """
         Deleta um produto (soft delete).
@@ -648,6 +676,22 @@ class ProductService:
                 f"{sales_count} venda{'s' if sales_count > 1 else ''} registrada{'s' if sales_count > 1 else ''}."
             )
 
+        # ── 1.1 Produto com entrada não se exclui por aqui (decisão do Victor, 08/11/2026) ──────────────
+        # Excluir o produto zerava as peças e apagava o custo delas do lote sem deixar rastro. O caminho certo é a ENTRADA:
+        # lá "Excluir" (só sem venda) ou a Conferência (baixa com motivo), ambas deixando registro.
+        ent_rows = (await self.db.execute(
+            _text(
+                "SELECT DISTINCT se.id, se.entry_code FROM entry_items ei "
+                "JOIN stock_entries se ON se.id = ei.entry_id "
+                "LEFT JOIN product_variants pv ON pv.id = ei.variant_id "
+                "WHERE (ei.product_id = :pid OR pv.product_id = :pid) AND ei.tenant_id = :tid "
+                "AND ei.is_active = true AND se.is_active = true ORDER BY se.id"
+            ),
+            {"pid": product_id, "tid": tenant_id},
+        )).all()
+        if ent_rows:
+            raise ProductHasEntries([{"id": r[0], "code": r[1]} for r in ent_rows])
+
         # ── 2. Calcular estoque FIFO real ────────────────────────────────────
         fifo_sum_row = await self.db.execute(
             _text(
@@ -690,6 +734,7 @@ class ProductService:
                 f"Produto {product_id}: estoque FIFO={real_stock} sem vendas. "
                 f"Soft-deleting entry_items antes da exclusão."
             )
+            await self._ledger_zero_items(product_id, tenant_id)
             # Soft-delete entry_items diretos (product_id)
             await self.db.execute(
                 _text(

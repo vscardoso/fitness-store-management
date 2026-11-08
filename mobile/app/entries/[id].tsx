@@ -41,6 +41,7 @@ import BottomSheet from '@/components/ui/BottomSheet';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
 import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
+import EntryTrackingCard from '@/components/entries/EntryTrackingCard';
 import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import EmptyState from '@/components/ui/EmptyState';
@@ -116,6 +117,7 @@ export default function StockEntryDetailsScreen() {
   const [addProductOpen, setAddProductOpen] = useState(false);
   const [deleteItemTarget, setDeleteItemTarget] = useState<EntryItemResponse | null>(null);
   const [itemsQuery, setItemsQuery] = useState('');
+  const [showAllSlow, setShowAllSlow] = useState(false);
   const [itemsView, setItemsView] = useState<'original' | 'az' | 'zerados' | 'agrupar'>('original');
   const [editListPrice, setEditListPrice] = useState('');
   // Lançar outra variação (cor/tamanho) de um produto já cadastrado nesta entrada
@@ -485,21 +487,22 @@ export default function StockEntryDetailsScreen() {
    * Calcular best sellers e slow movers
    */
   const analyzeProducts = (items: EntryItemResponse[]) => {
+    // vendido = venda real (o servidor separa o que saiu sem venda); antes era recebido - restante e contava baixa como venda
     const itemsWithDepletion = items.map(item => ({
       ...item,
-      depletionRate: ((item.quantity_received - item.quantity_remaining) / item.quantity_received) * 100,
+      depletionRate: item.quantity_received > 0 ? (item.quantity_sold / item.quantity_received) * 100 : 0,
     }));
 
-    // Best sellers: maior taxa de depleção
+    // Mais vendidos: só quem vendeu de verdade
     const bestSellers = [...itemsWithDepletion]
+      .filter(item => item.quantity_sold > 0)
       .sort((a, b) => b.depletionRate - a.depletionRate)
       .slice(0, 3);
 
-    // Slow movers: menor taxa de depleção e ainda tem estoque
+    // Parados: tem estoque e nunca vendeu; todos, não só 3 (a tela mostra 3 e o resto em "Ver todos")
     const slowMovers = [...itemsWithDepletion]
-      .filter(item => item.quantity_remaining > 0)
-      .sort((a, b) => a.depletionRate - b.depletionRate)
-      .slice(0, 3);
+      .filter(item => item.quantity_remaining > 0 && item.quantity_sold === 0)
+      .sort((a, b) => b.quantity_remaining - a.quantity_remaining);
 
     return { bestSellers, slowMovers };
   };
@@ -857,6 +860,14 @@ export default function StockEntryDetailsScreen() {
             icon="cart-outline"
             valueColor={Colors.light.success}
           />
+          {(entry.entry_items || []).some((i: any) => (i.quantity_removed ?? 0) > 0) && (
+            <StatCard
+              label="Saíram sem venda"
+              value={`${(entry.entry_items || []).reduce((a: number, i: any) => a + (i.quantity_removed ?? 0), 0)}`}
+              icon="log-out-outline"
+              valueColor={Colors.light.warning}
+            />
+          )}
           <StatCard
             label="Já vendido"
             value={`${formatPercent(entry.sell_through_rate, 1)}`}
@@ -903,7 +914,7 @@ export default function StockEntryDetailsScreen() {
                 <Ionicons name="alert-circle-outline" size={20} color={Colors.light.warning} />
                 <Text style={styles.sectionTitle}>Produtos Parados</Text>
               </View>
-              {slowMovers.map((item, index) => (
+              {(showAllSlow ? slowMovers : slowMovers.slice(0, 3)).map((item, index) => (
                 <View key={item.id} style={styles.rankItem}>
                   <View style={[styles.rankBadge, { backgroundColor: Colors.light.warning + '20' }]}>
                     <Ionicons name="alert" size={16} color={Colors.light.warning} />
@@ -911,13 +922,22 @@ export default function StockEntryDetailsScreen() {
                   <View style={styles.rankInfo}>
                     <Text style={styles.rankName}>{item.product_name}</Text>
                     <Text style={styles.rankMetric}>
-                      Restam {item.quantity_remaining} de {item.quantity_received} ({formatPercent(item.depletionRate, 0)} vendido)
+                      Restam {item.quantity_remaining} de {item.quantity_received} (nenhuma vendida)
                     </Text>
                   </View>
                 </View>
               ))}
+              {slowMovers.length > 3 && (
+                <TouchableOpacity onPress={() => setShowAllSlow(v => !v)} style={{ paddingVertical: 8 }}>
+                  <Text style={{ color: Colors.light.primary, fontWeight: '700' }}>
+                    {showAllSlow ? 'Mostrar só 3' : `Ver todos os ${slowMovers.length} parados`}
+                  </Text>
+                </TouchableOpacity>
+              )}
           </View>
         )}
+
+        <EntryTrackingCard entryId={entryId} />
 
         {/* Lista de Produtos */}
         <View style={styles.section}>

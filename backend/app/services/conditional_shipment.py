@@ -125,6 +125,7 @@ class ConditionalShipmentService:
                     quantity=db_item.quantity_sent,
                     variant_id=db_item.variant_id,
                     tenant_id=tenant_id,
+                    reason="condicional_envio",
                 )
                 # Armazenar fontes FIFO para permitir reversão exata ao devolver
                 db_item.fifo_sources = {"sources": fifo_sources}
@@ -269,7 +270,7 @@ class ConditionalShipmentService:
                     sources_to_reverse.append({**src, "quantity_taken": qty_to_restore})
                     returned_qty_remaining -= qty_to_restore
                 if sources_to_reverse:
-                    await fifo_service.reverse_sale(sources_to_reverse)
+                    await fifo_service.reverse_sale(sources_to_reverse, reason="condicional_volta")
             
             total_kept += item_update.quantity_kept
             total_returned += item_update.quantity_returned
@@ -808,7 +809,7 @@ class ConditionalShipmentService:
                     sources_to_reverse.append({**src, "quantity_taken": qty})
                     remaining -= qty
                 if sources_to_reverse:
-                    await fifo_service.reverse_sale(sources_to_reverse)
+                    await fifo_service.reverse_sale(sources_to_reverse, reason="condicional_volta")
 
             shipment = await self.shipment_repo.update_status(
                 db, shipment_id, tenant_id, "CANCELLED", commit=False

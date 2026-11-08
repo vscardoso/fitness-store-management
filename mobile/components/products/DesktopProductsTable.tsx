@@ -69,6 +69,8 @@ export default function DesktopProductsTable() {
       if (stock === 'with' && p.total_stock <= 0) return false;
       if (stock === 'none' && !(p.total_stock <= 0 && p.has_sales)) return false;
       if (stock === 'catalog' && !(p.total_stock <= 0 && !p.has_sales)) return false;
+      // cadastro guardado (zerado, nunca vendeu) só aparece no filtro próprio ou na busca
+      if (stock === 'all' && !search.trim() && p.total_stock <= 0 && !p.has_sales) return false;
       return matchesProduct(p, search, [categoryName.get(p.category_id ?? -1)]);
     });
   }, [products, search, stock, categoryId, categoryName]);
@@ -110,7 +112,7 @@ export default function DesktopProductsTable() {
         const bg = catalogOnly ? '#F3F4F6' : none ? '#FDECF3' : low ? '#FEF3C7' : '#ECFDF5';
         return (
           <View style={[styles.badge, { backgroundColor: bg }]}>
-            <Text style={[styles.badgeText, { color: fg }]}>{catalogOnly ? 'Só catálogo' : none ? 'Sem estoque' : `${p.total_stock} un.`}</Text>
+            <Text style={[styles.badgeText, { color: fg }]}>{catalogOnly ? 'Cadastro guardado' : none ? 'Sem estoque' : `${p.total_stock} un.`}</Text>
           </View>
         );
       },
@@ -133,7 +135,7 @@ export default function DesktopProductsTable() {
   const header = (
     <PageHeader
       title="Produtos"
-      subtitle={`${summary.inStock.toLocaleString('pt-BR')} em estoque (${summary.pieces.toLocaleString('pt-BR')} peças)${summary.none ? ` · ${summary.none} esgotado(s)` : ''}${summary.catalog ? ` · ${summary.catalog} só catálogo` : ''}`}
+      subtitle={`${summary.inStock.toLocaleString('pt-BR')} em estoque (${summary.pieces.toLocaleString('pt-BR')} peças)${summary.none ? ` · ${summary.none} esgotado(s)` : ''}${summary.catalog ? ` · ${summary.catalog} cadastros guardados` : ''}`}
       rightActions={[
         { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
       ]}
@@ -161,11 +163,11 @@ export default function DesktopProductsTable() {
   }
 
   const stockChips: { key: StockFilter; label: string }[] = [
-    { key: 'all', label: `Todos os cadastrados (${summary.total.toLocaleString('pt-BR')})` },
+    { key: 'all', label: `Produtos (${(summary.total - summary.catalog).toLocaleString('pt-BR')})` },
     { key: 'with', label: 'Com estoque' },
     { key: 'low', label: `Estoque baixo (${summary.low})` },
     { key: 'none', label: `Sem estoque (${summary.none})` },
-    { key: 'catalog', label: `Só catálogo (${summary.catalog})` },
+    { key: 'catalog', label: `Cadastros sem estoque (${summary.catalog})` },
   ];
 
   return (

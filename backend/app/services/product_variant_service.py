@@ -441,7 +441,7 @@ class ProductVariantService:
             from app.services.stock_writeoff_service import StockWriteoffService
             await StockWriteoffService(self.db).write_off(
                 tenant_id=tenant_id, user_id=user_id, reason="ajuste", note=f"variação {variant.sku} excluída",
-                merged={variant_id: current_stock}, label="Baixa ao excluir variação",
+                merged={variant_id: current_stock}, label="Baixa ao excluir variação", ledger_reason="variacao_excluida",
             )
             logger.info(f"Variante {variant_id}: baixa FIFO de {current_stock} peça(s) para excluir")
         elif current_stock > 0:
