@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 from app.models.sale import PaymentMethod, SaleStatus
 
@@ -19,18 +19,36 @@ class ProductInSale(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# Tetos de uma venda (iguais aos das telas): acima disso é erro de digitação, não venda
+MAX_MONEY = Decimal("1000000.00")
+MAX_QTY = 10_000
+MAX_LINES = 200
+_MSG_MONEY = "O valor informado é alto demais (o máximo é R$ 1.000.000,00)."
+
+
+def _check_money(v):
+    if v is not None and v > MAX_MONEY:
+        raise ValueError(_MSG_MONEY)
+    return v
+
+
 class SaleItemCreate(BaseModel):
     """Schema for creating a sale item."""
     product_id: int
     variant_id: Optional[int] = None
-    quantity: int = Field(..., gt=0)
-    unit_price: Decimal = Field(..., gt=0)
-    discount_amount: Decimal = Field(default=0, ge=0)
+    quantity: int = Field(..., gt=0, le=MAX_QTY, description="Máximo de 10.000 peças por linha")
+    unit_price: Decimal = Field(..., gt=0, allow_inf_nan=False)
+    discount_amount: Decimal = Field(default=0, ge=0, allow_inf_nan=False)
+
+    @field_validator("unit_price", "discount_amount")
+    @classmethod
+    def _money_cap(cls, v):
+        return _check_money(v)
 
 
 class PaymentCreate(BaseModel):
     """Schema for creating a payment."""
-    amount: Decimal = Field(..., gt=0)
+    amount: Decimal = Field(..., gt=0, allow_inf_nan=False)
     payment_method: PaymentMethod
     payment_reference: Optional[str] = None
     installments: int = Field(default=1, ge=1, le=12)
@@ -38,16 +56,43 @@ class PaymentCreate(BaseModel):
     first_due_date: Optional[date] = None
     interval_days: Optional[int] = Field(default=None, ge=7, le=30)
 
+    @field_validator("amount")
+    @classmethod
+    def _money_cap(cls, v):
+        return _check_money(v)
+
 
 class SaleCreate(BaseModel):
     """Schema for creating a sale."""
     customer_id: Optional[int] = None
     payment_method: PaymentMethod
-    discount_amount: Decimal = Field(default=0, ge=0)
-    tax_amount: Decimal = Field(default=0, ge=0)
+    discount_amount: Decimal = Field(default=0, ge=0, allow_inf_nan=False)
+    tax_amount: Decimal = Field(default=0, ge=0, allow_inf_nan=False)
     notes: Optional[str] = None
-    items: List[SaleItemCreate]
-    payments: List[PaymentCreate]
+    items: List[SaleItemCreate] = Field(..., min_length=1, max_length=MAX_LINES)
+    payments: List[PaymentCreate] = Field(..., max_length=MAX_LINES)
+    # Chave de idempotência (ou o header Idempotency-Key): a mesma chave na mesma loja em 24 h devolve a venda já criada
+    client_request_id: Optional[str] = Field(default=None, max_length=80)
+
+    @field_validator("discount_amount", "tax_amount")
+    @classmethod
+    def _money_cap(cls, v):
+        return _check_money(v)
+
+    @field_validator("client_request_id")
+    @classmethod
+    def _key_clean(cls, v):
+        v = (v or "").strip()
+        return v or None
+
+    @model_validator(mode="after")
+    def _payments_cover_total(self):
+        # pagamentos vazios só valem se a venda for de R$ 0,00 (o servidor confere o total exato depois)
+        if not self.payments:
+            subtotal = sum((i.unit_price * i.quantity - i.discount_amount for i in self.items), Decimal("0"))
+            if subtotal - self.discount_amount + self.tax_amount > 0:
+                raise ValueError("Informe o pagamento da venda.")
+        return self
 
 
 class SaleSourceInfo(BaseModel):

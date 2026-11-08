@@ -1,5 +1,5 @@
 """
-Servio de gerenciamento de vendas.
+Serviço de gerenciamento de vendas.
 """
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -26,15 +26,41 @@ from app.services.stock_lock import lock_stock
 from app.services.loyalty_service import LoyaltyService
 from app.services.receivable_service import ReceivableService
 
+class SaleNotFoundError(ValueError):
+    """Venda inexistente (ou de outra loja): a API responde 404 por este tipo, não pelo texto da mensagem."""
+
+
+class IdempotencyConflictError(Exception):
+    """A mesma Idempotency-Key chegou com conteúdo diferente do da venda que ela já criou (a API responde 409)."""
+
+
+def request_fingerprint(sale_data) -> str:
+    """Resumo (sha256) do que a venda contém: cliente, itens, pagamentos, descontos e impostos."""
+    import hashlib
+    import json
+
+    def m(v):
+        return f"{Decimal(str(v or 0)):.4f}"
+
+    doc = {
+        "c": sale_data.customer_id, "pm": getattr(sale_data.payment_method, "value", sale_data.payment_method),
+        "d": m(sale_data.discount_amount), "t": m(sale_data.tax_amount), "n": sale_data.notes or "",
+        "i": [[i.product_id, i.variant_id, i.quantity, m(i.unit_price), m(i.discount_amount)] for i in sale_data.items],
+        "p": [[getattr(p.payment_method, "value", p.payment_method), m(p.amount), p.installments,
+               str(p.first_due_date or ""), p.interval_days or 0] for p in sale_data.payments],
+    }
+    return hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
 class SaleService:
-    """Servio para operaes de negcio com vendas."""
+    """Serviço para operações de negócio com vendas."""
     
     def __init__(self, db: AsyncSession):
         """
-        Inicializa o servio de vendas.
+        Inicializa o serviço de vendas.
         
         Args:
-            db: Sesso assncrona do banco de dados
+            db: Sessão assíncrona do banco de dados
         """
         self.db = db
         self.sale_repo = SaleRepository(db)
@@ -65,6 +91,41 @@ class SaleService:
                 if ok is None:
                     raise ValueError(f"Variação {item.variant_id} não encontrada para o produto {item.product_id}")
 
+    async def _find_by_key(self, key: str, tenant_id: int, fingerprint: str | None = None) -> Optional[Sale]:
+        """Venda criada com esta chave nas últimas 24 h (chave mais velha é liberada e pode ser usada de novo)."""
+        from datetime import timedelta, timezone
+        from sqlalchemy.orm import selectinload
+        from app.models.product import Product
+
+        old = (await self.db.execute(
+            select(Sale).where(Sale.tenant_id == tenant_id, Sale.idempotency_key == key)
+        )).scalars().first()
+        if old is None:
+            return None
+        created = old.created_at
+        if created is not None and created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if created is not None and datetime.now(timezone.utc) - created > timedelta(hours=24):
+            old.idempotency_key = None
+            await self.db.flush()
+            return None
+        if fingerprint and old.idempotency_hash and old.idempotency_hash != fingerprint:
+            raise IdempotencyConflictError("Esta chave já foi usada em outra venda (com conteúdo diferente). Gere uma chave nova para esta venda.")
+        result = await self.db.execute(
+            select(Sale).options(
+                selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
+                selectinload(Sale.payments), selectinload(Sale.customer), selectinload(Sale.seller),
+            ).where(Sale.id == old.id).execution_options(populate_existing=True)
+        )
+        return result.scalar_one()
+
+    async def find_replay(self, key: str, tenant_id: int, sale_data=None) -> Optional[Sale]:
+        """Usado pela API quando a restrição única barra uma corrida: devolve a venda que ganhou."""
+        sale = await self._find_by_key(key, tenant_id, request_fingerprint(sale_data) if sale_data is not None else None)
+        if sale is not None:
+            sale._idempotent_replay = True
+        return sale
+
     async def create_sale(
         self,
         sale_data: SaleCreate,
@@ -74,10 +135,10 @@ class SaleService:
         keep_pending: bool = False,
     ) -> Sale:
         """
-        Cria uma venda completa com validaes e movimentao de estoque.
+        Cria uma venda completa com validações e movimentação de estoque.
         
         Processo:
-        1. Validar estoque disponvel para TODOS os itens
+        1. Validar estoque disponível para TODOS os itens
         2. Calcular valores (subtotal, descontos, total)
         3. Validar pagamentos
         4. Criar Sale
@@ -96,7 +157,7 @@ class SaleService:
             Sale: Venda criada e finalizada
             
         Raises:
-            ValueError: Se validaes falharem (estoque, pagamento, etc)
+            ValueError: Se validações falharem (estoque, pagamento, etc)
         """
         try:
             # Trava as variações da venda (ordem fixa) antes de ler o saldo: dois pedidos pela mesma peça se enfileiram
@@ -105,6 +166,18 @@ class SaleService:
                 variant_ids=[i.variant_id for i in sale_data.items],
                 product_ids=[i.product_id for i in sale_data.items if not i.variant_id],
             )
+            # Idempotência: a mesma chave na mesma loja em 24 h devolve a venda que já existe (sem baixar estoque de novo).
+            # A consulta fica DEPOIS da trava das variações: o segundo pedido espera o primeiro terminar e então a encontra.
+            key = getattr(sale_data, "client_request_id", None)
+            fp = request_fingerprint(sale_data) if key else None
+            if key:
+                existing = await self._find_by_key(key, tenant_id, fp)
+                if existing is not None:
+                    await self.db.rollback()  # solta as travas (nada foi alterado) e recarrega limpo
+                    existing = await self._find_by_key(key, tenant_id, fp)
+                    if existing is not None:
+                        existing._idempotent_replay = True
+                        return existing
             await self._validate_refs(sale_data, tenant_id)
             # 1. Validar estoque disponível via FIFO (entry_items) para TODOS os itens
             print(f" Validando estoque para {len(sale_data.items)} itens...")
@@ -223,6 +296,8 @@ class SaleService:
                 'loyalty_points_used': float(getattr(sale_data, 'loyalty_points_used', 0) or 0),
                 'loyalty_points_earned': 0,  # Calculado depois
                 'notes': sale_data.notes,
+                'idempotency_key': key,
+                'idempotency_hash': fp,
                 'tenant_id': tenant_id,  # Multi-tenancy
                 'is_active': True
             }
@@ -394,14 +469,14 @@ class SaleService:
         Args:
             sale_id: ID da venda
             reason: Motivo do cancelamento
-            user_id: ID do usurio que est cancelando
+            user_id: ID do usuário que está cancelando
             tenant_id: ID do tenant
             
         Returns:
             Sale: Venda cancelada
             
         Raises:
-            ValueError: Se venda no encontrada ou j cancelada
+            ValueError: Se venda não encontrada ou já cancelada
         """
         try:
             # Trava a venda e as variações dela antes de ler: cancelar e devolver ao mesmo tempo se enfileiram
@@ -416,10 +491,10 @@ class SaleService:
             )
             sale = await self.sale_repo.get(self.db, sale_id, tenant_id=tenant_id)
             if not sale:
-                raise ValueError(f"Venda {sale_id} no encontrada")
+                raise SaleNotFoundError(f"Venda {sale_id} não encontrada")
 
             if sale.status == SaleStatus.CANCELLED.value:
-                raise ValueError("Venda j est cancelada")
+                raise ValueError("Venda já está cancelada")
 
             # Venda que já teve devolução ou troca não é cancelada: o cancelamento apaga a venda inteira das contas,
             # inclusive o crédito que pagou a peça da troca (a cliente ficaria com a peça nova quase de graça).

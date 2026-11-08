@@ -46,6 +46,7 @@ class Sale(BaseModel):
     __tablename__ = "sales"
     __table_args__ = (
         UniqueConstraint('tenant_id', 'sale_number', name='uq_sales_tenant_number'),
+        UniqueConstraint('tenant_id', 'idempotency_key', name='uq_sales_tenant_idem_key'),
     )
     
     # Informações da venda
@@ -56,6 +57,18 @@ class Sale(BaseModel):
         comment="Unique sale number per tenant"
     )
     
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(80),
+        nullable=True,
+        comment="Chave de idempotência enviada pelo app (única por loja; nula = sem chave)"
+    )
+
+    idempotency_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="Resumo (sha256) do conteúdo da venda que usou a chave: mesma chave com conteúdo diferente = 409"
+    )
+
     status: Mapped[SaleStatus] = mapped_column(
         SQLEnum(SaleStatus),
         default=SaleStatus.PENDING,

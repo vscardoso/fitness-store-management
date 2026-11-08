@@ -109,6 +109,55 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         result = await self.db.execute(query)
         return result.scalars().all()
     
+    async def list_filtered(
+        self,
+        *,
+        tenant_id: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        customer_id: int | None = None,
+        seller_id: int | None = None,
+        status: SaleStatus | str | None = None,
+        sale_number: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> Sequence[Sale]:
+        """Lista vendas combinando TODOS os filtros recebidos (E) com paginação.
+
+        Dias pelo fuso do Brasil (mesma regra do money_ledger). Mais recente primeiro; o id desempata."""
+        conditions = [Sale.is_active == True]
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+        if start_date is not None:
+            conditions.append(Sale.created_at >= br_day_start_utc(start_date))
+        if end_date is not None:
+            conditions.append(Sale.created_at < br_day_end_utc(end_date))
+        if customer_id is not None:
+            conditions.append(Sale.customer_id == customer_id)
+        if seller_id is not None:
+            conditions.append(Sale.seller_id == seller_id)
+        if status is not None:
+            conditions.append(Sale.status == (status.value if isinstance(status, SaleStatus) else status))
+        if sale_number:
+            # número exato, sem diferenciar caixa (o texto do usuário nunca vira curinga)
+            conditions.append(func.lower(Sale.sale_number) == sale_number.strip().lower())
+        query = (
+            select(Sale)
+            .where(and_(*conditions))
+            .order_by(desc(Sale.created_at), desc(Sale.id))
+            .offset(skip)
+            .limit(limit)
+            .options(
+                selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
+                selectinload(Sale.payments),
+                selectinload(Sale.returns),
+                selectinload(Sale.customer),
+                selectinload(Sale.seller),
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
     async def get_by_customer(
         self,
         customer_id: int,
