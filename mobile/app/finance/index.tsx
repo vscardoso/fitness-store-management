@@ -13,6 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import CashStatusCard from '@/components/cash/CashStatusCard';
 import FiadoProjectionCard from '@/components/finance/FiadoProjectionCard';
+import CardScheduleCard from '@/components/finance/CardScheduleCard';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -95,6 +96,7 @@ export default function FinanceHomeScreen() {
               ))}
               <Button mode="outlined" icon="swap-horizontal" style={styles.left} onPress={() => go('/finance/accounts')}>Ver contas e transferir</Button>
             </View>
+            {!!data.card_schedule && <CardScheduleCard schedule={data.card_schedule} />}
             {!!p && <FiadoProjectionCard projection={p} />}
 
             <Text style={styles.question}>2. O que vai entrar e sair?</Text>

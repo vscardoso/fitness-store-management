@@ -13,6 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import CashStatusCard from '@/components/cash/CashStatusCard';
 import FiadoProjectionCard from '@/components/finance/FiadoProjectionCard';
+import CardScheduleCard from '@/components/finance/CardScheduleCard';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -25,7 +26,7 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import {
-  addBankAccount, deleteTransfer, getFinanceOverview, listPayables, listTransfers, setPixAccount, transferBetweenAccounts,
+  addBankAccount, deleteTransfer, getFinanceOverview, listTransfers, setPixAccount, transferBetweenAccounts,
   type AccountTransfer, type FinanceAccount,
 } from '@/services/financeService';
 
@@ -43,10 +44,6 @@ export default function AccountsScreen() {
   const { user } = useAuth();
   const admin = isAdminRole(user?.role);
   const { data, isLoading, refetch, isRefetching, error } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
-  const { data: payables } = useQuery({
-    queryKey: ['finance-payables', 'open'], queryFn: () => listPayables('open'), enabled: !!data?.started,
-  });
-
   const { data: transfers } = useQuery({ queryKey: ['finance-transfers'], queryFn: listTransfers, enabled: !!data?.started });
   const [removing, setRemoving] = useState<AccountTransfer | null>(null);
   const [transfer, setTransfer] = useState<{ from: number | null; to: number | null; amount: string; note: string } | null>(null);
@@ -113,8 +110,6 @@ export default function AccountsScreen() {
   const accounts = data.accounts;
   const name = (id: number | null) => accounts.find((a) => a.id === id)?.name ?? 'Escolha';
   const openTransfer = (from: number | null, to: number | null) => { setSheetError(''); setTransfer({ from, to, amount: '', note: '' }); };
-  const card = accounts.find((a) => a.kind === 'card');
-  const pixBank = accounts.find((a) => a.receives_pix);
 
   return (
     <View style={styles.container}>
@@ -126,12 +121,10 @@ export default function AccountsScreen() {
           <Text style={[styles.total, data.total < 0 && { color: Colors.light.error }]}>{formatCurrency(data.total)}</Text>
           <View style={styles.actions}>
             <Button mode="contained" buttonColor={brand.primary} icon="swap-horizontal" onPress={() => openTransfer(null, null)}>Transferir</Button>
-            {!!card && !!pixBank && card.balance > 0 && (
-              <Button mode="outlined" onPress={() => openTransfer(card.id, pixBank.id)}>Repasse da maquininha</Button>
-            )}
           </View>
         </View>
 
+        {!!data.card_schedule && <CardScheduleCard schedule={data.card_schedule} />}
         {!!data.projection && <FiadoProjectionCard projection={data.projection} />}
 
         <View style={styles.grid}>
@@ -157,37 +150,6 @@ export default function AccountsScreen() {
             Nova conta de banco
           </Button>
         )}
-
-        <View style={styles.grid}>
-          <TouchableOpacity style={styles.account} onPress={() => router.push('/finance/closing' as any)} activeOpacity={0.8} accessibilityRole="button">
-            <View style={styles.accountHead}>
-              <Ionicons name="calendar-outline" size={22} color={brand.primary} />
-              <Text style={[styles.title, { flex: 1 }]}>Fechamento do mês</Text>
-              <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-            </View>
-            <Text style={styles.note}>Deveria ter x quanto tem: o dinheiro bate?</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.account} onPress={() => router.push('/finance/entries' as any)} activeOpacity={0.8} accessibilityRole="button">
-            <View style={styles.accountHead}>
-              <Ionicons name="swap-vertical-outline" size={22} color={brand.primary} />
-              <Text style={[styles.title, { flex: 1 }]}>Retiradas e empréstimos</Text>
-              <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-            </View>
-            <Text style={styles.note}>Retirada de sócio, empréstimo, fatura do cartão</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.card} onPress={() => router.push('/finance/payables' as any)} activeOpacity={0.8} accessibilityRole="button">
-          <View style={styles.accountHead}>
-            <Ionicons name="receipt-outline" size={22} color={brand.primary} />
-            <Text style={[styles.title, { flex: 1 }]}>Despesas a pagar</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-          </View>
-          <Text style={styles.note}>Em aberto: {formatCurrency(payables?.open_total ?? 0)}</Text>
-          {!!payables?.overdue_count && (
-            <Text style={styles.overdue}>{payables.overdue_count} vencida(s): {formatCurrency(payables.overdue_total)}</Text>
-          )}
-        </TouchableOpacity>
 
         {!!transfers?.length && (
           <View style={styles.card}>
@@ -219,7 +181,7 @@ export default function AccountsScreen() {
         visible={!!transfer}
         onDismiss={() => setTransfer(null)}
         title="Transferir entre contas"
-        subtitle="Ex.: depósito da gaveta no banco, repasse da maquininha"
+        subtitle="Ex.: depósito da gaveta no banco. O dinheiro do cartão se repassa em “Fazer repasse”"
         icon="swap-horizontal"
         actions={[{
           label: 'Transferir', variant: 'primary', loading: doTransfer.isPending,
@@ -232,7 +194,7 @@ export default function AccountsScreen() {
             {!!sheetError && <Text style={styles.error}>{sheetError}</Text>}
             <Text style={styles.label}>De: {name(transfer.from)}</Text>
             <View style={styles.chips}>
-              {accounts.map((a) => (
+              {accounts.filter((a) => a.kind !== 'card').map((a) => (
                 <Chip key={a.id} text={a.name} on={transfer.from === a.id} color={brand.primary}
                   onPress={() => setTransfer({ ...transfer, from: a.id, to: transfer.to === a.id ? null : transfer.to })} />
               ))}

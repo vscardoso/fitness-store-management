@@ -10,7 +10,7 @@ contas a pagar. Regras e fórmula do saldo em `app/models/finance.py`.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional
 
@@ -30,7 +30,7 @@ from app.models.sale_return import SaleReturn
 from app.models.store import Store
 from app.models.supplier import Supplier
 from app.models.user import User
-from app.services.money_ledger import VALID_STATUS
+from app.services.money_ledger import VALID_STATUS, br_day
 
 D0 = Decimal("0.00")
 MAX_AMOUNT = Decimal("10000000")
@@ -44,6 +44,22 @@ METHOD_TO_KIND = {
     PaymentMethod.DEBIT_CARD.value: KIND_CARD,
     PaymentMethod.INSTALLMENTS.value: KIND_CARD,
 }
+CARD_FEE_CATEGORY = "Taxa da maquininha"
+CARD_RULE_TEXT = "Cartão cai no próximo dia útil: venda de segunda a quinta cai no dia seguinte; sexta, sábado e domingo caem na segunda."
+
+
+def card_expected_date(sale_day: date) -> date:
+    """Dia em que o cartão cai no banco: segunda a quinta no dia seguinte; sexta, sábado e domingo na segunda (feriado não conta)."""
+    wd = sale_day.weekday()          # 0 = segunda
+    if wd <= 3:
+        return sale_day + timedelta(days=1)
+    if wd == 4:
+        return sale_day + timedelta(days=3)
+    if wd == 5:
+        return sale_day + timedelta(days=2)
+    return sale_day + timedelta(days=1)   # domingo
+
+
 KIND_LABEL = {KIND_CASH: "Gaveta", KIND_BANK: "Banco", KIND_CARD: "Maquininha a receber"}
 
 
@@ -316,6 +332,119 @@ class FinanceService:
             "after_paying_everything": float(_q(now + open_fiado - to_pay)),
         }
 
+    # ── maquininha: quando cai no banco e repasse com taxa ───────────────────
+    async def card_schedule(self, tenant_id: int) -> Optional[Dict[str, Any]]:
+        """Previsão de quando o dinheiro do cartão cai no banco (regra: próximo dia útil). É só previsão: o repasse real
+        é lançado pela pessoa, olhando o extrato. O que já foi repassado (e a taxa) abate primeiro o saldo anterior e depois
+        os dias mais antigos; devolução no cartão abate os dias mais novos."""
+        store = await self._store(tenant_id)
+        if store.finance_start_date is None:
+            return None
+        accs = await self._accounts(tenant_id)
+        card = next((a for a in accs if a.kind == KIND_CARD), None)
+        if card is None:
+            return None
+        f = await self.flows(tenant_id, store.finance_start_date)
+        b = f["by_account"][card.id]
+        balance = _q(_q(card.opening_balance) + self.net(b))
+        methods = [PaymentMethod(m) for m, k in METHOD_TO_KIND.items() if k == KIND_CARD]
+        rows = (await self.db.execute(
+            select(Payment.created_at, Payment.amount).join(Sale, Sale.id == Payment.sale_id).where(
+                Sale.tenant_id == tenant_id, Sale.status.in_(VALID_STATUS),
+                Payment.created_at >= day_start_utc(store.finance_start_date),
+                Payment.status == "confirmed", Payment.is_active == True, Payment.payment_method.in_(methods),  # noqa: E712
+            )
+        )).all()
+        by_day: Dict[date, Decimal] = {}
+        for created, amount in rows:
+            d = card_expected_date(br_day(created))
+            by_day[d] = by_day.get(d, D0) + _q(amount)
+        # devolução no cartão: abate os dias mais novos
+        refund = _q(b["refunds"])
+        for d in sorted(by_day, reverse=True):
+            if refund <= 0:
+                break
+            cut = min(by_day[d], refund)
+            by_day[d] -= cut
+            refund -= cut
+        # o que já saiu da linha (repasse, taxa, outras saídas) abate primeiro o saldo anterior e depois os dias mais antigos
+        out = _q(b["transfers_out"] + b["expenses_paid"] + b["payables_paid"] + b["other_out"])
+        previous = _q(card.opening_balance)
+        cut = min(previous, out)
+        previous -= cut
+        out -= cut
+        for d in sorted(by_day):
+            if out <= 0:
+                break
+            cut = min(by_day[d], out)
+            by_day[d] -= cut
+            out -= cut
+        items_total = sum((v for v in by_day.values() if v > 0), D0)
+        previous = _q(balance - items_total)          # o que sobra do saldo é "anterior" (inclui lançamentos avulsos)
+        today = today_brazil()
+        names = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+        items = [{"expected_on": d.isoformat(), "weekday": names[d.weekday()], "amount": float(_q(v)),
+                  "status": "overdue" if d < today else "today" if d == today else "future"}
+                 for d, v in sorted(by_day.items()) if _q(v) > 0]
+        due_now = _q(max(previous, D0) + sum((Decimal(str(i["amount"])) for i in items if i["status"] != "future"), D0))
+        pix = next((a for a in accs if a.receives_pix), None) or next((a for a in accs if a.kind == KIND_BANK), None)
+        return {"account_id": card.id, "balance": float(balance), "previous": float(previous), "items": items,
+                "due_now": float(due_now), "bank_account_id": pix.id if pix else None, "bank_name": pix.name if pix else None,
+                "rule": CARD_RULE_TEXT}
+
+    async def _fee_category_id(self, tenant_id: int) -> int:
+        from app.models.expense import ExpenseCategory
+        found = (await self.db.execute(select(ExpenseCategory.id).where(
+            ExpenseCategory.name == CARD_FEE_CATEGORY, ExpenseCategory.is_active == True,  # noqa: E712
+            or_(ExpenseCategory.tenant_id == tenant_id, ExpenseCategory.tenant_id.is_(None)),
+        ).order_by(ExpenseCategory.tenant_id.is_not(None).desc()))).scalars().first()
+        if found:
+            return found
+        cat = ExpenseCategory(name=CARD_FEE_CATEGORY, color="#64748b", icon="card-outline", tenant_id=tenant_id)
+        self.db.add(cat)
+        await self.db.flush()
+        return cat.id
+
+    async def settle_card(self, tenant_id: int, user: User, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Repasse da maquininha: `gross` = valor das vendas que saem da linha do cartão, `received` = o que caiu no banco.
+        Se a loja repassa a taxa para a cliente, received costuma ser igual a gross. Qualquer diferença (gross - received)
+        vira a despesa "Taxa da maquininha", paga pela linha do cartão (entra no resultado do mês)."""
+        store = await self._require_started(tenant_id)
+        accs = await self._accounts(tenant_id)
+        card = next((a for a in accs if a.kind == KIND_CARD), None)
+        if card is None:
+            raise FinanceError("Esta loja não tem a conta da maquininha.")
+        dst_id = data.get("to_account_id")
+        dst = await self._account(tenant_id, int(dst_id)) if dst_id else (
+            next((a for a in accs if a.receives_pix), None) or next((a for a in accs if a.kind == KIND_BANK), None))
+        if dst is None or dst.kind != KIND_BANK:
+            raise FinanceError("Escolha o banco onde o dinheiro caiu.")
+        gross = money(data.get("gross"), "Valor das vendas")
+        received = money(data.get("received"), "Valor que caiu no banco")
+        if received > gross:
+            raise FinanceError("O valor que caiu no banco não pode ser maior que o das vendas.")
+        day = parse_day(data.get("occurred_on") or today_brazil(), "Data")
+        if day < store.finance_start_date:
+            raise FinanceError("A data não pode ser antes de quando o app começou a contar.")
+        await self.ensure_open_month(tenant_id, day)
+        await self._store(tenant_id, lock=True)     # dois repasses juntos não passam do saldo
+        bal = await self.balances(tenant_id)
+        have = Decimal(str(next(a["balance"] for a in bal["accounts"] if a["id"] == card.id)))
+        if gross > have:
+            raise FinanceError(f"A maquininha tem só R$ {have:.2f} a receber.".replace(".", ","))
+        fee = _q(gross - received)
+        t = AccountTransfer(
+            tenant_id=tenant_id, from_account_id=card.id, to_account_id=dst.id, occurred_on=day, amount=received,
+            created_by_name=_who(user), description="Repasse da maquininha")
+        self.db.add(t)
+        await self.db.flush()
+        if fee > 0:
+            self.db.add(Expense(
+                tenant_id=tenant_id, amount=fee, description="Taxa da maquininha", expense_date=day, account_id=card.id,
+                category_id=await self._fee_category_id(tenant_id), notes=f"repasse:{t.id}"))
+        await self.db.commit()
+        return {"fee": float(fee), "balances": await self.balances(tenant_id), "card": await self.card_schedule(tenant_id)}
+
     # ── implantação ─────────────────────────────────────────────────────────
     async def setup(self, tenant_id: int, user: User, data: Dict[str, Any]) -> Dict[str, Any]:
         """Grava tudo ou nada: data de corte, gaveta, bancos, maquininha a receber e contas a pagar que já existem."""
@@ -566,6 +695,9 @@ class FinanceService:
         await self.ensure_open_month(tenant_id, t.occurred_on)
         t.is_active = False
         self.db.add(t)
+        await self.db.execute(update(Expense).where(
+            Expense.tenant_id == tenant_id, Expense.notes == f"repasse:{t.id}", Expense.is_active == True,  # noqa: E712
+        ).values(is_active=False))
         await self.db.commit()
         return await self.balances(tenant_id)
 

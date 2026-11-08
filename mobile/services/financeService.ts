@@ -27,7 +27,18 @@ export interface FinanceOverview {
   total: number;
   /** Suposição "e se eu receber o fiado?" (nada é gravado). Só vem depois da implantação. */
   projection?: FinanceProjection;
+  /** Maquininha: quando o cartão cai no banco (previsão por dia útil). */
+  card_schedule?: CardSchedule | null;
 }
+
+export interface CardScheduleItem { expected_on: string; weekday: string; amount: number; status: 'overdue' | 'today' | 'future' }
+export interface CardSchedule {
+  account_id: number; balance: number; previous: number; items: CardScheduleItem[]; due_now: number;
+  bank_account_id: number | null; bank_name: string | null; rule: string;
+}
+
+export const settleCard = async (body: { gross: number; received: number; occurred_on?: string }): Promise<{ fee: number }> =>
+  (await api.post('/finance/card-settlement', body)).data;
 
 export interface FinanceProjection {
   money_now: number;

@@ -29,7 +29,26 @@ async def accounts(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(
         data = await svc.balances(tenant_id)
         if data.get("started"):
             data["projection"] = await svc.projection(tenant_id, data)
+            data["card_schedule"] = await svc.card_schedule(tenant_id)
         return data
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.get("/card-schedule", summary="Maquininha: quando o dinheiro do cartão cai no banco (previsão)")
+async def card_schedule(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+                        current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).card_schedule(tenant_id)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.post("/card-settlement", summary="Repasse da maquininha para o banco, com a taxa")
+async def card_settlement(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).settle_card(tenant_id, current_user, data)
     except FinanceError as e:
         raise _http(e)
 
