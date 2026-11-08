@@ -149,6 +149,42 @@ export async function getEntryTracking(id: number): Promise<EntryTracking> {
   return response.data;
 }
 
+export type RemovalReason =
+  | 'baixa_conferencia' | 'variacao_excluida' | 'produto_excluido' | 'entrada_excluida' | 'ajuste_estoque' | 'baixa_sem_registro';
+
+export interface StockRemoval {
+  id: number;
+  when: string | null;
+  reason: RemovalReason;
+  label: string;
+  quantity: number;
+  product_id: number | null;
+  product_name: string;
+  variant_label: string | null;
+  variant_code: string | null;
+  entry_id: number | null;
+  entry_code: string | null;
+  unit_cost: number | string;
+  cost_total: number | string;
+  user_name: string | null;
+  note: string | null;
+  reconstructed: boolean;
+}
+
+export interface StockRemovals {
+  totals: { pieces: number; cost: number | string; by_reason: Record<string, { label: string; pieces: number }> };
+  total_count: number;
+  items: StockRemoval[];
+}
+
+/** Peças que saíram do estoque sem venda (baixa, exclusão, ajuste), com motivo, quem fez e o custo. */
+export async function getStockRemovals(params: {
+  start_date?: string; end_date?: string; reason?: string; entry_id?: number; limit?: number; skip?: number;
+}): Promise<StockRemovals> {
+  const response = await api.get<StockRemovals>(`${ENTRIES_ENDPOINT}removals`, { ...skipLoading(), params });
+  return response.data;
+}
+
 export interface LotCosts {
   entry_id: number;
   merchandise_cost: number;

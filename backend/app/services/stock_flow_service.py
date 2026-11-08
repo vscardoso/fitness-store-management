@@ -169,3 +169,95 @@ async def attach_flows_many(db: AsyncSession, tenant_id: int, entries) -> None:
         f = flows[i.id]
         i.__dict__["_sold_override"] = f["sold"] + f["with_customer"]
         i.__dict__["_removed_override"] = f["removed"]
+
+
+REMOVAL_FILTER_REASONS = sorted(REMOVAL_REASONS)
+
+
+def _money(v) -> str:
+    from decimal import Decimal, ROUND_HALF_UP
+    return str(Decimal(str(v or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+async def removals(
+    db: AsyncSession, tenant_id: int, *, start_date=None, end_date=None, reason: str | None = None,
+    entry_id: int | None = None, limit: int = 50, skip: int = 0,
+) -> Dict[str, Any]:
+    """Tudo que saiu do estoque SEM ser venda (baixa, exclusão, ajuste), de todas as entradas da loja, vindo do livro
+    `entry_item_events` (delta < 0, motivos de REMOVAL_REASONS). Totais valem para o filtro inteiro, não só para a página.
+    Custo = custo posto (mercadoria + rateio) x peças. `baixa_sem_registro` volta sem data (a do backfill engana)."""
+    from sqlalchemy import case, func
+    from sqlalchemy.orm import selectinload
+    from app.core.timezone import br_day_end_utc, br_day_start_utc
+    from app.models.product_variant import ProductVariant
+    from app.models.stock_entry import StockEntry
+    from app.models.user import User
+
+    E = EntryItemEvent
+    conds = [E.tenant_id == tenant_id, E.reason.in_(REMOVAL_REASONS), E.delta < 0, EntryItem.tenant_id == tenant_id]
+    if reason:
+        conds.append(E.reason == reason)
+    if entry_id is not None:
+        conds.append(EntryItem.entry_id == entry_id)
+    if start_date:
+        conds += [E.reason != "baixa_sem_registro", E.created_at >= br_day_start_utc(start_date)]
+    if end_date:
+        conds += [E.reason != "baixa_sem_registro", E.created_at < br_day_end_utc(end_date)]
+    base = select(E.id).join(EntryItem, EntryItem.id == E.entry_item_id).where(*conds)
+
+    # totais do filtro inteiro
+    pieces_expr = -E.delta
+    agg = (await db.execute(
+        select(E.reason, func.coalesce(func.sum(pieces_expr), 0),
+               func.coalesce(func.sum(pieces_expr * (EntryItem.unit_cost + func.coalesce(EntryItem.extra_unit_cost, 0))), 0),
+               func.count(E.id))
+        .join(EntryItem, EntryItem.id == E.entry_item_id).where(*conds).group_by(E.reason))).all()
+    by_reason = {r: {"label": REASONS.get(r, r), "pieces": int(p)} for r, p, _c, _n in agg}
+    total_count = sum(int(n) for *_x, n in agg)
+
+    when_null = case((E.reason == "baixa_sem_registro", 1), else_=0)
+    page = (await db.execute(
+        select(E, EntryItem).join(EntryItem, EntryItem.id == E.entry_item_id).where(*conds)
+        .order_by(when_null, E.created_at.desc(), E.id.desc()).limit(limit).offset(skip))).all()
+
+    item_ids = {it.id for _e, it in page}
+    items_full = {}
+    if item_ids:
+        items_full = {i.id: i for i in (await db.execute(
+            select(EntryItem).where(EntryItem.id.in_(item_ids))
+            .options(selectinload(EntryItem.variant).selectinload(ProductVariant.product), selectinload(EntryItem.product))
+        )).scalars().all()}
+    entry_ids = {it.entry_id for _e, it in page}
+    codes = dict((await db.execute(select(StockEntry.id, StockEntry.entry_code).where(StockEntry.id.in_(entry_ids)))).all()) if entry_ids else {}
+    user_ids = {e.user_id for e, _i in page if e.user_id}
+    users = dict((await db.execute(
+        select(User.id, User.full_name).where(User.id.in_(user_ids), User.tenant_id == tenant_id))).all()) if user_ids else {}
+
+    out = []
+    for e, it in page:
+        full = items_full.get(it.id, it)
+        qty = -int(e.delta)
+        unit = it.unit_cost + (it.extra_unit_cost or 0)
+        out.append({
+            "id": e.id,
+            "when": None if e.reason == "baixa_sem_registro" or not e.created_at else e.created_at.isoformat(),
+            "reason": e.reason,
+            "label": REASONS.get(e.reason, e.reason),
+            "quantity": qty,
+            "product_id": full.variant.product_id if full.variant else full.product_id,
+            "product_name": full.product_name,
+            "variant_label": full.variant_label,
+            "variant_code": full.variant_code,
+            "entry_id": it.entry_id,
+            "entry_code": codes.get(it.entry_id),
+            "unit_cost": _money(unit),
+            "cost_total": _money(unit * qty),
+            "user_name": users.get(e.user_id),
+            "note": e.note,
+            "reconstructed": bool(e.reconstructed),
+        })
+    pieces = sum(v["pieces"] for v in by_reason.values())
+    from decimal import Decimal
+    cost = sum((Decimal(str(c)) for _r, _p, c, _n in agg), Decimal('0'))
+    return {"totals": {"pieces": pieces, "cost": _money(cost), "by_reason": by_reason},
+            "total_count": total_count, "items": out}

@@ -807,9 +807,23 @@ export default function DashboardScreen() {
                 {formatInt(fifoPerf.sell_through.total_sold)} de {formatInt(fifoPerf.sell_through.total_received)} itens vendidos
               </Text>
               {(fifoPerf.sell_through.other_out ?? 0) > 0 && (
+                canSeeDashboard ? (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    onPress={() => router.push('/stock/removals' as any)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${formatInt(fifoPerf.sell_through.other_out ?? 0)} peças saíram por baixa, perda ou ajuste. Ver quais`}
+                  >
+                    <Text style={[styles.fifoMetricSub, { flexShrink: 1 }]}>
+                      {formatInt(fifoPerf.sell_through.other_out ?? 0)} saíram por baixa, perda ou ajuste (não contam como venda)
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={Colors.light.textSecondary} />
+                  </TouchableOpacity>
+                ) : (
                 <Text style={styles.fifoMetricSub}>
                   {formatInt(fifoPerf.sell_through.other_out ?? 0)} saíram por baixa, perda ou ajuste (não contam como venda)
                 </Text>
+                )
               )}
 
               <View style={styles.fifoGaugeContainer}>

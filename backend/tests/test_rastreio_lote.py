@@ -115,3 +115,94 @@ async def test_lista_de_entradas_e_relatorios_tambem_usam_a_venda_real(test_clie
     lista_m = melhores if isinstance(melhores, list) else melhores.get("entries", melhores.get("items", []))
     mine = next(x for x in lista_m if x["entry_id"] == eid)
     assert mine["total_quantity_sold"] == 2
+
+
+# ───────────────────────────────────────────────────────── Saídas sem venda (GET /stock-entries/removals)
+async def _cenario_saidas(test_client, async_session, test_user):
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)         # 10 de A e 10 de B (R$ 40)
+    eid = await _entry_id(async_session, t_id)
+    await _vender(test_client, h, p, va, 2, "100.00")                      # venda não pode aparecer
+    r = await test_client.delete(f"{API}/product-variants/{vb.id}", headers=h, params={"zerar_estoque": "true"})
+    assert r.status_code in (200, 204), r.text                             # 10 peças de B: variacao_excluida
+    item_a = (await async_session.execute(select(EntryItem).where(EntryItem.variant_id == va.id))).scalars().first()
+    # saída antiga sem registro na hora (refeita depois): 3 peças de A
+    async_session.add(EntryItemEvent(tenant_id=t_id, entry_item_id=item_a.id, variant_id=va.id, product_id=p.id,
+                                     reason="baixa_sem_registro", delta=-3, before=8, after=5, reconstructed=True))
+    await async_session.commit()
+    return t_id, h, eid, p, va, vb
+
+
+async def test_saidas_sem_venda_lista_totais_e_nulos(test_client, async_session, test_user):
+    t_id, h, eid, p, va, vb = await _cenario_saidas(test_client, async_session, test_user)
+    r = await test_client.get(f"{API}/stock-entries/removals", headers=h)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["total_count"] == 2 and len(d["items"]) == 2
+    assert d["totals"]["pieces"] == 13 and d["totals"]["cost"] == "520.00"          # 13 x R$ 40 (custo posto)
+    assert d["totals"]["by_reason"]["variacao_excluida"] == {"label": "Baixa ao excluir a variação", "pieces": 10}
+    assert d["totals"]["by_reason"]["baixa_sem_registro"]["pieces"] == 3
+    primeiro, ultimo = d["items"]
+    assert primeiro["reason"] == "variacao_excluida" and primeiro["when"] is not None      # com data primeiro
+    assert ultimo["reason"] == "baixa_sem_registro" and ultimo["when"] is None and ultimo["reconstructed"] is True   # sem data por último
+    assert primeiro["quantity"] == 10 and primeiro["unit_cost"] == "40.00" and primeiro["cost_total"] == "400.00"
+    assert primeiro["entry_id"] == eid and primeiro["entry_code"] and primeiro["product_id"] == p.id
+    assert primeiro["product_name"].startswith("Legging Troca") and primeiro["variant_label"]
+    assert all(i["reason"] != "venda" for i in d["items"])
+
+
+async def test_saidas_sem_venda_filtros_e_paginacao(test_client, async_session, test_user):
+    from datetime import date, timedelta
+    t_id, h, eid, p, va, vb = await _cenario_saidas(test_client, async_session, test_user)
+    g = lambda **q: test_client.get(f"{API}/stock-entries/removals", headers=h, params=q)
+    d = (await g(reason="baixa_sem_registro")).json()
+    assert d["total_count"] == 1 and d["totals"]["pieces"] == 3 and d["items"][0]["when"] is None
+    assert (await g(reason="inventado")).status_code == 400
+    d = (await g(limit=1)).json()
+    assert len(d["items"]) == 1 and d["total_count"] == 2 and d["totals"]["pieces"] == 13       # totais do filtro, não da página
+    assert (await g(limit=1, skip=1)).json()["items"][0]["reason"] == "baixa_sem_registro"
+    assert (await g(limit=201)).status_code == 422
+    hoje = date.today()
+    d = (await g(start_date=(hoje - timedelta(days=1)).isoformat(), end_date=(hoje + timedelta(days=1)).isoformat())).json()
+    assert d["totals"]["by_reason"].keys() == {"variacao_excluida"}                             # sem data não entra em filtro por data
+    d = (await g(start_date=(hoje + timedelta(days=2)).isoformat())).json()
+    assert d["total_count"] == 0 and d["totals"]["pieces"] == 0
+    assert (await g(entry_id=eid)).json()["total_count"] == 2
+    assert (await g(entry_id=eid + 999)).json()["total_count"] == 0
+
+
+async def test_saidas_sem_venda_bate_com_reconcile_e_isolamento(test_client, async_session, test_user):
+    from app.models.store import Store
+    t_id, h, eid, p, va, vb = await _cenario_saidas(test_client, async_session, test_user)
+    rec = await reconcile(async_session, t_id, entry_id=eid)
+    d = (await test_client.get(f"{API}/stock-entries/removals", headers=h)).json()
+    assert d["totals"]["by_reason"]["variacao_excluida"]["pieces"] == -rec["by_reason"]["variacao_excluida"]["pieces"] == 10
+    # evento de OUTRA loja nunca aparece na minha lista
+    outra = Store(name="Outra loja saídas", slug="outra-loja-saidas")
+    async_session.add(outra)
+    await async_session.commit()
+    item_a = (await async_session.execute(select(EntryItem).where(EntryItem.variant_id == va.id))).scalars().first()
+    async_session.add(EntryItemEvent(tenant_id=outra.id, entry_item_id=item_a.id, reason="baixa_conferencia", delta=-4, before=8, after=4))
+    await async_session.commit()
+    d2 = (await test_client.get(f"{API}/stock-entries/removals", headers=h)).json()
+    assert d2["totals"]["pieces"] == 13 and "baixa_conferencia" not in d2["totals"]["by_reason"]
+    from app.services.stock_flow_service import removals
+    assert (await removals(async_session, outra.id))["total_count"] == 0     # a outra loja também não enxerga o lote da minha
+    await async_session.execute(EntryItemEvent.__table__.delete().where(EntryItemEvent.tenant_id == outra.id))
+    await async_session.commit()
+
+
+async def test_saidas_sem_venda_so_gerente_e_admin(test_client, async_session, test_user):
+    from tests.audit.papeis.conftest import novo_usuario
+    t_id, h, eid, p, va, vb = await _cenario_saidas(test_client, async_session, test_user)
+    from app.models.user import User
+    criados = []
+    try:
+        for papel, esperado in (("cashier", 403), ("seller", 403), ("manager", 200)):
+            u, hp = await novo_usuario(async_session, t_id, papel)
+            criados.append(u.id)
+            r = await test_client.get(f"{API}/stock-entries/removals", headers=hp)
+            assert r.status_code == esperado, (papel, r.status_code)
+    finally:   # não deixa usuário sobrando na loja 1 (limite de usuários do plano nos outros testes)
+        await async_session.execute(User.__table__.delete().where(User.id.in_(criados)))
+        await async_session.commit()
+    assert (await test_client.get(f"{API}/stock-entries/removals", headers=h)).status_code == 200

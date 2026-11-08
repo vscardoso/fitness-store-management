@@ -275,6 +275,27 @@ const ENTRADAS: HelpEntry[] = [
     sources: ['app/entries/[id].tsx', 'components/entries/LotMoneyCard.tsx', 'components/entries/AddProductToEntryModal.tsx'],
   },
   {
+    id: 'saidas-sem-venda',
+    group: 'estoque',
+    title: 'Saídas sem venda',
+    routes: ['/stock/removals'],
+    open: '/stock/removals',
+    purpose: 'Mostra as peças que saíram do estoque sem ser vendidas e quanto custaram.',
+    steps: [
+      'Veja no alto quantas peças saíram e o “Prejuízo em custo”.',
+      'Toque num motivo para ver só aquele tipo de saída.',
+      'Troque o período entre “Tudo”, “30 dias” e “Este mês”.',
+      'Toque numa linha para abrir a entrada de onde a peça saiu.',
+    ],
+    goodToKnow: [
+      'Saída antiga, de antes do registro existir, aparece sem data.',
+      'Estas peças não contam como venda.',
+    ],
+    roles: ['manager'],
+    related: ['entrada-detalhe'],
+    sources: ['app/stock/removals.tsx'],
+  },
+  {
     id: 'entrada-conferir',
     group: 'estoque',
     title: 'Conferir recebimento',

@@ -1004,6 +1004,29 @@ async def check_entry_has_sales(
 
 
 @router.get(
+    "/removals",
+    summary="Saídas sem venda",
+    description="Tudo que saiu do estoque sem ser venda (baixa, perda, exclusão, ajuste), de todas as entradas da loja",
+)
+async def list_removals(
+    start_date: Optional[date] = Query(None, description="Dia inicial (fuso do Brasil)"),
+    end_date: Optional[date] = Query(None, description="Dia final (fuso do Brasil)"),
+    reason: Optional[str] = Query(None, description="baixa_conferencia, variacao_excluida, produto_excluido, entrada_excluida, ajuste_estoque, baixa_sem_registro"),
+    entry_id: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from app.services.stock_flow_service import removals, REMOVAL_FILTER_REASONS
+    if reason and reason not in REMOVAL_FILTER_REASONS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Motivo de saída desconhecido.")
+    return await removals(db, tenant_id, start_date=start_date, end_date=end_date, reason=reason,
+                          entry_id=entry_id, limit=limit, skip=skip)
+
+
+@router.get(
     "/{entry_id}",
     response_model=StockEntryWithItems,
     summary="Detalhes da entrada",
