@@ -525,6 +525,8 @@ class StockEntryService:
         entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
+        from app.services.stock_flow_service import attach_flows
+        await attach_flows(self.db, tenant_id, entry)   # vendido = venda real
         
         # Informações da viagem (se houver)
         trip_info = None
@@ -599,7 +601,9 @@ class StockEntryService:
         entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
-        
+        from app.services.stock_flow_service import attach_flows
+        await attach_flows(self.db, tenant_id, entry)   # vendido = venda real
+
         # Calcular métricas
         total_received = 0
         total_remaining = 0
@@ -1377,14 +1381,16 @@ class StockEntryService:
             tenant_id=tenant_id,
         )
         
+        from app.services.stock_flow_service import item_flows
+        _flows = await item_flows(self.db, tenant_id, items) if items else {}
         result = []
         for item in items:
             entry = await self.entry_repo.get_by_id(self.db, item.entry_id, tenant_id=tenant_id)  # ← Campo correto
             product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
             
             if entry and product:
-                depletion_rate = ((item.quantity_received - item.quantity_remaining) / 
-                                item.quantity_received * 100) if item.quantity_received > 0 else 0
+                _sold = _flows[item.id]["sold"] + _flows[item.id]["with_customer"]   # venda real, sem baixa nem exclusão
+                depletion_rate = (_sold / item.quantity_received * 100) if item.quantity_received > 0 else 0
                 
                 days_in_stock = (today_brazil() - entry.entry_date).days
                 
@@ -1396,7 +1402,7 @@ class StockEntryService:
                     "product_sku": product.sku,
                     "quantity_received": item.quantity_received,
                     "quantity_remaining": item.quantity_remaining,
-                    "quantity_sold": item.quantity_received - item.quantity_remaining,
+                    "quantity_sold": _sold,
                     "depletion_rate": round(depletion_rate, 2),
                     "days_in_stock": days_in_stock,
                     "unit_cost": float(item.unit_cost)
@@ -1433,9 +1439,10 @@ class StockEntryService:
             if not items:
                 continue
 
+            from app.services.stock_flow_service import item_flows
+            _fl = await item_flows(self.db, tenant_id, [i for i in items if i.is_active])
             total_received = sum(item.quantity_received for item in items)
-            total_remaining = sum(item.quantity_remaining for item in items)
-            total_sold = total_received - total_remaining
+            total_sold = sum(_fl[i.id]["sold"] + _fl[i.id]["with_customer"] for i in items if i.is_active)
 
             sell_through_rate = (total_sold / total_received * 100) if total_received > 0 else 0
 

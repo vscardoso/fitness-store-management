@@ -115,3 +115,20 @@ async def tracking(db: AsyncSession, tenant_id: int, entry) -> Dict[str, Any]:
     t["closed"] = t["received"] == t["sold"] + t["with_customer"] + t["removed"] + t["remaining"]
     t["removed_unrecorded"] = sum(r["removed_unrecorded"] for r in rows)
     return {"entry_id": entry.id, "entry_code": entry.entry_code, "totals": t, "items": rows}
+
+
+async def attach_flows_many(db: AsyncSession, tenant_id: int, entries) -> None:
+    """Igual a `attach_flows` para uma lista de entradas (a lista de Entradas mostra a taxa de venda de cada uma)."""
+    from sqlalchemy import inspect as sa_inspect
+    items = []
+    for e in entries:
+        if "entry_items" in sa_inspect(e).unloaded:   # relação não carregada: não força carga na lista
+            continue
+        items.extend(i for i in e.entry_items if i.is_active)
+    if not items:
+        return
+    flows = await item_flows(db, tenant_id, items)
+    for i in items:
+        f = flows[i.id]
+        i.__dict__["_sold_override"] = f["sold"] + f["with_customer"]
+        i.__dict__["_removed_override"] = f["removed"]

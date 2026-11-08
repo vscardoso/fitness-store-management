@@ -94,3 +94,24 @@ async def test_backfill_monta_o_livro_de_lote_antigo_e_a_conta_fecha(test_client
     assert all(e["reconstructed"] for r in tr["items"] for e in r["history"])
     again = await backfill(async_session, t_id, apply=True)         # idempotente
     assert again["items"] == 0 and again["events"] == 0
+
+
+async def test_lista_de_entradas_e_relatorios_tambem_usam_a_venda_real(test_client, async_session, test_user):
+    """Entradas (taxa de venda), venda lenta e melhor desempenho não contam peça excluída como vendida."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    eid = await _entry_id(async_session, t_id)
+    await _vender(test_client, h, p, va, 2, "100.00")
+    r = await test_client.delete(f"{API}/product-variants/{vb.id}", headers=h, params={"zerar_estoque": "true"})
+    assert r.status_code in (200, 204), r.text
+
+    lista = (await test_client.get(f"{API}/stock-entries/", headers=h, params={"limit": 50})).json()
+    e = next(x for x in lista if x["id"] == eid)
+    assert round(e["sell_through_rate"], 1) == 10.0 and e["items_sold"] == 2          # 2 de 20; antes 12 de 20 = 60%
+
+    lentos = (await test_client.get(f"{API}/stock-entries/slow-moving", headers=h, params={"threshold": 100})).json()
+    assert all(x["quantity_sold"] <= 2 for x in (lentos if isinstance(lentos, list) else lentos.get("items", lentos.get("slow_movers", []))))
+
+    melhores = (await test_client.get(f"{API}/stock-entries/best-performing", headers=h, params={"limit": 20})).json()
+    lista_m = melhores if isinstance(melhores, list) else melhores.get("entries", melhores.get("items", []))
+    mine = next(x for x in lista_m if x["entry_id"] == eid)
+    assert mine["total_quantity_sold"] == 2

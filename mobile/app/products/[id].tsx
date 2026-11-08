@@ -293,18 +293,32 @@ export default function ProductDetailsScreen() {
     },
   });
   const askRemoveVariant = (variantId: number, label: string, stock: number) => {
+    if (stock > 0) {
+      // variação com peças não se exclui pela lixeira: a saída tem que ficar registrada (Conferência com motivo ou exclusão pela entrada)
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Esta variação tem peças em estoque',
+        message: `${label}: ${stock} peça${stock !== 1 ? 's' : ''} em estoque. Para tirá-la, dê baixa na Conferência de Estoque com o motivo (perda, avaria, furto ou ajuste) ou exclua pela entrada onde ela chegou. Assim as peças e o custo continuam rastreados.`,
+        confirmText: 'Abrir a Conferência',
+        cancelText: 'Agora não',
+        onConfirm: () => {
+          setDialog((d) => ({ ...d, visible: false }));
+          router.push({ pathname: '/reports/stock-check', params: { q: productCode || product?.name || '' } } as any);
+        },
+      });
+      return;
+    }
     setDialog({
       visible: true,
       type: 'danger',
       title: 'Excluir esta variação?',
-      message: stock > 0
-        ? `${label}: ${stock} peça${stock !== 1 ? 's' : ''} em estoque ${stock !== 1 ? 'serão zeradas' : 'será zerada'}. As outras variações não mudam e as vendas antigas continuam.`
-        : `${label} sai do produto. As outras variações não mudam.`,
-      confirmText: stock > 0 ? 'Excluir e zerar estoque' : 'Excluir variação',
+      message: `${label} sai do produto. As outras variações não mudam.`,
+      confirmText: 'Excluir variação',
       cancelText: 'Cancelar',
       onConfirm: () => {
         setDialog((d) => ({ ...d, visible: false }));
-        removeOneVariant.mutate({ id: variantId, zero: stock > 0 });
+        removeOneVariant.mutate({ id: variantId, zero: false });
       },
     });
   };

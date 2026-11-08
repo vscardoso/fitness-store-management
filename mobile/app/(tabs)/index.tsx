@@ -5,6 +5,7 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Platform,
   Modal,
   Dimensions,
   Text,
@@ -1095,7 +1096,8 @@ export default function DashboardScreen() {
                 <Text style={styles.catFilterHint}>
                   {excludedCats.length ? 'Fora da conta (toque para voltar):' : 'Toque numa categoria para tirar da conta:'}
                 </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catFilterRow}>
+                {/* no navegador não há como arrastar uma fileira: as categorias quebram em linhas e todas ficam à vista */}
+                <ScrollView horizontal={Platform.OS !== 'web'} showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.catFilterRow, Platform.OS === 'web' && { flexDirection: 'row', flexWrap: 'wrap' }]}>
                   {stockCats.map((c) => {
                     const off = excludedCats.includes(c.category_id);
                     return (

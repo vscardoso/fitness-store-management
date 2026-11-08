@@ -620,6 +620,8 @@ async def list_stock_entries(
             repo = StockEntryRepository()
             entries = await repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
         
+        from app.services.stock_flow_service import attach_flows_many
+        await attach_flows_many(db, tenant_id, entries)   # taxa de venda pela venda real, não por recebido - restante
         return entries
     
     except Exception as e:
