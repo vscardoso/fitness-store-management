@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
 import StickerStudio, { type StickerItem } from '@/components/labels/StickerStudio';
 import ScreenLoader from '@/components/ui/ScreenLoader';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { useBrandingColors } from '@/store/brandingStore';
 import { addEntryToQueue, getEntryLabelProgress } from '@/services/labelQueueService';
@@ -76,8 +76,9 @@ export default function EntryLabelsScreen() {
       const r = await addEntryToQueue(entryId);
       await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
       await queryClient.invalidateQueries({ queryKey: ['label-progress', entryId] });
-      if (r.added === 0) setMsg('Nada a pôr na fila: tudo desta entrada já foi impresso ou já está na fila.');
-      else router.push('/etiquetas/fila' as any);
+      setMsg(r.added === 0
+        ? 'Nada a pôr na fila: tudo desta entrada já foi impresso ou já está na fila.'
+        : `${r.added} etiqueta${r.added !== 1 ? 's' : ''} colocada${r.added !== 1 ? 's' : ''} na fila de impressão.`);
     } catch (e: any) {
       setMsg(parseApiError(e) || 'Não foi possível pôr na fila.');
     } finally {
@@ -96,24 +97,33 @@ export default function EntryLabelsScreen() {
           <>
             {progress ? (
               <View style={styles.progress}>
-                <Text style={styles.progressText}>
-                  {progress.printed} de {progress.received} impressas
-                  {progress.queued > 0 ? ` · ${progress.queued} na fila` : ''}
-                  {progress.missing > 0 ? ` · faltam ${progress.missing}` : ' · tudo certo'}
-                </Text>
-                <View style={styles.progressRow}>
-                  {progress.missing > 0 ? (
-                    <TouchableOpacity style={[styles.btn, { backgroundColor: brand.primary }]} onPress={addToQueue} disabled={adding} accessibilityRole="button">
-                      <Text style={styles.btnTextOn}>{adding ? 'Colocando...' : 'Colocar na fila de impressão'}</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                  {progress.queued > 0 ? (
-                    <TouchableOpacity style={[styles.btn, { borderColor: brand.primary, borderWidth: 1 }]} onPress={() => router.push('/etiquetas/fila' as any)} accessibilityRole="button">
-                      <Text style={[styles.btnText, { color: brand.primary }]}>Abrir a fila</Text>
-                    </TouchableOpacity>
-                  ) : null}
+                <Text style={styles.progressTitle}>Etiquetas desta entrada</Text>
+                <View style={styles.track} accessibilityLabel={`${progress.printed} de ${progress.received} impressas`}>
+                  <View style={[styles.fill, { backgroundColor: brand.primary, width: `${progress.received > 0 ? Math.min(100, Math.round((progress.printed / progress.received) * 100)) : 0}%` }]} />
                 </View>
-                {msg ? <Text style={styles.muted}>{msg}</Text> : null}
+                <View style={styles.stats}>
+                  <View style={styles.stat}><Text style={styles.statNum}>{progress.printed}</Text><Text style={styles.statLabel}>impressas</Text></View>
+                  <View style={styles.stat}><Text style={styles.statNum}>{progress.queued}</Text><Text style={styles.statLabel}>na fila</Text></View>
+                  <View style={styles.stat}><Text style={styles.statNum}>{progress.missing}</Text><Text style={styles.statLabel}>faltam</Text></View>
+                </View>
+                <Text style={styles.progressHint}>
+                  {progress.printed >= progress.received
+                    ? 'Todas as etiquetas desta entrada foram impressas.'
+                    : progress.missing === 0
+                      ? 'Tudo já está na fila de impressão. Falta imprimir.'
+                      : `Faltam ${progress.missing} para colocar na fila de impressão.`}
+                </Text>
+                {progress.missing > 0 ? (
+                  <TouchableOpacity style={[styles.btn, { backgroundColor: brand.primary }]} onPress={addToQueue} disabled={adding} accessibilityRole="button">
+                    <Text style={styles.btnTextOn}>{adding ? 'Colocando...' : 'Colocar na fila de impressão'}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {progress.queued > 0 ? (
+                  <TouchableOpacity style={[styles.btn, { borderColor: brand.primary, borderWidth: 1.5 }]} onPress={() => router.push('/etiquetas/fila' as any)} accessibilityRole="button">
+                    <Text style={[styles.btnText, { color: brand.primary }]}>Abrir a fila ({progress.queued})</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {msg ? <Text style={styles.okMsg} accessibilityLiveRegion="polite">{msg}</Text> : null}
               </View>
             ) : null}
             <StickerStudio
@@ -135,10 +145,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   muted: { color: Colors.light.textSecondary, textAlign: 'center', fontSize: 12 },
-  progress: { gap: 8, padding: 12, marginHorizontal: 12, marginTop: 8, borderRadius: 12, backgroundColor: Colors.light.card, borderWidth: 1, borderColor: Colors.light.border },
-  progressText: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
-  progressRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  btn: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center' },
-  btnTextOn: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  btnText: { fontWeight: '700', fontSize: 13 },
+  okMsg: { color: Colors.light.success, fontWeight: '700', fontSize: 13 },
+  progress: { gap: theme.spacing.sm, padding: theme.spacing.md, marginHorizontal: theme.spacing.md, marginTop: theme.spacing.md, borderRadius: 16, backgroundColor: Colors.light.card, borderWidth: 1, borderColor: Colors.light.border },
+  progressTitle: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
+  track: { height: 8, borderRadius: 4, backgroundColor: Colors.light.border, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4 },
+  stats: { flexDirection: 'row', gap: theme.spacing.sm },
+  stat: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 10, backgroundColor: Colors.light.backgroundSecondary },
+  statNum: { fontSize: 20, fontWeight: '800', color: Colors.light.text },
+  statLabel: { fontSize: 11, color: Colors.light.textSecondary },
+  progressHint: { fontSize: 12, color: Colors.light.textSecondary },
+  btn: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, alignItems: 'center', alignSelf: 'stretch' },
+  btnTextOn: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  btnText: { fontWeight: '700', fontSize: 14 },
 });

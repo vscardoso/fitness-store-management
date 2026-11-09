@@ -619,11 +619,11 @@ const ETIQUETAS_ENTRADA: HelpEntry[] = [
       'Veja no topo quantas etiquetas já foram impressas e quantas faltam.',
       'Toque em “Colocar na fila de impressão” para juntar o que falta com as outras entradas, ou imprima direto daqui.',
       'Escolha o tamanho e o papel e toque em “Gerar PDF”. Abra o arquivo e imprima em tamanho real (100%).',
-      'Depois de imprimir, toque em “Imprimi”. Só aí a etiqueta conta como impressa e a folha avança.',
+      'Depois de imprimir, toque em “Já imprimi”. Só aí a etiqueta conta como impressa e a folha avança.',
     ],
     goodToKnow: [
       'Só saem as cores e tamanhos que vieram nesta entrada: peça antiga do mesmo produto não é reimpressa.',
-      'A quantidade já vem só com o que falta imprimir. Se não tocar em “Imprimi”, nada é marcado e dá para gerar de novo.',
+      'A quantidade já vem só com o que falta imprimir. Se não tocar em “Já imprimi”, nada é marcado e dá para gerar de novo.',
       'Na impressora térmica use etiqueta térmica do tamanho escolhido e o papel Uma por página.',
     ],
     roles: ['manager'],
@@ -643,7 +643,7 @@ const FILA_ETIQUETAS: HelpEntry[] = [
     steps: [
       'Na entrada, toque em “Etiquetas” e depois em “Colocar na fila de impressão”.',
       'Aqui, confira as quantidades, escolha o tamanho e o papel e toque em “Gerar PDF”.',
-      'Imprima. Quando as etiquetas saírem, toque em “Imprimi, tirar da fila”.',
+      'Imprima. Quando as etiquetas saírem, toque em “Já imprimi”: elas saem da fila e a folha avança.',
       'Peça avulsa: no Estúdio de etiquetas (ou no produto), escolha as peças e toque em “Colocar na fila de impressão”.',
     ],
     goodToKnow: [

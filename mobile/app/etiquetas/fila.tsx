@@ -2,7 +2,7 @@
  * Fila de impressão de etiquetas: tudo que a loja quer etiquetar e ainda não imprimiu (de várias entradas juntas, aproveitando a mesma folha).
  * Gerar o PDF não tira nada da fila: só "Imprimi, tirar da fila" tira e anda a folha.
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -40,6 +40,10 @@ export default function LabelQueueScreen() {
     return { items: [...byVariant.values()].sort((a, b) => String(a.code ?? 'zzz').localeCompare(String(b.code ?? 'zzz'), 'pt-BR', { numeric: true })), initialQty: qty };
   }, [data]);
 
+  // depois de "Já imprimi" a fila esvazia, mas a tela continua (mensagem de sucesso e "Desfazer"): só mostra o vazio se nunca teve peça
+  const [hadItems, setHadItems] = useState(false);
+  useEffect(() => { if (items.length > 0) setHadItems(true); }, [items.length]);
+
   // lixeira: tira a peça da fila (todas as linhas dela, de qualquer entrada)
   const removeFromQueue = async (variantId: number) => {
     for (const r of (data?.items ?? []).filter((x) => x.variant_id === variantId)) await setQueueQuantity(r.id, 0);
@@ -56,7 +60,7 @@ export default function LabelQueueScreen() {
           <ScreenLoader message="Carregando a fila..." />
         ) : error ? (
           <View style={styles.center}><Text style={styles.muted}>{parseApiError(error) || 'Não foi possível carregar a fila.'}</Text></View>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && !hadItems ? (
           <View style={styles.center}>
             <Text style={styles.title}>A fila está vazia</Text>
             <Text style={styles.muted}>Abra uma entrada e toque em “Colocar na fila de impressão”. As peças de várias entradas juntam aqui e aproveitam a mesma folha.</Text>
