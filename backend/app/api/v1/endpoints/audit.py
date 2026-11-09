@@ -16,7 +16,7 @@ from app.core.database import get_db
 from app.core.timezone import make_aware, to_utc
 from app.models.audit_log import AuditLog
 from app.models.user import User, UserRole
-from app.services.audit_service import CATEGORIES, CATEGORY_PREFIXES, category_of
+from app.services.audit_service import CATEGORIES, CATEGORY_PREFIXES, category_filters, category_of
 
 router = APIRouter(prefix="/audit", tags=["Audit Log"])
 
@@ -63,7 +63,8 @@ async def list_audit_logs(
     action: Optional[str] = Query(None),
     entity: Optional[str] = Query(None),
     user_id: Optional[int] = Query(None),
-    category: Optional[str] = Query(None, description="dinheiro, estoque, vendas ou pessoas"),
+    category: Optional[str] = Query(None, description="dinheiro, estoque, vendas, pessoas ou acessos"),
+    exclude_category: Optional[str] = Query(None, description="tira uma categoria (a tela usa 'acessos' para mostrar só alterações)"),
     start_date: Optional[date] = Query(None, description="Dia (fuso do Brasil), inclusive"),
     end_date: Optional[date] = Query(None, description="Dia (fuso do Brasil), inclusive"),
     limit: int = Query(50, ge=1, le=100),
@@ -78,10 +79,11 @@ async def list_audit_logs(
     if user_id:
         conds.append(AuditLog.user_id == user_id)
     if category:
-        prefixes = CATEGORY_PREFIXES.get(category.lower())
-        if prefixes is None:
+        if category.lower() not in CATEGORY_PREFIXES:
             return AuditLogPage(items=[], total_count=0, limit=limit, skip=skip)
-        conds.append(or_(*[AuditLog.action.like(f"{p}%") for p in prefixes]))
+        conds.append(or_(*[AuditLog.action.like(f, escape="\\") for f in category_filters(category.lower())]))
+    if exclude_category and exclude_category.lower() in CATEGORY_PREFIXES:
+        conds.append(~or_(*[AuditLog.action.like(f, escape="\\") for f in category_filters(exclude_category.lower())]))
     if start_date:
         conds.append(AuditLog.created_at >= _day_start_utc(start_date))
     if end_date:

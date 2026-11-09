@@ -59,10 +59,77 @@ _SECRET = re.compile(r"pass|senha|token|secret|cpf|cnpj|document|hash|key", re.I
 _SKIP_COLS = {"updated_at", "created_at"}
 
 
+_WRITE = {"POST", "PUT", "PATCH", "DELETE"}
+
+# Gravações que NÃO entram no histórico geral, cada uma com o motivo. Tudo o mais que grava dados é registrado.
+# (prefixo do caminho, motivo). Casam por "começa com" depois de /api/v1.
+_NOT_AUDITED_PREFIX: tuple[tuple[str, str], ...] = (
+    ("/auth/login", "tem registro próprio (LOGIN_*)"),
+    ("/auth/logout", "sair do sistema não altera valores"),
+    ("/auth/refresh", "renovação automática da sessão"),
+    ("/auth/signup", "cadastro de loja nova (ainda não há loja para registrar)"),
+    ("/auth/check-", "consulta se e-mail ou endereço estão livres"),
+    ("/auth/forgot-password", "pedido de nova senha: tem limite e registro próprios (PASSWORD_RESET)"),
+    ("/client-logs", "diagnóstico do app"),
+    ("/debug", "ferramenta de desenvolvimento"),
+    ("/legal/accept", "aceite dos termos tem tabela própria"),
+    ("/ai/", "só lê uma foto e sugere dados"),
+    ("/labels/pdf", "gera PDF"),
+    ("/label-printers/print", "impressão"),
+    ("/products/fifo-costs", "consulta (usa POST por causa da lista de ids)"),
+    ("/payment-discounts/calculate", "simulação"),
+    ("/stock-import/preview", "simulação, não grava"),
+    ("/notifications", "avisos e leitura de avisos"),
+    ("/pdv/webhooks", "chamada automática do banco ou da maquininha"),
+    ("/pdv/cielo-pix/register-webhook", "configuração técnica de integração desligada"),
+    ("/conditional-shipments/notifications", "rotina de avisos"),
+    ("/conditional-shipments/sla", "rotina de avisos"),
+    ("/reports/stock-counts/{count_id}/apply", "uma bipada da Conferência (a conferência inteira é registrada)"),
+    ("/whatsapp/conversations", "mensagens e leitura de conversa"),
+    ("/sales/{sale_id}/receipt/send-whatsapp", "envio de comprovante"),
+)
+# Já registradas com mais detalhe dentro do próprio serviço (evita duas linhas para a mesma ação).
+_LOGGED_ELSEWHERE = {
+    ("POST", "/sales"), ("POST", "/sales/{sale_id}/cancel"),
+    ("PUT", "/customers/{customer_id}"), ("DELETE", "/customers/{customer_id}"),
+    ("POST", "/customers/{customer_id}/anonymize"), ("POST", "/customers/{customer_id}/loyalty/adjust"),
+    ("DELETE", "/stock-entries/{entry_id}"), ("DELETE", "/stock-entries/entry-items/{item_id}"),
+    ("POST", "/finance/accounts/{account_id}/adjust"), ("PATCH", "/finance/accounts/{account_id}"),
+}
+
+
+def _tail(path_format: str) -> str:
+    return path_format.split("/api/v1", 1)[-1].rstrip("/") or "/"
+
+
+def is_excluded(method: str, path_format: str) -> bool:
+    tail = _tail(path_format)
+    if (method.upper(), tail) in _LOGGED_ELSEWHERE:
+        return True
+    return any(tail.startswith(pref) for pref, _ in _NOT_AUDITED_PREFIX)
+
+
+def _generic(method: str, tail: str):
+    """Registro geral: ação ROTA_<MÉTODO>_<partes fixas do caminho>, entidade = 1ª parte (tabela com esse nome, se existir)."""
+    static = [x for x in tail.strip("/").split("/") if x and not x.startswith("{")]
+    nome = "_".join(re.sub(r"[^A-Za-z0-9]+", "_", x).strip("_").upper() for x in static)[:60] or "RAIZ"
+    params = re.findall(r"\{([^}]+)\}", tail)
+    return (f"ROTA_{method.upper()}_{nome}", static[0] if static else "rota", static[0] if static else None,
+            params[0] if params else None)
+
+
 def match_route(method: str, path_format: str):
-    """Acha a ação registrada para a rota (ou None). `path_format` inclui o prefixo /api/v1."""
-    tail = path_format.split("/api/v1", 1)[-1].rstrip("/") or "/"
-    return _TABLE.get((method.upper(), tail))
+    """Acha a ação registrada para a rota (ou None se não registra). `path_format` inclui o prefixo /api/v1.
+
+    Rota mapeada à mão (tabela acima) leva o nome de ação específico. Qualquer OUTRA rota que grava dados (POST, PUT, PATCH,
+    DELETE) é registrada pela regra geral, salvo as exceções documentadas. Assim nada que altera valor fica sem rastro."""
+    tail = _tail(path_format)
+    hit = _TABLE.get((method.upper(), tail))
+    if hit:
+        return hit
+    if method.upper() not in _WRITE or is_excluded(method, path_format):
+        return None
+    return _generic(method, tail)
 
 
 def _plain(v: Any) -> Any:
@@ -117,9 +184,13 @@ async def begin_trail(request, db, user) -> Optional[dict]:
             return None
         action, entity, table, key = found
         row_id = request.path_params.get(key) if key else None
-        row_id = int(row_id) if row_id is not None else None
+        try:
+            row_id = int(row_id) if row_id is not None else None
+        except (TypeError, ValueError):
+            row_id = None
         antes = await _snapshot(db, table, row_id, user.tenant_id)
-        return {"action": action, "entity": entity, "table": table, "row_id": row_id, "antes": antes}
+        return {"action": action, "entity": entity, "table": table, "row_id": row_id, "antes": antes,
+                "rota": getattr(route, "path_format", "") or "", "metodo": request.method.upper()}
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Histórico: não leu o 'antes' (não crítico): {e}")
         return None
@@ -132,11 +203,12 @@ async def finish_trail(request, db, user, ctx: Optional[dict]) -> None:
     try:
         from app.services.audit_service import notify_other_admins
         body: Any = None
-        try:
-            raw = await request.body()
-            body = json.loads(raw) if raw else None
-        except Exception:  # noqa: BLE001
-            body = None
+        if not (request.headers.get("content-type") or "").lower().startswith("multipart"):
+            try:
+                raw = await request.body()
+                body = json.loads(raw) if raw else None
+            except Exception:  # noqa: BLE001
+                body = None
         depois = await _snapshot(db, ctx["table"], ctx["row_id"], user.tenant_id)
         antes = ctx["antes"]
         detail: dict[str, Any] = {}
@@ -155,6 +227,9 @@ async def finish_trail(request, db, user, ctx: Optional[dict]) -> None:
                 detail["motivo"] = str(motivo)[:300]
         if request.path_params:
             detail["ids"] = {k: _plain(v) for k, v in request.path_params.items()}
+        if str(ctx["action"]).startswith("ROTA_"):
+            detail["rota"] = _tail(ctx.get("rota") or "")
+            detail["metodo"] = ctx.get("metodo")
         from app.models.audit_log import AuditLog
         async with db.begin_nested():       # savepoint: se gravar falhar, a operação da rota não é afetada
             db.add(AuditLog(tenant_id=user.tenant_id, user_id=user.id, user_email=user.email, action=ctx["action"],

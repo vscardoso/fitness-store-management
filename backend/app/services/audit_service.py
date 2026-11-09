@@ -50,15 +50,39 @@ CATEGORY_PREFIXES: dict[str, tuple[str, ...]] = {
                  "LOYALTY_"),
     "estoque": ("STOCK_", "ENTRY_", "PRODUCT_", "VARIANT_", "CONDITIONAL_"),
     "vendas": ("SALE_",),
-    "pessoas": ("USER_", "PASSWORD_", "LOGIN_", "SETTINGS_"),
+    "pessoas": ("USER_", "PASSWORD_", "SETTINGS_"),
+    # entrar no sistema e consultar ficha NÃO são alterações: ficam à parte e fora da lista padrão
+    "acessos": ("LOGIN_", "CUSTOMER_VIEWED"),
+}
+# Ações da regra geral (ROTA_<MÉTODO>_<CAMINHO>) caem na categoria pela parte do caminho.
+ROTA_TOKENS: dict[str, tuple[str, ...]] = {
+    "dinheiro": ("FINANCE", "EXPENSES", "RECEIVABLES", "CASH", "PAYMENT_DISCOUNTS"),
+    "estoque": ("PRODUCTS", "PRODUCT_VARIANTS", "STOCK_ENTRIES", "STOCK_IMPORT", "STOCK_COUNTS", "REPORTS_STOCK",
+                "INVENTORY", "CATEGORIES", "SUPPLIERS", "SUPPLIER_RETURNS", "LABEL_PRINTERS", "CATALOG_FEED",
+                "LOOKS", "WISHLIST", "SUGGESTIONS"),
+    "vendas": ("SALES", "RETURNS", "CONDITIONAL_SHIPMENTS", "PDV"),
+    "pessoas": ("TEAM", "CUSTOMERS", "STORE", "WHATSAPP", "MP_CONNECT"),
 }
 CATEGORIES = tuple(CATEGORY_PREFIXES)
+
+
+def category_filters(category: str) -> list[str]:
+    """Padrões LIKE da categoria (com escape "\\"): prefixos das ações específicas + trechos das ações da regra geral."""
+    out = [f"{p}%".replace("_", "\\_") for p in CATEGORY_PREFIXES.get(category, ())]
+    out += [f"ROTA\\_%\\_{t.replace('_', chr(92) + '_')}%" for t in ROTA_TOKENS.get(category, ())]
+    return out
 
 
 def category_of(action: str) -> str:
     for cat, prefixes in CATEGORY_PREFIXES.items():
         if any(action.startswith(p) for p in prefixes):
             return cat
+    if action.startswith("ROTA_"):
+        resto = action.split("_", 2)[-1]
+        # o mais específico primeiro (PRODUCT_VARIANTS antes de PRODUCTS)
+        for cat, tokens in ROTA_TOKENS.items():
+            if any(resto.startswith(t) for t in sorted(tokens, key=len, reverse=True)):
+                return cat
     return "outros"
 
 

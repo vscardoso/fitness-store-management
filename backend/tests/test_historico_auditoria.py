@@ -224,3 +224,88 @@ async def test_aviso_vai_para_os_outros_admins_e_nao_para_quem_fez(test_client, 
     assert r.status_code == 200, r.text
     assert len(await _log(async_session, t_id, "FINANCE_ACCOUNT_ADJUSTED")) == 2
     _ = UserRole
+
+
+# ───────────────────────── registro geral: TODA gravação deixa rastro ─────────────────────────
+async def test_gravacoes_sem_mapa_proprio_tambem_sao_registradas(test_client, async_session):
+    """Fornecedor, categoria e papel de usuário não estavam na lista manual: a regra geral registra quem, antes e depois."""
+    t_id, admin, h = await _loja(test_client, async_session)
+    r = await test_client.post(f"{API}/suppliers", headers=h, json={"name": "Loja Aud Um"})
+    assert r.status_code in (200, 201), r.text
+    sid = r.json()["id"]
+    r = await test_client.put(f"{API}/suppliers/{sid}", headers=h, json={"name": "Loja Aud Dois"})
+    assert r.status_code == 200, r.text
+    (criou,) = await _log(async_session, t_id, "ROTA_POST_SUPPLIERS")
+    criou_user, criou_det = criou.user_id, _detail(criou)       # lê agora: o próximo _log expira os objetos
+    (mudou,) = await _log(async_session, t_id, "ROTA_PUT_SUPPLIERS")
+    assert criou_user == admin.id and criou_det["metodo"] == "POST"
+    d = _detail(mudou)
+    assert d["antes"]["name"] == "Loja Aud Um" and d["depois"]["name"] == "Loja Aud Dois" and d["rota"] == "/suppliers/{supplier_id}"
+    assert (await test_client.delete(f"{API}/suppliers/{sid}", headers=h)).status_code in (200, 204)
+    assert len(await _log(async_session, t_id, "ROTA_DELETE_SUPPLIERS")) == 1
+
+    r = await test_client.post(f"{API}/categories/", headers=h, json={"name": "Categoria Aud"})
+    assert r.status_code in (200, 201), r.text
+    assert len(await _log(async_session, t_id, "ROTA_POST_CATEGORIES")) == 1
+
+    r = await test_client.post(f"{API}/team", headers=h, json={
+        "email": "papel.aud@example.com", "full_name": "Papel Aud", "password": "Senha1234", "role": "seller"})
+    uid = r.json()["id"]
+    r = await test_client.patch(f"{API}/team/{uid}/role", headers=h, json={"role": "manager"})
+    assert r.status_code == 200, r.text
+    rows = await _log(async_session, t_id, "ROTA_PATCH_TEAM_ROLE") + await _log(async_session, t_id, "USER_ROLE_CHANGED")
+    assert rows, "mudar o papel de um usuário tem que ficar registrado"
+
+
+async def test_leitura_e_login_nao_viram_alteracao(test_client, async_session):
+    t_id, admin, h = await _loja(test_client, async_session)
+    antes = len((await async_session.execute(select(AuditLog).where(AuditLog.tenant_id == t_id, AuditLog.action.like("ROTA\_%", escape="\\")))).scalars().all())
+    assert (await test_client.get(f"{API}/suppliers", headers=h)).status_code == 200
+    assert (await test_client.post(f"{API}/products/fifo-costs", headers=h, json=[])).status_code in (200, 422)
+    async_session.expire_all()
+    depois = len((await async_session.execute(select(AuditLog).where(AuditLog.tenant_id == t_id, AuditLog.action.like("ROTA\_%", escape="\\")))).scalars().all())
+    assert depois == antes                      # GET e consulta por POST não entram no histórico
+
+
+async def test_acessos_ficam_a_parte_e_fora_da_lista_de_alteracoes(test_client, async_session):
+    t_id, admin, h = await _loja(test_client, async_session)
+    async_session.add(AuditLog(tenant_id=t_id, user_id=admin.id, user_email=admin.email, action="LOGIN_SUCCESS"))
+    async_session.add(AuditLog(tenant_id=t_id, user_id=admin.id, user_email=admin.email, action="CUSTOMER_VIEWED"))
+    await async_session.commit()
+    await test_client.post(f"{API}/suppliers", headers=h, json={"name": "So Para Filtrar"})
+    todos = (await test_client.get(f"{API}/audit", headers=h, params={"limit": 100})).json()
+    assert {"LOGIN_SUCCESS", "CUSTOMER_VIEWED", "ROTA_POST_SUPPLIERS"} <= {i["action"] for i in todos["items"]}
+    alteracoes = (await test_client.get(f"{API}/audit", headers=h, params={"limit": 100, "exclude_category": "acessos"})).json()
+    acoes = {i["action"] for i in alteracoes["items"]}
+    assert "ROTA_POST_SUPPLIERS" in acoes and "LOGIN_SUCCESS" not in acoes and "CUSTOMER_VIEWED" not in acoes
+    so_acessos = (await test_client.get(f"{API}/audit", headers=h, params={"category": "acessos", "limit": 100})).json()
+    assert {i["action"] for i in so_acessos["items"]} <= {"LOGIN_SUCCESS", "LOGIN_FAILED", "CUSTOMER_VIEWED"} and so_acessos["total_count"] >= 2
+    estoque = (await test_client.get(f"{API}/audit", headers=h, params={"category": "estoque", "limit": 100})).json()
+    assert any(i["action"] == "ROTA_POST_SUPPLIERS" for i in estoque["items"])      # fornecedor conta como estoque/cadastros
+
+
+async def test_toda_rota_que_grava_e_registrada_ou_tem_motivo_para_nao_ser():
+    """Trava: rota nova que grava dados passa a ser registrada sozinha. Esta lista só muda de propósito (com motivo em audit_trail)."""
+    from app.main import app
+    from app.services.audit_trail import is_excluded, match_route
+    fora = set()
+    for r in app.routes:
+        m = getattr(r, "methods", None)
+        p = getattr(r, "path_format", None) or getattr(r, "path", None)
+        if not m or not p or not p.startswith("/api/v1"):
+            continue
+        for meth in m:
+            if meth in ("POST", "PUT", "PATCH", "DELETE") and not match_route(meth, p):
+                assert is_excluded(meth, p), f"{meth} {p} grava e não está registrada nem justificada"
+                fora.add(f"{meth} {p.replace('/api/v1', '')}")
+    esperadas = {
+        "DELETE /customers/{customer_id}", "PUT /customers/{customer_id}", "POST /customers/{customer_id}/anonymize",
+        "POST /customers/{customer_id}/loyalty/adjust", "DELETE /stock-entries/{entry_id}", "DELETE /stock-entries/entry-items/{item_id}",
+        "POST /finance/accounts/{account_id}/adjust", "PATCH /finance/accounts/{account_id}", "POST /sales/", "POST /sales/{sale_id}/cancel",
+    }
+    assert esperadas <= fora                       # as que já têm registro próprio mais detalhado
+    assert "POST /auth/register" not in fora       # criar usuário tem que ficar registrado
+    for sensivel in ("DELETE /products/{product_id}", "DELETE /product-variants/{variant_id}", "POST /products/{product_id}/adjust-quantity",
+                     "POST /stock-import/commit", "PATCH /team/{user_id}/reset-password", "POST /returns/{sale_id}",
+                     "PUT /store/pix", "POST /suppliers", "PUT /suppliers/{supplier_id}"):
+        assert sensivel not in fora, f"{sensivel} precisa ficar registrada"
