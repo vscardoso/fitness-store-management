@@ -202,6 +202,25 @@ def _cut_lines(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None
     c.setStrokeColorRGB(0, 0, 0)
 
 
+def _sheet_cut_lines(c: canvas.Canvas, pw: float, ph: float, x0: float, y0: float, w: float, h: float,
+                     gx: float, gy: float, cols: int, rows: int, used: int) -> None:
+    """Uma só linha de corte no meio de cada espaço entre as etiquetas, de ponta a ponta da folha (guilhotina ou tesoura
+    em linha reta). Só onde há etiqueta dos dois lados."""
+    c.setStrokeColorRGB(0.35, 0.35, 0.35)
+    c.setLineWidth(0.5)
+    c.setDash(3, 2)
+    for k in range(1, cols):                                  # entre colunas (precisa de etiqueta na coluna k)
+        if used > k:
+            x = x0 + k * w + (k - 1) * gx + gx / 2
+            c.line(x, 0, x, ph)
+    for k in range(1, rows):                                  # entre linhas (precisa de etiqueta na linha k)
+        if used > k * cols:
+            y = ph - y0 - k * h - (k - 1) * gy - gy / 2
+            c.line(0, y, pw, y)
+    c.setDash()
+    c.setStrokeColorRGB(0, 0, 0)
+
+
 def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int = 1,
               width_mm: float = DEFAULT_W_MM, height_mm: float = DEFAULT_H_MM, title: str = "Etiquetas") -> bytes:
     """Gera o PDF. `start_position` pula posições já usadas da primeira folha A4 (1 até o total da grade)."""
@@ -235,7 +254,7 @@ def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int =
         c = canvas.Canvas(buf, pagesize=(pw, ph))
         c.setTitle(title)
         slot = start_position - 1
-        for d in labels:
+        for i, d in enumerate(labels):
             if slot == per_page:
                 c.showPage()
                 slot = 0
@@ -243,8 +262,10 @@ def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int =
             x = x0 + col * (w + gx)
             y = ph - y0 - (row + 1) * h - row * gy
             draw_label(c, x, y, w, h, d)
-            _cut_lines(c, x, y, w, h)
             slot += 1
+            used = slot
+            if slot == per_page or i == len(labels) - 1:
+                _sheet_cut_lines(c, pw, ph, x0, y0, w, h, gx, gy, cols, rows, used)
         c.showPage()
         c.save()
         return buf.getvalue()
