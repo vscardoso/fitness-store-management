@@ -292,7 +292,7 @@ const ENTRADAS: HelpEntry[] = [
       'Estas peças não contam como venda.',
     ],
     roles: ['manager'],
-    related: ['entrada-detalhe'],
+    related: ['entradas'],
     sources: ['app/stock/removals.tsx'],
   },
   {
@@ -316,7 +316,7 @@ const ENTRADAS: HelpEntry[] = [
     mobile: ['Toque em “Bipar” para ler as etiquetas com a câmera.'],
     web: ['O leitor de código USB funciona direto no campo “Bipe ou digite o código”.'],
     roles: ['manager'],
-    related: ['entrada-detalhe'],
+    related: ['entradas'],
     sources: ['app/entries/check/[id].tsx', 'components/scan/ScanBar.tsx'],
   },
   {
@@ -607,6 +607,30 @@ const FORNECEDORES: HelpEntry[] = [
   },
 ];
 
+const ETIQUETAS_ENTRADA: HelpEntry[] = [
+  {
+    id: 'etiquetas-entrada',
+    group: 'estoque',
+    title: 'Etiquetas da entrada',
+    routes: ['/entries/labels/[id]'],
+    open: '/entries',
+    purpose: 'Imprime de uma vez as etiquetas de todas as peças que chegaram numa entrada.',
+    steps: [
+      'Escolha o tamanho da etiqueta e o papel: “Folha A4” ou “Uma por página” (para a impressora de etiqueta).',
+      'Confira a quantidade de cada peça: já vem preenchida com o que foi recebido.',
+      'Toque em “Gerar PDF”, abra o arquivo e imprima em tamanho real (100%).',
+      'Cole a etiqueta no verso da tag e confira cada peça lendo o QR na entrada.',
+    ],
+    goodToKnow: [
+      'Só saem as cores e tamanhos que vieram nesta entrada: peça antiga do mesmo produto não é reimpressa.',
+      'Na impressora térmica use etiqueta térmica do tamanho escolhido e o papel Uma por página.',
+    ],
+    roles: ['manager'],
+    related: ['entradas'],
+    sources: ['app/entries/labels/[id].tsx', 'components/labels/StickerStudio.tsx'],
+  },
+];
+
 const BRINDES: HelpEntry[] = [
   {
     id: 'brindes',
@@ -654,4 +678,4 @@ const BRINDES: HelpEntry[] = [
   },
 ];
 
-export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES, ...BRINDES];
+export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES, ...BRINDES, ...ETIQUETAS_ENTRADA];

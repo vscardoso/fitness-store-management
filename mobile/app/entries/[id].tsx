@@ -936,6 +936,15 @@ export default function StockEntryDetailsScreen() {
           </Text>
           <HScroll contentContainerStyle={styles.itemActionsScroll} style={styles.itemActionsWrap}>
             <TouchableOpacity
+              onPress={() => router.push({ pathname: '/entries/labels/[id]', params: { id: String(entryId) } } as any)}
+              style={[styles.editItemButton, { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary }]}
+              activeOpacity={0.8}
+              accessibilityLabel="Imprimir as etiquetas de todas as peças desta entrada"
+            >
+              <Ionicons name="print-outline" size={14} color="#fff" />
+              <Text style={[styles.editItemButtonText, { color: '#fff', fontWeight: '700' }]}>Imprimir etiquetas</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={() => router.push({ pathname: '/entries/check/[id]', params: { id: String(entryId) } } as any)}
               style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
               activeOpacity={0.7}
