@@ -38,6 +38,8 @@ import StatCard from '@/components/ui/StatCard';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
+import OptionListField from '@/components/ui/OptionListField';
+import HScroll from '@/components/ui/HScroll';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
 import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
@@ -936,7 +938,7 @@ export default function StockEntryDetailsScreen() {
           <Text style={styles.sectionTitleLarge}>
             Produtos ({entry.entry_items?.length || 0})
           </Text>
-          <View style={styles.itemActionsRow}>
+          <HScroll contentContainerStyle={styles.itemActionsScroll} style={styles.itemActionsWrap}>
             <TouchableOpacity
               onPress={() => router.push({ pathname: '/entries/check/[id]', params: { id: String(entryId) } } as any)}
               style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
@@ -946,9 +948,8 @@ export default function StockEntryDetailsScreen() {
               <Ionicons name="qr-code-outline" size={14} color={brandingColors.primary} />
               <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Conferir recebimento</Text>
             </TouchableOpacity>
-          </View>
-          {isManagerRole(user?.role) && (
-            <View style={styles.itemActionsRow}>
+            {isManagerRole(user?.role) && (
+              <>
               <TouchableOpacity
                 onPress={() => setAddProductOpen(true)}
                 style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
@@ -970,8 +971,9 @@ export default function StockEntryDetailsScreen() {
                 <Ionicons name="sparkles-outline" size={14} color={brandingColors.primary} />
                 <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Produto novo</Text>
               </TouchableOpacity>
-            </View>
-          )}
+              </>
+            )}
+          </HScroll>
           {entry.entry_items && entry.entry_items.length > 1 && (
             <RNTextInput
               value={itemsQuery}
@@ -984,28 +986,18 @@ export default function StockEntryDetailsScreen() {
             />
           )}
           {entry.entry_items && entry.entry_items.length > 1 && (
-            <View style={styles.itemsViewRow}>
-              {([
-                ['original', 'Ordem de entrada'],
-                ['az', 'A a Z'],
-                ['zerados', 'Zerados'],
-                ['agrupar', 'Agrupar por produto'],
-              ] as const).map(([key, label]) => {
-                const active = itemsView === key;
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    onPress={() => setItemsView(key)}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Mostrar produtos: ${label}`}
-                    style={[styles.itemsViewChip, active && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '18' }]}
-                  >
-                    <Text style={[styles.itemsViewChipText, active && { color: brandingColors.primary, fontWeight: '700' }]}>{label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <OptionListField
+              label="Mostrar produtos"
+              value={itemsView}
+              onChange={setItemsView}
+              style={{ marginBottom: 12 }}
+              options={[
+                { value: 'original', label: 'Ordem de entrada', description: 'Na ordem em que foram lançados', icon: 'time-outline' },
+                { value: 'az', label: 'A a Z', description: 'Por nome do produto', icon: 'text-outline' },
+                { value: 'zerados', label: 'Zerados', description: 'Só o que já acabou desta entrada', icon: 'remove-circle-outline' },
+                { value: 'agrupar', label: 'Agrupar por produto', description: 'Cores e tamanhos juntos, por produto', icon: 'albums-outline' },
+              ]}
+            />
           )}
           {entry.entry_items && entry.entry_items.length > 0 ? (
             (() => {
@@ -1537,6 +1529,17 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: theme.spacing.xs,
     marginBottom: theme.spacing.md,
+  },
+  itemActionsWrap: {
+    marginBottom: theme.spacing.md,
+    flexGrow: 0,
+  },
+  itemActionsScroll: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingRight: theme.spacing.xs,
   },
   productHeaderRight: {
     flexDirection: 'column',

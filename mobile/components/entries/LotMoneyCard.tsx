@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
+import HScroll from '@/components/ui/HScroll';
 import { TextInput } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -208,29 +209,29 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
         </Text>
       )}
       {canEdit && (
-        <TouchableOpacity style={[styles.addButton, { borderColor: brand.primary }]} onPress={() => setFormOpen(true)}>
-          <Ionicons name="add-circle-outline" size={18} color={brand.primary} />
-          <Text style={[styles.addButtonText, { color: brand.primary }]}>Lançar despesa deste lote</Text>
-        </TouchableOpacity>
-      )}
-      {canEdit && (
-        <TouchableOpacity
-          style={[styles.addButton, { borderColor: brand.primary }]}
-          onPress={() => {
-            // Com vários fornecedores o desconto é de um fornecedor por vez; com um só, vale para a entrada
-            const first = multiSupplier ? supplierList[0] : null;
-            setDiscountSupplierId(first ? first.supplier_id : null);
-            const current = first ? first.discount : generalDiscount;
-            setDiscountText(current > 0 ? maskCurrencyBR(String(Math.round(current * 100))) : '');
-            setFormError('');
-            setDiscountOpen(true);
-          }}
-        >
-          <Ionicons name="pricetag-outline" size={18} color={brand.primary} />
-          <Text style={[styles.addButtonText, { color: brand.primary }]}>
-            {discount > 0 ? 'Alterar desconto do fornecedor' : multiSupplier ? 'Informar desconto de um fornecedor' : 'Informar desconto do fornecedor'}
-          </Text>
-        </TouchableOpacity>
+        <HScroll contentContainerStyle={styles.buttonsScroll} style={styles.buttonsWrap}>
+          <TouchableOpacity style={[styles.addButton, styles.inlineButton, { borderColor: brand.primary }]} onPress={() => setFormOpen(true)}>
+            <Ionicons name="add-circle-outline" size={18} color={brand.primary} />
+            <Text style={[styles.addButtonText, { color: brand.primary }]}>Lançar despesa deste lote</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.addButton, styles.inlineButton, { borderColor: brand.primary }]}
+            onPress={() => {
+              // Com vários fornecedores o desconto é de um fornecedor por vez; com um só, vale para a entrada
+              const first = multiSupplier ? supplierList[0] : null;
+              setDiscountSupplierId(first ? first.supplier_id : null);
+              const current = first ? first.discount : generalDiscount;
+              setDiscountText(current > 0 ? maskCurrencyBR(String(Math.round(current * 100))) : '');
+              setFormError('');
+              setDiscountOpen(true);
+            }}
+          >
+            <Ionicons name="pricetag-outline" size={18} color={brand.primary} />
+            <Text style={[styles.addButtonText, { color: brand.primary }]}>
+              {discount > 0 ? 'Alterar desconto do fornecedor' : multiSupplier ? 'Informar desconto de um fornecedor' : 'Informar desconto do fornecedor'}
+            </Text>
+          </TouchableOpacity>
+        </HScroll>
       )}
 
       {/* Antes de vender: o que esta entrada rende se tudo for vendido pelos preços de hoje */}
@@ -508,6 +509,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   addButtonText: { fontSize: 14, fontWeight: '600' },
+  buttonsWrap: { marginTop: 12, flexGrow: 0 },
+  buttonsScroll: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 8, paddingRight: 8 },
+  inlineButton: { marginTop: 0, paddingHorizontal: 14 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   supplierChip: {
     flexDirection: 'row',
