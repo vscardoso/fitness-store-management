@@ -11,6 +11,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
@@ -212,9 +213,15 @@ export default function ImportStockScreen() {
                 placeholder="DD/MM/AAAA"
                 style={styles.input}
               />
-              <Button mode="contained" buttonColor={brand.primary} onPress={check} disabled={!hasInput || busy} loading={busy && !confirm} style={styles.btn}>
+              <Button mode="contained" buttonColor={brand.primary} onPress={check} disabled={!hasInput || busy} style={styles.btn}>
                 Conferir planilha
               </Button>
+              {busy && !confirm && (
+                <View style={styles.checking}>
+                  <ActivityIndicator size="large" color={brand.primary} />
+                  <Text style={styles.note}>Conferindo a planilha...</Text>
+                </View>
+              )}
             </View>
           </>
         )}
@@ -336,6 +343,7 @@ const styles = StyleSheet.create({
   fileName: { marginTop: 6, fontWeight: '600', color: Colors.light.text },
   input: { marginTop: 10, backgroundColor: Colors.light.card },
   btn: { marginTop: 12 },
+  checking: { alignItems: 'center', paddingTop: 12 },
   actions: { marginTop: 12, gap: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   stat: { minWidth: 112, flexGrow: 1, flexBasis: 112, padding: 10, borderRadius: 12, backgroundColor: Colors.light.background },
