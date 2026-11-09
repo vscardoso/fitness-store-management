@@ -15,7 +15,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuditPage, type AuditCategory, type AuditRow } from '@/services/auditService';
-import { describeAudit } from '@/utils/auditText';
+import { auditDetails, describeAudit } from '@/utils/auditText';
 import { parseApiError } from '@/utils/apiError';
 import { parseApiDate } from '@/utils/format';
 import { isAdminRole } from '@/utils/roles';
@@ -60,6 +60,7 @@ export default function AuditHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [more, setMore] = useState(false);
   const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async (skip: number) => {
     if (skip === 0) setLoading(true); else setMore(true);
@@ -107,7 +108,7 @@ export default function AuditHistoryScreen() {
       <PageHeader title="Histórico de alterações" subtitle="Quem mexeu em quê" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
         <Text style={styles.intro}>
-          Tudo que alguém muda em valores fica aqui, com o nome de quem fez. Estes registros não podem ser apagados nem editados.
+          Consulte quem fez cada alteração e toque em um registro para ver os detalhes disponíveis.
         </Text>
         <HScroll contentContainerStyle={styles.chips} style={styles.chipsWrap}>
           {CATEGORIES.map((c) => (
@@ -137,11 +138,31 @@ export default function AuditHistoryScreen() {
                 <Text style={styles.day}>{g.day}</Text>
                 {g.rows.map((r) => {
                   const s = describeAudit(r);
+                  const details = expanded[r.id] ? auditDetails(r) : [];
                   return (
                     <View key={r.id} style={styles.card}>
-                      <Text style={styles.text}>{s.text}</Text>
-                      {!!s.reason && <Text style={styles.reason}>Motivo: {s.reason}</Text>}
-                      <Text style={styles.time}>às {hour(r.created_at)}</Text>
+                      <TouchableOpacity
+                        onPress={() => setExpanded((old) => ({ ...old, [r.id]: !old[r.id] }))}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: !!expanded[r.id] }}
+                        accessibilityLabel={`${s.text}. ${expanded[r.id] ? 'Ocultar detalhes' : 'Ver detalhes'}`}
+                      >
+                        <Text style={styles.text}>{s.text}</Text>
+                        {!!s.reason && <Text style={styles.reason}>Motivo: {s.reason}</Text>}
+                        <Text style={styles.time}>às {hour(r.created_at)}</Text>
+                        <Text style={[styles.detailsButton, { color: brand.primary }]}>{expanded[r.id] ? 'Ocultar detalhes' : 'Ver detalhes'}</Text>
+                      </TouchableOpacity>
+                      {!!expanded[r.id] && (
+                        <View style={styles.details}>
+                          {details.length ? details.map((detail, index) => (
+                            <View key={`${detail.label}-${index}`} style={styles.detailRow}>
+                              <Text style={styles.detailLabel}>{detail.label}</Text>
+                              <Text style={styles.detailValue} selectable>{detail.value}</Text>
+                            </View>
+                          )) : <Text style={styles.reason}>Este registro não guardou outros detalhes.</Text>}
+                          <Text style={styles.detailNote}>São mostradas apenas as informações guardadas na época da ação.</Text>
+                        </View>
+                      )}
                     </View>
                   );
                 })}
@@ -179,6 +200,12 @@ const styles = StyleSheet.create({
   text: { fontSize: 15, lineHeight: 21, color: Colors.light.text, fontWeight: '600' },
   reason: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary, marginTop: 4 },
   time: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 6 },
+  detailsButton: { fontSize: 13, fontWeight: '600', marginTop: 8 },
+  details: { marginTop: 12, gap: 8 },
+  detailRow: { gap: 2 },
+  detailLabel: { fontSize: 12, color: Colors.light.textSecondary },
+  detailValue: { fontSize: 14, lineHeight: 19, color: Colors.light.text },
+  detailNote: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 4 },
   moreBtn: { alignSelf: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card, marginTop: 4 },
   moreText: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
 });

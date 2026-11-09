@@ -13,6 +13,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopDialogStyle } from '@/hooks/useLayout';
 import WebDialogLayer from '@/components/ui/WebDialogLayer';
+import { MagnifierLoader } from '@/components/ui/MagnifierLoader';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -46,6 +47,7 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   const brand = useBrandingColors();
   const dialogDesktop = useDesktopDialogStyle();
+  const isWeb = Platform.OS === 'web';
   const getTypeConfig = () => {
     switch (type) {
       case 'danger':
@@ -154,12 +156,19 @@ export default function ConfirmDialog({
                 { backgroundColor: config.confirmButtonColor }
               ]}
               textColor="#fff"
-              loading={loading}
+              loading={loading && !isWeb}
               disabled={loading}
             >
               {confirmText}
             </Button>
           </View>
+
+          {/* Na web a janela é do navegador e fica por cima do carregamento global: o logo aparece aqui dentro */}
+          {loading && isWeb && (
+            <View style={styles.loadingVeil} pointerEvents="auto">
+              <MagnifierLoader size={96} alwaysShow />
+            </View>
+          )}
         </Surface>
   );
 
@@ -198,6 +207,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: theme.elevation.xl,
+  },
+  loadingVeil: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: theme.borderRadius.xxl,
+    backgroundColor: 'rgba(255, 255, 255, 0.82)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
   },
   closeButton: {
     position: 'absolute',

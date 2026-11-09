@@ -1,6 +1,6 @@
 // node scripts/test-audit-text.mts
 import assert from 'node:assert/strict';
-import { describeAudit, money } from '../utils/auditText.ts';
+import { auditDetails, describeAudit, money } from '../utils/auditText.ts';
 
 let ok = 0;
 const t = (nome: string, fn: () => void) => { fn(); ok++; console.log('ok', nome); };
@@ -79,3 +79,36 @@ console.log(`${ok} testes de texto do histórico passaram`);
     assert.ok(!describeAudit({ action: a, user_name: 'X' }).text.includes('fez uma ação'), a);
   console.log('ok ações específicas com frase própria');
 }
+
+t('lançamento no financeiro identifica tipo e valor', () => {
+  const item = { action: 'ROTA_POST_FINANCE_ENTRIES', user_name: 'Victor',
+    detail: J({ rota: '/finance/entries', metodo: 'POST', corpo: {
+      kind: 'owner_withdrawal', amount: 300, account_id: 7, person: 'Maria', occurred_on: '2026-11-08',
+    } }) };
+  assert.equal(describeAudit(item).text, 'Victor registrou retirada de sócio de R$ 300,00');
+  const details = auditDetails(item);
+  assert.ok(details.some((d) => d.label === 'Dados informados · Pessoa' && d.value === 'Maria'));
+  assert.ok(details.some((d) => d.label === 'Dados informados · Código da conta' && d.value === '7'));
+  assert.ok(details.some((d) => d.label === 'Dados informados · Data do lançamento' && d.value === '08/11/2026'));
+});
+t('fiado antigo soma parcelas e não inventa valor ausente', () => {
+  const item = { action: 'RECEIVABLE_OPENING_CREATED', user_name: 'Victor',
+    detail: J({ corpo: { customer_id: 2, installments: [
+      { amount: '100.10', due_date: '2026-11-08' }, { amount: '200.20', due_date: '2026-12-08' },
+    ] } }) };
+  assert.equal(describeAudit(item).text, 'Victor lançou um fiado antigo de R$ 300,30');
+  assert.ok(auditDetails(item).some((d) => d.label === 'Dados informados · Parcelas · 2 · Valor' && d.value === 'R$ 200,20'));
+  assert.equal(describeAudit({ action: 'RECEIVABLE_OPENING_CREATED', user_name: 'Victor' }).text, 'Victor lançou um fiado antigo');
+});
+t('detalhes incluem todos os campos registrados e protegem segredos', () => {
+  const details = auditDetails({ action: 'PRODUCT_UPDATED', detail: J({
+    antes: { amount: 10, outro_campo: 'original' }, depois: { amount: 20, outro_campo: 'novo' },
+    corpo: { password: 'oculto', nested: { token: 'oculto', quantity: 0 }, ativo: false },
+  }) });
+  assert.ok(details.some((d) => d.label === 'Antes · outro campo' && d.value === 'original'));
+  assert.ok(details.some((d) => d.label === 'Depois · Valor' && d.value === 'R$ 20,00'));
+  assert.ok(details.some((d) => d.label === 'Dados informados · nested · Quantidade' && d.value === '0'));
+  assert.ok(details.some((d) => d.label === 'Dados informados · ativo' && d.value === 'não'));
+  assert.ok(!JSON.stringify(details).includes('oculto'));
+  assert.deepEqual(auditDetails({ action: 'LOGIN_SUCCESS' }), []);
+});

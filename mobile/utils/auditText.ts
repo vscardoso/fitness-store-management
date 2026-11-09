@@ -93,6 +93,64 @@ const ACAO_ESPECIAL: Record<string, string> = {
 
 const PAPEL: Record<string, string> = { admin: 'administrador', manager: 'gerente', seller: 'vendedor', cashier: 'caixa' };
 const papel = (v: unknown) => PAPEL[String(v).toLowerCase().replace(/^userrole\./, '')] ?? String(v);
+const ENTRY_KIND: Record<string, string> = {
+  owner_withdrawal: 'retirada de sócio', owner_contribution: 'dinheiro colocado pelo sócio',
+  card_bill: 'fatura do cartão', loan_given: 'empréstimo concedido', loan_paid: 'pagamento de empréstimo',
+  loan_repaid: 'recebimento de empréstimo', loan_taken: 'empréstimo recebido',
+  other_in: 'outra entrada', other_out: 'outra saída',
+};
+
+const DETAIL_LABEL: Record<string, string> = {
+  corpo: 'Dados informados', antes: 'Antes', depois: 'Depois', ids: 'Identificadores',
+  nome: 'Nome', motivo: 'Motivo', reason: 'Motivo', notes: 'Observações', note: 'Observação',
+  description: 'Descrição', amount: 'Valor', total: 'Total', total_amount: 'Valor total',
+  kind: 'Tipo', person: 'Pessoa', account_id: 'Código da conta', from_account_id: 'Código da conta de origem',
+  to_account_id: 'Código da conta de destino', customer_id: 'Código da cliente', sale_id: 'Código da venda',
+  product_id: 'Código do produto', variant_id: 'Código da variação', entry_id: 'Código da entrada',
+  item_id: 'Código do item', payable_id: 'Código da conta a pagar', receivable_id: 'Código do fiado',
+  payment_id: 'Código do recebimento', user_id: 'Código da pessoa', full_name: 'Nome completo',
+  name: 'Nome', installments: 'Parcelas', due_date: 'Vencimento', occurred_on: 'Data do lançamento',
+  received_on: 'Data do recebimento', start_date: 'Contar a partir de', opening_amount: 'Valor de abertura',
+  counted_amount: 'Valor contado', cash_balance: 'Saldo da gaveta', balance: 'Saldo', banks: 'Bancos',
+  quantity: 'Quantidade', size: 'Tamanho', color: 'Cor', method: 'Forma de pagamento',
+  payment_method: 'Forma de pagamento', rota: 'Operação', metodo: 'Método', texto: 'Informação registrada',
+  conta: 'Conta', items: 'Itens', year: 'Ano', month: 'Mês',
+};
+const DETAIL_MONEY = new Set([...MONEY, 'total', 'total_amount', 'opening_amount', 'counted_amount', 'cash_balance', 'balance', 'received', 'gross']);
+const PRIVATE_FIELD = /pass|senha|token|secret|cpf|cnpj|document|hash|key/i;
+
+export interface AuditDetailLine {
+  label: string;
+  value: string;
+}
+
+/** Mostra apenas o que foi efetivamente gravado, inclusive campos que ainda não têm tradução. */
+export function auditDetails(item: AuditItem): AuditDetailLine[] {
+  const d = parse(item.detail);
+  const lines: AuditDetailLine[] = [];
+  const visit = (value: unknown, key: string, prefix: string) => {
+    if (PRIVATE_FIELD.test(key)) return;
+    const label = DETAIL_LABEL[key] ?? FIELD[key]?.replace(/^(o |a )/, '') ?? key.replace(/_/g, ' ');
+    const path = prefix ? `${prefix} · ${label}` : label;
+    if (Array.isArray(value)) {
+      value.forEach((v, i) => visit(v, String(i + 1), path));
+    } else if (value !== null && typeof value === 'object') {
+      Object.entries(value).forEach(([k, v]) => visit(v, k, path));
+    } else {
+      let shown: string;
+      if (value === null || value === '') shown = 'não informado';
+      else if (typeof value === 'boolean') shown = value ? 'sim' : 'não';
+      else if (key === 'kind' && ENTRY_KIND[String(value)]) shown = ENTRY_KIND[String(value)];
+      else if (DETAIL_MONEY.has(key) && value !== undefined) shown = money(value);
+      else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) shown = value.split('-').reverse().join('/');
+      else shown = String(value);
+      lines.push({ label: path, value: shown });
+    }
+  };
+  Object.entries(d).forEach(([key, value]) => visit(value, key, ''));
+  if (item.entity_id != null && !d.ids) lines.push({ label: 'Código do registro', value: String(item.entity_id) });
+  return lines;
+}
 
 /** Frase da regra geral. `rota` é o caminho do servidor ("/products/{product_id}/adjust-quantity"). */
 function describeRoute(who: string, d: Record<string, any>, nome: unknown, ch: string): string {
@@ -104,6 +162,12 @@ function describeRoute(who: string, d: Record<string, any>, nome: unknown, ch: s
   const nomeTxt = nome ? ` “${String(nome)}”` : '';
   const ultima = partes[partes.length - 1];
   let verbo: string;
+  if (rota === '/finance/entries' && metodo === 'POST') {
+    const kind = ENTRY_KIND[String(d.corpo?.kind)] ?? 'lançamento financeiro';
+    const value = d.corpo?.amount;
+    return `${who} registrou ${kind}${value != null && value !== '' ? ` de ${money(value)}` : ''}`;
+  }
+  if (rota === '/finance/setup' && metodo === 'POST') return `${who} configurou o financeiro`;
   if (partes.length > 1 && ACAO_ESPECIAL[ultima]) {
     return `${who} ${ACAO_ESPECIAL[ultima]}${nomeTxt}${ch ? `: ${ch}` : ''}`;
   }
@@ -162,7 +226,14 @@ export function describeAudit(item: AuditItem): AuditSentence {
       text = `${who} recebeu ${money(c.amount)} de fiado`;
       break;
     case 'RECEIVABLE_OPENING_CREATED':
-      text = `${who} lançou um fiado antigo de ${money(c.amount ?? c.total_amount)}`;
+      {
+        let value = c.amount ?? c.total_amount;
+        if (value == null && Array.isArray(c.installments) && c.installments.length &&
+            c.installments.every((i: any) => i?.amount != null && i.amount !== '' && Number.isFinite(Number(i.amount)))) {
+          value = c.installments.reduce((sum: number, i: any) => sum + Math.round(Number(i.amount) * 100), 0) / 100;
+        }
+        text = `${who} lançou um fiado antigo${value != null && value !== '' ? ` de ${money(value)}` : ''}`;
+      }
       break;
     case 'RECEIVABLE_CANCELLED':
       text = `${who} cancelou um fiado lançado`;
