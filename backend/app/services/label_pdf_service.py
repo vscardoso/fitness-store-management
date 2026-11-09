@@ -204,18 +204,20 @@ def _cut_lines(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None
 
 def _sheet_cut_lines(c: canvas.Canvas, pw: float, ph: float, x0: float, y0: float, w: float, h: float,
                      gx: float, gy: float, cols: int, rows: int, used: int) -> None:
-    """Uma só linha de corte no meio de cada espaço entre as etiquetas, de ponta a ponta da folha (guilhotina ou tesoura
-    em linha reta). Só onde há etiqueta dos dois lados."""
+    """Linhas de corte de ponta a ponta da folha (guilhotina ou tesoura em linha reta): uma no meio de cada espaço entre
+    as etiquetas e uma em cada borda de fora. Só onde há etiqueta ao lado."""
     c.setStrokeColorRGB(0.35, 0.35, 0.35)
     c.setLineWidth(0.5)
     c.setDash(3, 2)
-    for k in range(1, cols):                                  # entre colunas (precisa de etiqueta na coluna k)
-        if used > k:
-            x = x0 + k * w + (k - 1) * gx + gx / 2
+    # linhas em TODAS as bordas da grade (inclusive as de fora), cada uma a meio espaço da etiqueta: todo recorte sai do
+    # mesmo tamanho (etiqueta + meio espaço de cada lado), inclusive as das pontas
+    for k in range(0, cols + 1):                              # k = 0 é a borda esquerda, k = cols a direita
+        if used > max(k - 1, 0):                              # só se há etiqueta ao lado dessa linha
+            x = x0 + k * (w + gx) - gx / 2
             c.line(x, 0, x, ph)
-    for k in range(1, rows):                                  # entre linhas (precisa de etiqueta na linha k)
-        if used > k * cols:
-            y = ph - y0 - k * h - (k - 1) * gy - gy / 2
+    for k in range(0, rows + 1):                              # k = 0 é a borda de cima, k = rows a de baixo
+        if used > max(k - 1, 0) * cols:
+            y = ph - y0 - k * (h + gy) + gy / 2
             c.line(0, y, pw, y)
     c.setDash()
     c.setStrokeColorRGB(0, 0, 0)

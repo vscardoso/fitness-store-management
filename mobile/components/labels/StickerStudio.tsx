@@ -44,7 +44,8 @@ interface Props {
 
 const MAX_PER_ITEM = 200;
 const SIZE_KEY = '@provador:etiqueta_medida';   // última medida usada neste aparelho
-const PAPER_KEY = '@provador:etiqueta_papel';    // último papel usado (a4 ou roll)
+const PAPER_KEY = '@provador:etiqueta_papel';    // último papel usado (a4, sheet ou roll)
+const SHEET_KEY = '@provador:etiqueta_folha';    // onde parou a última folha: { paper, w, h, next } (a impressora não sabe o que já foi usado, o app lembra)
 
 function sizeFrom(w: number, h: number): StickerSize {
   return STICKER_SIZES.find((s) => s.widthMm === w && s.heightMm === h) ?? customSticker(w, h);
@@ -123,8 +124,25 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
   const shown = items.find((i) => i.variantId === focusId) ?? chosen[0]?.it ?? items[0];
   const pxPerMm = Math.max(2.4, Math.min(5, (width - 2 * theme.spacing.md - 2 * theme.spacing.lg) / size.widthMm));
 
-  // trocar a medida muda quantas cabem por folha: a posição inicial volta ao 1 para não ficar fora da grade
-  useEffect(() => setStart(1), [size.widthMm, size.heightMm]);
+  // a folha que sobrou da última impressão: o app começa na próxima posição livre, sem a pessoa precisar contar.
+  // Trocou a medida ou o papel (muda quantas cabem): volta ao 1 para não ficar fora da grade.
+  const [continuing, setContinuing] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setStart(1); setContinuing(false);
+    if (paper === 'roll') return;
+    AsyncStorage.getItem(SHEET_KEY).then((raw) => {
+      const v = raw ? JSON.parse(raw) : null;
+      if (alive && v && v.paper === paper && v.w === size.widthMm && v.h === size.heightMm && v.next > 1 && v.next <= perSheet) {
+        setStart(v.next); setContinuing(true);
+      }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [paper, size.widthMm, size.heightMm, perSheet]);
+  const newSheet = () => {
+    setStart(1); setContinuing(false);
+    AsyncStorage.removeItem(SHEET_KEY).catch(() => {});
+  };
 
   const set = (id: number, v: number) => setQty((p) => ({ ...p, [id]: Math.max(0, Math.min(MAX_PER_ITEM, v)) }));
   const fill = (fn: (it: StickerItem) => number) => setQty(Object.fromEntries(items.map((it) => [it.variantId, Math.max(0, Math.min(MAX_PER_ITEM, fn(it)))])));
@@ -138,6 +156,13 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         chosen.map((x) => ({ variantId: x.it.variantId, quantity: x.q })),
         { layout, startPosition: layout === 'roll' ? 1 : start, widthMm: size.widthMm, heightMm: size.heightMm },
       );
+      if (layout !== 'roll') {
+        // onde a próxima impressão deve começar: 1 se a folha foi toda usada, senão a primeira posição que sobrou
+        const used = (start - 1 + total) % perSheet;
+        const next = used === 0 ? 1 : used + 1;
+        setStart(next); setContinuing(next > 1);
+        AsyncStorage.setItem(SHEET_KEY, JSON.stringify({ paper: layout, w: size.widthMm, h: size.heightMm, next })).catch(() => {});
+      }
       onGenerated?.();
     } catch (e: any) {
       setError(e?.message || 'Não foi possível gerar o PDF. Tente de novo.');
@@ -324,7 +349,23 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         </View>
         {paper !== 'roll' ? (
           <View style={styles.sheetBox}>
-            <Text style={styles.muted}>Folha já usada? Toque na primeira posição livre.</Text>
+            <Text style={styles.sheetTitle}>
+              {start === 1
+                ? 'Folha nova: a impressão começa na posição 1.'
+                : `Folha que sobrou: começa na posição ${start}. Os espaços com ✕ já foram usados.`}
+            </Text>
+            <Text style={styles.muted}>
+              {total > 0
+                ? `${total} etiqueta${total !== 1 ? 's' : ''} = ${sheets} folha${sheets !== 1 ? 's' : ''}`
+                  + ((start - 1 + total) % perSheet === 0 ? ', sem sobra.' : `; a última fica com ${(start - 1 + total) % perSheet} de ${perSheet} usadas e o app guarda o resto para a próxima vez.`)
+                : 'Escolha as quantidades para ver quantas folhas vão precisar.'}
+            </Text>
+            {continuing || start > 1 ? (
+              <TouchableOpacity onPress={newSheet} accessibilityRole="button" accessibilityLabel="Usar folha nova" style={styles.newSheetBtn}>
+                <Text style={styles.newSheetText}>Coloquei uma folha nova (começar no 1)</Text>
+              </TouchableOpacity>
+            ) : null}
+            <Text style={styles.muted}>Para mudar o ponto de partida à mão, toque na posição:</Text>
             <View style={styles.grid}>
               {Array.from({ length: perSheet }, (_, i) => i + 1).map((pos) => {
                 const used = pos < start;
@@ -403,6 +444,9 @@ const makeStyles = (primary: string) =>
     segmentMainOn: { color: primary },
     segmentSub: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: 2 },
     segmentSubOn: { color: primary },
+    sheetTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
+    newSheetBtn: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: primary },
+    newSheetText: { color: primary, fontWeight: '700', fontSize: 13 },
     customToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: theme.spacing.sm, alignSelf: 'flex-start' },
     customRow: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm },
     inputLabel: { fontSize: theme.fontSize.xs, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 4 },

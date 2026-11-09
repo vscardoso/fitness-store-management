@@ -167,7 +167,7 @@ const PRODUTOS: HelpEntry[] = [
     goodToKnow: [
       'O adesivo leva nome, cor, tamanho, preço, o QR e o código da peça (#101-1); nunca o custo.',
       'Peça sem código ganha o código ao gerar o PDF.',
-      'Na folha A4 já usada, toque na primeira posição livre antes de gerar.',
+      'O app lembra onde a última folha parou e já começa na próxima posição livre. Se colocar uma folha nova, toque em “Coloquei uma folha nova”.',
     ],
     related: ['etiquetas-produto'],
     sources: ['app/products/label/index.tsx', 'components/labels/StickerStudio.tsx', 'components/labels/LabelProductPickerModal.tsx'],
