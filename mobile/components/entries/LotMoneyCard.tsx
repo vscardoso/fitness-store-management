@@ -9,7 +9,6 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
-import HScroll from '@/components/ui/HScroll';
 import { TextInput } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -209,10 +208,10 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
         </Text>
       )}
       {canEdit && (
-        <HScroll contentContainerStyle={styles.buttonsScroll} style={styles.buttonsWrap}>
+        <View style={styles.buttonsRow}>
           <TouchableOpacity style={[styles.addButton, styles.inlineButton, { borderColor: brand.primary }]} onPress={() => setFormOpen(true)}>
-            <Ionicons name="add-circle-outline" size={18} color={brand.primary} />
-            <Text style={[styles.addButtonText, { color: brand.primary }]}>Lançar despesa deste lote</Text>
+            <Ionicons name="add-circle-outline" size={16} color={brand.primary} />
+            <Text style={[styles.addButtonText, styles.inlineButtonText, { color: brand.primary }]}>Lançar despesa deste lote</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.addButton, styles.inlineButton, { borderColor: brand.primary }]}
@@ -226,12 +225,12 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
               setDiscountOpen(true);
             }}
           >
-            <Ionicons name="pricetag-outline" size={18} color={brand.primary} />
-            <Text style={[styles.addButtonText, { color: brand.primary }]}>
+            <Ionicons name="pricetag-outline" size={16} color={brand.primary} />
+            <Text style={[styles.addButtonText, styles.inlineButtonText, { color: brand.primary }]}>
               {discount > 0 ? 'Alterar desconto do fornecedor' : multiSupplier ? 'Informar desconto de um fornecedor' : 'Informar desconto do fornecedor'}
             </Text>
           </TouchableOpacity>
-        </HScroll>
+        </View>
       )}
 
       {/* Antes de vender: o que esta entrada rende se tudo for vendido pelos preços de hoje */}
@@ -509,9 +508,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   addButtonText: { fontSize: 14, fontWeight: '600' },
-  buttonsWrap: { marginTop: 12, flexGrow: 0 },
-  buttonsScroll: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 8, paddingRight: 8 },
-  inlineButton: { marginTop: 0, paddingHorizontal: 14 },
+  buttonsRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  inlineButton: { flex: 1, marginTop: 0, paddingHorizontal: 8, gap: 4 },
+  inlineButtonText: { flexShrink: 1, fontSize: 12, lineHeight: 15, textAlign: 'center' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   supplierChip: {
     flexDirection: 'row',
