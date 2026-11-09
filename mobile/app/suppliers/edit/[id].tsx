@@ -9,13 +9,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { parseApiError } from '@/utils/apiError';
 import { documentMask, phoneMask } from '@/utils/masks';
 import { getSupplierById, updateSupplier } from '@/services/supplierService';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function EditSupplierScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -70,7 +70,7 @@ export default function EditSupplierScreen() {
   const header = <PageHeader title="Editar fornecedor" subtitle={supplier?.name} showBackButton backFallback={`/suppliers/${supplierId}`} />;
 
   if (isLoading) {
-    return <View style={styles.container}>{header}<View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View></View>;
+    return <View style={styles.container}>{header}<ScreenLoader /></View>;
   }
   if (error || !supplier) {
     return (

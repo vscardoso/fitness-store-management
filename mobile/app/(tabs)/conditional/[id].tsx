@@ -56,6 +56,7 @@ import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
 import { lookupCode } from '@/services/codeResolver';
 import { playScan } from '@/utils/scanFeedback';
 import { keepTheRest, markReturnedPiece } from '@/utils/conditionalScan';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 /**
  * Traduz os códigos de forma de pagamento para labels legíveis
@@ -618,10 +619,7 @@ export default function ConditionalShipmentDetailsScreen() {
           showBackButton
           onBack={() => router.push('/(tabs)/conditional')}
         />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={{ marginTop: 16, color: Colors.light.textSecondary, fontSize: 16 }}>Carregando envio...</Text>
-        </View>
+        <ScreenLoader message="Carregando envio..." />
       </View>
     );
   }

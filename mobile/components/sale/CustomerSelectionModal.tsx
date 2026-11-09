@@ -15,7 +15,7 @@ import { getCustomers } from '@/services/customerService';
 import EmptyState from '@/components/ui/EmptyState';
 import BottomSheet from '@/components/ui/BottomSheet';
 import type { Customer } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 interface CustomerSelectionModalProps {
   visible: boolean;
@@ -135,10 +135,7 @@ export default function CustomerSelectionModal({
 
       {/* Lista */}
       {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando clientes...</Text>
-        </View>
+        <ScreenLoader message="Carregando clientes..." />
       ) : isError ? (
         <EmptyState
           icon="alert-circle-outline"

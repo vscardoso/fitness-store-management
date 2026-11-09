@@ -41,11 +41,11 @@ import {
   generatePixPayment,
 } from '@/services/pdvService';
 import type { PendingSale } from '@/types/pdv';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { FEATURES } from '@/constants/features';
 import FeatureGate from '@/components/FeatureGate';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 const C = Colors.light;
 
 interface QRModalState {
@@ -220,10 +220,7 @@ function QRModal({
       )}
 
       {state.loading ? (
-        <View style={styles.modalQRPlaceholder}>
-          <ActivityIndicator size="large" color={C.primary} />
-          <Text style={styles.modalLoadingText}>Carregando QR Code...</Text>
-        </View>
+        <ScreenLoader message="Carregando QR Code..." />
       ) : state.qr_code_base64 ? (
         <Image
           source={{ uri: `data:image/png;base64,${state.qr_code_base64}` }}

@@ -55,6 +55,7 @@ import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import type { Supplier } from '@/types';
 import { takePresetEntry } from '@/utils/presetEntry';
 import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const PAGE_SIZE = 20;
 
@@ -596,10 +597,7 @@ export default function StockEntriesScreen() {
           subtitle="0 entradas"
         />
 
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando entradas...</Text>
-        </View>
+        <ScreenLoader message="Carregando entradas..." />
       </View>
     );
   }

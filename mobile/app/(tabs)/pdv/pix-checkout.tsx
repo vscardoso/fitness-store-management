@@ -31,6 +31,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import FeatureGate from '@/components/FeatureGate';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 const C = Colors.light;
 
 function PixCheckoutScreen() {
@@ -260,7 +261,7 @@ function PixCheckoutScreen() {
         {/* Gerando QR Code */}
         {generating && (
           <View style={styles.centerSection}>
-            <ActivityIndicator size="large" color={C.primary} />
+            <ScreenLoader inline />
             <Text style={styles.waitText}>Gerando QR Code PIX...</Text>
           </View>
         )}

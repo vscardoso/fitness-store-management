@@ -8,7 +8,6 @@ import { useRouter } from 'expo-router';
 
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import HScroll from '@/components/ui/HScroll';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -19,6 +18,7 @@ import { auditDetails, describeAudit } from '@/utils/auditText';
 import { parseApiError } from '@/utils/apiError';
 import { parseApiDate } from '@/utils/format';
 import { isAdminRole } from '@/utils/roles';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const PAGE = 30;
 const CATEGORIES: { key: AuditCategory | null; label: string }[] = [
@@ -125,7 +125,7 @@ export default function AuditHistoryScreen() {
         )}
 
         {loading ? (
-          <View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View>
+          <ScreenLoader />
         ) : error ? (
           <Text style={styles.error}>{error}</Text>
         ) : groups.length === 0 ? (

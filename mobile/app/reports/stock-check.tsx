@@ -26,7 +26,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import useBackToList from '@/hooks/useBackToList';
 import { useAuthStore } from '@/store/authStore';
@@ -52,6 +51,7 @@ import { useScreenWakeLock } from '@/hooks/usePwaExtras';
 import { playScan } from '@/utils/scanFeedback';
 import { buildSearchIndex, matchesSearch } from '@/utils/searchMatch';
 import { useDesktopContentStyle, useDesktopGrid } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 type Counts = Record<number, string>;
 
@@ -945,7 +945,7 @@ export default function StockCheckScreen() {
 
         {/* Lista */}
         {isLoading ? (
-          <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 40 }} />
+          <ScreenLoader inline />
         ) : error ? (
           <View style={styles.empty}>
             <Ionicons name="wifi-outline" size={40} color={Colors.light.textTertiary} />

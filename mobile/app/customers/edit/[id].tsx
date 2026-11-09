@@ -26,6 +26,7 @@ import type { CustomerUpdate } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function EditCustomerScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -170,10 +171,7 @@ export default function EditCustomerScreen() {
 
   if (loadingCustomer || !customer) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={brandingColors.primary} />
-        <Text style={styles.loadingText}>Carregando...</Text>
-      </View>
+      <ScreenLoader message="Carregando..." />
     );
   }
 

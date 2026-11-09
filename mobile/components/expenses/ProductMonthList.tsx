@@ -10,7 +10,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getMonthlyResultByProduct, type ProductMonthResult } from '@/services/expenseService';
 import { formatCurrency } from '@/utils/format';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 type Sort = 'profit' | 'pieces' | 'revenue' | 'name';
 const SORTS: { id: Sort; label: string }[] = [
@@ -53,7 +53,7 @@ export default function ProductMonthList({ year, month }: { year: number; month:
       <Text style={styles.sub}>Quanto entrou, quanto custou e quanto sobrou de cada produto. Devoluções já descontadas.</Text>
 
       {isLoading ? (
-        <ActivityIndicator color={brand.primary} />
+        <ScreenLoader compact />
       ) : !data?.length ? (
         <Text style={styles.empty}>Nenhuma venda neste mês.</Text>
       ) : (

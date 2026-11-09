@@ -11,13 +11,13 @@ import { useQuery } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import PageHeader from '@/components/layout/PageHeader';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { getMonthlyReport, openMonthlyReportPdfWeb } from '@/services/monthlyReportService';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const PAYMENTS: Record<string, string> = {
   cash: 'Dinheiro', credit_card: 'Cartão de crédito', debit_card: 'Cartão de débito', pix: 'PIX', bank_transfer: 'Transferência',
@@ -87,9 +87,7 @@ export default function MonthlyReportScreen() {
         </View>
 
         {q.isLoading && (
-          <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-            <ActivityIndicator size={124} color={brand.primary} />
-          </View>
+          <ScreenLoader />
         )}
         {!!q.error && <Text style={styles.error}>{parseApiError(q.error)}</Text>}
 

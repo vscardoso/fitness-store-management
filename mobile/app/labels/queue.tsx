@@ -20,7 +20,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { listPrintJobs, statusColor, statusLabel } from '@/services/printService';
 import type { PrintJob } from '@/types/printer';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function PrintQueueScreen() {
   const router = useRouter();
@@ -113,11 +113,7 @@ export default function PrintQueueScreen() {
 
       <Animated.View style={[{ flex: 1 }, contentStyle]}>
         {isLoading ? (
-          <ActivityIndicator
-            color={brandingColors.primary}
-            size="large"
-            style={{ marginTop: 48 }}
-          />
+          <ScreenLoader inline />
         ) : (
           <FlatList
             data={jobs}

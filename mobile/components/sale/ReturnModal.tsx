@@ -35,8 +35,8 @@ import {
   ReturnEligibility,
   ReturnItemRequest,
 } from '@/services/returnService';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import ReplacementPicker, { ReplacementChoice } from '@/components/sale/ReplacementPicker';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 interface ReturnModalProps {
   visible: boolean;
@@ -364,7 +364,7 @@ A devolução já está registrada.`,
         <DialogHost>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={brandingColors.primary} />
+              <ScreenLoader inline />
               <Text style={styles.loadingText}>Verificando elegibilidade...</Text>
             </View>
           ) : !eligibility?.is_eligible ? (

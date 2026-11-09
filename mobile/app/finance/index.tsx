@@ -14,7 +14,6 @@ import PageHeader from '@/components/layout/PageHeader';
 import CashStatusCard from '@/components/cash/CashStatusCard';
 import FiadoProjectionCard from '@/components/finance/FiadoProjectionCard';
 import CardScheduleCard from '@/components/finance/CardScheduleCard';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -23,6 +22,7 @@ import { isAdminRole } from '@/utils/roles';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { getFinanceOverview, listPayables } from '@/services/financeService';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -55,7 +55,7 @@ export default function FinanceHomeScreen() {
   const go = (path: string) => router.push(path as any);
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size={124} color={brand.primary} /></View>;
+    return <ScreenLoader />;
   }
 
   const p = data?.projection;

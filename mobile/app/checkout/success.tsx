@@ -27,7 +27,7 @@ import SaleReceipt from '@/components/receipt/SaleReceipt';
 import ReceiptActions from '@/components/receipt/ReceiptActions';
 import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 /**
  * Componente principal da tela de sucesso
@@ -216,12 +216,7 @@ export default function CheckoutSuccessScreen() {
           showBackButton
           onBack={() => router.replace('/(tabs)')}
         />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>
-            Carregando detalhes da venda...
-          </Text>
-        </View>
+        <ScreenLoader message="Carregando detalhes da venda..." />
       </View>
     );
   }

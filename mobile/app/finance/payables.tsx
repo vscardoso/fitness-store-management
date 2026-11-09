@@ -12,7 +12,6 @@ import PageHeader from '@/components/layout/PageHeader';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -23,6 +22,7 @@ import {
   cancelPayable, createPayable, getFinanceOverview, isoDay, listPayables, payPayable, unpayPayable, type Payable,
 } from '@/services/financeService';
 import { getExpenseCategories } from '@/services/expenseService';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 type Filter = 'open' | 'paid' | 'canceled';
 const FILTERS: { id: Filter; label: string }[] = [
@@ -108,7 +108,7 @@ export default function PayablesScreen() {
           ))}
         </View>
 
-        {isLoading ? <ActivityIndicator size={124} color={brand.primary} /> : items.length === 0 ? (
+        {isLoading ? <ScreenLoader inline /> : items.length === 0 ? (
           <Text style={styles.empty}>{filter === 'open' ? 'Nenhuma conta em aberto.' : 'Nada por aqui.'}</Text>
         ) : items.map((p) => (
           <View key={p.id} style={[styles.item, p.overdue && styles.itemOverdue]}>

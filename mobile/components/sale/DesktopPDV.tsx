@@ -30,9 +30,9 @@ import { validateCartStock, validateProductForCart, formatValidationErrors } fro
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Money } from '@/components/ui/PriceDisplay';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { HelpIconButton } from '@/components/help/HelpHost';
 import type { Customer, ProductGrouped, ProductVariant } from '@/types';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const INK = '#160F28';
 const MUTED = '#5B5670';
@@ -400,7 +400,7 @@ export default function DesktopPDV() {
               <Text style={styles.listHeadText}>CLIQUE NA COR E TAMANHO PARA ADICIONAR</Text>
             </View>
             {isLoading ? (
-              <View style={styles.empty}><ActivityIndicator size="large" color={primary} /></View>
+              <ScreenLoader />
             ) : results.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyText}>

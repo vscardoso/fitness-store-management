@@ -42,6 +42,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopSheet } from '@/hooks/useLayout';
 import { parseApiError } from '@/utils/apiError';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 /**
  * Métodos de pagamento disponíveis
@@ -311,10 +312,7 @@ export default function PaymentDiscountsScreen() {
           showBackButton
           onBack={goBack}
         />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando descontos...</Text>
-        </View>
+        <ScreenLoader message="Carregando descontos..." />
       </View>
     );
   }

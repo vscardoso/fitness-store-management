@@ -37,11 +37,11 @@ import { getEntryTypeLabel, getEntryTypeColor, getEntryTypeIcon } from '@/consta
 import { useBrandingColors } from '@/store/brandingStore';
 import { useProductSuppliers } from '@/hooks/useSuppliers';
 import { VALUE_COLORS } from '@/constants/Colors';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import VariantPricesSheet, { distinctPrices } from '@/components/products/VariantPricesSheet';
 import { useIsDesktop, DESKTOP_CONTENT_MAX } from '@/hooks/useLayout';
 import LoadedImage from '@/components/ui/LoadedImage';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -369,10 +369,7 @@ export default function ProductDetailsScreen() {
   if (isLoading || !product) {
     return (
       <View style={styles.container}>
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando produto...</Text>
-        </View>
+        <ScreenLoader message="Carregando produto..." />
       </View>
     );
   }

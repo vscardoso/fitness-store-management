@@ -20,6 +20,7 @@ import type { StorePIXKey } from '@/services/storeService';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const PIX_TYPES = [
   { value: 'cpf',    label: 'CPF',             placeholder: '000.000.000-00' },
@@ -209,7 +210,7 @@ function PIXKeyScreen() {
     return (
       <View style={styles.container}>
         <PageHeader title="Chave PIX" subtitle="Pagamentos" showBackButton backFallback="/(tabs)/more" />
-        <View style={styles.center}><ActivityIndicator size="large" color={brandingColors.primary} /></View>
+        <ScreenLoader />
       </View>
     );
   }

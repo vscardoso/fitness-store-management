@@ -29,7 +29,7 @@ import {
   connectionLabel,
 } from '@/services/printService';
 import type { LabelPrinter } from '@/types/printer';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function PrintersScreen() {
   const router = useRouter();
@@ -174,11 +174,7 @@ export default function PrintersScreen() {
 
       <Animated.View style={[{ flex: 1 }, contentStyle]}>
         {isLoading ? (
-          <ActivityIndicator
-            color={brandingColors.primary}
-            size="large"
-            style={{ marginTop: 48 }}
-          />
+          <ScreenLoader inline />
         ) : (
           <FlatList
             data={printers}

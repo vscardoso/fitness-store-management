@@ -15,7 +15,6 @@ import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -31,6 +30,7 @@ import {
   undoReceivablePayment, type Receivable, type ReceivableFilter, type ReceiveMethod,
 } from '@/services/receivableService';
 import type { Customer } from '@/types';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const FILTERS: { id: ReceivableFilter; label: string }[] = [
   { id: 'open', label: 'Em aberto' }, { id: 'overdue', label: 'Vencidas' }, { id: 'paid', label: 'Pagas' }, { id: 'all', label: 'Todas' },
@@ -162,7 +162,7 @@ export default function ReceivablesScreen() {
           ))}
         </View>
 
-        {isLoading ? <ActivityIndicator size={124} color={brand.primary} /> : groups.length === 0 ? (
+        {isLoading ? <ScreenLoader inline /> : groups.length === 0 ? (
           <Text style={styles.empty}>{filter === 'open' ? 'Ninguém deve nada agora.' : 'Nada por aqui.'}</Text>
         ) : groups.map((g) => (
           <View key={g.id} style={[styles.group, g.overdue && styles.itemOverdue]}>

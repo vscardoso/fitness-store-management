@@ -24,7 +24,7 @@ import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 
 import { Money } from '@/components/ui/PriceDisplay';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 interface Props {
   entryId: number;
   /** Quem pode lançar despesa do lote (gerente e admin). */
@@ -98,7 +98,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
   if (analytics.isLoading || costs.isLoading) {
     return (
       <View style={styles.card}>
-        <ActivityIndicator color={brand.primary} />
+        <ScreenLoader compact />
       </View>
     );
   }

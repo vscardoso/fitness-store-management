@@ -51,12 +51,12 @@ import LotMoneyCard from '@/components/entries/LotMoneyCard';
 import AddVariantModal from '@/components/entries/AddVariantModal';
 import { useAuth } from '@/hooks/useAuth';
 import { EntryType, EntryItemResponse } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { isManagerRole } from '@/utils/roles';
 import SendToSupplierModal from '@/components/entries/SendToSupplierModal';
 import AddProductToEntryModal from '@/components/entries/AddProductToEntryModal';
 import { setPresetEntry } from '@/utils/presetEntry';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function StockEntryDetailsScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -683,10 +683,7 @@ export default function StockEntryDetailsScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando entrada...</Text>
-        </View>
+        <ScreenLoader message="Carregando entrada..." />
       </View>
     );
   }

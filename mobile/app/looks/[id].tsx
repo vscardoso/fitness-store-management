@@ -22,9 +22,9 @@ import { getThumbUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { LookItemResponse } from '@/types/look';
 import type { ProductGrouped } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
 import LoadedImage from '@/components/ui/LoadedImage';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 function LookDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -83,9 +83,7 @@ function LookDetailScreen() {
     return (
       <View style={styles.container}>
         <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Look" />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
-        </View>
+        <ScreenLoader />
       </View>
     );
   }

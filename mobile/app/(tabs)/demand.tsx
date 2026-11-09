@@ -22,9 +22,9 @@ import { getThumbUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { DemandItem } from '@/types/look';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
 import LoadedImage from '@/components/ui/LoadedImage';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 function DemandScreen() {
   const brandingColors = useBrandingColors();
@@ -84,9 +84,7 @@ function DemandScreen() {
     return (
       <View style={styles.container}>
         <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Demanda Wishlist" subtitle="Carregando..." />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-        </View>
+        <ScreenLoader />
       </View>
     );
   }

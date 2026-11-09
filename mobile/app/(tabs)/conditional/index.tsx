@@ -37,8 +37,8 @@ import {
 import { formatCurrency } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 type FilterType = 'all' | 'pending' | 'overdue';
 
@@ -377,10 +377,7 @@ export default function ConditionalShipmentsScreen() {
 
       {/* Content */}
       {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando envios...</Text>
-        </View>
+        <ScreenLoader message="Carregando envios..." />
       ) : isError ? (
         <EmptyState
           icon="alert-circle-outline"

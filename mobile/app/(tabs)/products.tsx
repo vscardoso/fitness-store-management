@@ -26,6 +26,7 @@ import type { ProductGrouped } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopProductsTable from '@/components/products/DesktopProductsTable';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const PAGE_SIZE = 40;
 
@@ -282,10 +283,7 @@ function MobileProductsScreen() {
           ]}
         />
 
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando produtos...</Text>
-        </View>
+        <ScreenLoader message="Carregando produtos..." />
       </View>
     );
   }

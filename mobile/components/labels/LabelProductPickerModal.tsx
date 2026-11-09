@@ -23,9 +23,9 @@ import { useBrandingColors } from '@/store/brandingStore';
 import AppButton from '@/components/ui/AppButton';
 import { getGroupedProducts } from '@/services/productService';
 import type { ProductGrouped, ProductVariant } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
 import { matchesProduct } from '@/utils/productSearch';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -406,10 +406,7 @@ export default function LabelProductPickerModal({
 
         {/* Lista */}
         {isLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={brandingColors.primary} />
-            <Text style={styles.loadingText}>Carregando produtos…</Text>
-          </View>
+          <ScreenLoader message="Carregando produtos..." />
         ) : (
           <FlatList
             data={filtered}

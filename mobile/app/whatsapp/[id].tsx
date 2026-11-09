@@ -18,7 +18,7 @@ import { useChatColors } from '@/hooks/useThemeColors';
 import { useKeyboardState } from '@/hooks/useKeyboardInset';
 import { fillQuickReply, filterQuickReplies, slashQuery } from '@/utils/quickReply';
 import { parseApiError } from '@/utils/apiError';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const STATUS_LABEL: Record<string, string> = { sent: 'Enviada', delivered: 'Entregue', read: 'Lida', failed: 'Falhou' };
 
@@ -181,7 +181,7 @@ export default function WhatsappConversationScreen() {
         </TouchableOpacity>
       </View>
       {isLoading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={c.accent} /></View>
+        <ScreenLoader />
       ) : isError ? (
         <EmptyState icon="alert-circle-outline" title="Não consegui abrir a conversa" description={parseApiError(error)} />
       ) : (

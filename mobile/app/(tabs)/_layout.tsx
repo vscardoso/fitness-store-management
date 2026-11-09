@@ -8,9 +8,9 @@ import { useAuthStore } from '@/store/authStore';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { useUIStore } from '@/store/uiStore';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
 import { useKeyboardState } from '@/hooks/useKeyboardInset';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function TabsLayout() {
   const { bottom: safeBottom } = useSafeAreaInsets();
@@ -73,9 +73,7 @@ export default function TabsLayout() {
 
   if (isAuthenticated && (brandingHydrating || (!brandingSynced && !initialSyncAttempted))) {
     return (
-      <View style={styles.brandingGateContainer}>
-        <ActivityIndicator size="large" color={brandingColors.primary} />
-      </View>
+      <ScreenLoader style={{ backgroundColor: '#fff' }} />
     );
   }
 

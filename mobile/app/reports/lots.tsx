@@ -4,7 +4,6 @@
  */
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -16,6 +15,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
 import { getLotProfitRanking, type LotProfitRow } from '@/services/stockEntryService';
 import { useDesktopContentStyle, useDesktopGrid, useScrollBleed } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function LotProfitScreen() {
   // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
@@ -49,7 +49,7 @@ export default function LotProfitScreen() {
           </Text>
         </View>
 
-        {isLoading && <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 32 }} />}
+        {isLoading && <ScreenLoader inline />}
 
         {!isLoading && (data ?? []).length === 0 && (
           <Text style={styles.empty}>Você ainda não tem lotes. Quando der entrada numa compra, ela aparece aqui.</Text>

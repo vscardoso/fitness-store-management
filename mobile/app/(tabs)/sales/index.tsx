@@ -27,12 +27,12 @@ import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 import type { Sale } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopSalesTable from '@/components/sale/DesktopSalesTable';
 import { saleCodesText } from '@/utils/saleCodes';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 const statusMap: Record<string, { label: string; color: string; icon: string }> = {
   pending:            { label: 'Pendente',     color: '#F59E0B',             icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, icon: 'checkmark-circle-outline' },
@@ -188,10 +188,7 @@ function MobileSalesListScreen() {
     return (
       <View style={styles.container}>
         <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Vendas" subtitle="Carregando..." />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando vendas...</Text>
-        </View>
+        <ScreenLoader message="Carregando vendas..." />
       </View>
     );
   }

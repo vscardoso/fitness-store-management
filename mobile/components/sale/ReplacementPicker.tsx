@@ -7,12 +7,12 @@ import { StyleSheet, Text, TextInput as RNTextInput, TouchableOpacity, View } fr
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import BottomSheet from '@/components/ui/BottomSheet';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getProductById, searchProducts } from '@/services/productService';
 import { formatCurrency } from '@/utils/format';
 import type { Product } from '@/types';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export interface ReplacementChoice {
   variant_id: number;
@@ -88,7 +88,7 @@ export default function ReplacementPicker({ visible, productId, excludeVariantId
 
       {!!error && <Text style={styles.error}>{error}</Text>}
       {loading ? (
-        <ActivityIndicator size="large" color={brand.primary} style={{ marginVertical: 24 }} />
+        <ScreenLoader inline />
       ) : withStock.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="search-outline" size={40} color={Colors.light.textTertiary} />

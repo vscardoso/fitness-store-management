@@ -11,13 +11,13 @@ import PageHeader from '@/components/layout/PageHeader';
 import DataTable, { DataColumn } from '@/components/ui/DataTable';
 import EmptyState from '@/components/ui/EmptyState';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getSales } from '@/services/saleService';
 import { formatCurrency, formatDateTime, parseApiDate } from '@/utils/format';
 import { VALUE_COLORS } from '@/constants/Colors';
 import { saleCodes, saleCodesText } from '@/utils/saleCodes';
 import type { Sale } from '@/types';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const INK = '#160F28';
 const MUTED = '#5B5670';
@@ -188,7 +188,7 @@ export default function DesktopSalesTable() {
     return (
       <View style={styles.screen}>
         {header}
-        <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.sub}>Carregando vendas...</Text></View>
+        <ScreenLoader message="Carregando vendas..." />
       </View>
     );
   }

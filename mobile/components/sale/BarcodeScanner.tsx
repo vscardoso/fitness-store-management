@@ -17,6 +17,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { Product } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 interface BarcodeScannerProps {
   visible: boolean;
@@ -108,7 +109,7 @@ export default function BarcodeScanner({
     if (!permission) {
       return (
         <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
+          <ScreenLoader inline />
           <Text style={styles.statusText}>Verificando permissão da câmera...</Text>
         </View>
       );

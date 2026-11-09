@@ -15,7 +15,7 @@ import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { parseApiError } from '@/utils/apiError';
 import { describeLoyalty } from '@/utils/loyaltyText';
 import { getLoyaltySettings, updateLoyaltySettings } from '@/services/loyaltyService';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const num = (t: string) => {
   const n = parseFloat(String(t).replace(',', '.'));
@@ -86,9 +86,7 @@ export default function LoyaltySettingsScreen() {
     return (
       <View style={styles.container}>
         <PageHeader title="Fidelidade" subtitle="Pontos que viram desconto" showBackButton backFallback="/(tabs)/more" />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={brand.primary} />
-        </View>
+        <ScreenLoader />
       </View>
     );
   }

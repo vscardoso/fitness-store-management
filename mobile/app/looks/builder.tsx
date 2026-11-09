@@ -35,9 +35,9 @@ import { formatCurrency } from '@/utils/format';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import type { Look } from '@/types/look';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
 import LoadedImage from '@/components/ui/LoadedImage';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 interface SelectedItem {
   product: ProductGrouped;
@@ -303,9 +303,7 @@ function LookBuilderScreen() {
       )}
 
       {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
-        </View>
+        <ScreenLoader />
       ) : (
         <FlatList
           data={allProducts}

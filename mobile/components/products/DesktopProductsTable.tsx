@@ -10,13 +10,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import DataTable, { DataColumn } from '@/components/ui/DataTable';
 import EmptyState from '@/components/ui/EmptyState';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useCategories } from '@/hooks/useCategories';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getAllGroupedProducts } from '@/services/productService';
 import { formatCurrency } from '@/utils/format';
 import { matchesProduct, productCode, productCodeNumber } from '@/utils/productSearch';
 import type { ProductGrouped } from '@/types';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const INK = '#160F28';
 const MUTED = '#5B5670';
@@ -146,7 +146,7 @@ export default function DesktopProductsTable() {
     return (
       <View style={styles.screen}>
         {header}
-        <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.sub}>Carregando produtos...</Text></View>
+        <ScreenLoader message="Carregando produtos..." />
       </View>
     );
   }

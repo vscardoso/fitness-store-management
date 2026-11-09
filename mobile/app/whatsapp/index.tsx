@@ -11,8 +11,8 @@ import LabelChip from '@/components/whatsapp/LabelChip';
 import { listConversations, listWhatsappLabels, WaConversation } from '@/services/whatsappService';
 import { useChatColors } from '@/hooks/useThemeColors';
 import { parseApiError } from '@/utils/apiError';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 function when(iso: string | null): string {
   if (!iso) return '';
@@ -131,7 +131,7 @@ export default function WhatsappInboxScreen() {
         </ScrollView>
       )}
       {isLoading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={c.accent} /></View>
+        <ScreenLoader />
       ) : isError ? (
         <EmptyState icon="alert-circle-outline" title="Não consegui carregar" description={parseApiError(error)} />
       ) : (

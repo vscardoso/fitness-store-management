@@ -24,11 +24,11 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency, toBRNumber } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseUpdate } from '@/types/expense';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { parseApiError } from '@/utils/apiError';
 import { dateToIso } from '@/utils/dateBr';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole } from '@/utils/roles';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 /** Converte YYYY-MM-DD → Date (horário meio-dia para evitar bug de fuso) */
 const isoToDate = (iso: string): Date => {
@@ -143,10 +143,7 @@ export default function EditExpenseScreen() {
     return (
       <View style={styles.container}>
         <PageHeader title="Editar Despesa" showBackButton />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando despesa...</Text>
-        </View>
+        <ScreenLoader message="Carregando despesa..." />
       </View>
     );
   }

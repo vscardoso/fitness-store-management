@@ -20,6 +20,7 @@ import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import type { Product, ProductGrouped, ProductVariant } from '@/types';
 import LoadedImage from '@/components/ui/LoadedImage';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 /** Produto da lista agrupada no formato `Product` que as telas de entrada já usam. */
 export function groupedToProduct(g: ProductGrouped): Product {
@@ -108,7 +109,7 @@ export function ProductPickerList({ onPick, onNewVariant, markedVariantIds = [],
       </View>}
 
       {isLoading ? (
-        <ActivityIndicator size="large" color={brand.primary} style={{ marginVertical: 24 }} />
+        <ScreenLoader inline />
       ) : error ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>{parseApiError(error) || 'Não foi possível carregar os produtos'}</Text>

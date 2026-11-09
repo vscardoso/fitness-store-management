@@ -13,9 +13,9 @@ import PageHeader from '@/components/layout/PageHeader';
 import { getExpense } from '@/services/expenseService';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 function parseNoteValue(notes: string | null | undefined, key: string): string | null {
   if (!notes) return null;
   const tokens = notes.split('|').map((part) => part.trim());
@@ -45,10 +45,7 @@ export default function StockLossDetailScreen() {
     return (
       <View style={styles.container}>
         <PageHeader title="Detalhe do Prejuízo" subtitle="Carregando..." showBackButton onBack={handleBack} />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={VALUE_COLORS.negative} />
-          <Text style={styles.centerText}>Carregando lançamento...</Text>
-        </View>
+        <ScreenLoader message="Carregando lançamento..." />
       </View>
     );
   }

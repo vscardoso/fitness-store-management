@@ -18,10 +18,10 @@ import { getStockLosses } from '@/services/expenseService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { Expense } from '@/types/expense';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -136,10 +136,7 @@ export default function StockLossListScreen() {
             { icon: 'add-circle-outline', onPress: () => router.push('/(tabs)/stock-losses/register') },
           ]}
         />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={VALUE_COLORS.negative} />
-          <Text style={styles.centerText}>Carregando prejuízos...</Text>
-        </View>
+        <ScreenLoader message="Carregando prejuízos..." />
       </View>
     );
   }

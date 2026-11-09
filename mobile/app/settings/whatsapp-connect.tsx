@@ -10,7 +10,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -20,6 +19,7 @@ import {
   finishWhatsappEmbeddedSignup, getWhatsappConnectStatus, type WaConnectedNumber,
 } from '@/services/whatsappConnectService';
 import { EmbeddedSignupCancelled, runEmbeddedSignup } from '@/utils/metaEmbeddedSignup';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const STATUS_LABEL: Record<string, { text: string; color: string; icon: React.ComponentProps<typeof Ionicons>['name'] }> = {
   connected: { text: 'Conectado', color: Colors.light.success, icon: 'checkmark-circle' },
@@ -107,7 +107,7 @@ export default function WhatsappConnectScreen() {
       <PageHeader title="Conectar o WhatsApp" subtitle="Celular da loja e Provador no mesmo número" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktop]}>
         {isLoading ? (
-          <ActivityIndicator size="large" color={brand.primary} />
+          <ScreenLoader inline />
         ) : (
           <>
             {(data?.numbers ?? []).map((n) => <NumberCard key={n.id} n={n} />)}

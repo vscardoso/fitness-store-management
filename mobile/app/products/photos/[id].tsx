@@ -50,6 +50,7 @@ import type { ProductMedia } from '@/types/productMedia';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { DESKTOP_CONTENT_MAX } from '@/hooks/useLayout';
 import LoadedImage from '@/components/ui/LoadedImage';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -432,9 +433,7 @@ export default function VariantPhotosScreen() {
 
   if (isLoading || isLoadingProduct) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={brandingColors.primary} size="large" />
-      </View>
+      <ScreenLoader />
     );
   }
 

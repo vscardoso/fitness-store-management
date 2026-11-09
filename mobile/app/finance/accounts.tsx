@@ -16,7 +16,6 @@ import FiadoProjectionCard from '@/components/finance/FiadoProjectionCard';
 import CardScheduleCard from '@/components/finance/CardScheduleCard';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -25,6 +24,7 @@ import { isAdminRole } from '@/utils/roles';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 import {
   addBankAccount, adjustAccountBalance, updateAccount, deleteTransfer, getFinanceOverview, listTransfers, setPixAccount, transferBetweenAccounts,
   type AccountTransfer, type FinanceAccount,
@@ -94,7 +94,7 @@ export default function AccountsScreen() {
   });
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size={124} color={brand.primary} /></View>;
+    return <ScreenLoader />;
   }
 
   if (!data?.started) {

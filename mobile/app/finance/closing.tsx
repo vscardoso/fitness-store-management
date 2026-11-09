@@ -13,7 +13,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -22,6 +21,7 @@ import { isAdminRole } from '@/utils/roles';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { differenceText, parseSignedMoney, signedMoneyInput, toMoneyField } from '@/utils/cashMoney';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 import {
   closeMonth, getMonthClosing, listClosingMonths, reopenMonth, type ClosingMonth, type MonthClosing,
 } from '@/services/financeService';
@@ -95,7 +95,7 @@ export default function ClosingScreen() {
   });
 
   if (months.isLoading || (sel && q.isLoading)) {
-    return <View style={styles.center}><ActivityIndicator size={124} color={brand.primary} /></View>;
+    return <ScreenLoader />;
   }
 
   if (months.data && !months.data.started) {

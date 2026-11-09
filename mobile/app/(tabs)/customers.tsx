@@ -28,8 +28,8 @@ import { formatPhone } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Customer } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function CustomersScreen() {
   // no PC a lista vira grade de cartões (no celular continua uma coluna)
@@ -169,10 +169,7 @@ export default function CustomersScreen() {
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
 
         {isLoading && !isRefetching ? (
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={brandingColors.primary} />
-            <Text style={styles.loadingText}>Carregando clientes...</Text>
-          </View>
+          <ScreenLoader message="Carregando clientes..." />
         ) : isError ? (
           <EmptyState
             icon="alert-circle-outline"

@@ -29,6 +29,7 @@ import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { titleCaseInput } from '@/utils/format';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function EditCategoryScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -143,10 +144,7 @@ export default function EditCategoryScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={brandingColors.primary} />
-        <Text style={styles.loadingText}>Carregando...</Text>
-      </View>
+      <ScreenLoader message="Carregando..." />
     );
   }
 

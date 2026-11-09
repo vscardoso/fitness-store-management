@@ -19,8 +19,8 @@ import { listLooks } from '@/services/lookService';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import type { LookList } from '@/types/look';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 function LooksScreen() {
   const router = useRouter();
@@ -102,10 +102,7 @@ function LooksScreen() {
     return (
       <View style={styles.container}>
         <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Looks" subtitle="0 looks" />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
-          <Text style={styles.loadingText}>Carregando looks...</Text>
-        </View>
+        <ScreenLoader message="Carregando looks..." />
       </View>
     );
   }

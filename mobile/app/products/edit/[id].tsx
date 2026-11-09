@@ -39,6 +39,7 @@ import { normalizeGender } from '@/utils/gender';
 import LoadedImage from '@/components/ui/LoadedImage';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function EditProductScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -507,10 +508,7 @@ export default function EditProductScreen() {
 
   if (loadingProduct) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={brandingColors.primary} />
-        <Text style={styles.loadingText}>Carregando produto...</Text>
-      </View>
+      <ScreenLoader message="Carregando produto..." />
     );
   }
 

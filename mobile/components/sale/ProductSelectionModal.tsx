@@ -19,9 +19,9 @@ import { formatCurrency } from '@/utils/format';
 import { getGroupedProducts } from '@/services/productService';
 import EmptyState from '@/components/ui/EmptyState';
 import type { ProductGrouped, ProductVariant } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { formatVariantLabel } from '@/services/productVariantService';
 import { useDesktopSheet } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 interface ProductSelectionModalProps {
   visible: boolean;
@@ -228,10 +228,7 @@ export default function ProductSelectionModal({
 
         {/* Lista */}
         {isLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={brandingColors.primary} />
-            <Text style={styles.loadingText}>Carregando produtos...</Text>
-          </View>
+          <ScreenLoader message="Carregando produtos..." />
         ) : isError ? (
           <EmptyState
             icon="alert-circle-outline"

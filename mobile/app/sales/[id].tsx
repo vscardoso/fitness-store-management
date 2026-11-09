@@ -35,10 +35,10 @@ import ReturnModal from '@/components/sale/ReturnModal';
 import AppButton from '@/components/ui/AppButton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { SaleWithDetails } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
   pending:            { label: 'Pendente',     color: '#F59E0B', icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, solid: true, icon: 'checkmark-circle' },
@@ -221,10 +221,7 @@ export default function SaleDetailsScreen() {
     return (
       <View style={styles.container}>
         <PageHeader title="Venda" showBackButton onBack={goBack} />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-          <Text style={styles.loadingText}>Carregando venda...</Text>
-        </View>
+        <ScreenLoader message="Carregando venda..." />
       </View>
     );
   }

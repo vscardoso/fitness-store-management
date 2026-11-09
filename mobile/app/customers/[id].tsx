@@ -22,7 +22,6 @@ import { formatPhone, formatDate, formatCurrency, formatDateTime } from '@/utils
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Sale } from '@/types';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import CustomerPrivacyCard from '@/components/customers/CustomerPrivacyCard';
 import CustomerLoyaltyCard from '@/components/customers/CustomerLoyaltyCard';
 import CustomerFiadoCard from '@/components/customers/CustomerFiadoCard';
@@ -33,6 +32,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function CustomerDetailsScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -153,10 +153,7 @@ export default function CustomerDetailsScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={brandingColors.primary} />
-        <Text style={{ marginTop: 16, color: '#666' }}>Carregando cliente...</Text>
-      </View>
+      <ScreenLoader message="Carregando cliente..." />
     );
   }
 

@@ -23,9 +23,9 @@ import { documentLabel } from '@/utils/masks';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useSupplier, useSupplierProducts, useDeleteSupplier, useUpdateSupplier } from '@/hooks/useSuppliers';
 import { formatDate } from '@/utils/format';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function SupplierDetailScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -83,9 +83,7 @@ export default function SupplierDetailScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={brandingColors.primary} />
-      </View>
+      <ScreenLoader />
     );
   }
 

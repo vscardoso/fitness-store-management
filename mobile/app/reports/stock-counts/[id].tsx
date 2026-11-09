@@ -6,13 +6,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import useBackToList from '@/hooks/useBackToList';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStockCount, type StockCountItem } from '@/services/stockCountService';
 import { formatDateTime, formatInt } from '@/utils/format';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const PAGE = 30;
 const variantLabel = (i: StockCountItem) => [i.color, i.size].filter(Boolean).join(' / ') || 'Única';
@@ -56,7 +56,7 @@ export default function StockCountDetailScreen() {
       />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
         {isLoading ? (
-          <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 40 }} />
+          <ScreenLoader inline />
         ) : error || !count ? (
           <View style={styles.empty}>
             <Ionicons name="wifi-outline" size={40} color={Colors.light.textTertiary} />

@@ -33,11 +33,11 @@ import type { PeriodFilterValue } from '@/components/PeriodFilter';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { dateToIso } from '@/utils/dateBr';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 /** Texto do usuário dentro do HTML do PDF. */
 const escapeHtml = (v: string) =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -651,10 +651,7 @@ export default function SalesReportScreen() {
           </View>
 
           {isLoading && (
-            <View style={styles.loadingStateCard}>
-              <ActivityIndicator size="large" color={brandingColors.primary} />
-              <Text style={styles.loadingText}>Carregando relatório...</Text>
-            </View>
+            <ScreenLoader message="Carregando relatório..." />
           )}
 
           {!isLoading && !report && (

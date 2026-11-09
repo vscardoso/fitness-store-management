@@ -13,7 +13,6 @@ import PageHeader from '@/components/layout/PageHeader';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -21,6 +20,7 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import { dateToIso } from '@/utils/dateBr';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 import {
   createEntry, deleteEntry, getFinanceOverview, getLoans, listEntries, type AccountEntry, type EntryKind,
 } from '@/services/financeService';
@@ -83,7 +83,7 @@ export default function EntriesScreen() {
   };
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size={124} color={brand.primary} /></View>;
+    return <ScreenLoader />;
   }
 
   const notStarted = overview && !overview.started;

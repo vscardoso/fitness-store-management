@@ -14,8 +14,8 @@ import { API_CONFIG } from '@/constants/Config';
 import { Colors, theme } from '@/constants/Colors';
 import { BRAND } from '@/constants/Brand';
 import { Money } from '@/components/ui/PriceDisplay';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import LoadedImage from '@/components/ui/LoadedImage';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 interface Showcase {
   id: number;
@@ -88,7 +88,7 @@ export default function ProdutoVitrine({ store, id }: { store?: string | null; i
   if (!data) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={accent} />
+        <ScreenLoader inline />
       </SafeAreaView>
     );
   }

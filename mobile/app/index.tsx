@@ -11,9 +11,9 @@ import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { getAccessToken } from '@/services/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { restoreQueryCache } from '@/utils/queryPersist';
 import { getQueryClient } from '@/utils/queryCache';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const ONBOARDING_COMPLETED_KEY = '@fitness_store:onboarding_completed';
 
@@ -57,18 +57,14 @@ export default function Index() {
 
   if (isLoading || checking) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color={brandingColors.primary} />
-      </View>
+      <ScreenLoader style={{ backgroundColor: '#fff' }} />
     );
   }
 
   // Só espera o que está guardado no aparelho; o servidor atualiza as cores por trás (esperar a rede deixava a abertura lenta)
   if (user && brandingHydrating) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color={brandingColors.primary} />
-      </View>
+      <ScreenLoader style={{ backgroundColor: '#fff' }} />
     );
   }
 

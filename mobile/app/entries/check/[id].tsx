@@ -13,7 +13,6 @@ import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import useBackToList from '@/hooks/useBackToList';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -22,6 +21,7 @@ import { lookupCode, variantLabel } from '@/services/codeResolver';
 import { playScan } from '@/utils/scanFeedback';
 import { formatInt } from '@/utils/format';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 type Counts = Record<number, number>; // variant_id -> peças lidas
 
@@ -151,7 +151,7 @@ export default function EntryReceiveCheckScreen() {
       <PageHeader title="Conferir recebimento" subtitle={entry ? 'Entrada ' + entry.entry_code : undefined} showBackButton onBack={goBack} />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         {isLoading ? (
-          <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 40 }} />
+          <ScreenLoader inline />
         ) : error || !entry ? (
           <View style={styles.empty}>
             <Ionicons name="wifi-outline" size={40} color={Colors.light.textTertiary} />

@@ -9,13 +9,13 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import useBackToList from '@/hooks/useBackToList';
 import { useBrandingColors } from '@/store/brandingStore';
 import { listStockCounts, type StockCountSummary } from '@/services/stockCountService';
 import { formatDateTime, formatInt } from '@/utils/format';
 import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function StockCountsScreen() {
   // no PC a lista vira grade de cartões (no celular continua uma coluna)
@@ -79,7 +79,7 @@ export default function StockCountsScreen() {
     <View style={styles.container}>
       <PageHeader title="Conferências salvas" subtitle="Histórico das contagens do estoque" showBackButton onBack={goBack} />
       {isLoading ? (
-        <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 40 }} />
+        <ScreenLoader inline />
       ) : error ? (
         <View style={styles.empty}>
           <Ionicons name="wifi-outline" size={40} color={Colors.light.textTertiary} />

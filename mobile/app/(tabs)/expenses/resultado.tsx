@@ -13,10 +13,10 @@ import { getMonthlyResult } from '@/services/expenseService';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import type { MonthlyResult, ExpenseByCategoryItem } from '@/types/expense';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import ProductMonthList from '@/components/expenses/ProductMonthList';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -66,9 +66,7 @@ export default function MonthlyResultScreen() {
       </View>
 
       {isLoading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={brandingColors.primary} />
-        </View>
+        <ScreenLoader />
       ) : data ? (
         <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
           <PLCard data={data} />

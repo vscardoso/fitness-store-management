@@ -12,7 +12,7 @@ import { differenceText } from '@/utils/cashMoney';
 import { parseApiError } from '@/utils/apiError';
 import { getCashSession, getCashSessions } from '@/services/cashService';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 
 export default function CashHistoryScreen() {
   // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
@@ -34,7 +34,7 @@ export default function CashHistoryScreen() {
       <View style={[{ flex: 1 }, desktopColumn]}>
       <ScrollView
           style={bleed.scrollStyle} contentContainerStyle={[styles.content, bleed.contentStyle]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
-        {isLoading && <ActivityIndicator size="large" style={{ marginTop: 24 }} />}
+        {isLoading && <ScreenLoader inline />}
         {!!error && <Text style={styles.error}>{parseApiError(error) || 'Não foi possível carregar o histórico.'}</Text>}
         {!isLoading && !error && (data?.length ?? 0) === 0 && <Text style={styles.empty}>Nenhum caixa aberto ainda.</Text>}
         {(data ?? []).map((s) => {
@@ -59,7 +59,7 @@ export default function CashHistoryScreen() {
               </TouchableOpacity>
               {expanded && (
                 <View style={{ marginTop: 10 }}>
-                  {detail.isLoading && <ActivityIndicator />}
+                  {detail.isLoading && <ScreenLoader compact />}
                   {detail.data && detail.data.status === 'closed' && <ClosedSummary s={detail.data} />}
                   {detail.data && detail.data.status === 'open' && (
                     <Line label="Esperado na gaveta agora" value={detail.data.expected_amount} />
