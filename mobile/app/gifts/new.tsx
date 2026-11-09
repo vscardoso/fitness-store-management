@@ -31,12 +31,13 @@ export default function NewGiftScreen() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const admin = isAdminRole(user?.role);
-  const { saleId } = useLocalSearchParams<{ saleId?: string }>();
+  // vindo da venda: o vínculo, a cliente e o motivo já vêm preenchidos
+  const { saleId, customerId, customerName } = useLocalSearchParams<{ saleId?: string; customerId?: string; customerName?: string }>();
 
   const [lines, setLines] = useState<Line[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [who, setWho] = useState<'customer' | 'other'>('other');
-  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [who, setWho] = useState<'customer' | 'other'>(customerId ? 'customer' : 'other');
+  const [customer, setCustomer] = useState<Customer | null>(customerId ? ({ id: Number(customerId), full_name: customerName || 'Cliente da venda' } as Customer) : null);
   const [customerOpen, setCustomerOpen] = useState(false);
   const [recipient, setRecipient] = useState('');
   const [reason, setReason] = useState<GiftReason>(saleId ? 'with_sale' : 'courtesy');
@@ -73,7 +74,7 @@ export default function NewGiftScreen() {
   };
   const setQty = (id: number, q: number) => setLines((cur) => cur.flatMap((l) => (l.variant.id !== id ? [l] : q <= 0 ? [] : [{ ...l, quantity: q }])));
 
-  const ready = lines.length > 0 && (who === 'customer' ? !!customer : recipient.trim().length >= 3) && (reason !== 'other' || note.trim().length >= 3);
+  const ready = lines.length > 0 && (who === 'customer' ? !!customer : recipient.trim().length >= 3) && ((reason !== 'other' && reason !== 'voucher') || note.trim().length >= 3);
 
   if (!admin) return <Redirect href="/(tabs)/more" />;
 
@@ -136,7 +137,7 @@ export default function NewGiftScreen() {
           <Text style={styles.title}>Motivo</Text>
           <OptionListField label="Por que está dando" value={reason} onChange={setReason} icon="help-circle-outline"
             options={REASON_OPTIONS.map((o) => ({ value: o.value, label: o.label, description: o.description }))} />
-          <TextInput mode="outlined" label={reason === 'other' ? 'Qual o motivo? (obrigatório)' : 'Observação (opcional)'} value={note}
+          <TextInput mode="outlined" label={reason === 'other' ? 'Qual o motivo? (obrigatório)' : reason === 'voucher' ? 'Número do voucher (obrigatório)' : 'Observação (opcional)'} value={note}
             onChangeText={setNote} activeOutlineColor={brand.primary} />
         </View>
 

@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Animated, Easing, Text } from 'react-native';
+import { View, StyleSheet, ScrollView, Animated, Easing, Text, TouchableOpacity } from 'react-native';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -25,6 +25,7 @@ import { haptics } from '@/utils/haptics';
 import { useAuthStore } from '@/store/authStore';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
 import ReceiptActions from '@/components/receipt/ReceiptActions';
+import { isAdminRole } from '@/utils/roles';
 import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
 import ScreenLoader from '@/components/ui/ScreenLoader';
@@ -338,6 +339,18 @@ export default function CheckoutSuccessScreen() {
         <View style={{ marginTop: 12 }}>
           <ReceiptActions saleId={sale.id} saleNumber={sale.sale_number} change={change > 0 ? change : undefined} />
         </View>
+
+        {isAdminRole(user?.role) && sale.status !== 'cancelled' && (
+          <TouchableOpacity
+            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#DB2777' + '66' }}
+            activeOpacity={0.8}
+            accessibilityLabel="Dar um brinde junto desta venda"
+            onPress={() => router.push({ pathname: '/gifts/new', params: { saleId: String(sale.id), ...(sale.customer_id ? { customerId: String(sale.customer_id), customerName: sale.customer_name || '' } : {}) } } as any)}
+          >
+            <Ionicons name="gift-outline" size={20} color="#DB2777" />
+            <Text style={{ color: '#DB2777', fontWeight: '700' }}>Dar um brinde junto desta venda</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Botões de ação */}
         <Animated.View

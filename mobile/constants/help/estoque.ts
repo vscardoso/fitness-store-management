@@ -641,7 +641,7 @@ const BRINDES: HelpEntry[] = [
     steps: [
       'Em “Peças”, toque em “Escolher a peça” e use os botões de mais e menos para a quantidade.',
       'Em “Para quem”, escolha uma cliente cadastrada ou escreva o nome da pessoa.',
-      'Em “Motivo”, escolha na lista. Se escolher Outro, escreva o motivo.',
+      'Em “Motivo”, escolha na lista. Em Outro ou Voucher resgatado, escreva o motivo ou o número do voucher.',
       'Confira o resumo e toque em “Dar brinde”.',
     ],
     goodToKnow: [

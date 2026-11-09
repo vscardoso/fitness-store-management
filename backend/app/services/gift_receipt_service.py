@@ -24,6 +24,7 @@ from app.services.sale_receipt_service import WIDTHS_MM, _fmt_phone, _Page, brl,
 REASON_FOR_CUSTOMER = {
     "with_sale": "Brinde da sua compra",
     "courtesy": "Cortesia da loja",
+    "voucher": "Resgate de voucher",
     "promotion": "Parceria com a loja",
     "other": "Cortesia da loja",
 }

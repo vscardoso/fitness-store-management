@@ -291,3 +291,22 @@ async def test_gerente_nao_ve_brinde_o_valor_entra_nos_gastos_e_a_conta_fecha(te
     if rm.status_code == 200:
         cur = rm.json()["result"]["current"]
         assert cur["gifts"] == 0 and cur["expenses"] == 40.0, cur
+
+
+async def test_voucher_resgatado_exige_o_numero_e_sai_no_comprovante(test_client, async_session, test_user):
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    itens = [{"variant_id": va.id, "quantity": 1}]
+    r = await _dar(test_client, h, itens, reason_type="voucher")
+    assert r.status_code == 400 and "voucher" in r.json()["detail"].lower()
+    r = await _dar(test_client, h, itens, reason_type="voucher", reason_note="ab")
+    assert r.status_code == 400
+    async_session.expire_all()
+    assert await _estoque(async_session, va.id) == 10                          # nada gravado
+    r = await _dar(test_client, h, itens, reason_type="voucher", reason_note="Voucher 0123", recipient_name="Maria Cliente")
+    assert r.status_code == 201, r.text
+    g = r.json()
+    assert g["reason_label"] == "Voucher resgatado" and g["reason_note"] == "Voucher 0123" and g["related_sale_id"] is None   # sem venda nenhuma
+    txt = (await test_client.get(f"{API}/gifts/{g['id']}/receipt", headers=h)).json()["text"]
+    assert "Resgate de voucher" in txt and "Voucher 0123" not in txt             # o número é interno, não vai para a pessoa
+    res = await _resultado(test_client, h)
+    assert float(res["gifts_total"]) == 40.0 and res["sales_count"] == 0

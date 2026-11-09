@@ -19,6 +19,7 @@ GIFT_CANCELLED = "cancelled"
 GIFT_REASONS = {
     "with_sale": "Junto com uma venda",
     "courtesy": "Cortesia / aniversário",
+    "voucher": "Voucher resgatado",
     "promotion": "Divulgação / influenciadora",
     "other": "Outro",
 }

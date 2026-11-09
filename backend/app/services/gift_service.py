@@ -124,6 +124,8 @@ class GiftService:
         if reason_type not in GIFT_REASONS:
             raise GiftError("Escolha o motivo do brinde.")
         note = (data.get("reason_note") or "").strip()
+        if reason_type == "voucher" and len(note) < 3:
+            raise GiftError("Informe o número do voucher resgatado (mínimo 3 caracteres).")
         if reason_type == "other" and len(note) < 3:
             raise GiftError("Escreva o motivo do brinde (mínimo 3 letras).")
         recipient = (data.get("recipient_name") or "").strip()

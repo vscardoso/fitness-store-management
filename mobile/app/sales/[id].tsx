@@ -584,6 +584,19 @@ export default function SaleDetailsScreen() {
             )}
           </View>
         )}
+        {isAdmin && sale.status !== 'cancelled' && sale.status !== 'pending' && (
+          <View style={styles.returnSection}>
+            <AppButton
+              variant="ghost"
+              size="md"
+              fullWidth
+              icon="gift-outline"
+              label="Dar um brinde junto desta venda"
+              onPress={() => router.push({ pathname: '/gifts/new', params: { saleId: String(sale.id), ...(sale.customer_id ? { customerId: String(sale.customer_id), customerName: sale.customer_name || '' } : {}) } } as any)}
+            />
+            <Text style={styles.returnInfoText}>Só o administrador. O brinde é um registro à parte: a venda, o caixa e os pontos não mudam.</Text>
+          </View>
+        )}
         {isAdmin && (sale.status === 'completed' || sale.status === 'partially_refunded') && (
           <View style={styles.returnSection}>
             <AppButton

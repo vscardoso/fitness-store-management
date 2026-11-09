@@ -2,7 +2,7 @@
 import api from './api';
 import { openPdfFromApi } from './receiptService';
 
-export type GiftReason = 'with_sale' | 'courtesy' | 'promotion' | 'other';
+export type GiftReason = 'with_sale' | 'courtesy' | 'voucher' | 'promotion' | 'other';
 
 export interface GiftItem {
   id: number; product_id: number | null; variant_id: number | null; product_name: string | null; variant_label: string | null;
@@ -32,6 +32,7 @@ export interface GiftCreate {
 export const REASON_OPTIONS: { value: GiftReason; label: string; description: string }[] = [
   { value: 'with_sale', label: 'Junto com uma venda', description: 'A cliente comprou e ganhou uma peça' },
   { value: 'courtesy', label: 'Cortesia / aniversário', description: 'Um mimo para uma cliente' },
+  { value: 'voucher', label: 'Voucher resgatado', description: 'A cliente trouxe um voucher e pegou a peça' },
   { value: 'promotion', label: 'Divulgação / influenciadora', description: 'Peça dada para alguém divulgar a loja' },
   { value: 'other', label: 'Outro', description: 'Escreva o motivo' },
 ];
