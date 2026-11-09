@@ -341,15 +341,12 @@ export default function CheckoutSuccessScreen() {
         </View>
 
         {isAdminRole(user?.role) && sale.status !== 'cancelled' && (
-          <TouchableOpacity
-            style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#DB2777' + '66' }}
-            activeOpacity={0.8}
-            accessibilityLabel="Dar um brinde junto desta venda"
-            onPress={() => router.push({ pathname: '/gifts/new', params: { saleId: String(sale.id), ...(sale.customer_id ? { customerId: String(sale.customer_id), customerName: sale.customer_name || '' } : {}) } } as any)}
-          >
-            <Ionicons name="gift-outline" size={20} color="#DB2777" />
-            <Text style={{ color: '#DB2777', fontWeight: '700' }}>Dar um brinde junto desta venda</Text>
-          </TouchableOpacity>
+          <View style={{ marginTop: 12 }}>
+            <AppButton
+              variant="outlined" size="md" fullWidth icon="gift-outline" label="Dar um brinde junto desta venda"
+              onPress={() => router.push({ pathname: '/gifts/new', params: { saleId: String(sale.id), ...(sale.customer_id ? { customerId: String(sale.customer_id), customerName: sale.customer_name || '' } : {}) } } as any)}
+            />
+          </View>
         )}
 
         {/* Botões de ação */}

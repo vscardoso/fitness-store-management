@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -76,9 +76,7 @@ export default function FinanceHomeScreen() {
               A partir do dia que você escolher, o app soma as vendas e desconta os pagamentos sozinho, conta por conta.
             </Text>
             {admin ? (
-              <Button mode="contained" buttonColor={brand.primary} style={styles.left} onPress={() => go('/finance/setup')}>
-                Começar a controlar o dinheiro
-              </Button>
+              <AppButton variant="primary" size="md" fullWidth label="Começar a controlar o dinheiro" onPress={() => go('/finance/setup')} />
             ) : (
               <Text style={styles.text}>Quem administra a loja faz esta etapa.</Text>
             )}
@@ -94,7 +92,7 @@ export default function FinanceHomeScreen() {
                   <Text style={[styles.lineValue, a.balance < 0 && { color: Colors.light.error }]}>{formatCurrency(a.balance)}</Text>
                 </View>
               ))}
-              <Button mode="outlined" icon="swap-horizontal" style={styles.left} onPress={() => go('/finance/accounts')}>Ver contas e transferir</Button>
+              <AppButton variant="outlined" size="md" fullWidth icon="swap-horizontal-outline" label="Ver contas e transferir" onPress={() => go('/finance/accounts')} />
             </View>
             {!!data.card_schedule && <CardScheduleCard schedule={data.card_schedule} />}
             {!!p && <FiadoProjectionCard projection={p} />}

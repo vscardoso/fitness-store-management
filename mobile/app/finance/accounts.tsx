@@ -5,7 +5,8 @@
  */
 import React, { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { TextInput } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -107,7 +108,7 @@ export default function AccountsScreen() {
         {!!transferWarning && (
           <View style={[styles.card, styles.warn]}>
             <Text style={styles.warnText}>{transferWarning}</Text>
-            <Button mode="text" compact onPress={() => setTransferWarning('')} style={styles.left}>Entendi</Button>
+            <AppButton variant="text" size="sm" label="Entendi" onPress={() => setTransferWarning('')} />
           </View>
         )}
           <View style={styles.card}>
@@ -118,9 +119,7 @@ export default function AccountsScreen() {
               A partir daí o app soma as vendas e desconta os pagamentos sozinho, conta por conta.
             </Text>
             {admin ? (
-              <Button mode="contained" buttonColor={brand.primary} style={styles.left} onPress={() => router.push('/finance/setup' as any)}>
-                Começar a controlar o dinheiro
-              </Button>
+              <AppButton variant="primary" size="md" fullWidth label="Começar a controlar o dinheiro" onPress={() => router.push('/finance/setup' as any)} />
             ) : (
               <Text style={styles.note}>Quem administra a loja faz a implantação.</Text>
             )}
@@ -147,7 +146,7 @@ export default function AccountsScreen() {
           <Text style={styles.label}>Total em todas as contas</Text>
           <Text style={[styles.total, data.total < 0 && { color: Colors.light.error }]}>{formatCurrency(data.total)}</Text>
           <View style={styles.actions}>
-            <Button mode="contained" buttonColor={brand.primary} icon="swap-horizontal" onPress={() => openTransfer(null, null)}>Transferir</Button>
+            <AppButton variant="primary" size="md" fullWidth icon="swap-horizontal-outline" label="Transferir" onPress={() => openTransfer(null, null)} />
           </View>
         </View>
 
@@ -179,10 +178,8 @@ export default function AccountsScreen() {
           ))}
         </View>
         {admin && (
-          <Button mode="text" icon="plus" textColor={brand.primary} style={styles.left}
-            onPress={() => { setSheetError(''); setNewBank({ name: '', amount: '' }); }}>
-            Nova conta de banco
-          </Button>
+          <AppButton variant="outlined" size="md" fullWidth icon="add" label="Nova conta de banco"
+            onPress={() => { setSheetError(''); setNewBank({ name: '', amount: '' }); }} />
         )}
 
         {!!transfers?.length && (

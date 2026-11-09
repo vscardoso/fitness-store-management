@@ -4,7 +4,8 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, Switch, TextInput } from 'react-native-paper';
+import { Switch, TextInput } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import { useRouter } from 'expo-router';
 
 import PageHeader from '@/components/layout/PageHeader';
@@ -105,7 +106,7 @@ export default function LoyaltySettingsScreen() {
                   Desligado: ninguém ganha nem usa pontos.
                 </Text>
               </View>
-              <Switch value={enabled} onValueChange={setEnabled} />
+              <Switch color={brand.primary} value={enabled} onValueChange={setEnabled} />
             </View>
           </View>
 
@@ -144,7 +145,7 @@ export default function LoyaltySettingsScreen() {
                       Desligado: os pontos não vencem.
                     </Text>
                   </View>
-                  <Switch value={expires} onValueChange={setExpires} />
+                  <Switch color={brand.primary} value={expires} onValueChange={setExpires} />
                 </View>
                 {expires && (
                   <TextInput
@@ -165,9 +166,7 @@ export default function LoyaltySettingsScreen() {
           {!!message && <Text style={[styles.ok, { color: brand.primary }]}>{message}</Text>}
         </FormGrid>
 
-        <Button mode="contained" onPress={save} loading={saving} disabled={saving || loadFailed} buttonColor={brand.primary} style={{ marginTop: 8 }}>
-          Salvar
-        </Button>
+        <AppButton variant="primary" size="lg" fullWidth label="Salvar" onPress={save} loading={saving} disabled={saving || loadFailed} />
       </ScrollView>
     </View>
   );

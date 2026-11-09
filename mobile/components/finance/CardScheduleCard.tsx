@@ -5,9 +5,10 @@
  */
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Button, Switch, TextInput } from 'react-native-paper';
+import { Switch, TextInput } from 'react-native-paper';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import AppButton from '@/components/ui/AppButton';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/hooks/useAuth';
@@ -87,7 +88,7 @@ export default function CardScheduleCard({ schedule: s }: { schedule: CardSchedu
             <Text style={[styles.label, { fontWeight: '800' }]}>Total a receber da maquininha</Text>
             <Text style={[styles.value, { fontWeight: '800' }]}>{formatCurrency(s.balance)}</Text>
           </View>
-          <Button mode="contained" buttonColor={brand.primary} icon="swap-horizontal" style={styles.left} onPress={open}>Fazer repasse</Button>
+          <AppButton variant="primary" size="md" fullWidth icon="swap-horizontal-outline" label="Fazer repasse" onPress={open} />
         </>
       )}
       {auto && (
@@ -102,6 +103,7 @@ export default function CardScheduleCard({ schedule: s }: { schedule: CardSchedu
           </View>
           {admin ? (
             <Switch
+              color={brand.primary}
               value={auto.enabled}
               disabled={toggleAuto.isPending}
               onValueChange={(v) => { setAutoError(''); if (v) setConfirmOn(true); else toggleAuto.mutate(false); }}
@@ -164,14 +166,14 @@ export default function CardScheduleCard({ schedule: s }: { schedule: CardSchedu
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 8 },
+  card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 12 },
   title: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
   note: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary },
   small: { fontSize: 12 },
-  line: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 },
   label: { fontSize: 14, color: Colors.light.text },
   value: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   left: { alignSelf: 'flex-start' },
   error: { color: Colors.light.error, fontWeight: '600' },
-  autoBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border },
+  autoBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.backgroundSecondary },
 });
