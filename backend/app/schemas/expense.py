@@ -105,6 +105,8 @@ class MonthlyResultResponse(BaseModel):
     gross_margin_pct: Decimal   # % margem bruta
     total_expenses: Decimal     # Soma das despesas operacionais (inclui perdas de estoque)
     stock_losses_total: Decimal = Decimal(0)  # Subconjunto de total_expenses — perdas de estoque
+    gifts_total: Decimal = Decimal(0)  # Custo dos brindes dados (fora do CMV e das despesas): abate o lucro líquido
+    gifts_count: int = 0
     net_profit: Decimal         # Lucro líquido = gross_profit − expenses
     net_margin_pct: Decimal     # % lucro líquido sobre receita
     expenses_by_category: List[dict]  # [{category, total, color, icon}]

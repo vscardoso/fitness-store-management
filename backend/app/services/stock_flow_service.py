@@ -5,7 +5,7 @@ aparecia como vendida. Aqui a venda vem das camadas FIFO gravadas em cada item v
 devolução, de vendas válidas (concluída, parcialmente devolvida ou devolvida). O resto que saiu é "sem venda" e, quando o livro
 do estoque (`entry_item_events`) tem o registro, vem com o motivo.
 
-Conta fechada de cada lote:  recebidas = vendidas + com a cliente + saíram sem venda + em estoque.
+Conta fechada de cada lote:  recebidas = vendidas + com a cliente + saíram sem venda + brindes + em estoque.
 """
 from typing import Any, Dict, Iterable, List
 
@@ -97,12 +97,23 @@ async def item_flows(db: AsyncSession, tenant_id: int, items: Iterable[EntryItem
                 with_customer[eid] += take
                 pending -= take
 
+    # peças dadas de brinde (líquidas do que voltou): saem do estoque sem venda, mas têm dono e tela próprios
+    gifted: Dict[int, int] = {i: 0 for i in ids}
+    from app.models.gift import GIFT_CANCELLED, Gift, GiftItem
+    for src in (await db.execute(select(GiftItem.sale_sources).join(Gift, Gift.id == GiftItem.gift_id).where(
+            Gift.tenant_id == tenant_id, Gift.is_active == True, Gift.status != GIFT_CANCELLED,  # noqa: E712
+            GiftItem.is_active == True, GiftItem.sale_sources.is_not(None)))).scalars().all():  # noqa: E712
+        for s in (src or {}).get("sources", []):
+            eid = s.get("entry_item_id")
+            if eid in gifted:
+                gifted[eid] += int(s.get("quantity_taken", 0)) - int(s.get("quantity_returned", 0))
     out: Dict[int, Dict[str, int]] = {}
     for i in items:
         s = max(sold.get(i.id, 0), 0)
         w = with_customer.get(i.id, 0)
-        removed = max(i.quantity_received - i.quantity_remaining - s - w, 0)
-        out[i.id] = {"sold": s, "with_customer": w, "removed": removed}
+        g = max(gifted.get(i.id, 0), 0)
+        removed = max(i.quantity_received - i.quantity_remaining - s - w - g, 0)
+        out[i.id] = {"sold": s, "with_customer": w, "removed": removed, "gifted": g}
     return out
 
 
@@ -128,7 +139,7 @@ async def tracking(db: AsyncSession, tenant_id: int, entry) -> Dict[str, Any]:
     for e in ev_rows:
         by_item.setdefault(e.entry_item_id, []).append(e)
 
-    rows, totals = [], {"received": 0, "sold": 0, "with_customer": 0, "removed": 0, "remaining": 0}
+    rows, totals = [], {"received": 0, "sold": 0, "with_customer": 0, "removed": 0, "gifted": 0, "remaining": 0}
     for i in active:
         f = flows[i.id]
         evs = by_item.get(i.id, [])
@@ -136,7 +147,7 @@ async def tracking(db: AsyncSession, tenant_id: int, entry) -> Dict[str, Any]:
         recorded = sum(-e.delta for e in removed_events)
         rows.append({
             "item_id": i.id, "product_name": i.product_name, "variant_label": i.variant_label, "variant_code": i.variant_code,
-            "received": i.quantity_received, "sold": f["sold"], "with_customer": f["with_customer"],
+            "received": i.quantity_received, "sold": f["sold"], "with_customer": f["with_customer"], "gifted": f["gifted"],
             "removed": f["removed"], "removed_recorded": min(recorded, f["removed"]),
             "removed_unrecorded": max(f["removed"] - recorded, 0), "remaining": i.quantity_remaining,
             "history": [{"when": e.created_at.isoformat() if e.created_at else None, "reason": e.reason,
@@ -147,9 +158,10 @@ async def tracking(db: AsyncSession, tenant_id: int, entry) -> Dict[str, Any]:
         totals["sold"] += f["sold"]
         totals["with_customer"] += f["with_customer"]
         totals["removed"] += f["removed"]
+        totals["gifted"] += f["gifted"]
         totals["remaining"] += i.quantity_remaining
     t = totals
-    t["closed"] = t["received"] == t["sold"] + t["with_customer"] + t["removed"] + t["remaining"]
+    t["closed"] = t["received"] == t["sold"] + t["with_customer"] + t["removed"] + t["gifted"] + t["remaining"]
     t["removed_unrecorded"] = sum(r["removed_unrecorded"] for r in rows)
     return {"entry_id": entry.id, "entry_code": entry.entry_code, "totals": t, "items": rows}
 

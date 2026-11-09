@@ -51,7 +51,8 @@ def build_monthly_report_pdf(d: Dict[str, Any], store_name: str = "") -> bytes:
     # 2. resultado
     rows = [["", d["label"].split(" de ")[0], d["previous_label"].split(" de ")[0], "Variação"]]
     for label, key in (("Faturamento (vendas menos devoluções)", "revenue"), ("Custo das peças vendidas", "cost"),
-                       ("Lucro das vendas", "gross_profit"), ("Despesas do mês", "expenses"), ("Lucro do mês (depois das despesas)", "net_profit")):
+                       ("Lucro das vendas", "gross_profit"), ("Despesas do mês", "expenses"), ("Brindes (custo das peças dadas)", "gifts"),
+                       ("Lucro do mês (depois das despesas e brindes)", "net_profit")):
         rows.append([label, brl(cur[key]), brl(prv[key]), pct(ch.get(key))])
     rows.append(["Margem de lucro das vendas", f"{cur['gross_margin_pct']:.1f}%".replace(".", ","), f"{prv['gross_margin_pct']:.1f}%".replace(".", ","), ""])
     rows.append(["Vendas realizadas", str(cur["sales_count"]), str(prv["sales_count"]), pct(ch.get("sales_count"))])

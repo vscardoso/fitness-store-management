@@ -607,4 +607,50 @@ const FORNECEDORES: HelpEntry[] = [
   },
 ];
 
-export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES];
+const BRINDES: HelpEntry[] = [
+  {
+    id: 'brindes',
+    group: 'estoque',
+    title: 'Brindes',
+    routes: ['/gifts', '/gifts/[id]'],
+    open: '/gifts',
+    purpose: 'Lista as peças que a loja deu sem cobrança e quanto elas custaram para a loja.',
+    steps: [
+      'Toque no “+” (no computador, “Dar um brinde”) para dar uma peça.',
+      'Toque num brinde para ver o que saiu, o custo e quem deu.',
+      'Se a pessoa devolveu a peça, toque em “Peça voltou ao estoque”.',
+      'Se lançou por engano, no mesmo mês, toque em “Cancelar este brinde (engano)”.',
+    ],
+    goodToKnow: [
+      'Só o administrador dá, cancela e devolve brinde.',
+      'O custo das peças aparece no Resultado do Mês como “Brindes dados”, separado do custo das vendas.',
+      'Brinde não é venda: não entra no caixa, não dá pontos e não conta como peça vendida.',
+    ],
+    roles: ['admin'],
+    related: ['resultado-mes'],
+    sources: ['app/gifts/index.tsx', 'app/gifts/[id].tsx'],
+  },
+  {
+    id: 'brinde-novo',
+    group: 'estoque',
+    title: 'Dar um brinde',
+    routes: ['/gifts/new'],
+    open: '/gifts/new',
+    purpose: 'Registra uma peça que sai do estoque sem cobrança, com o motivo e para quem foi.',
+    steps: [
+      'Em “Peças”, toque em “Escolher a peça” e use os botões de mais e menos para a quantidade.',
+      'Em “Para quem”, escolha uma cliente cadastrada ou escreva o nome da pessoa.',
+      'Em “Motivo”, escolha na lista. Se escolher Outro, escreva o motivo.',
+      'Confira o resumo e toque em “Dar brinde”.',
+    ],
+    goodToKnow: [
+      'Se não houver estoque suficiente, nada é gravado.',
+      'O custo é o que você pagou pela peça, já com o frete da compra.',
+    ],
+    roles: ['admin'],
+    related: ['brindes'],
+    sources: ['app/gifts/new.tsx'],
+  },
+];
+
+export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES, ...BRINDES];

@@ -189,6 +189,15 @@ export function describeAudit(item: AuditItem): AuditSentence {
   let text: string;
 
   switch (item.action) {
+    case 'GIFT_CREATED':
+      text = `${who} deu um brinde${d.para ? ` para ${d.para}` : ''}${d.pecas ? ` (${d.pecas} peça${Number(d.pecas) === 1 ? '' : 's'})` : ''}: custo de ${money(d.custo)} para a loja${d.motivo ? `, ${String(d.motivo).toLowerCase()}` : ''}`;
+      break;
+    case 'GIFT_CANCELLED':
+      text = `${who} cancelou o brinde${d.numero ? ` ${d.numero}` : ''}${d.motivo ? `: ${d.motivo}` : ''}`;
+      break;
+    case 'GIFT_RETURNED':
+      text = `${who} registrou a volta de ${d.pecas ?? ''} peça${Number(d.pecas) === 1 ? '' : 's'} do brinde${d.numero ? ` ${d.numero}` : ''} (custo de ${money(d.custo_que_volta)} volta para a loja)`;
+      break;
     case 'FINANCE_CARD_AUTO_CHANGED':
       text = `${who} ${d.enabled ? 'ligou' : 'desligou'} o repasse automático da maquininha${d.enabled && d.banco ? ` (banco ${d.banco})` : ''}`;
       break;

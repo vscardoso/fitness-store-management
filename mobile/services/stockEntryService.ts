@@ -128,7 +128,7 @@ export interface EntryTrackingRow {
 export interface EntryTracking {
   entry_id: number;
   entry_code: string;
-  totals: { received: number; sold: number; with_customer: number; removed: number; remaining: number; removed_unrecorded: number; closed: boolean };
+  totals: { received: number; sold: number; with_customer: number; removed: number; gifted?: number; remaining: number; removed_unrecorded: number; closed: boolean };
   items: EntryTrackingRow[];
 }
 

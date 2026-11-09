@@ -383,7 +383,8 @@ class ExpenseService:
         # 5. Cálculos
         gross_profit = revenue - cmv
         gross_margin_pct = (gross_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
-        net_profit = gross_profit - total_expenses
+        gifts_total = led.gift_cost
+        net_profit = gross_profit - total_expenses - gifts_total
         net_margin_pct = (net_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
 
         return MonthlyResultResponse(
@@ -394,6 +395,8 @@ class ExpenseService:
             gross_margin_pct=gross_margin_pct,
             total_expenses=total_expenses,
             stock_losses_total=stock_losses_total,
+            gifts_total=gifts_total,
+            gifts_count=led.gift_count,
             net_profit=net_profit,
             net_margin_pct=net_margin_pct,
             expenses_by_category=expenses_by_category,

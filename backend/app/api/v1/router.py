@@ -48,6 +48,7 @@ from app.api.v1.endpoints import (
     debug,
     returns,
     supplier_returns,
+    gifts,
     stock_counts,
     cash_register,
     finance,
@@ -215,6 +216,7 @@ api_router.include_router(catalog_feed.router)
 
 # Devolução ao fornecedor
 api_router.include_router(supplier_returns.router, tags=["Devolução ao fornecedor"])
+api_router.include_router(gifts.router, tags=["Brindes"])
 
 # Lookbook
 api_router.include_router(looks.router, tags=["Looks"])

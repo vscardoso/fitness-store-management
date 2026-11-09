@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20261125_remove_trips"
-down_revision = "20261126_card_auto"
+down_revision = "20261127_gifts"
 branch_labels = None
 depends_on = None
 

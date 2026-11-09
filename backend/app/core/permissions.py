@@ -59,6 +59,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"POST"}, r"^/finance/(setup|accounts)$", ADMIN),  # implantar o financeiro e criar conta: só admin
     ({"PUT"}, r"^/finance/accounts/\{account_id\}/pix$", ADMIN),
     ({"PUT"}, r"^/finance/card-auto$", ADMIN),  # repasse automático da maquininha: só admin
+    (ANY, r"^/gifts(/|$)", ADMIN),  # brinde: só admin dá, cancela, devolve e vê o custo (decisão do dono)
     ({"POST"}, r"^/finance/accounts/\{account_id\}/adjust$", ADMIN),  # ajustar saldo: só admin
     ({"PATCH"}, r"^/finance/accounts/\{account_id\}$", ADMIN),  # corrigir saldo de partida / nome: só admin
     ({"POST"}, r"^/finance/closings/\{year\}/\{month\}/reopen$", ADMIN),  # reabrir mês fechado: só admin

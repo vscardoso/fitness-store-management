@@ -42,6 +42,8 @@ REASONS: Dict[str, str] = {
     "ajuste_estoque": "Ajuste manual de estoque",
     "fornecedor_envio": "Saiu para devolução ao fornecedor",
     "fornecedor_volta": "Voltou da devolução ao fornecedor",
+    "brinde": "Brinde dado (sem cobrança)",
+    "brinde_volta": "Brinde que voltou ao estoque",
     "edicao_item": "Correção do item da entrada",
     "peca_juntada": "Peças juntadas de outra variação",
     "baixa_sem_registro": "Saída sem registro na hora (refeita depois)",

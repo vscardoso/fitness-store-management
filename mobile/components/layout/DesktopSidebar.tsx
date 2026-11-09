@@ -80,6 +80,7 @@ export default function DesktopSidebar() {
           ...(manager ? [
             { label: 'Fornecedores', icon: 'business-outline' as Icon, href: '/suppliers', match: ['/suppliers'] },
           ] : []),
+          ...(admin ? [{ label: 'Brindes', icon: 'gift-outline' as Icon, href: '/gifts', match: ['/gifts'] }] : []),
         ],
       },
       {

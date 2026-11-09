@@ -1022,7 +1022,8 @@ async def get_fifo_performance(
                Sale.status != SaleStatus.CANCELLED, ReturnItem.is_active == True, ReturnItem.restock == False)  # noqa: E712
     )).scalar() or 0)
     net_sold = max(0, int(ledger.pieces_sold) - max(int(ledger.pieces_returned) - defective, 0))
-    other_out = max(0, total_received - total_remaining - net_sold)
+    gifts_out = max(0, int(ledger.gift_pieces))      # peças dadas de brinde (líquidas): coluna própria, não é perda
+    other_out = max(0, total_received - total_remaining - net_sold - gifts_out)
     sell_through_rate = round((net_sold / total_received * 100) if total_received > 0 else 0.0, 1)
 
     # 3. Margem real e lotes com prejuízo, a partir do que foi vendido de cada entrada
@@ -1084,6 +1085,7 @@ async def get_fifo_performance(
             "total_sold": net_sold,
             "total_remaining": total_remaining,
             "other_out": other_out,
+            "gifts": gifts_out,
         },
         "roi": {
             "avg_roi": avg_margin,

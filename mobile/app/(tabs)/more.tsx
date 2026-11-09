@@ -256,6 +256,7 @@ export default function MoreScreen() {
             {isManager && <MenuItem icon="business-outline" title="Fornecedores" subtitle="Catálogo de fornecedores" onPress={() => router.push('/suppliers' as any)} iconColor="#F97316" iconBg="#FFEDD5" />}
             <MenuItem icon="print-outline" title="Estúdio de etiquetas" subtitle="Monte e imprima os adesivos das peças" onPress={() => router.push('/products/label' as any)} iconColor="#DB2777" iconBg="#FCE7F3" />
             <MenuItem icon="pricetags-outline" title="Categorias" subtitle="Organizar produtos por categoria" onPress={() => router.push('/(tabs)/categories')} iconColor="#9333EA" iconBg="#F3E8FF" />
+            {isAdminRole(user?.role) && <MenuItem icon="gift-outline" title="Brindes" subtitle="Peças dadas sem cobrança e o custo para a loja" onPress={() => router.push('/gifts' as any)} iconColor="#DB2777" iconBg="#FCE7F3" />}
             <MenuItem icon="layers-outline" title="Inventário" subtitle="Dashboard de estoque e alertas" onPress={() => router.push('/(tabs)/inventory')} iconColor={Colors.light.warning} iconBg={Colors.light.warningLight} />
           </View>
         </View>

@@ -62,6 +62,9 @@ export interface MonthlyResult {
   stock_losses_total: number;
   net_profit: number;
   net_margin_pct: number;
+  /** Custo das peças dadas de brinde (linha própria, fora do custo das vendidas e dos gastos). */
+  gifts_total?: number;
+  gifts_count?: number;
   expenses_by_category: ExpenseByCategoryItem[];
   sales_count: number;
   units_sold: number;

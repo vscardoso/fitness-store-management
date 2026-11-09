@@ -58,7 +58,7 @@ def _result_dict(res: Any) -> Dict[str, Any]:
     return {
         "revenue": _num(res.revenue), "cost": _num(res.cmv), "gross_profit": _num(res.gross_profit),
         "gross_margin_pct": _num(res.gross_margin_pct), "expenses": _num(res.total_expenses),
-        "stock_losses": _num(res.stock_losses_total), "net_profit": _num(res.net_profit),
+        "stock_losses": _num(res.stock_losses_total), "gifts": _num(getattr(res, "gifts_total", 0)), "net_profit": _num(res.net_profit),
         "net_margin_pct": _num(res.net_margin_pct), "sales_count": int(res.sales_count or 0),
         "units_sold": int(res.units_sold or 0),
         "average_ticket": round(_num(res.revenue) / res.sales_count, 2) if res.sales_count else 0.0,

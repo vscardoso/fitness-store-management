@@ -38,7 +38,7 @@ export default function EntryTrackingCard({ entryId }: { entryId: number }) {
       {open && t && (
         <View style={{ gap: 10 }}>
           <Text style={styles.sum}>
-            Recebidas {t.received} = vendidas {t.sold} + com a cliente {t.with_customer} + saíram sem venda {t.removed} + em estoque {t.remaining}
+            Recebidas {t.received} = vendidas {t.sold} + com a cliente {t.with_customer} + saíram sem venda {t.removed}{(t.gifted ?? 0) > 0 ? ` + brindes ${t.gifted}` : ''} + em estoque {t.remaining}
           </Text>
           {t.removed_unrecorded > 0 && (
             <Text style={styles.warn}>
