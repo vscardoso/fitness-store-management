@@ -181,8 +181,9 @@ async def print_state(db: AsyncSession, tenant_id: int, layout: str, width_mm: f
     n = per_sheet(layout, width_mm, height_mm)
     nxt, last = 1, None
     sheet: List[Dict[str, Any]] = []
+    all_jobs = await _jobs(db, tenant_id)
     if layout != "roll":
-        mine = [j for j in await _jobs(db, tenant_id) if j.layout == layout and j.width_mm == width_mm and j.height_mm == height_mm]
+        mine = [j for j in all_jobs if j.layout == layout and j.width_mm == width_mm and j.height_mm == height_mm]
         occupied: Dict[int, Dict[str, int]] = {}
         for j in mine:
             if j.start_position == 1:
@@ -208,8 +209,11 @@ async def print_state(db: AsyncSession, tenant_id: int, layout: str, width_mm: f
                 "name": v.product.name if v and v.product else None,
                 "color": v.color if v else None, "size": v.size if v else None,
             })
+    # a última impressão salva de qualquer papel é a única que dá para desfazer ("Não saiu")
+    undo = all_jobs[-1] if all_jobs else None
     return {"next_position": nxt, "per_sheet": n, "sheet": sheet,
-            "last": {"id": last.id, "at": last.created_at.isoformat(), "by": last.printed_by_name, "total": last.total} if last else None}
+            "last": {"id": last.id, "at": last.created_at.isoformat(), "by": last.printed_by_name, "total": last.total} if last else None,
+            "last_job": {"id": undo.id, "at": undo.created_at.isoformat(), "by": undo.printed_by_name, "total": undo.total} if undo else None}
 
 
 async def confirm_print(db: AsyncSession, tenant_id: int, user: Any, layout: str, width_mm: float, height_mm: float,

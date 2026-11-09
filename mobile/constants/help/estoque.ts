@@ -644,6 +644,7 @@ const FILA_ETIQUETAS: HelpEntry[] = [
       'Na entrada, toque em “Etiquetas” e depois em “Colocar na fila de impressão”.',
       'Aqui, confira as quantidades, escolha o tamanho e o papel e toque em “Gerar PDF”.',
       'Imprima. Quando as etiquetas saírem, toque em “Imprimi, tirar da fila”.',
+      'Peça avulsa: no Estúdio de etiquetas (ou no produto), escolha as peças e toque em “Colocar na fila de impressão”.',
     ],
     goodToKnow: [
       'Gerar o PDF não tira nada da fila: se não imprimiu, é só gerar de novo.',

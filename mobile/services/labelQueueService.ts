@@ -33,6 +33,8 @@ export interface PrintState {
   per_sheet: number;
   sheet: SheetCell[];
   last: { id: number; at: string; by: string | null; total: number } | null;
+  /** A última impressão salva de qualquer papel: é a única que dá para desfazer ("Não saiu"). */
+  last_job: { id: number; at: string; by: string | null; total: number } | null;
 }
 
 export interface EntryLabelProgress {

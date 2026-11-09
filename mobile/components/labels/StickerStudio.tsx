@@ -19,7 +19,8 @@ import {
 import StickerPreview from '@/components/labels/StickerPreview';
 import { useScrollBleed } from '@/hooks/useLayout';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { confirmPrint, getPrintState } from '@/services/labelQueueService';
+import { useRouter } from 'expo-router';
+import { addToQueue, confirmPrint, getPrintState, undoPrint } from '@/services/labelQueueService';
 
 export interface StickerItem {
   variantId: number;
@@ -137,7 +138,6 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
   const stateQ = useQuery({
     queryKey: ['label-print-state', paper, size.widthMm, size.heightMm],
     queryFn: () => getPrintState(paper, size.widthMm, size.heightMm),
-    enabled: paper !== 'roll',
   });
   const serverNext = paper === 'roll' ? 1 : stateQ.data?.next_position ?? 1;
   const usedCells = paper === 'roll' ? [] : stateQ.data?.sheet ?? [];
@@ -148,6 +148,45 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
   const [pending, setPending] = useState<{ layout: TagLabelLayout; start: number; total: number; items: { variantId: number; quantity: number }[] } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState<string | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const router = useRouter();
+  // peça escolhida pelo produto ou pelo Estúdio (não vem da fila nem de uma entrada): pode ir para a fila de impressão
+  const canQueue = !fromQueue && !entryId;
+  const [queueing, setQueueing] = useState(false);
+  const [queuedMsg, setQueuedMsg] = useState<string | null>(null);
+  const sendToQueue = async () => {
+    if (total === 0 || queueing) return;
+    setQueueing(true);
+    setError(null);
+    try {
+      const r = await addToQueue(chosen.map((x) => ({ variantId: x.it.variantId, quantity: x.q })));
+      setQueuedMsg(`${r.added} etiqueta${r.added !== 1 ? 's' : ''} na fila de impressão.`);
+      await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível pôr na fila.');
+    } finally {
+      setQueueing(false);
+    }
+  };
+  const lastJob = stateQ.data?.last_job ?? null;
+  // "Não saiu": desfaz a última impressão salva (as etiquetas voltam para a fila e a folha volta onde estava)
+  const undoLast = async () => {
+    if (!lastJob || undoing) return;
+    setUndoing(true);
+    setError(null);
+    try {
+      const r = await undoPrint(lastJob.id);
+      setConfirmed(`Desfeito. ${r.returned} etiqueta${r.returned !== 1 ? 's' : ''} voltaram para a fila.`);
+      await queryClient.invalidateQueries({ queryKey: ['label-print-state'] });
+      await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
+      await queryClient.invalidateQueries({ queryKey: ['label-progress'] });
+      onPrinted?.();
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível desfazer.');
+    } finally {
+      setUndoing(false);
+    }
+  };
   const confirmPrinted = async () => {
     if (!pending || confirming) return;
     setConfirming(true);
@@ -324,7 +363,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle} numberOfLines={1}>{label(it)}</Text>
                 <Text style={styles.rowSub} numberOfLines={1}>
-                  {onAddMore ? `${it.productName} · ` : ''}
+                  {onAddMore || fromQueue ? `${it.productName} · ` : ''}
                   {it.code ?? 'sem código ainda'} · estoque {it.stock}
                 </Text>
               </View>
@@ -415,6 +454,15 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
             ) : null}
           </View>
         ) : null}
+        {lastJob ? (
+          <View style={styles.sheetBox}>
+            <Text style={styles.sheetTitle}>Última impressão salva: {lastJob.total} etiqueta{lastJob.total !== 1 ? 's' : ''}{lastJob.by ? `, por ${lastJob.by}` : ''}</Text>
+            <Text style={styles.muted}>Se a impressora travou ou não saiu nada, desfaça: as etiquetas voltam para a fila e a folha volta onde estava. Só a última impressão pode ser desfeita.</Text>
+            <TouchableOpacity onPress={undoLast} disabled={undoing} accessibilityRole="button" accessibilityLabel="Não saiu, desfazer" style={styles.newSheetBtn}>
+              <Text style={styles.newSheetText}>{undoing ? 'Desfazendo...' : 'Não saiu, desfazer'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         <View style={{ height: 120 }} />
       </ScrollView>
 
@@ -422,6 +470,18 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
       <View style={styles.bar}>
         {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
         {confirmed ? <Text style={styles.okText} accessibilityLiveRegion="polite">{confirmed}</Text> : null}
+        {canQueue && total > 0 ? (
+          <View style={{ gap: 6 }}>
+            <TouchableOpacity style={[styles.pendingNo, { alignSelf: 'stretch' }]} onPress={sendToQueue} disabled={queueing} accessibilityRole="button" accessibilityLabel="Colocar na fila de impressão">
+              <Text style={styles.pendingNoText}>{queueing ? 'Colocando...' : 'Colocar na fila de impressão'}</Text>
+            </TouchableOpacity>
+            {queuedMsg ? (
+              <TouchableOpacity style={[styles.pendingNo, { alignSelf: 'stretch', borderColor: brand.primary }]} onPress={() => router.push('/etiquetas/fila' as any)} accessibilityRole="button">
+                <Text style={[styles.pendingNoText, { color: brand.primary, textAlign: 'center' }]}>{queuedMsg} Abrir a fila</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
         {pending ? (
           <View style={styles.pendingCard}>
             <Text style={styles.pendingTitle}>PDF gerado. As etiquetas saíram?</Text>

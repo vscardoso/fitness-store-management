@@ -13,7 +13,7 @@ import ScreenLoader from '@/components/ui/ScreenLoader';
 import { Colors } from '@/constants/Colors';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { useBrandingColors } from '@/store/brandingStore';
-import { getLabelQueue } from '@/services/labelQueueService';
+import { getLabelQueue, setQueueQuantity } from '@/services/labelQueueService';
 import { parseApiError } from '@/utils/apiError';
 
 export default function LabelQueueScreen() {
@@ -40,6 +40,13 @@ export default function LabelQueueScreen() {
     return { items: [...byVariant.values()].sort((a, b) => String(a.code ?? 'zzz').localeCompare(String(b.code ?? 'zzz'), 'pt-BR', { numeric: true })), initialQty: qty };
   }, [data]);
 
+  // lixeira: tira a peça da fila (todas as linhas dela, de qualquer entrada)
+  const removeFromQueue = async (variantId: number) => {
+    for (const r of (data?.items ?? []).filter((x) => x.variant_id === variantId)) await setQueueQuantity(r.id, 0);
+    await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
+    await queryClient.invalidateQueries({ queryKey: ['label-progress'] });
+  };
+
   return (
     <View style={styles.container}>
       <PageHeader title="Fila de impressão" subtitle={data ? `${data.total} etiqueta${data.total !== 1 ? 's' : ''} na fila` : ''}
@@ -62,6 +69,7 @@ export default function LabelQueueScreen() {
             items={items}
             initialQty={initialQty}
             fromQueue
+            onRemove={removeFromQueue}
             emptyText="A fila está vazia."
             onPrinted={() => queryClient.invalidateQueries({ queryKey: ['label-queue'] })}
           />

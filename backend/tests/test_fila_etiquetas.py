@@ -91,12 +91,15 @@ async def test_nao_saiu_volta_para_a_fila_e_desfaz_a_folha(test_client, async_se
     job = (await test_client.post(f"{API}/prints", json={**SHEET, "start_position": 1, "from_queue": True,
                                                          "items": [{"variant_id": va, "quantity": 5}]}, headers=h)).json()
     assert job["next_position"] == 6
+    st = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()
+    assert st["last_job"]["id"] == job["id"] and st["last_job"]["total"] == 5                  # é essa que o app oferece desfazer
     r = await test_client.post(f"{API}/prints/{job['id']}/undo", headers=h)
     assert r.status_code == 200 and r.json()["returned"] == 5
     q = (await test_client.get(f"{API}/queue", headers=h)).json()
     assert q["total"] == 9
     assert (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()["next_position"] == 1
     assert (await test_client.post(f"{API}/prints/{job['id']}/undo", headers=h)).status_code == 400   # já desfeita
+    assert (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()["last_job"] is None
 
 
 async def test_validacoes_e_isolamento_entre_lojas(test_client, async_session):
