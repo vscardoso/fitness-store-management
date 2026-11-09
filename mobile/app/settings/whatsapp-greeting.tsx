@@ -60,7 +60,7 @@ export default function WhatsappGreetingScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Saudação automática" subtitle="WhatsApp da loja" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Saudação automática" subtitle="WhatsApp da loja" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         <FormGrid>
 <View style={styles.card}>

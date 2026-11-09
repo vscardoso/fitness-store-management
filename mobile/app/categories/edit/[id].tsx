@@ -172,7 +172,7 @@ export default function EditCategoryScreen() {
           title="Editar Categoria"
           subtitle={category.name}
           showBackButton
-          onBack={() => router.back()}
+         
         />
       </Animated.View>
 

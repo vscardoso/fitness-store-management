@@ -55,7 +55,7 @@ export default function ReturnSettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Troca e devolução" subtitle="Prazo e regra da loja" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Troca e devolução" subtitle="Prazo e regra da loja" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         <FormGrid>
 <View style={styles.card}>

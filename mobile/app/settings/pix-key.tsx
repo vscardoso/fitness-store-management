@@ -208,7 +208,7 @@ function PIXKeyScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Chave PIX" subtitle="Pagamentos" showBackButton onBack={() => router.back()} />
+        <PageHeader title="Chave PIX" subtitle="Pagamentos" showBackButton backFallback="/(tabs)/more" />
         <View style={styles.center}><ActivityIndicator size="large" color={brandingColors.primary} /></View>
       </View>
     );
@@ -224,7 +224,7 @@ function PIXKeyScreen() {
           title="Chave PIX"
           subtitle="Configurar pagamento via QR Code"
           showBackButton
-          onBack={() => router.back()}
+          backFallback="/(tabs)/more"
         />
       </Animated.View>
 

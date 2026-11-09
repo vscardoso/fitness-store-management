@@ -44,7 +44,7 @@ export default function NotificationsScreen() {
         title="Notificações"
         subtitle={unread > 0 ? `${unread} ${unread === 1 ? 'não lida' : 'não lidas'}` : 'Tudo em dia'}
         showBackButton
-        onBack={() => router.back()}
+       
       />
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
       <View style={[{ flex: 1 }, desktopColumn]}>

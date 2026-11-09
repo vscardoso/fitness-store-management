@@ -123,7 +123,7 @@ export default function ImportStockScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Importar estoque" subtitle="Traga as peças que a loja já tem" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Importar estoque" subtitle="Traga as peças que a loja já tem" showBackButton />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         {result ? (
           <View style={styles.card}>

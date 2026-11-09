@@ -82,7 +82,7 @@ export default function WhatsappProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
-      <PageHeader title="Perfil do WhatsApp" subtitle="O que a cliente vê" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Perfil do WhatsApp" subtitle="O que a cliente vê" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         {isLoading ? (
           <Text style={{ color: c.textMuted }}>Lendo o perfil no WhatsApp…</Text>

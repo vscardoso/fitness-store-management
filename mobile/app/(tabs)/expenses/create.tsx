@@ -151,7 +151,7 @@ export default function CreateExpenseScreen() {
       <PageHeader
         title="Nova Despesa"
         showBackButton
-        onBack={() => router.back()}
+       
       />
 
       <KeyboardAvoidingView

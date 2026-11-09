@@ -96,7 +96,7 @@ export default function AuditHistoryScreen() {
   if (!admin) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Histórico de alterações" showBackButton onBack={() => router.back()} />
+        <PageHeader title="Histórico de alterações" showBackButton backFallback="/(tabs)/more" />
         <EmptyState icon="lock-closed-outline" title="Você não tem permissão" description="Só o administrador da loja vê o histórico de alterações." />
       </View>
     );
@@ -104,7 +104,7 @@ export default function AuditHistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Histórico de alterações" subtitle="Quem mexeu em quê" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Histórico de alterações" subtitle="Quem mexeu em quê" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
         <Text style={styles.intro}>
           Tudo que alguém muda em valores fica aqui, com o nome de quem fez. Estes registros não podem ser apagados nem editados.

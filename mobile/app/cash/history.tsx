@@ -29,7 +29,7 @@ export default function CashHistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Histórico do caixa" subtitle="Cada abertura e fechamento" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Histórico do caixa" subtitle="Cada abertura e fechamento" showBackButton />
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
       <View style={[{ flex: 1 }, desktopColumn]}>
       <ScrollView

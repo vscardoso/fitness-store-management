@@ -168,7 +168,7 @@ export default function PrintersScreen() {
           title="Impressoras de Etiqueta"
           subtitle="Elgin L42 Pro e compatíveis ZPL"
           showBackButton
-          onBack={() => router.back()}
+          backFallback="/(tabs)/more"
         />
       </Animated.View>
 

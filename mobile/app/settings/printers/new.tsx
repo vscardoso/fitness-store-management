@@ -125,7 +125,7 @@ export default function NewPrinterScreen() {
         title="Nova Impressora"
         subtitle="Elgin L42 Pro — ZPL II"
         showBackButton
-        onBack={() => router.back()}
+        backFallback="/(tabs)/more"
       />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>

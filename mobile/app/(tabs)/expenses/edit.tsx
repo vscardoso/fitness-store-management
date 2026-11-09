@@ -142,7 +142,7 @@ export default function EditExpenseScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Editar Despesa" showBackButton onBack={() => router.back()} />
+        <PageHeader title="Editar Despesa" showBackButton />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando despesa...</Text>
@@ -157,7 +157,7 @@ export default function EditExpenseScreen() {
         title={description || 'Editar Despesa'}
         subtitle={expense?.category?.name}
         showBackButton
-        onBack={() => router.back()}
+       
       />
 
       <KeyboardAvoidingView

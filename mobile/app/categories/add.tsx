@@ -135,7 +135,7 @@ export default function AddCategoryScreen() {
           title="Nova Categoria"
           subtitle="Preencha os dados da categoria"
           showBackButton
-          onBack={() => router.back()}
+         
         />
       </Animated.View>
 

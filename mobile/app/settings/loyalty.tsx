@@ -85,7 +85,7 @@ export default function LoyaltySettingsScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Fidelidade" subtitle="Pontos que viram desconto" showBackButton onBack={() => router.back()} />
+        <PageHeader title="Fidelidade" subtitle="Pontos que viram desconto" showBackButton backFallback="/(tabs)/more" />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color={brand.primary} />
         </View>
@@ -95,7 +95,7 @@ export default function LoyaltySettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Fidelidade" subtitle="Pontos que viram desconto" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Fidelidade" subtitle="Pontos que viram desconto" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         <FormGrid>
           <View style={styles.card}>

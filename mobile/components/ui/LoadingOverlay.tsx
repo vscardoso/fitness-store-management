@@ -18,7 +18,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { loadingManager } from '@/services/loadingManager';
-import { MagnifierLoader } from '@/components/ui/MagnifierLoader';
+import { MagnifierLoader, useHasScreenLoader } from '@/components/ui/MagnifierLoader';
 
 interface LoadingOverlayProps {
   visible?: boolean;
@@ -43,7 +43,9 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
     return unsubscribe;
   }, []);
 
-  const shouldShow = visible !== undefined ? visible : isVisible;
+  // a tela já mostra o carregamento dela (manequim + texto): o global não aparece por cima
+  const screenLoader = useHasScreenLoader();
+  const shouldShow = visible !== undefined ? visible : isVisible && !screenLoader;
   const displayMessage = message !== undefined ? message : loadingMessage;
 
   useEffect(() => {

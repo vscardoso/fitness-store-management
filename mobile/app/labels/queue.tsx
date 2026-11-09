@@ -107,7 +107,7 @@ export default function PrintQueueScreen() {
           title="Histórico de Impressão"
           subtitle={`${jobs.length} job${jobs.length !== 1 ? 's' : ''}`}
           showBackButton
-          onBack={() => router.back()}
+         
         />
       </Animated.View>
 

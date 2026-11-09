@@ -69,7 +69,7 @@ export default function SupplierReturnsScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Devoluções ao fornecedor" subtitle="Defeitos e condicional" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Devoluções ao fornecedor" subtitle="Defeitos e condicional" showBackButton />
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
       <View style={[{ flex: 1 }, desktopColumn]}>
       <SuppliersTabs active="returns" />

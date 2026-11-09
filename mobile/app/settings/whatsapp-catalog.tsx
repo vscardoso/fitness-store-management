@@ -125,7 +125,7 @@ export default function WhatsappCatalogScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Catálogo do WhatsApp" subtitle="Também vale para o Instagram" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Catálogo do WhatsApp" subtitle="Também vale para o Instagram" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
         {!!error && <Text style={styles.error}>{error}</Text>}
         {!!message && <Text style={[styles.ok, { color: brand.primary }]}>{message}</Text>}

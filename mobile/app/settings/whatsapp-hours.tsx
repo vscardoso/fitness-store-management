@@ -65,7 +65,7 @@ export default function WhatsappHoursScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
-      <PageHeader title="Horário e ausência" subtitle="WhatsApp da loja" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Horário e ausência" subtitle="WhatsApp da loja" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
           <Text style={[styles.title, { color: c.text }]}>Horário em que a loja atende</Text>

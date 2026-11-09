@@ -68,7 +68,7 @@ export default function LoadingDemoScreen() {
       <PageHeader
         title="Demonstração de Loading"
         subtitle="Teste o novo sistema de loading"
-        onBack={() => router.back()}
+       
       />
 
       <ScrollView

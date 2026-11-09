@@ -97,7 +97,7 @@ export default function LabelsHubScreen() {
           title="Impressão de Etiquetas"
           subtitle={defaultPrinter ? defaultPrinter.name : 'Nenhuma impressora configurada'}
           showBackButton
-          onBack={() => router.back()}
+         
           rightActions={[{
             icon: 'settings-outline',
             onPress: () => router.push('/settings/printers'),

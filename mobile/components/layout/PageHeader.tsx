@@ -9,7 +9,7 @@
  * <PageHeader
  *   title="Equipe"
  *   subtitle="15 membros"
- *   onBack={() => router.back()}
+ *  
  * />
  * 
  * // Formulário

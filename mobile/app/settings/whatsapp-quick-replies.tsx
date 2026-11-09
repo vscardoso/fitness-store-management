@@ -44,7 +44,7 @@ export default function WhatsappQuickRepliesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
-      <PageHeader title="Respostas rápidas" subtitle="Atalhos para a conversa" showBackButton onBack={() => router.back()} />
+      <PageHeader title="Respostas rápidas" subtitle="Atalhos para a conversa" showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
         <Text style={[styles.note, { color: c.textMuted }]}>
           Na conversa, digite / e escolha. O texto entra no campo e você revisa antes de enviar. Use {'{nome}'} para o primeiro nome da cliente: vem do cadastro e, se ela não tiver, do nome do perfil dela no WhatsApp. Se não houver nome aproveitável, a palavra some sozinha.

@@ -206,7 +206,7 @@ export default function CategoriesScreen() {
           title="Categorias"
           subtitle={`${rootCategories.length} ${rootCategories.length === 1 ? 'categoria' : 'categorias'}`}
           showBackButton
-          onBack={() => router.back()}
+         
         />
       </Animated.View>
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
