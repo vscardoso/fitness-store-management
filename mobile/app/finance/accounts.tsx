@@ -193,7 +193,7 @@ export default function AccountsScreen() {
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={styles.transferText} numberOfLines={1}>{name(t.from_account_id)} → {name(t.to_account_id)}</Text>
                   <Text style={styles.accountKind} numberOfLines={1}>
-                    {formatDate(t.occurred_on)}{t.description ? ` · ${t.description}` : ''}
+                    {formatDate(t.occurred_on)}{t.description ? ` · ${t.description}` : ''}{t.is_auto ? ' · lançado pelo sistema' : ''}
                   </Text>
                 </View>
                 <Text style={styles.transferText}>{formatCurrency(t.amount)}</Text>
@@ -208,7 +208,7 @@ export default function AccountsScreen() {
       </ScrollView>
 
       <ConfirmDialog visible={!!removing} title="Apagar esta transferência?" type="warning" confirmText="Apagar" cancelText="Voltar"
-        message={removing ? `${formatCurrency(removing.amount)} de ${name(removing.from_account_id)} para ${name(removing.to_account_id)}. As duas contas voltam ao saldo de antes.` : ''}
+        message={removing ? `${formatCurrency(removing.amount)} de ${name(removing.from_account_id)} para ${name(removing.to_account_id)}. As duas contas voltam ao saldo de antes.${removing.is_auto ? ' Foi um repasse automático: se você apagar, o sistema não o lança de novo (o dia volta para a lista da maquininha e você faz o repasse à mão).' : ''}` : ''}
         loading={doRemove.isPending} onConfirm={() => removing && doRemove.mutate(removing.id)} onCancel={() => setRemoving(null)} />
 
       <BottomSheet

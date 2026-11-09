@@ -5,16 +5,19 @@
  */
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { Button, Switch, TextInput } from 'react-native-paper';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import BottomSheet from '@/components/ui/BottomSheet';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useAuth } from '@/hooks/useAuth';
+import { isAdminRole } from '@/utils/roles';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr, toMoneyField } from '@/utils/cashMoney';
-import { settleCard, type CardSchedule } from '@/services/financeService';
+import { setCardAuto, settleCard, type CardSchedule } from '@/services/financeService';
 
 const dayLabel = (iso: string, weekday: string) => `${weekday}, ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const STATUS: Record<string, { text: string; color: string }> = {
@@ -28,6 +31,10 @@ export default function CardScheduleCard({ schedule: s }: { schedule: CardSchedu
   const queryClient = useQueryClient();
   const [form, setForm] = useState<{ gross: string; received: string } | null>(null);
   const [error, setError] = useState('');
+  const { user } = useAuth();
+  const admin = isAdminRole(user?.role);
+  const [confirmOn, setConfirmOn] = useState(false);
+  const [autoError, setAutoError] = useState('');
 
   const gross = parseMoneyBr(form?.gross ?? '') ?? 0;
   const received = parseMoneyBr(form?.received ?? '') ?? 0;
@@ -38,7 +45,17 @@ export default function CardScheduleCard({ schedule: s }: { schedule: CardSchedu
     onError: (e) => setError(parseApiError(e) || 'Não foi possível lançar o repasse.'),
   });
 
-  if (!s || s.balance <= 0.004) return null;
+  const toggleAuto = useMutation({
+    mutationFn: (enabled: boolean) => setCardAuto(enabled),
+    onSuccess: async () => { setConfirmOn(false); setAutoError(''); await queryClient.invalidateQueries(); },
+    onError: (e) => { setConfirmOn(false); setAutoError(parseApiError(e) || 'Não foi possível mudar o repasse automático.'); },
+  });
+
+  if (!s) return null;
+  const hasBalance = s.balance > 0.004;
+  const auto = s.auto;
+  // sem nada a receber: só aparece para quem pode ligar o automático (admin) ou se ele já está ligado
+  if (!hasBalance && !auto?.enabled && !admin) return null;
   const open = () => {
     const start = s.due_now > 0 ? s.due_now : s.balance;
     setError('');
@@ -49,26 +66,65 @@ export default function CardScheduleCard({ schedule: s }: { schedule: CardSchedu
     <View style={styles.card}>
       <Text style={styles.title}>Maquininha: quando cai no banco (previsão)</Text>
       <Text style={styles.note}>{s.rule}</Text>
+      {hasBalance && (
+        <>
       {s.previous > 0.004 && (
-        <View style={styles.line}>
-          <Text style={styles.label}>Saldo anterior da maquininha</Text>
-          <Text style={styles.value}>{formatCurrency(s.previous)}</Text>
+            <View style={styles.line}>
+              <Text style={styles.label}>Saldo anterior da maquininha</Text>
+              <Text style={styles.value}>{formatCurrency(s.previous)}</Text>
+            </View>
+          )}
+          {s.items.map((i) => (
+            <View key={i.expected_on} style={styles.line}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Cai {dayLabel(i.expected_on, i.weekday)}</Text>
+                {!!STATUS[i.status].text && <Text style={[styles.small, { color: STATUS[i.status].color, fontWeight: '700' }]}>{STATUS[i.status].text}</Text>}
+              </View>
+              <Text style={styles.value}>{formatCurrency(i.amount)}</Text>
+            </View>
+          ))}
+          <View style={styles.line}>
+            <Text style={[styles.label, { fontWeight: '800' }]}>Total a receber da maquininha</Text>
+            <Text style={[styles.value, { fontWeight: '800' }]}>{formatCurrency(s.balance)}</Text>
+          </View>
+          <Button mode="contained" buttonColor={brand.primary} icon="swap-horizontal" style={styles.left} onPress={open}>Fazer repasse</Button>
+        </>
+      )}
+      {auto && (
+        <View style={[styles.autoBox, auto.enabled && { borderColor: brand.primary + '66', backgroundColor: brand.primary + '0F' }]}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.label}>Repasse automático</Text>
+            <Text style={styles.small}>
+              {auto.enabled
+                ? `Ligado: o sistema lança o repasse para ${auto.bank_name ?? 'o banco'} no dia em que o cartão cai (a partir das ${auto.run_hour}h). Cada lançamento aparece no Histórico de alterações.`
+                : 'Desligado: você lança o repasse à mão. Ligando, o sistema faz isso sozinho no dia em que o cartão cai.'}
+            </Text>
+          </View>
+          {admin ? (
+            <Switch
+              value={auto.enabled}
+              disabled={toggleAuto.isPending}
+              onValueChange={(v) => { setAutoError(''); if (v) setConfirmOn(true); else toggleAuto.mutate(false); }}
+              accessibilityLabel="Repasse automático da maquininha"
+            />
+          ) : (
+            <Text style={[styles.small, { fontWeight: '700' }]}>{auto.enabled ? 'Ligado' : 'Desligado'}</Text>
+          )}
         </View>
       )}
-      {s.items.map((i) => (
-        <View key={i.expected_on} style={styles.line}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Cai {dayLabel(i.expected_on, i.weekday)}</Text>
-            {!!STATUS[i.status].text && <Text style={[styles.small, { color: STATUS[i.status].color, fontWeight: '700' }]}>{STATUS[i.status].text}</Text>}
-          </View>
-          <Text style={styles.value}>{formatCurrency(i.amount)}</Text>
-        </View>
-      ))}
-      <View style={styles.line}>
-        <Text style={[styles.label, { fontWeight: '800' }]}>Total a receber da maquininha</Text>
-        <Text style={[styles.value, { fontWeight: '800' }]}>{formatCurrency(s.balance)}</Text>
-      </View>
-      <Button mode="contained" buttonColor={brand.primary} icon="swap-horizontal" style={styles.left} onPress={open}>Fazer repasse</Button>
+      {!!autoError && <Text style={styles.error}>{autoError}</Text>}
+
+      <ConfirmDialog
+        visible={confirmOn}
+        type="warning"
+        title="Ligar o repasse automático?"
+        message={`O sistema vai lançar, sozinho, o repasse do cartão para ${s.auto?.bank_name ?? 'o banco'} no dia em que ele cai (próximo dia útil, a partir das ${s.auto?.run_hour ?? 12}h), sem taxa. Vale só de hoje em diante: o que já está atrasado continua com você. Se o dinheiro não cair, apague o lançamento: ele não é refeito. Tudo fica registrado no Histórico.`}
+        confirmText="Ligar"
+        cancelText="Voltar"
+        loading={toggleAuto.isPending}
+        onConfirm={() => toggleAuto.mutate(true)}
+        onCancel={() => setConfirmOn(false)}
+      />
 
       <BottomSheet
         visible={!!form}
@@ -117,4 +173,5 @@ const styles = StyleSheet.create({
   value: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   left: { alignSelf: 'flex-start' },
   error: { color: Colors.light.error, fontWeight: '600' },
+  autoBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border },
 });

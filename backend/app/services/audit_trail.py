@@ -95,6 +95,7 @@ _LOGGED_ELSEWHERE = {
     ("POST", "/customers/{customer_id}/anonymize"), ("POST", "/customers/{customer_id}/loyalty/adjust"),
     ("DELETE", "/stock-entries/{entry_id}"), ("DELETE", "/stock-entries/entry-items/{item_id}"),
     ("POST", "/finance/accounts/{account_id}/adjust"), ("PATCH", "/finance/accounts/{account_id}"),
+    ("PUT", "/finance/card-auto"),
 }
 
 

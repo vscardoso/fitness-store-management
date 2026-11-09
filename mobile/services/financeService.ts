@@ -37,7 +37,13 @@ export interface CardScheduleItem { expected_on: string; weekday: string; amount
 export interface CardSchedule {
   account_id: number; balance: number; previous: number; items: CardScheduleItem[]; due_now: number;
   bank_account_id: number | null; bank_name: string | null; rule: string;
+  /** Repasse automático: ligado, banco de destino, hora a partir da qual o dia de hoje entra e até que dia já foi lançado. */
+  auto: { enabled: boolean; account_id: number | null; bank_name: string | null; run_hour: number; through: string | null };
 }
+
+/** Liga ou desliga o repasse automático da maquininha (só administrador). */
+export const setCardAuto = async (enabled: boolean, accountId?: number): Promise<CardSchedule> =>
+  (await api.put('/finance/card-auto', { enabled, ...(accountId ? { account_id: accountId } : {}) })).data;
 
 export const settleCard = async (body: { gross: number; received: number; occurred_on?: string }): Promise<{ fee: number }> =>
   (await api.post('/finance/card-settlement', body)).data;
@@ -86,6 +92,9 @@ export interface AccountTransfer {
   occurred_on: string;
   description: string | null;
   created_by_name: string | null;
+  /** Lançado pelo sistema (repasse automático da maquininha) e o dia de cartão que ele quitou. */
+  is_auto?: boolean;
+  card_day?: string | null;
 }
 
 export interface SetupPayload {

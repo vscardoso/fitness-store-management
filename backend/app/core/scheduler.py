@@ -51,6 +51,22 @@ async def stock_alerts_push_job():
         logger.error(f"Error in stock alerts push job: {e}", exc_info=True)
 
 
+async def card_auto_settlement_job():
+    """
+    Job: repasse automático da maquininha (lojas que ligaram o interruptor). Roda a cada 30 minutos.
+    """
+    try:
+        async with async_session_maker() as db:
+            from app.core.rls import bypass_on
+            from app.services.finance_service import run_card_auto_settlement
+            await bypass_on(db)
+            result = await run_card_auto_settlement(db)
+            if result["settled"]:
+                logger.info(f"Repasse automático da maquininha: {result}")
+    except Exception as e:
+        logger.error(f"Error in card auto settlement job: {e}", exc_info=True)
+
+
 async def send_pending_reminder_job():
     """
     Job: Envia lembrete de envios pendentes.
@@ -241,6 +257,15 @@ def start_scheduler():
         trigger=IntervalTrigger(minutes=5),
         id="expire_pix_transactions",
         name="Expirar PIX pendentes vencidos",
+        replace_existing=True,
+    )
+
+    # Repasse automático da maquininha (cartão cai no próximo dia útil; só lojas com o interruptor ligado)
+    scheduler.add_job(
+        card_auto_settlement_job,
+        trigger=IntervalTrigger(minutes=30),
+        id="card_auto_settlement",
+        name="Repasse automático da maquininha",
         replace_existing=True,
     )
 

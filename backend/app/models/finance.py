@@ -65,6 +65,9 @@ class AccountTransfer(BaseModel):
     occurred_on: Mapped[date] = mapped_column(Date, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     created_by_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    # Repasse lançado pelo sistema (não por uma pessoa) e o dia esperado do cartão que ele quitou
+    is_auto: Mapped[bool] = mapped_column(default=False, server_default="false", nullable=False)
+    card_day: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
 
 class Payable(BaseModel):

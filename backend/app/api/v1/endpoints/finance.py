@@ -53,6 +53,15 @@ async def card_settlement(data: Dict[str, Any] = Body(...), db: AsyncSession = D
         raise _http(e)
 
 
+@router.put("/card-auto", summary="Repasse automático da maquininha: ligar/desligar e escolher o banco (admin)")
+async def card_auto(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                    tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).set_card_auto(tenant_id, current_user, data)
+    except FinanceError as e:
+        raise _http(e)
+
+
 @router.post("/setup", summary="Implantar a loja em andamento (tudo ou nada, uma vez)")
 async def setup(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
                 tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):

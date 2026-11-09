@@ -189,6 +189,22 @@ export function describeAudit(item: AuditItem): AuditSentence {
   let text: string;
 
   switch (item.action) {
+    case 'FINANCE_CARD_AUTO_CHANGED':
+      text = `${who} ${d.enabled ? 'ligou' : 'desligou'} o repasse automático da maquininha${d.enabled && d.banco ? ` (banco ${d.banco})` : ''}`;
+      break;
+    case 'FINANCE_CARD_AUTO_TRANSFER': {
+      const dia = typeof d.dia_do_cartao === 'string' && d.dia_do_cartao.length >= 10 ? ` (cartão de ${d.dia_do_cartao.slice(8, 10)}/${d.dia_do_cartao.slice(5, 7)})` : '';
+      text = `O sistema lançou, sozinho, o repasse de ${money(d.valor)} da maquininha para ${d.para ?? 'o banco'}${dia}`;
+      break;
+    }
+    case 'FINANCE_CARD_AUTO_SETTLED': {
+      const n = Number(d.repasses) || 0;
+      text = `O sistema repassou ${money(d.total)} da maquininha para ${d.banco ?? 'o banco'} em ${n} lançamento${n === 1 ? '' : 's'}${Number(d.pulados) ? ` (${d.pulados} pulado${Number(d.pulados) === 1 ? '' : 's'}: mês fechado)` : ''}`;
+      break;
+    }
+    case 'FINANCE_CARD_AUTO_FAILED':
+      text = `O repasse automático da maquininha falhou e nada foi lançado${d.erro ? `: ${d.erro}` : ''}`;
+      break;
     case 'FINANCE_ACCOUNT_ADJUSTED':
       text = `${who} corrigiu o saldo da ${d.conta ?? 'conta'} de ${money(d.antes)} para ${money(d.depois)}`;
       break;

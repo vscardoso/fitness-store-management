@@ -112,3 +112,17 @@ t('detalhes incluem todos os campos registrados e protegem segredos', () => {
   assert.ok(!JSON.stringify(details).includes('oculto'));
   assert.deepEqual(auditDetails({ action: 'LOGIN_SUCCESS' }), []);
 });
+
+// ── repasse automático da maquininha: tudo no histórico ──
+{
+  const lig = describeAudit({ action: 'FINANCE_CARD_AUTO_CHANGED', user_name: 'Alice', detail: JSON.stringify({ enabled: true, banco: 'Nubank' }) });
+  assert.equal(lig.text, 'Alice ligou o repasse automático da maquininha (banco Nubank)');
+  assert.equal(describeAudit({ action: 'FINANCE_CARD_AUTO_CHANGED', user_name: 'Alice', detail: JSON.stringify({ enabled: false }) }).text,
+    'Alice desligou o repasse automático da maquininha');
+  const t1 = describeAudit({ action: 'FINANCE_CARD_AUTO_TRANSFER', detail: JSON.stringify({ valor: 100, para: 'Nubank', dia_do_cartao: '2026-11-05' }) });
+  assert.equal(t1.text, 'O sistema lançou, sozinho, o repasse de R$ 100,00 da maquininha para Nubank (cartão de 05/11)');
+  assert.ok(describeAudit({ action: 'FINANCE_CARD_AUTO_SETTLED', detail: JSON.stringify({ repasses: 2, total: 150, banco: 'Nubank', pulados: 0 }) }).text
+    .startsWith('O sistema repassou R$ 150,00 da maquininha para Nubank em 2 lançamentos'));
+  assert.ok(describeAudit({ action: 'FINANCE_CARD_AUTO_FAILED', detail: JSON.stringify({ erro: 'banco fora do ar' }) }).text.includes('banco fora do ar'));
+  console.log('ok repasse automático da maquininha no histórico');
+}

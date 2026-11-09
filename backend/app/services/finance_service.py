@@ -12,12 +12,13 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+import logging
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.timezone import make_aware, to_utc, today_brazil
+from app.core.timezone import make_aware, now_brazil, to_utc, today_brazil
 from app.models.cash_register import KIND_SUPPLY, KIND_WITHDRAWAL, CashMovement
 from app.models.expense import Expense
 from app.models.finance import (
@@ -32,6 +33,7 @@ from app.models.supplier import Supplier
 from app.models.user import User
 from app.services.money_ledger import VALID_STATUS, br_day
 
+logger = logging.getLogger(__name__)
 D0 = Decimal("0.00")
 MAX_AMOUNT = Decimal("10000000")
 
@@ -45,6 +47,7 @@ METHOD_TO_KIND = {
     PaymentMethod.INSTALLMENTS.value: KIND_CARD,
 }
 CARD_FEE_CATEGORY = "Taxa da maquininha"
+CARD_AUTO_HOUR = 12      # o repasse do dia só é lançado depois do meio-dia (horário do Brasil); dias anteriores a qualquer hora
 CARD_RULE_TEXT = "Cartão cai no próximo dia útil: venda de segunda a quinta cai no dia seguinte; sexta, sábado e domingo caem na segunda."
 
 
@@ -387,8 +390,22 @@ class FinanceService:
             cut = min(by_day[d], refund)
             by_day[d] -= cut
             refund -= cut
+        # repasse AUTOMÁTICO quita o próprio dia do cartão (não o saldo anterior); apagar o repasse devolve o dia à lista
+        auto_rows = (await self.db.execute(
+            select(AccountTransfer.card_day, func.sum(AccountTransfer.amount)).where(
+                AccountTransfer.tenant_id == tenant_id, AccountTransfer.is_active == True,  # noqa: E712
+                AccountTransfer.from_account_id == card.id, AccountTransfer.card_day.is_not(None),
+                AccountTransfer.occurred_on >= store.finance_start_date,
+            ).group_by(AccountTransfer.card_day)
+        )).all()
+        auto_cut = D0
+        for d, amt in auto_rows:
+            cut = min(by_day.get(d, D0), _q(amt))
+            if cut > 0:
+                by_day[d] -= cut
+                auto_cut += cut
         # o que já saiu da linha (repasse, taxa, outras saídas) abate primeiro o saldo anterior e depois os dias mais antigos
-        out = _q(b["transfers_out"] + b["expenses_paid"] + b["payables_paid"] + b["other_out"])
+        out = _q(b["transfers_out"] + b["expenses_paid"] + b["payables_paid"] + b["other_out"]) - auto_cut
         previous = _q(card.opening_balance)
         cut = min(previous, out)
         previous -= cut
@@ -408,9 +425,13 @@ class FinanceService:
                  for d, v in sorted(by_day.items()) if _q(v) > 0]
         due_now = _q(max(previous, D0) + sum((Decimal(str(i["amount"])) for i in items if i["status"] != "future"), D0))
         pix = next((a for a in accs if a.receives_pix), None) or next((a for a in accs if a.kind == KIND_BANK), None)
+        dest = await self._auto_destination(store, accs)
         return {"account_id": card.id, "balance": float(balance), "previous": float(previous), "items": items,
                 "due_now": float(due_now), "bank_account_id": pix.id if pix else None, "bank_name": pix.name if pix else None,
-                "rule": CARD_RULE_TEXT}
+                "rule": CARD_RULE_TEXT,
+                "auto": {"enabled": bool(store.card_auto_settlement), "account_id": dest.id if dest else None,
+                         "bank_name": dest.name if dest else None, "run_hour": CARD_AUTO_HOUR,
+                         "through": store.card_auto_through.isoformat() if store.card_auto_through else None}}
 
     async def _fee_category_id(self, tenant_id: int) -> int:
         from app.models.expense import ExpenseCategory
@@ -464,6 +485,117 @@ class FinanceService:
                 category_id=await self._fee_category_id(tenant_id), notes=f"repasse:{t.id}"))
         await self.db.commit()
         return {"fee": float(fee), "balances": await self.balances(tenant_id), "card": await self.card_schedule(tenant_id)}
+
+    # ── repasse automático da maquininha ────────────────────────────────────
+    async def _auto_destination(self, store: Store, accs: List[FinancialAccount]) -> Optional[FinancialAccount]:
+        """Banco que recebe o repasse automático: o escolhido (se ainda existe) ou o que recebe o Pix / o primeiro banco."""
+        chosen = next((a for a in accs if a.id == store.card_auto_account_id and a.kind == KIND_BANK), None)
+        return chosen or next((a for a in accs if a.receives_pix), None) or next((a for a in accs if a.kind == KIND_BANK), None)
+
+    async def set_card_auto(self, tenant_id: int, user: User, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Liga ou desliga o repasse automático e escolhe o banco. Ao LIGAR, o sistema só cuida dos dias a partir de hoje:
+        o que já estava atrasado continua para o repasse manual (nunca lança dinheiro antigo sem ninguém ver)."""
+        await self._require_started(tenant_id)
+        store = await self._store(tenant_id, lock=True)
+        accs = await self._accounts(tenant_id)
+        if not any(a.kind == KIND_CARD for a in accs):
+            raise FinanceError("Esta loja não tem a conta da maquininha.")
+        enabled = data.get("enabled")
+        if not isinstance(enabled, bool):
+            raise FinanceError("Informe se o repasse automático fica ligado ou desligado.")
+        if data.get("account_id") not in (None, ""):
+            acc = await self._account(tenant_id, as_int(data.get("account_id"), "o banco"))
+            if acc.kind != KIND_BANK:
+                raise FinanceError("Escolha um banco para receber o repasse.")
+            store.card_auto_account_id = acc.id
+        dest = await self._auto_destination(store, accs)
+        if enabled and dest is None:
+            raise FinanceError("Cadastre um banco antes de ligar o repasse automático.")
+        before = bool(store.card_auto_settlement)
+        store.card_auto_settlement = enabled
+        if enabled and not before:
+            store.card_auto_through = today_brazil() - timedelta(days=1)
+        await self._audit(tenant_id, user, "FINANCE_CARD_AUTO_CHANGED", "store", tenant_id,
+                          {"enabled": enabled, "antes": before, "banco": dest.name if dest else None,
+                           "banco_id": dest.id if dest else None, "a_partir_de": store.card_auto_through.isoformat() if enabled and store.card_auto_through else None})
+        await self.db.commit()
+        if enabled != before:
+            from app.services.audit_service import notify_other_admins
+            nome = getattr(user, "full_name", None) or getattr(user, "email", None) or "Um administrador"
+            await notify_other_admins(tenant_id, user, "Repasse automático da maquininha",
+                                      f"{nome} {'ligou' if enabled else 'desligou'} o repasse automático" + (f" para o {dest.name}" if enabled and dest else ""),
+                                      url="/finance")
+        return await self.card_schedule(tenant_id) or {}
+
+    async def auto_settle_card(self, tenant_id: int, now: Optional[datetime] = None) -> Dict[str, Any]:
+        """Lança sozinho o repasse da maquininha para o banco, um lançamento por dia em que o cartão caiu (sem taxa: a loja
+        repassa a taxa para a cliente). Só olha dias DEPOIS de `card_auto_through`, então apagar um repasse automático não o
+        refaz. O dia de hoje só entra depois de CARD_AUTO_HOUR. Idempotente: pode rodar quantas vezes quiser."""
+        now = now or now_brazil()
+        today = now.date()
+        store = await self._store(tenant_id, lock=True)       # dois processos juntos não lançam duas vezes
+        none = {"settled": 0, "amount": 0.0, "skipped": 0}
+        if not store.card_auto_settlement or store.finance_start_date is None:
+            return none
+        sched = await self.card_schedule(tenant_id)
+        if not sched:
+            return none
+        accs = await self._accounts(tenant_id)
+        card = next((a for a in accs if a.kind == KIND_CARD), None)
+        dest = await self._auto_destination(store, accs)
+        if card is None or dest is None:
+            return none
+        through = store.card_auto_through or (today - timedelta(days=1))
+        due = []
+        for it in sched["items"]:
+            d = date.fromisoformat(it["expected_on"])
+            if d <= through or d > today or (d == today and now.hour < CARD_AUTO_HOUR):
+                continue
+            due.append((d, Decimal(str(it["amount"]))))
+        if not due:
+            return none
+        settled, total, skipped = 0, D0, 0
+        last_done = through
+        lines: List[tuple] = []
+        for d, amount in sorted(due):
+            day = d
+            try:
+                await self.ensure_open_month(tenant_id, day)
+            except FinanceError:
+                day = today                                      # mês do dia esperado já fechado: lança hoje
+                try:
+                    await self.ensure_open_month(tenant_id, day)
+                except FinanceError:
+                    skipped += 1
+                    continue
+            t = AccountTransfer(
+                tenant_id=tenant_id, from_account_id=card.id, to_account_id=dest.id, occurred_on=day, amount=amount,
+                created_by_name="Automático", is_auto=True, card_day=d,
+                description=f"Repasse automático da maquininha (cartão de {d.strftime('%d/%m')})")
+            self.db.add(t)
+            await self.db.flush()
+            await self._audit(tenant_id, None, "FINANCE_CARD_AUTO_TRANSFER", "account_transfer", t.id, {
+                "valor": float(amount), "dia_do_cartao": d.isoformat(), "lancado_em": day.isoformat(),
+                "de": card.name, "para": dest.name, "para_id": dest.id, "origem": "automatico",
+                "rodada": now.strftime("%Y-%m-%d %H:%M")})
+            lines.append((d, amount))
+            settled += 1
+            total += amount
+            last_done = max(last_done, d)
+        if settled or skipped:
+            store.card_auto_through = max(last_done, max(d for d, _ in due)) if skipped == 0 else last_done
+            await self._audit(tenant_id, None, "FINANCE_CARD_AUTO_SETTLED", "store", tenant_id,
+                                  {"repasses": settled, "total": float(total), "banco": dest.name, "pulados": skipped,
+                               "ate_o_dia": store.card_auto_through.isoformat() if store.card_auto_through else None})
+            await self.db.commit()
+            logger.info("Repasse automático da maquininha: loja %s, %s repasse(s), R$ %s para %s (pulados: %s)",
+                        tenant_id, settled, total, dest.name, skipped)
+            if settled:
+                from app.services.audit_service import notify_other_admins
+                fmt = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")  # noqa: E731
+                await notify_other_admins(tenant_id, None, "Repasse automático da maquininha",
+                                          f"{fmt(total)} do cartão foi lançado no {dest.name}. Confira no extrato do banco.", url="/finance")
+        return {"settled": settled, "amount": float(total), "skipped": skipped}
 
     # ── implantação ─────────────────────────────────────────────────────────
     async def setup(self, tenant_id: int, user: User, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -638,7 +770,8 @@ class FinanceService:
         )).scalars().all()
         return [{"id": t.id, "from_account_id": t.from_account_id, "to_account_id": t.to_account_id,
                  "amount": float(_q(t.amount)), "occurred_on": t.occurred_on.isoformat(), "description": t.description,
-                 "created_by_name": t.created_by_name} for t in rows]
+                 "created_by_name": t.created_by_name, "is_auto": bool(t.is_auto),
+                 "card_day": t.card_day.isoformat() if t.card_day else None} for t in rows]
 
     # ── contas a pagar ──────────────────────────────────────────────────────
     def _payable_public(self, p: Payable) -> Dict[str, Any]:
@@ -1129,3 +1262,28 @@ class FinanceService:
         await self.db.refresh(e)
         names = {a.id: a.name for a in await self._accounts(tenant_id)}
         return self._entry_public(e, names)
+
+
+async def run_card_auto_settlement(db: AsyncSession) -> Dict[str, Any]:
+    """Roda o repasse automático em todas as lojas que ligaram o interruptor. Um erro numa loja não para as outras."""
+    import logging
+    log = logging.getLogger(__name__)
+    ids = (await db.execute(select(Store.id).where(
+        Store.card_auto_settlement == True, Store.finance_start_date.is_not(None)))).scalars().all()  # noqa: E712
+    out = {"stores": len(ids), "settled": 0, "amount": 0.0}
+    for tid in ids:
+        try:
+            r = await FinanceService(db).auto_settle_card(tid)
+            out["settled"] += r["settled"]
+            out["amount"] += r["amount"]
+        except Exception as e:  # noqa: BLE001
+            await db.rollback()
+            log.exception("Repasse automático da maquininha falhou na loja %s", tid)
+            out["failed"] = out.get("failed", 0) + 1
+            try:
+                await FinanceService(db)._audit(tid, None, "FINANCE_CARD_AUTO_FAILED", "store", tid,
+                                                {"erro": str(e)[:300], "tipo": type(e).__name__})
+                await db.commit()
+            except Exception:  # noqa: BLE001
+                await db.rollback()
+    return out

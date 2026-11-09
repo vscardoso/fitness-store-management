@@ -123,6 +123,11 @@ class Store(BaseModel):
     )
     # Financeiro: dia do corte da implantação (loja que já funcionava). Nulo = financeiro ainda não implantado.
     finance_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # Repasse automático da maquininha (cartão cai no próximo dia útil): interruptor, banco de destino e até que dia
+    # esperado o sistema já lançou (apagar um repasse automático NÃO o refaz: ele só olha dias depois deste).
+    card_auto_settlement: Mapped[bool] = mapped_column(default=False, server_default="false", nullable=False)
+    card_auto_account_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    card_auto_through: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     logo_path: Mapped[Optional[str]] = mapped_column(
         String(500),
         nullable=True,
