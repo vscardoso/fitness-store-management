@@ -91,6 +91,9 @@ const ACAO_ESPECIAL: Record<string, string> = {
   rotate: 'gerou outro link', 'whatsapp-visible': 'mudou a visibilidade no WhatsApp', stock: 'fez uma ação no estoque',
 };
 
+const PAPEL: Record<string, string> = { admin: 'administrador', manager: 'gerente', seller: 'vendedor', cashier: 'caixa' };
+const papel = (v: unknown) => PAPEL[String(v).toLowerCase().replace(/^userrole\./, '')] ?? String(v);
+
 /** Frase da regra geral. `rota` é o caminho do servidor ("/products/{product_id}/adjust-quantity"). */
 function describeRoute(who: string, d: Record<string, any>, nome: unknown, ch: string): string {
   const rota = String(d.rota ?? '');
@@ -218,6 +221,59 @@ export function describeAudit(item: AuditItem): AuditSentence {
       break;
     case 'SALE_RETURN_CORRECTION':
       text = `${who} estornou uma venda por erro de lançamento`;
+      break;
+    case 'STOCK_ENTRY_DELETED':
+      text = `${who} apagou uma entrada de estoque${item.entity_id ? ` (número ${item.entity_id})` : ''}`;
+      break;
+    case 'ENTRY_ITEM_DELETED':
+      text = `${who} tirou um produto de uma entrada de estoque`;
+      break;
+    case 'STOCK_ADJUSTMENT': {
+      const q = Number(d.quantity_diff);
+      const quanto = Number.isFinite(q) && q !== 0 ? ` (${q > 0 ? '+' : ''}${q} peça${Math.abs(q) === 1 ? '' : 's'})` : '';
+      text = `${who} ajustou o estoque de uma peça${quanto}${d.reason ? `: ${d.reason}` : ''}`;
+      break;
+    }
+    case 'LOYALTY_ADJUSTED': {
+      const pts = Number(d.points);
+      const q = Number.isFinite(pts) && pts !== 0 ? ` (${pts > 0 ? '+' : ''}${pts} ponto${Math.abs(pts) === 1 ? '' : 's'})` : '';
+      text = `${who} ajustou os pontos de uma cliente${q}${d.note ? `: ${d.note}` : ''}`;
+      break;
+    }
+    case 'USER_ROLE_CHANGED':
+      text = `${who} mudou o papel de ${d.target_email ?? 'uma pessoa da equipe'}${d.old_role && d.new_role ? ` (de ${papel(d.old_role)} para ${papel(d.new_role)})` : ''}`;
+      break;
+    case 'PASSWORD_RESET':
+      text = `${who} redefiniu a senha de ${d.target_email ?? 'uma pessoa da equipe'}`;
+      break;
+    case 'CONDITIONAL_SENT':
+      text = `${who} marcou um envio condicional como enviado${d.carrier ? ` (${d.carrier})` : ''}`;
+      break;
+    case 'CONDITIONAL_CANCELLED':
+      text = `${who} cancelou um envio condicional`;
+      break;
+    case 'CONDITIONAL_RETURN_PROCESSED':
+      text = `${who} registrou a devolução de um envio condicional`;
+      break;
+    case 'PDV_SALE_CONFIRMED':
+    case 'PDV_MANUAL_CONFIRMED':
+    case 'PIX_SALE_CONFIRMED':
+    case 'CIELO_PIX_CONFIRMED':
+      text = `${who} confirmou o pagamento de uma venda`;
+      break;
+    case 'PDV_SALE_CANCELLED':
+    case 'PIX_SALE_CANCELLED':
+      text = `${who} cancelou uma venda no ponto de venda`;
+      break;
+    case 'PDV_SALE_REFUNDED':
+    case 'PIX_SALE_REFUNDED':
+    case 'PIX_REFUNDED':
+    case 'CIELO_PIX_REFUNDED':
+    case 'CIELO_PIX_REFUNDED_SALE':
+      text = `${who} estornou o pagamento de uma venda`;
+      break;
+    case 'PIX_EXPIRED':
+      text = `Um Pix de venda venceu sem ser pago`;
       break;
     case 'LOGIN_SUCCESS':
       text = `${who} entrou no sistema`;

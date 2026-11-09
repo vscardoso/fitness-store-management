@@ -214,3 +214,4 @@ backend/requirements.demo.txt
 
 # builds de teste locais
 mobile/dist_qa*/
+mobile/dist_h2/

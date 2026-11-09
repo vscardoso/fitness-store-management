@@ -66,3 +66,16 @@ console.log(`${ok} testes de texto do histórico passaram`);
   assert.ok(describeAudit({ action: 'COISA_NOVA', user_name: 'Alice' }).text.includes('fez uma ação no sistema'));
   console.log('ok regra geral e acessos');
 }
+
+// ── ações específicas que caíam em "fez uma ação no sistema (...)" (print de 09/11/2026) ──
+{
+  const e = describeAudit({ action: 'STOCK_ENTRY_DELETED', user_name: 'Wanessa Santos Cardoso', entity_id: 12 });
+  assert.equal(e.text, 'Wanessa Santos Cardoso apagou uma entrada de estoque (número 12)');
+  assert.equal(describeAudit({ action: 'STOCK_ADJUSTMENT', user_name: 'Alice', detail: JSON.stringify({ quantity_diff: -2, reason: 'avaria' }) }).text,
+    'Alice ajustou o estoque de uma peça (-2 peças): avaria');
+  assert.equal(describeAudit({ action: 'USER_ROLE_CHANGED', user_name: 'Victor', detail: JSON.stringify({ target_email: 'a@b.com', old_role: 'cashier', new_role: 'manager' }) }).text,
+    'Victor mudou o papel de a@b.com (de caixa para gerente)');
+  for (const a of ['ENTRY_ITEM_DELETED','LOYALTY_ADJUSTED','PASSWORD_RESET','CONDITIONAL_SENT','CONDITIONAL_CANCELLED','CONDITIONAL_RETURN_PROCESSED','PDV_SALE_CONFIRMED','PDV_SALE_CANCELLED','PDV_SALE_REFUNDED','PIX_EXPIRED','CIELO_PIX_CONFIRMED'])
+    assert.ok(!describeAudit({ action: a, user_name: 'X' }).text.includes('fez uma ação'), a);
+  console.log('ok ações específicas com frase própria');
+}
