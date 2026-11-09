@@ -13,7 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import {
-  cmText, customSticker, DEFAULT_STICKER, parseCm, printTagLabels, sizeDims, STICKER_SIZES, stickersPerSheet,
+  cmText, customSticker, DEFAULT_STICKER, parseCm, printTagLabels, sizeDims, STICKER_SIZES, stickersPerSheet, stickersPerThermalSheet,
   type StickerSize, type TagLabelLayout,
 } from '@/services/labelService';
 import StickerPreview from '@/components/labels/StickerPreview';
@@ -90,7 +90,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
       })
       .catch(() => {});
     AsyncStorage.getItem(PAPER_KEY)
-      .then((raw) => { if (raw === 'a4' || raw === 'roll') setPaper(raw); })
+      .then((raw) => { if (raw === 'a4' || raw === 'roll' || raw === 'sheet') setPaper(raw); })
       .catch(() => {});
   }, []);
 
@@ -114,7 +114,9 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
     chooseSize(sizeFrom(w, h));
     setCustomOpen(false);
   };
-  const perSheet = stickersPerSheet(size.widthMm, size.heightMm);
+  const perA4 = stickersPerSheet(size.widthMm, size.heightMm);
+  const perThermal = stickersPerThermalSheet(size.widthMm, size.heightMm);
+  const perSheet = paper === 'sheet' ? Math.max(1, perThermal) : perA4;
   const chosen = items.map((it) => ({ it, q: qty[it.variantId] ?? 0 })).filter((x) => x.q > 0);
   const total = chosen.reduce((sum, x) => sum + x.q, 0);
   const sheets = total > 0 ? Math.ceil((total + start - 1) / perSheet) : 0;
@@ -134,7 +136,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
     try {
       await printTagLabels(
         chosen.map((x) => ({ variantId: x.it.variantId, quantity: x.q })),
-        { layout, startPosition: layout === 'a4' ? start : 1, widthMm: size.widthMm, heightMm: size.heightMm },
+        { layout, startPosition: layout === 'roll' ? 1 : start, widthMm: size.widthMm, heightMm: size.heightMm },
       );
       onGenerated?.();
     } catch (e: any) {
@@ -300,7 +302,8 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         <Text style={styles.paperTitle}>Papel</Text>
         <View style={styles.paperRow}>
           {([
-            { key: 'a4' as TagLabelLayout, icon: 'grid-outline' as const, title: 'Folha A4', note: `${perSheet} por folha, com linha de corte` },
+            { key: 'a4' as TagLabelLayout, icon: 'grid-outline' as const, title: 'Folha A4', note: `${perA4} por folha, com linha de corte` },
+            { key: 'sheet' as TagLabelLayout, icon: 'apps-outline' as const, title: 'Folha 10 × 15', note: perThermal > 0 ? `${perThermal} por folha térmica, para cortar` : 'Não cabe: use etiqueta menor' },
             { key: 'roll' as TagLabelLayout, icon: 'document-outline' as const, title: 'Uma por página', note: 'Gráfica ou impressora de etiqueta' },
           ]).map((o) => {
             const on = paper === o.key;
@@ -319,7 +322,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
             );
           })}
         </View>
-        {paper === 'a4' ? (
+        {paper !== 'roll' ? (
           <View style={styles.sheetBox}>
             <Text style={styles.muted}>Folha já usada? Toque na primeira posição livre.</Text>
             <View style={styles.grid}>
@@ -350,7 +353,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
           <View style={{ flex: 1 }}>
             <Text style={styles.barTotal}>{total} etiqueta{total !== 1 ? 's' : ''}</Text>
             <Text style={styles.barSub}>
-              {size.name} · {paper === 'a4' ? `A4, ${sheets} folha${sheets !== 1 ? 's' : ''}` : 'uma por página'}
+              {size.name} · {paper === 'roll' ? 'uma por página' : `${paper === 'sheet' ? '10 × 15' : 'A4'}, ${sheets} folha${sheets !== 1 ? 's' : ''}`}
             </Text>
           </View>
           <TouchableOpacity

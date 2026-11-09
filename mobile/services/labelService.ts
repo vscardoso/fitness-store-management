@@ -10,10 +10,10 @@ import { DEFAULT_STICKER } from '@/utils/stickerSize';
 
 export {
   cmText, customSticker, DEFAULT_STICKER, parseCm, sizeDims, STICKER_MAX_MM, STICKER_MIN_MM, STICKER_SIZES, stickerScale,
-  stickersPerSheet, type StickerSize,
+  stickersPerSheet, stickersPerThermalSheet, type StickerSize,
 } from '@/utils/stickerSize';
 
-export type TagLabelLayout = 'a4' | 'roll';
+export type TagLabelLayout = 'a4' | 'roll' | 'sheet';
 
 export interface TagLabelOptions {
   layout: TagLabelLayout;

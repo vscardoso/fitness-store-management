@@ -50,6 +50,13 @@ export function sizeDims(widthMm: number, heightMm: number): string {
 const A4_GAP_MM = 2; // espaço mínimo entre etiquetas no corte (igual ao servidor)
 
 /** Quantos adesivos cabem numa folha A4 (mesma conta do servidor, `a4_grid`: borda 5 mm e no mínimo 2 mm entre elas): 47x42 = 24, 50x45 = 18, 60x50 = 15, 50x60 = 12, 65x55 = 15. */
+/** Folha térmica de 10 x 15 cm (igual ao servidor, `sheet_grid`: borda 1,5 mm, 2 mm entre etiquetas): 47x42 = 6, 60x50 = 2. */
+export function stickersPerThermalSheet(widthMm: number, heightMm: number): number {
+  const cols = Math.floor((100 - 3 + 2) / (widthMm + 2));
+  const rows = Math.floor((150 - 3 + 2) / (heightMm + 2));
+  return Math.max(0, cols) * Math.max(0, rows);
+}
+
 export function stickersPerSheet(widthMm: number, heightMm: number): number {
   const cols = Math.max(1, Math.floor((210 - 10 + A4_GAP_MM) / (widthMm + A4_GAP_MM)));
   const rows = Math.max(1, Math.floor((297 - 10 + A4_GAP_MM) / (heightMm + A4_GAP_MM)));

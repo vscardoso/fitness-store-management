@@ -35,6 +35,9 @@ A4_MARGIN_MM, A4_GAP_MM = 5, 2   # borda da folha (área que a impressora alcan�
 # na faixa em branco e não pega a etiqueta do lado (pedido do Victor, 05/11/2026)
 A4_SPACING_MAX_MM = 8
 MIN_MM, MAX_MM = 30, 100
+# folha de etiqueta térmica grande (ex.: 10 x 15 cm) com várias etiquetas pequenas para cortar: a térmica imprime a folha inteira
+SHEET_W_MM, SHEET_H_MM = 100, 150
+SHEET_MARGIN_MM, SHEET_GAP_MM = 1.5, 2
 # tag da W.A tem 5 x 4,5 cm; o adesivo é 3 mm menor em cada medida para sobrar borda e o erro de corte/colagem não aparecer (Victor, 05/11/2026)
 DEFAULT_W_MM, DEFAULT_H_MM = 47, 42
 
@@ -50,6 +53,13 @@ def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
     cols = int((210 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (width_mm + A4_GAP_MM))
     rows = int((297 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (height_mm + A4_GAP_MM))
     return max(1, cols), max(1, rows)
+
+
+def sheet_grid(width_mm: float, height_mm: float, sheet_w: float = SHEET_W_MM, sheet_h: float = SHEET_H_MM) -> tuple[int, int]:
+    """Quantas etiquetas cabem na folha térmica (colunas, linhas): 47x42 em 100x150 -> 2x3 = 6."""
+    cols = int((sheet_w - 2 * SHEET_MARGIN_MM + SHEET_GAP_MM) // (width_mm + SHEET_GAP_MM))
+    rows = int((sheet_h - 2 * SHEET_MARGIN_MM + SHEET_GAP_MM) // (height_mm + SHEET_GAP_MM))
+    return max(0, cols), max(0, rows)
 
 
 def a4_spacing(width_mm: float, height_mm: float) -> tuple[float, float]:
@@ -195,8 +205,8 @@ def _cut_lines(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None
 def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int = 1,
               width_mm: float = DEFAULT_W_MM, height_mm: float = DEFAULT_H_MM, title: str = "Etiquetas") -> bytes:
     """Gera o PDF. `start_position` pula posições já usadas da primeira folha A4 (1 até o total da grade)."""
-    if layout not in ("a4", "roll"):
-        raise ValueError("Formato inválido: use 'a4' ou 'roll'.")
+    if layout not in ("a4", "roll", "sheet"):
+        raise ValueError("Formato inválido: use 'a4', 'roll' ou 'sheet'.")
     if not (MIN_MM <= width_mm <= MAX_MM and MIN_MM <= height_mm <= MAX_MM):
         raise ValueError(f"Tamanho inválido: use de {MIN_MM} a {MAX_MM} mm.")
     w, h = width_mm * mm, height_mm * mm
@@ -208,6 +218,34 @@ def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int =
         for d in labels:
             draw_label(c, 0, 0, w, h, d)
             c.showPage()
+        c.save()
+        return buf.getvalue()
+
+    if layout == "sheet":
+        cols, rows = sheet_grid(width_mm, height_mm)
+        if cols < 1 or rows < 1:
+            raise ValueError("Esta etiqueta não cabe na folha de 10 x 15 cm. Use uma menor (até 9,5 cm de largura e 14,5 de altura).")
+        per_page = cols * rows
+        if not 1 <= start_position <= per_page:
+            raise ValueError(f"Posição inicial deve ser de 1 a {per_page}.")
+        pw, ph = SHEET_W_MM * mm, SHEET_H_MM * mm
+        gx, gy = SHEET_GAP_MM * mm, SHEET_GAP_MM * mm
+        x0 = (pw - (cols * w + (cols - 1) * gx)) / 2
+        y0 = (ph - (rows * h + (rows - 1) * gy)) / 2
+        c = canvas.Canvas(buf, pagesize=(pw, ph))
+        c.setTitle(title)
+        slot = start_position - 1
+        for d in labels:
+            if slot == per_page:
+                c.showPage()
+                slot = 0
+            row, col = divmod(slot, cols)
+            x = x0 + col * (w + gx)
+            y = ph - y0 - (row + 1) * h - row * gy
+            draw_label(c, x, y, w, h, d)
+            _cut_lines(c, x, y, w, h)
+            slot += 1
+        c.showPage()
         c.save()
         return buf.getvalue()
 

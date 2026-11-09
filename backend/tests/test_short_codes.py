@@ -459,3 +459,17 @@ async def test_lista_agrupada_traz_o_codigo_da_etiqueta(test_client, async_sessi
     for v in vs:
         assert por_id[v.id]["display_code"] == v.display_code and por_id[v.id]["display_code"].startswith("#001-")
         assert por_id[v.id]["short_code"] == v.short_code
+
+
+def test_folha_termica_10x15_traz_6_etiquetas_de_47x42_por_pagina():
+    import re
+    from decimal import Decimal
+    from app.services.label_pdf_service import LabelData, build_pdf, sheet_grid
+    assert sheet_grid(47, 42) == (2, 3)
+    d = LabelData("Top", "Preto", "M", Decimal("89.9"), "#101-1", "PV#101-1")
+    pdf = build_pdf([d] * 13, "sheet", 1, 47, 42)
+    assert re.findall(rb"/MediaBox \[([^\]]*)\]", pdf)[0].split()[2:] == [b"283.4646", b"425.1969"]   # 100 x 150 mm
+    assert len(re.findall(rb"/Type /Page\b(?!s)", pdf)) == 3                                          # 6 + 6 + 1
+    import pytest
+    with pytest.raises(ValueError):
+        build_pdf([d], "sheet", 7, 47, 42)
