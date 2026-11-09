@@ -274,7 +274,7 @@ function MobileProductsScreen() {
   if ((isLoading || (showLowStock && isLoadingAllProducts)) && !isRefetching) {
     return (
       <View style={styles.container}>
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Produtos"
           subtitle="0 produtos"
           rightActions={[
@@ -293,7 +293,7 @@ function MobileProductsScreen() {
   if (isError) {
     return (
       <View style={styles.container}>
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Produtos"
           subtitle="0 produtos"
           rightActions={[
@@ -329,7 +329,7 @@ function MobileProductsScreen() {
             },
           ]}
         >
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Produtos"
           subtitle={showLowStock ? `${productCount} com estoque baixo` : `${inStockCount} em estoque${soldOutCount ? ` · ${soldOutCount} esgotado(s)` : ''}${catalogOnlyCount ? ` · ${catalogOnlyCount} cadastros guardados` : ''}`}
           rightActions={[

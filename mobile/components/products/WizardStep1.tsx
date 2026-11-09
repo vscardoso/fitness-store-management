@@ -250,25 +250,44 @@ export default function WizardStep1({
         </TouchableOpacity>
       </View>
 
-      {/* Produto que já existe: não cadastra de novo, só dá nova entrada (compra) dele */}
-      <TouchableOpacity
+      {/* Produto que já existe: não cadastra de novo, só dá entrada (compra) dele, em entrada nova ou já aberta */}
+      <View
         style={{
-          flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, padding: 14, borderRadius: 14,
+          marginTop: 16, padding: 14, borderRadius: 14, gap: 12,
           borderWidth: 1, borderColor: brandingColors.primary + '55', backgroundColor: brandingColors.primary + '0F',
         }}
-        onPress={() => router.push('/entries/add' as any)}
-        activeOpacity={0.8}
-        accessibilityLabel="Produto já cadastrado: dar nova entrada"
       >
-        <Ionicons name="repeat-outline" size={22} color={brandingColors.primary} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.light.text }}>Produto já cadastrado</Text>
-          <Text style={{ fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 2 }}>
-            Comprou de novo um produto que já existe? Dê uma nova entrada dele, sem cadastrar outra vez.
-          </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Ionicons name="repeat-outline" size={22} color={brandingColors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.light.text }}>Produto já cadastrado</Text>
+            <Text style={{ fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 2 }}>
+              Comprou de novo um produto que já existe? Dê entrada dele sem cadastrar outra vez.
+            </Text>
+          </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.light.textSecondary} />
-      </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity
+            style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center', backgroundColor: brandingColors.primary }}
+            onPress={() => router.push('/entries/add' as any)}
+            activeOpacity={0.8}
+            accessibilityLabel="Produto já cadastrado: em uma entrada nova"
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Em entrada nova</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: brandingColors.primary }}
+            onPress={() => router.push('/entries' as any)}
+            activeOpacity={0.8}
+            accessibilityLabel="Produto já cadastrado: em uma entrada existente"
+          >
+            <Text style={{ color: brandingColors.primary, fontWeight: '700', fontSize: 13 }}>Em entrada existente</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={{ fontSize: 11, lineHeight: 15, color: Colors.light.textSecondary }}>
+          Entrada existente: abra a entrada e toque em "Produto já cadastrado".
+        </Text>
+      </View>
     </View>
   );
 

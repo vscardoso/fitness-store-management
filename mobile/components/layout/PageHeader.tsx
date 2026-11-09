@@ -59,6 +59,8 @@ interface PageHeaderProps {
   subtitle?: string;
   /** Mostrar botão de voltar */
   showBackButton?: boolean;
+  /** Telas de menu: no notebook a barra lateral já leva ao menu, então a seta só aparece no celular. */
+  hideBackOnDesktop?: boolean;
   /** Callback customizado para voltar */
   onBack?: () => void;
   /** Para onde o botão voltar leva quando não há tela anterior (app reaberto direto numa tela interna). Padrão: início */
@@ -79,6 +81,7 @@ export default function PageHeader({
   title,
   subtitle,
   showBackButton = false,
+  hideBackOnDesktop = false,
   onBack,
   backFallback = '/(tabs)',
   leftVisual,
@@ -126,7 +129,7 @@ export default function PageHeader({
           {/* Linha única: Botão voltar + Título centralizado + Ações */}
           <View style={[styles.topRow, isDesktop && styles.topRowDesktop]}>
             {/* Botão voltar à esquerda */}
-            {showBackButton ? (
+            {showBackButton && !(hideBackOnDesktop && isDesktop) ? (
               <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Voltar">
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>

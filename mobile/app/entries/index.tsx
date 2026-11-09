@@ -591,7 +591,7 @@ export default function StockEntriesScreen() {
   if (isLoading && !isRefetching) {
     return (
       <View style={styles.container}>
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Entradas"
           subtitle="0 entradas"
         />
@@ -610,7 +610,7 @@ export default function StockEntriesScreen() {
   if (isError) {
     return (
       <View style={styles.container}>
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Entradas"
           subtitle="0 entradas"
         />
@@ -629,7 +629,7 @@ export default function StockEntriesScreen() {
   return (
     <View style={styles.container}>
       <Animated.View style={headerAnimStyle}>
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Entradas"
           subtitle={`${entryCount} ${entryCount === 1 ? 'entrada' : 'entradas'}`}
         />

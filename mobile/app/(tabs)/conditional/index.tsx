@@ -265,7 +265,7 @@ export default function ConditionalShipmentsScreen() {
   return (
     <View style={styles.container}>
       <Animated.View style={headerAnimStyle}>
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Condicionais"
           subtitle={`${shipmentCount} ${shipmentCount === 1 ? 'envio' : 'envios'}`}
         />

@@ -83,7 +83,7 @@ function DemandScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Demanda Wishlist" subtitle="Carregando..." />
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Demanda Wishlist" subtitle="Carregando..." />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={brandingColors.primary} />
         </View>
@@ -94,7 +94,7 @@ function DemandScreen() {
   if (isError) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Demanda Wishlist" />
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Demanda Wishlist" />
         <EmptyState
           icon="alert-circle-outline"
           title="Erro ao carregar"
@@ -106,7 +106,7 @@ function DemandScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
+      <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
         title="Demanda Wishlist"
         subtitle={`${items.length} produtos aguardados`}
       />

@@ -82,7 +82,7 @@ function LookDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Look" />
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Look" />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
         </View>
@@ -93,7 +93,7 @@ function LookDetailScreen() {
   if (isError || !look) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Look" />
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Look" />
         <EmptyState
           icon="alert-circle-outline"
           title="Look não encontrado"
@@ -160,7 +160,7 @@ function LookDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
+      <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
         title={look.name}
         subtitle={`${look.items_count} peças`}
         rightActions={[

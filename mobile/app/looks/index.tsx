@@ -101,7 +101,7 @@ function LooksScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Looks" subtitle="0 looks" />
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Looks" subtitle="0 looks" />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
           <Text style={styles.loadingText}>Carregando looks...</Text>
@@ -113,7 +113,7 @@ function LooksScreen() {
   if (isError) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Looks" subtitle="0 looks" />
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Looks" subtitle="0 looks" />
         <EmptyState
           icon="alert-circle-outline"
           title="Erro ao carregar looks"
@@ -125,7 +125,7 @@ function LooksScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
+      <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
         title="Looks"
         subtitle={`${looks.length} ${looks.length === 1 ? 'look' : 'looks'}`}
         rightActions={[

@@ -340,7 +340,7 @@ export default function InventoryDashboard() {
     <View style={styles.container}>
       <Animated.View style={styles.headerAnimation}>
         <Animated.View style={headerAnimStyle}>
-          <PageHeader
+          <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
             title="Inventário"
             subtitle={`${metrics.totalItems} produtos em estoque`}
             rightActions={[

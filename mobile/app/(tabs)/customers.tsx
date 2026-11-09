@@ -154,7 +154,7 @@ export default function CustomersScreen() {
 
       {/* ── Header animado ── */}
       <Animated.View style={headerAnimStyle}>
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Clientes"
           subtitle={`${customerCount} ${customerCount === 1 ? 'cliente' : 'clientes'}`}
           rightActions={[

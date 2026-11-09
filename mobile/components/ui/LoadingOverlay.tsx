@@ -1,7 +1,7 @@
 /**
  * LoadingOverlay: carregamento global do app.
  *
- * Mostra a lupa animada (MagnifierLoader) num cartão claro sobre um véu branco translúcido: a tela fica
+ * Mostra o logo balançando (MagnifierLoader), grande e sem cartão, sobre um véu branco translúcido: a tela fica
  * esbranquiçada, mas ainda se enxerga o que está por baixo. O véu também bloqueia toques enquanto carrega (evita toque duplo em gravações).
  * Assinatura do loadingManager (show/hide com mensagem e aviso de demora) preservada.
  */
@@ -83,7 +83,7 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
       <View style={styles.blocker} pointerEvents="auto">
         <Animated.View style={[StyleSheet.absoluteFillObject, styles.veil, veilStyle]} pointerEvents="none" />
         <Animated.View style={[styles.card, cardStyle]}>
-          <MagnifierLoader size={44} alwaysShow />
+          <MagnifierLoader size={124} alwaysShow />
           {displayMessage ? (
             <Text style={styles.message} numberOfLines={2}>
               {displayMessage}
@@ -111,24 +111,13 @@ const styles = StyleSheet.create({
     elevation: 9999,
   },
   veil: {
-    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
   card: {
-    minWidth: 96,
-    maxWidth: 220,
+    minWidth: 140,
+    maxWidth: 260,
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 18,
-    paddingHorizontal: 22,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 8,
+    gap: 6,
   },
   message: {
     fontSize: 13,

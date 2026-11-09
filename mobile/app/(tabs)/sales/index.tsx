@@ -187,7 +187,7 @@ function MobileSalesListScreen() {
   if (isLoading && !isRefetching) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Vendas" subtitle="Carregando..." />
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Vendas" subtitle="Carregando..." />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando vendas...</Text>
@@ -199,7 +199,7 @@ function MobileSalesListScreen() {
   if (isError) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Vendas" subtitle="0 vendas" />
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more" title="Vendas" subtitle="0 vendas" />
         <EmptyState
           icon="alert-circle-outline"
           title="Erro ao carregar vendas"
@@ -214,7 +214,7 @@ function MobileSalesListScreen() {
 
       {/* ── Header animado ── */}
       <Animated.View style={headerAnimStyle}>
-        <PageHeader
+        <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Vendas"
           subtitle={`${salesCount} ${salesCount === 1 ? 'venda' : 'vendas'}`}
         />
