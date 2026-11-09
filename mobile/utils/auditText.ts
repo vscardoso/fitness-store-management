@@ -189,6 +189,12 @@ export function describeAudit(item: AuditItem): AuditSentence {
   let text: string;
 
   switch (item.action) {
+    case 'LABEL_PRINT_SAVED':
+      text = `${who} imprimiu ${d.etiquetas ?? ''} etiqueta${Number(d.etiquetas) === 1 ? '' : 's'}${d.medida ? ` (${d.medida} mm)` : ''}${d.da_fila ? ' da fila de impressão' : ''}`;
+      break;
+    case 'LABEL_PRINT_UNDONE':
+      text = `${who} desfez uma impressão de etiquetas (${d.etiquetas ?? ''} voltaram para a fila)`;
+      break;
     case 'GIFT_CREATED':
       text = `${who} deu um brinde${d.para ? ` para ${d.para}` : ''}${d.pecas ? ` (${d.pecas} peça${Number(d.pecas) === 1 ? '' : 's'})` : ''}: custo de ${money(d.custo)} para a loja${d.motivo ? `, ${String(d.motivo).toLowerCase()}` : ''}`;
       break;

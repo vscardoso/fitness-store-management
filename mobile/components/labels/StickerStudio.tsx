@@ -18,6 +18,8 @@ import {
 } from '@/services/labelService';
 import StickerPreview from '@/components/labels/StickerPreview';
 import { useScrollBleed } from '@/hooks/useLayout';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { confirmPrint, getPrintState } from '@/services/labelQueueService';
 
 export interface StickerItem {
   variantId: number;
@@ -38,6 +40,12 @@ interface Props {
   onRemove?: (variantId: number) => void;
   /** Depois de gerar, o servidor pode ter criado códigos novos. */
   onGenerated?: () => void;
+  /** Peças que vieram da fila de impressão: "Imprimi" tira da fila. */
+  fromQueue?: boolean;
+  /** Entrada de origem (impressão direta da entrada), para contar o que já saiu dela. */
+  entryId?: number | null;
+  /** Depois que a pessoa confirma que imprimiu. */
+  onPrinted?: () => void;
   /** Texto quando não há peças (produto sem variação, por exemplo). */
   emptyText?: string;
 }
@@ -45,7 +53,6 @@ interface Props {
 const MAX_PER_ITEM = 200;
 const SIZE_KEY = '@provador:etiqueta_medida';   // última medida usada neste aparelho
 const PAPER_KEY = '@provador:etiqueta_papel';    // último papel usado (a4, sheet ou roll)
-const SHEET_KEY = '@provador:etiqueta_folha';    // onde parou a última folha: { paper, w, h, next } (a impressora não sabe o que já foi usado, o app lembra)
 
 function sizeFrom(w: number, h: number): StickerSize {
   return STICKER_SIZES.find((s) => s.widthMm === w && s.heightMm === h) ?? customSticker(w, h);
@@ -53,7 +60,7 @@ function sizeFrom(w: number, h: number): StickerSize {
 
 const qrOf = (code?: string | null) => (code ? `PV${code}` : null);
 
-export default function StickerStudio({ items, initialQty, onAddMore, onRemove, onGenerated, emptyText }: Props) {
+export default function StickerStudio({ items, initialQty, onAddMore, onRemove, onGenerated, emptyText, fromQueue, entryId, onPrinted }: Props) {
   // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
   const bleed = useScrollBleed();
   const brand = useBrandingColors();
@@ -124,24 +131,45 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
   const shown = items.find((i) => i.variantId === focusId) ?? chosen[0]?.it ?? items[0];
   const pxPerMm = Math.max(2.4, Math.min(5, (width - 2 * theme.spacing.md - 2 * theme.spacing.lg) / size.widthMm));
 
-  // a folha que sobrou da última impressão: o app começa na próxima posição livre, sem a pessoa precisar contar.
-  // Trocou a medida ou o papel (muda quantas cabem): volta ao 1 para não ficar fora da grade.
-  const [continuing, setContinuing] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    setStart(1); setContinuing(false);
-    if (paper === 'roll') return;
-    AsyncStorage.getItem(SHEET_KEY).then((raw) => {
-      const v = raw ? JSON.parse(raw) : null;
-      if (alive && v && v.paper === paper && v.w === size.widthMm && v.h === size.heightMm && v.next > 1 && v.next <= perSheet) {
-        setStart(v.next); setContinuing(true);
-      }
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [paper, size.widthMm, size.heightMm, perSheet]);
-  const newSheet = () => {
-    setStart(1); setContinuing(false);
-    AsyncStorage.removeItem(SHEET_KEY).catch(() => {});
+  // Onde a folha parou vem do SERVIDOR (última impressão confirmada com "Imprimi"): vale em qualquer aparelho.
+  // Gerar o PDF sozinho não anda a folha; só confirmar que imprimiu.
+  const queryClient = useQueryClient();
+  const stateQ = useQuery({
+    queryKey: ['label-print-state', paper, size.widthMm, size.heightMm],
+    queryFn: () => getPrintState(paper, size.widthMm, size.heightMm),
+    enabled: paper !== 'roll',
+  });
+  const serverNext = paper === 'roll' ? 1 : stateQ.data?.next_position ?? 1;
+  const usedCells = paper === 'roll' ? [] : stateQ.data?.sheet ?? [];
+  useEffect(() => { setStart(serverNext); }, [serverNext, paper, size.widthMm, size.heightMm]);
+  const newSheet = () => setStart(1);
+
+  // PDF gerado e ainda não confirmado: a pessoa diz se imprimiu
+  const [pending, setPending] = useState<{ layout: TagLabelLayout; start: number; total: number; items: { variantId: number; quantity: number }[] } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmed, setConfirmed] = useState<string | null>(null);
+  const confirmPrinted = async () => {
+    if (!pending || confirming) return;
+    setConfirming(true);
+    setError(null);
+    try {
+      const r = await confirmPrint({
+        layout: pending.layout, widthMm: size.widthMm, heightMm: size.heightMm, startPosition: pending.start,
+        items: pending.items, fromQueue: !!fromQueue, entryId,
+      });
+      setConfirmed(r.next_position > 1 && pending.layout !== 'roll'
+        ? `Pronto! A próxima impressão começa na posição ${r.next_position} da folha.`
+        : 'Pronto! Etiquetas marcadas como impressas.');
+      setPending(null);
+      await queryClient.invalidateQueries({ queryKey: ['label-print-state'] });
+      await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
+      await queryClient.invalidateQueries({ queryKey: ['label-progress'] });
+      onPrinted?.();
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível marcar como impresso. Tente de novo.');
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const set = (id: number, v: number) => setQty((p) => ({ ...p, [id]: Math.max(0, Math.min(MAX_PER_ITEM, v)) }));
@@ -156,13 +184,8 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         chosen.map((x) => ({ variantId: x.it.variantId, quantity: x.q })),
         { layout, startPosition: layout === 'roll' ? 1 : start, widthMm: size.widthMm, heightMm: size.heightMm },
       );
-      if (layout !== 'roll') {
-        // onde a próxima impressão deve começar: 1 se a folha foi toda usada, senão a primeira posição que sobrou
-        const used = (start - 1 + total) % perSheet;
-        const next = used === 0 ? 1 : used + 1;
-        setStart(next); setContinuing(next > 1);
-        AsyncStorage.setItem(SHEET_KEY, JSON.stringify({ paper: layout, w: size.widthMm, h: size.heightMm, next })).catch(() => {});
-      }
+      setConfirmed(null);
+      setPending({ layout, start: layout === 'roll' ? 1 : start, total, items: chosen.map((x) => ({ variantId: x.it.variantId, quantity: x.q })) });
       onGenerated?.();
     } catch (e: any) {
       setError(e?.message || 'Não foi possível gerar o PDF. Tente de novo.');
@@ -352,36 +375,44 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
             <Text style={styles.sheetTitle}>
               {start === 1
                 ? 'Folha nova: a impressão começa na posição 1.'
-                : `Folha que sobrou: começa na posição ${start}. Os espaços com ✕ já foram usados.`}
+                : `Esta folha já tem ${start - 1} etiqueta${start - 1 !== 1 ? 's' : ''}. A impressão começa na posição ${start}.`}
             </Text>
             <Text style={styles.muted}>
               {total > 0
                 ? `${total} etiqueta${total !== 1 ? 's' : ''} = ${sheets} folha${sheets !== 1 ? 's' : ''}`
-                  + ((start - 1 + total) % perSheet === 0 ? ', sem sobra.' : `; a última fica com ${(start - 1 + total) % perSheet} de ${perSheet} usadas e o app guarda o resto para a próxima vez.`)
+                  + ((start - 1 + total) % perSheet === 0 ? ', sem sobra.' : `; a última fica com ${(start - 1 + total) % perSheet} de ${perSheet} usadas.`)
                 : 'Escolha as quantidades para ver quantas folhas vão precisar.'}
             </Text>
-            {continuing || start > 1 ? (
-              <TouchableOpacity onPress={newSheet} accessibilityRole="button" accessibilityLabel="Usar folha nova" style={styles.newSheetBtn}>
-                <Text style={styles.newSheetText}>Coloquei uma folha nova (começar no 1)</Text>
-              </TouchableOpacity>
-            ) : null}
-            <Text style={styles.muted}>Para mudar o ponto de partida à mão, toque na posição:</Text>
             <View style={styles.grid}>
               {Array.from({ length: perSheet }, (_, i) => i + 1).map((pos) => {
+                const done = usedCells.find((c) => c.position === pos);
                 const used = pos < start;
-                const on = pos === start;
+                const isNew = pos >= start && pos < start + total;
                 return (
                   <TouchableOpacity
                     key={pos}
-                    style={[styles.cell, used && styles.cellUsed, on && styles.cellOn]}
+                    style={[styles.cell, used && styles.cellUsed, isNew && styles.cellOn]}
                     onPress={() => setStart(pos)}
-                    accessibilityLabel={`Começar na posição ${pos}`}
+                    accessibilityLabel={used ? `Posição ${pos}, já impressa${done?.code ? ` (${done.code})` : ''}` : `Começar na posição ${pos}`}
                   >
-                    <Text style={[styles.cellText, used && styles.cellTextUsed, on && { color: brand.primary }]}>{used ? '✕' : pos}</Text>
+                    {used ? (
+                      <>
+                        <Text style={styles.cellTextUsed}>{done?.code ?? '✕'}</Text>
+                        {done ? <Text style={styles.cellSub} numberOfLines={1}>{[done.color, done.size].filter(Boolean).join(' ')}</Text> : null}
+                      </>
+                    ) : (
+                      <Text style={[styles.cellText, isNew && { color: brand.primary }]}>{pos}</Text>
+                    )}
                   </TouchableOpacity>
                 );
               })}
             </View>
+            <Text style={styles.muted}>Cinza: já impresso, não sai de novo. Destacado: sai agora. Toque numa posição para mudar o início.</Text>
+            {start > 1 ? (
+              <TouchableOpacity onPress={newSheet} accessibilityRole="button" accessibilityLabel="Usar folha nova" style={styles.newSheetBtn}>
+                <Text style={styles.newSheetText}>Coloquei uma folha nova (começar no 1)</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
         <View style={{ height: 120 }} />
@@ -390,6 +421,23 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
       {/* Barra fixa: o que sai e para onde */}
       <View style={styles.bar}>
         {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
+        {confirmed ? <Text style={styles.okText} accessibilityLiveRegion="polite">{confirmed}</Text> : null}
+        {pending ? (
+          <View style={styles.pendingCard}>
+            <Text style={styles.pendingTitle}>PDF gerado. As etiquetas saíram?</Text>
+            <Text style={styles.muted}>
+              {fromQueue ? 'Só depois de você confirmar é que elas saem da fila e a folha avança.' : 'Só depois de você confirmar é que elas contam como impressas e a folha avança.'}
+            </Text>
+            <View style={styles.pendingRow}>
+              <TouchableOpacity style={styles.pendingYes} onPress={confirmPrinted} disabled={confirming} accessibilityRole="button">
+                <Text style={styles.pendingYesText}>{confirming ? 'Salvando...' : fromQueue ? 'Imprimi, tirar da fila' : 'Imprimi'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.pendingNo} onPress={() => setPending(null)} disabled={confirming} accessibilityRole="button">
+                <Text style={styles.pendingNoText}>Não imprimi</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
         <View style={styles.barRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.barTotal}>{total} etiqueta{total !== 1 ? 's' : ''}</Text>
@@ -447,6 +495,15 @@ const makeStyles = (primary: string) =>
     sheetTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
     newSheetBtn: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: primary },
     newSheetText: { color: primary, fontWeight: '700', fontSize: 13 },
+    cellSub: { fontSize: 9, color: Colors.light.textSecondary },
+    okText: { color: Colors.light.success, fontWeight: '700', fontSize: 13 },
+    pendingCard: { gap: 6, padding: theme.spacing.sm, borderRadius: 12, borderWidth: 1, borderColor: primary, backgroundColor: Colors.light.card },
+    pendingTitle: { fontSize: 14, fontWeight: '800', color: Colors.light.text },
+    pendingRow: { flexDirection: 'row', gap: 8 },
+    pendingYes: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, backgroundColor: primary },
+    pendingYesText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+    pendingNo: { alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border },
+    pendingNoText: { color: Colors.light.text, fontWeight: '700', fontSize: 14 },
     customToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: theme.spacing.sm, alignSelf: 'flex-start' },
     customRow: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm },
     inputLabel: { fontSize: theme.fontSize.xs, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 4 },

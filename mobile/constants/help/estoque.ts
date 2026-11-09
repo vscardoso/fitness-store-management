@@ -616,18 +616,43 @@ const ETIQUETAS_ENTRADA: HelpEntry[] = [
     open: '/entries',
     purpose: 'Imprime de uma vez as etiquetas de todas as peças que chegaram numa entrada.',
     steps: [
-      'Escolha o tamanho da etiqueta e o papel: “Folha A4” ou “Uma por página” (para a impressora de etiqueta).',
-      'Confira a quantidade de cada peça: já vem preenchida com o que foi recebido.',
-      'Toque em “Gerar PDF”, abra o arquivo e imprima em tamanho real (100%).',
-      'Cole a etiqueta no verso da tag e confira cada peça lendo o QR na entrada.',
+      'Veja no topo quantas etiquetas já foram impressas e quantas faltam.',
+      'Toque em “Colocar na fila de impressão” para juntar o que falta com as outras entradas, ou imprima direto daqui.',
+      'Escolha o tamanho e o papel e toque em “Gerar PDF”. Abra o arquivo e imprima em tamanho real (100%).',
+      'Depois de imprimir, toque em “Imprimi”. Só aí a etiqueta conta como impressa e a folha avança.',
     ],
     goodToKnow: [
       'Só saem as cores e tamanhos que vieram nesta entrada: peça antiga do mesmo produto não é reimpressa.',
+      'A quantidade já vem só com o que falta imprimir. Se não tocar em “Imprimi”, nada é marcado e dá para gerar de novo.',
       'Na impressora térmica use etiqueta térmica do tamanho escolhido e o papel Uma por página.',
     ],
     roles: ['manager'],
     related: ['entradas'],
     sources: ['app/entries/labels/[id].tsx', 'components/labels/StickerStudio.tsx'],
+  },
+];
+
+const FILA_ETIQUETAS: HelpEntry[] = [
+  {
+    id: 'fila-etiquetas',
+    group: 'estoque',
+    title: 'Fila de impressão',
+    routes: ['/etiquetas/fila'],
+    open: '/etiquetas/fila',
+    purpose: 'Junta as etiquetas que ainda não foram impressas, de várias entradas, para imprimir na mesma folha sem desperdiçar.',
+    steps: [
+      'Na entrada, toque em “Etiquetas” e depois em “Colocar na fila de impressão”.',
+      'Aqui, confira as quantidades, escolha o tamanho e o papel e toque em “Gerar PDF”.',
+      'Imprima. Quando as etiquetas saírem, toque em “Imprimi, tirar da fila”.',
+    ],
+    goodToKnow: [
+      'Gerar o PDF não tira nada da fila: se não imprimiu, é só gerar de novo.',
+      'A folha mostra o que já está colado em cada posição (em cinza); essas posições não são impressas de novo.',
+      'A posição em que a folha parou fica guardada na loja, vale em qualquer aparelho.',
+    ],
+    roles: ['manager'],
+    related: ['etiquetas-entrada'],
+    sources: ['app/etiquetas/fila.tsx', 'components/labels/StickerStudio.tsx'],
   },
 ];
 
@@ -678,4 +703,4 @@ const BRINDES: HelpEntry[] = [
   },
 ];
 
-export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES, ...BRINDES, ...ETIQUETAS_ENTRADA];
+export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES, ...BRINDES, ...ETIQUETAS_ENTRADA, ...FILA_ETIQUETAS];

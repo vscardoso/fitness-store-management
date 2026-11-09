@@ -9,6 +9,8 @@ from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.core.database import get_db
 from app.models.user import User
 from app.services.label_pdf_service import DEFAULT_H_MM, DEFAULT_W_MM, MAX_MM, MIN_MM, a4_grid, build_pdf
+from app.services import label_queue_service as queue
+from app.services.audit_service import AuditService
 from app.services.label_print_service import LabelRequestError, labels_for_entry, labels_for_variants
 
 router = APIRouter(prefix="/labels", tags=["Etiquetas"])
@@ -81,3 +83,93 @@ async def labels_pdf_entry(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return _pdf(content, f"etiquetas-{code or entry_id}.pdf")
+
+
+# ── Fila de etiquetas e histórico de impressão ────────────────────────────────────────────────────────────────────────
+
+class QueueAdd(BaseModel):
+    items: List[LabelItem] = Field(..., min_length=1)
+    entry_id: int | None = None
+
+
+class QueueQty(BaseModel):
+    quantity: int = Field(..., ge=0, le=1000)
+
+
+class PrintConfirm(LabelOptions):
+    items: List[LabelItem] = Field(..., min_length=1)
+    from_queue: bool = False
+    entry_id: int | None = None
+
+
+async def _run(db: AsyncSession, coro):
+    try:
+        result = await coro
+        await db.commit()
+        return result
+    except (queue.QueueError, LabelRequestError) as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/queue", summary="Etiquetas que estão na fila para imprimir")
+async def get_queue(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                    tenant_id: int = Depends(get_current_tenant_id)):
+    return await queue.list_queue(db, tenant_id)
+
+
+@router.post("/queue", summary="Põe peças na fila", status_code=status.HTTP_201_CREATED)
+async def add_to_queue(body: QueueAdd, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                       tenant_id: int = Depends(get_current_tenant_id)):
+    added = await _run(db, queue.add_items(db, tenant_id, user, [i.model_dump() for i in body.items], body.entry_id))
+    return {"added": added}
+
+
+@router.post("/queue/entry/{entry_id}", summary="Põe na fila o que a entrada ainda não imprimiu", status_code=status.HTTP_201_CREATED)
+async def add_entry_to_queue(entry_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                             tenant_id: int = Depends(get_current_tenant_id)):
+    return await _run(db, queue.add_entry_missing(db, tenant_id, user, entry_id))
+
+
+@router.put("/queue/{item_id}", summary="Muda a quantidade de um item da fila (0 tira da fila)")
+async def set_queue_quantity(item_id: int, body: QueueQty, db: AsyncSession = Depends(get_db),
+                             user: User = Depends(get_current_active_user), tenant_id: int = Depends(get_current_tenant_id)):
+    await _run(db, queue.set_quantity(db, tenant_id, item_id, body.quantity))
+    return {"ok": True}
+
+
+@router.get("/entry/{entry_id}/progress", summary="Quantas etiquetas da entrada já foram impressas, estão na fila ou faltam")
+async def entry_progress(entry_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                         tenant_id: int = Depends(get_current_tenant_id)):
+    return await _run(db, queue.entry_progress(db, tenant_id, entry_id))
+
+
+@router.get("/print-state", summary="Posição em que a próxima impressão começa e o que já está na folha atual")
+async def print_state(layout: Literal["a4", "roll", "sheet"] = "sheet", width_mm: float = DEFAULT_W_MM, height_mm: float = DEFAULT_H_MM,
+                      db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                      tenant_id: int = Depends(get_current_tenant_id)):
+    return await queue.print_state(db, tenant_id, layout, width_mm, height_mm)
+
+
+@router.post("/prints", summary="Salvar impressão: o que saiu, tira da fila e anda a folha", status_code=status.HTTP_201_CREATED)
+async def save_print(body: PrintConfirm, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                     tenant_id: int = Depends(get_current_tenant_id)):
+    result = await _run(db, queue.confirm_print(db, tenant_id, user, body.layout, body.width_mm, body.height_mm, body.start_position,
+                                                [i.model_dump() for i in body.items], body.from_queue, body.entry_id))
+    await AuditService.log(db, "LABEL_PRINT_SAVED", tenant_id=tenant_id, user_id=getattr(user, "id", None),
+                           user_email=getattr(user, "email", None), entity="label_print", entity_id=result["id"],
+                           detail={"etiquetas": result["total"], "papel": body.layout, "medida": f"{body.width_mm:g}x{body.height_mm:g}",
+                                   "da_fila": body.from_queue})
+    await db.commit()
+    return result
+
+
+@router.post("/prints/{job_id}/undo", summary="Não saiu: desfaz a última impressão salva (volta para a fila)")
+async def undo_print(job_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                     tenant_id: int = Depends(get_current_tenant_id)):
+    result = await _run(db, queue.undo_print(db, tenant_id, user, job_id))
+    await AuditService.log(db, "LABEL_PRINT_UNDONE", tenant_id=tenant_id, user_id=getattr(user, "id", None),
+                           user_email=getattr(user, "email", None), entity="label_print", entity_id=job_id,
+                           detail={"etiquetas": result["returned"]})
+    await db.commit()
+    return result

@@ -39,6 +39,7 @@ from .catalog_counter import CatalogCounter
 from .error_log import ErrorLog
 from .supplier_return import SupplierReturn
 from .gift import Gift, GiftItem  # noqa: F401
+from .label_queue import LabelPrintJob, LabelQueueItem  # noqa: F401
 from .stock_count import StockCount, StockCountItem
 from .cash_register import CashSession, CashMovement
 from .finance import FinancialAccount, AccountTransfer, Payable, AccountEntry, MonthClosing

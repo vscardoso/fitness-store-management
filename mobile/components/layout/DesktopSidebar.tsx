@@ -73,6 +73,7 @@ export default function DesktopSidebar() {
         key: 'estoque', title: 'Estoque', items: [
           { label: 'Produtos', icon: 'cube-outline', href: '/(tabs)/products', match: ['/products'] },
           ...(manager ? [{ label: 'Entradas', icon: 'download-outline' as Icon, href: '/entries', match: ['/entries'] }] : []),
+          ...(manager ? [{ label: 'Fila de impressão', icon: 'print-outline' as Icon, href: '/etiquetas/fila', match: ['/etiquetas/fila'] }] : []),
           ...(manager ? [{ label: 'Importar estoque', icon: 'cloud-upload-outline' as Icon, href: '/entries/import', match: ['/entries/import'] }] : []),
           { label: 'Estúdio de etiquetas', icon: 'print-outline', href: '/products/label', match: ['/products/label'] },
           { label: 'Categorias', icon: 'pricetags-outline', href: '/(tabs)/categories', match: ['/categories'] },
