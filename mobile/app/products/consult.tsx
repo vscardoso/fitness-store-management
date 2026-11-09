@@ -10,8 +10,7 @@ import { useRouter } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
 import { Money } from '@/components/ui/PriceDisplay';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
-import { useBrandingColors } from '@/store/brandingStore';
+import ScreenLoader from '@/components/ui/ScreenLoader';
 import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import useBackToList from '@/hooks/useBackToList';
 import { useCart } from '@/hooks/useCart';
@@ -24,7 +23,6 @@ import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function ConsultScreen() {
   const desktopContent = useDesktopContentStyle();
-  const brand = useBrandingColors();
   const router = useRouter();
   const cart = useCart();
   const { goBack } = useBackToList('/(tabs)');
@@ -89,10 +87,7 @@ export default function ConsultScreen() {
         <ScanBar closeOnScan searchAsYouType onCode={handleCode} status={status} placeholder="Bipe ou digite o código (ex.: 26 ou 26-1)" />
 
         {searching ? (
-          <View style={styles.searching}>
-            <ActivityIndicator size="large" color={brand.primary} />
-            <Text style={styles.emptyHint}>Consultando a peça...</Text>
-          </View>
+          <ScreenLoader inline message="Consultando a peça..." style={styles.searching} />
         ) : !result || !selected ? (
           <View style={styles.empty}>
             <Ionicons name="qr-code-outline" size={44} color={Colors.light.textTertiary} />
@@ -178,7 +173,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: 16, gap: 14, paddingBottom: 48 },
   empty: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24, gap: 8 },
-  searching: { alignItems: 'center', paddingVertical: 24, gap: 4 },
+  searching: { paddingVertical: 24 },
   emptyText: { fontSize: 15, fontWeight: '600', color: Colors.light.textSecondary },
   emptyHint: { fontSize: 13, color: Colors.light.textTertiary, textAlign: 'center' },
   card: { backgroundColor: Colors.light.card, borderRadius: 18, padding: 16, gap: 6, borderWidth: 1, borderColor: Colors.light.border },
