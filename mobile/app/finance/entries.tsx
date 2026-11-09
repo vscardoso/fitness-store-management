@@ -83,7 +83,7 @@ export default function EntriesScreen() {
   };
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View>;
+    return <View style={styles.center}><ActivityIndicator size={124} color={brand.primary} /></View>;
   }
 
   const notStarted = overview && !overview.started;

@@ -95,7 +95,7 @@ export default function ClosingScreen() {
   });
 
   if (months.isLoading || (sel && q.isLoading)) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View>;
+    return <View style={styles.center}><ActivityIndicator size={124} color={brand.primary} /></View>;
   }
 
   if (months.data && !months.data.started) {

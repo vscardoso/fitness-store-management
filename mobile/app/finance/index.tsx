@@ -55,7 +55,7 @@ export default function FinanceHomeScreen() {
   const go = (path: string) => router.push(path as any);
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View>;
+    return <View style={styles.center}><ActivityIndicator size={124} color={brand.primary} /></View>;
   }
 
   const p = data?.projection;

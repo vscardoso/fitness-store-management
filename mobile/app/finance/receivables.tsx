@@ -162,7 +162,7 @@ export default function ReceivablesScreen() {
           ))}
         </View>
 
-        {isLoading ? <ActivityIndicator size="large" color={brand.primary} /> : groups.length === 0 ? (
+        {isLoading ? <ActivityIndicator size={124} color={brand.primary} /> : groups.length === 0 ? (
           <Text style={styles.empty}>{filter === 'open' ? 'Ninguém deve nada agora.' : 'Nada por aqui.'}</Text>
         ) : groups.map((g) => (
           <View key={g.id} style={[styles.group, g.overdue && styles.itemOverdue]}>

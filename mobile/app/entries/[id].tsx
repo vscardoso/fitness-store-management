@@ -38,7 +38,6 @@ import StatCard from '@/components/ui/StatCard';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
-import OptionListField from '@/components/ui/OptionListField';
 import HScroll from '@/components/ui/HScroll';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
@@ -986,18 +985,27 @@ export default function StockEntryDetailsScreen() {
             />
           )}
           {entry.entry_items && entry.entry_items.length > 1 && (
-            <OptionListField
-              label="Mostrar produtos"
-              value={itemsView}
-              onChange={setItemsView}
-              style={{ marginBottom: 12 }}
-              options={[
-                { value: 'original', label: 'Ordem de entrada', description: 'Na ordem em que foram lançados', icon: 'time-outline' },
-                { value: 'az', label: 'A a Z', description: 'Por nome do produto', icon: 'text-outline' },
-                { value: 'zerados', label: 'Zerados', description: 'Só o que já acabou desta entrada', icon: 'remove-circle-outline' },
-                { value: 'agrupar', label: 'Agrupar por produto', description: 'Cores e tamanhos juntos, por produto', icon: 'albums-outline' },
-              ]}
-            />
+            <HScroll contentContainerStyle={styles.itemActionsScroll} style={styles.itemActionsWrap}>
+              {([
+                ['original', 'Ordem de entrada'],
+                ['az', 'A a Z'],
+                ['zerados', 'Zerados'],
+                ['agrupar', 'Agrupar por produto'],
+              ] as const).map(([key, label]) => {
+                const active = itemsView === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    onPress={() => setItemsView(key)}
+                    style={[styles.itemsViewChip, active && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '18' }]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.itemsViewChipText, active && { color: brandingColors.primary, fontWeight: '700' }]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </HScroll>
           )}
           {entry.entry_items && entry.entry_items.length > 0 ? (
             (() => {

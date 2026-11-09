@@ -86,7 +86,11 @@ export default function MonthlyReportScreen() {
           </TouchableOpacity>
         </View>
 
-        {q.isLoading && <ActivityIndicator color={brand.primary} />}
+        {q.isLoading && (
+          <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+            <ActivityIndicator size={124} color={brand.primary} />
+          </View>
+        )}
         {!!q.error && <Text style={styles.error}>{parseApiError(q.error)}</Text>}
 
         {!!d && (

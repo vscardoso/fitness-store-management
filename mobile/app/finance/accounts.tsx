@@ -94,7 +94,7 @@ export default function AccountsScreen() {
   });
 
   if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View>;
+    return <View style={styles.center}><ActivityIndicator size={124} color={brand.primary} /></View>;
   }
 
   if (!data?.started) {

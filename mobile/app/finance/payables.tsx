@@ -108,7 +108,7 @@ export default function PayablesScreen() {
           ))}
         </View>
 
-        {isLoading ? <ActivityIndicator size="large" color={brand.primary} /> : items.length === 0 ? (
+        {isLoading ? <ActivityIndicator size={124} color={brand.primary} /> : items.length === 0 ? (
           <Text style={styles.empty}>{filter === 'open' ? 'Nenhuma conta em aberto.' : 'Nada por aqui.'}</Text>
         ) : items.map((p) => (
           <View key={p.id} style={[styles.item, p.overdue && styles.itemOverdue]}>
