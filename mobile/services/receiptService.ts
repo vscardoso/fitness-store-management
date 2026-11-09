@@ -64,18 +64,16 @@ export function receiptWhatsappUrl(info: ReceiptInfo): string {
   return info.whatsapp_url || `https://wa.me/?text=${encodeURIComponent(info.text)}`;
 }
 
-export async function openReceiptPdf(saleId: number, saleNumber: string, size: ReceiptSize, change?: number): Promise<void> {
-  const sep = change && change > 0 ? `&change=${change}` : '';
-  const url = `/sales/${saleId}/receipt/pdf?size=${size}${sep}`;
-  const filename = `comprovante-${saleNumber}.pdf`;
+/** Baixa um PDF do servidor e entrega à pessoa: web = compartilhar do aparelho, senão abre ou baixa; celular = compartilhar. */
+export async function openPdfFromApi(url: string, filename: string, title: string, loadingMessage = 'Gerando comprovante...'): Promise<void> {
   if (Platform.OS === 'web') {
-    const res = await api.get(url, { responseType: 'blob', headers: { 'X-Loading-Message': 'Gerando comprovante...' } });
+    const res = await api.get(url, { responseType: 'blob', headers: { 'X-Loading-Message': loadingMessage } });
     const blob = new Blob([res.data], { type: 'application/pdf' });
     try {
       const file = new File([blob], filename, { type: 'application/pdf' });
       const nav: any = navigator;
       if (nav.canShare && nav.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(nav.userAgent || '')) {
-        await nav.share({ files: [file], title: `Comprovante ${saleNumber}` });
+        await nav.share({ files: [file], title });
         return;
       }
     } catch (e: any) {
@@ -94,11 +92,16 @@ export async function openReceiptPdf(saleId: number, saleNumber: string, size: R
     setTimeout(() => URL.revokeObjectURL(href), 60_000);
     return;
   }
-  const res = await api.get(url, { responseType: 'arraybuffer', headers: { 'X-Loading-Message': 'Gerando comprovante...' } });
+  const res = await api.get(url, { responseType: 'arraybuffer', headers: { 'X-Loading-Message': loadingMessage } });
   const bytes = new Uint8Array(res.data as ArrayBuffer);
   let bin = '';
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   const path = `${LegacyFileSystem.cacheDirectory}${filename}`;
   await LegacyFileSystem.writeAsStringAsync(path, globalThis.btoa(bin), { encoding: 'base64' as any });
-  await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: `Comprovante ${saleNumber}` });
+  await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: title });
+}
+
+export async function openReceiptPdf(saleId: number, saleNumber: string, size: ReceiptSize, change?: number): Promise<void> {
+  const sep = change && change > 0 ? `&change=${change}` : '';
+  return openPdfFromApi(`/sales/${saleId}/receipt/pdf?size=${size}${sep}`, `comprovante-${saleNumber}.pdf`, `Comprovante ${saleNumber}`);
 }

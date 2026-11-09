@@ -978,6 +978,17 @@ async def _entry_sales_economics(db: AsyncSession, tenant_id: int) -> Dict[int, 
     return out
 
 
+def _fifo_view_for(result: Dict[str, Any], user: User) -> Dict[str, Any]:
+    """O cache guarda a visão do administrador. Quem não é admin não vê brinde: a peça dada entra em "saiu sem venda"."""
+    from app.services.gift_service import is_admin_user
+    if is_admin_user(user) or not result["sell_through"].get("gifts"):
+        return result
+    st = dict(result["sell_through"])
+    st["other_out"] = st["other_out"] + st["gifts"]
+    st["gifts"] = 0
+    return {**result, "sell_through": st}
+
+
 @router.get("/fifo-performance", response_model=Dict[str, Any])
 async def get_fifo_performance(
     tenant_id: int = Depends(get_current_tenant_id),
@@ -996,7 +1007,7 @@ async def get_fifo_performance(
     """
     _ck = f"fifo_perf:{tenant_id}"
     if (_cv := _cache_get(_ck)) is not None:
-        return _cv
+        return _fifo_view_for(_cv, current_user)
     from datetime import datetime, timezone
     from app.services.money_ledger import period_totals
 
@@ -1096,7 +1107,7 @@ async def get_fifo_performance(
         "stagnant": {"units": sum(q for _, q in parados), "variants": len(parados), "days": STAGNANT_DAYS},
     }
     _cache_set(_ck, _result)
-    return _result
+    return _fifo_view_for(_result, current_user)
 
 
 @router.get("/sales/yoy", response_model=Dict[str, Any])

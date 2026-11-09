@@ -53,6 +53,8 @@ def build_monthly_report_pdf(d: Dict[str, Any], store_name: str = "") -> bytes:
     for label, key in (("Faturamento (vendas menos devoluções)", "revenue"), ("Custo das peças vendidas", "cost"),
                        ("Lucro das vendas", "gross_profit"), ("Despesas do mês", "expenses"), ("Brindes (custo das peças dadas)", "gifts"),
                        ("Lucro do mês (depois das despesas e brindes)", "net_profit")):
+        if key == "gifts" and not cur[key] and not prv[key]:
+            continue                                  # sem brinde no período (ou quem pediu não é admin): a linha nem aparece
         rows.append([label, brl(cur[key]), brl(prv[key]), pct(ch.get(key))])
     rows.append(["Margem de lucro das vendas", f"{cur['gross_margin_pct']:.1f}%".replace(".", ","), f"{prv['gross_margin_pct']:.1f}%".replace(".", ","), ""])
     rows.append(["Vendas realizadas", str(cur["sales_count"]), str(prv["sales_count"]), pct(ch.get("sales_count"))])

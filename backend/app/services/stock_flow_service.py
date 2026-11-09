@@ -97,7 +97,7 @@ async def item_flows(db: AsyncSession, tenant_id: int, items: Iterable[EntryItem
                 with_customer[eid] += take
                 pending -= take
 
-    # peças dadas de brinde (líquidas do que voltou): saem do estoque sem venda, mas têm dono e tela próprios
+    # peças dadas de brinde (cancelado fica de fora): saem do estoque sem venda, mas têm dono e tela próprios
     gifted: Dict[int, int] = {i: 0 for i in ids}
     from app.models.gift import GIFT_CANCELLED, Gift, GiftItem
     for src in (await db.execute(select(GiftItem.sale_sources).join(Gift, Gift.id == GiftItem.gift_id).where(
@@ -106,7 +106,7 @@ async def item_flows(db: AsyncSession, tenant_id: int, items: Iterable[EntryItem
         for s in (src or {}).get("sources", []):
             eid = s.get("entry_item_id")
             if eid in gifted:
-                gifted[eid] += int(s.get("quantity_taken", 0)) - int(s.get("quantity_returned", 0))
+                gifted[eid] += int(s.get("quantity_taken", 0))
     out: Dict[int, Dict[str, int]] = {}
     for i in items:
         s = max(sold.get(i.id, 0), 0)

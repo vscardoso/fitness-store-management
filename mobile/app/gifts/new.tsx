@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from 'react-native-paper';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -75,14 +75,7 @@ export default function NewGiftScreen() {
 
   const ready = lines.length > 0 && (who === 'customer' ? !!customer : recipient.trim().length >= 3) && (reason !== 'other' || note.trim().length >= 3);
 
-  if (!admin) {
-    return (
-      <View style={styles.container}>
-        <PageHeader title="Dar um brinde" showBackButton backFallback="/(tabs)/more" />
-        <View style={styles.center}><Text style={styles.title}>Só o administrador pode dar brinde.</Text></View>
-      </View>
-    );
-  }
+  if (!admin) return <Redirect href="/(tabs)/more" />;
 
   return (
     <View style={styles.container}>

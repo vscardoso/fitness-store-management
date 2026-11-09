@@ -195,8 +195,8 @@ export function describeAudit(item: AuditItem): AuditSentence {
     case 'GIFT_CANCELLED':
       text = `${who} cancelou o brinde${d.numero ? ` ${d.numero}` : ''}${d.motivo ? `: ${d.motivo}` : ''}`;
       break;
-    case 'GIFT_RETURNED':
-      text = `${who} registrou a volta de ${d.pecas ?? ''} peça${Number(d.pecas) === 1 ? '' : 's'} do brinde${d.numero ? ` ${d.numero}` : ''} (custo de ${money(d.custo_que_volta)} volta para a loja)`;
+    case 'GIFT_RECEIPT_SENT':
+      text = `${who} enviou o comprovante do brinde${d.numero ? ` ${d.numero}` : ''}${d.para ? ` para ${d.para}` : ''} pelo WhatsApp da loja`;
       break;
     case 'FINANCE_CARD_AUTO_CHANGED':
       text = `${who} ${d.enabled ? 'ligou' : 'desligou'} o repasse automático da maquininha${d.enabled && d.banco ? ` (banco ${d.banco})` : ''}`;

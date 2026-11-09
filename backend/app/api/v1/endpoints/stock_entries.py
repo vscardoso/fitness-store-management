@@ -1129,7 +1129,8 @@ async def get_entry_tracking(
     entry = await StockEntryRepository().get_by_id(db, entry_id, include_items=True, tenant_id=tenant_id)
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Entrada {entry_id} não encontrada")
-    return await tracking(db, tenant_id, entry)
+    from app.services.gift_service import hide_gifts_in_tracking
+    return hide_gifts_in_tracking(await tracking(db, tenant_id, entry), current_user)
 
 
 @router.get(

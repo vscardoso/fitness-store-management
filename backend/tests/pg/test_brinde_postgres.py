@@ -1,7 +1,7 @@
 """
 Brinde no Postgres de verdade, com pedidos simultâneos (uma sessão por pedido, como em produção):
 - seis brindes da ÚLTIMA peça ao mesmo tempo: só um passa e o estoque nunca fica negativo;
-- seis devoluções da mesma peça ao mesmo tempo: nunca voltam mais peças do que foram dadas.
+- (brinde não aceita devolução: só cancelar por engano).
 
 Rodar:
   TEST_PG_URL=postgresql+asyncpg://postgres@127.0.0.1:55437/postgres pytest tests/pg/test_brinde_postgres.py -p no:cacheprovider --no-cov
@@ -114,33 +114,3 @@ async def test_seis_brindes_da_ultima_peca_so_um_passa(maker):
     assert await _estoque(maker, ultima) == 0                              # nunca -1
     async with maker() as s:
         assert (await s.execute(select(func.count()).select_from(Gift))).scalar() == 1
-
-
-async def test_devolucoes_simultaneas_nunca_passam_do_que_foi_dado(maker):
-    from app.models.gift import Gift, GiftItem, GiftReturn
-    from app.models.user import User
-    from app.services.gift_service import GiftError, GiftService
-    _, seis = await _variantes(maker)
-    async with maker() as s:
-        user = await s.get(User, 1)
-        g = await GiftService(s).create(1, user, {"items": [{"variant_id": seis, "quantity": 3}], "reason_type": "courtesy",
-                                                  "recipient_name": "Cliente Fiel"})
-    gid, item = g["id"], g["items"][0]["id"]
-    assert await _estoque(maker, seis) == 3
-
-    async def devolver():
-        async with maker() as s:
-            user = await s.get(User, 1)
-            try:
-                await GiftService(s).return_items(1, user, gid, {"items": [{"gift_item_id": item, "quantity": 2}]})
-                return "ok"
-            except GiftError:
-                return "recusado"
-
-    res = await asyncio.gather(*[devolver() for _ in range(6)])
-    assert res.count("ok") == 1, res                                       # 2 + 2 passaria de 3: só uma devolução de 2 cabe
-    assert await _estoque(maker, seis) == 5                                # 6 - 3 + 2
-    async with maker() as s:
-        it = await s.get(GiftItem, item)
-        devolvidas = (await s.execute(select(func.coalesce(func.sum(GiftReturn.quantity), 0)).where(GiftReturn.gift_id == gid))).scalar()
-        assert it.quantity_returned == 2 == devolvidas

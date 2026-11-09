@@ -132,7 +132,7 @@ t('detalhes incluem todos os campos registrados e protegem segredos', () => {
   const c = describeAudit({ action: 'GIFT_CREATED', user_name: 'Alice', detail: JSON.stringify({ numero: 'BRINDE-1', para: 'Influenciadora Maria', pecas: 2, custo: 50, motivo: 'Divulgação / influenciadora' }) });
   assert.equal(c.text, 'Alice deu um brinde para Influenciadora Maria (2 peças): custo de R$ 50,00 para a loja, divulgação / influenciadora');
   assert.equal(describeAudit({ action: 'GIFT_CANCELLED', user_name: 'Alice', detail: JSON.stringify({ numero: 'BRINDE-1', motivo: 'Peça errada' }) }).text, 'Alice cancelou o brinde BRINDE-1: Peça errada');
-  assert.equal(describeAudit({ action: 'GIFT_RETURNED', user_name: 'Alice', detail: JSON.stringify({ numero: 'BRINDE-1', pecas: 1, custo_que_volta: 40 }) }).text,
-    'Alice registrou a volta de 1 peça do brinde BRINDE-1 (custo de R$ 40,00 volta para a loja)');
+  assert.equal(describeAudit({ action: 'GIFT_RECEIPT_SENT', user_name: 'Alice', detail: JSON.stringify({ numero: 'BRINDE-1', para: 'Maria da Silva' }) }).text,
+    'Alice enviou o comprovante do brinde BRINDE-1 para Maria da Silva pelo WhatsApp da loja');
   console.log('ok brindes no histórico');
 }

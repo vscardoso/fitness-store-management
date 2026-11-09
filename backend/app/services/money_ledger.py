@@ -79,9 +79,9 @@ class MoneyTotals:
     pieces_sold: int = 0
     pieces_returned: int = 0
     discount_total: Decimal = D0
-    gift_cost: Decimal = D0            # custo posto dos brindes dados no período, menos o que voltou (NÃO é custo de venda)
+    gift_cost: Decimal = D0            # custo posto dos brindes dados no período (NÃO é custo de venda); cancelado fica de fora
     gift_count: int = 0                # brindes dados no período (cancelados ficam de fora)
-    gift_pieces: int = 0               # peças dadas de brinde no período, menos as devolvidas
+    gift_pieces: int = 0               # peças dadas de brinde no período
     days: dict = field(default_factory=lambda: defaultdict(DayTotals))
     by_seller: dict = field(default_factory=lambda: defaultdict(lambda: {"gross": D0, "refunds": D0, "sales": 0}))
     by_payment: dict = field(default_factory=lambda: defaultdict(lambda: {"total": D0, "count": 0}))
@@ -206,7 +206,7 @@ async def period_totals(
                 t.cost_returned += c
                 t.days[br_day(created)].cost_back += c
     if seller_id is None:
-        from app.models.gift import GIFT_CANCELLED, Gift, GiftItem, GiftReturn
+        from app.models.gift import GIFT_CANCELLED, Gift, GiftItem
         given = (await db.execute(
             select(Gift.id, Gift.total_cost, func.coalesce(func.sum(GiftItem.quantity), 0))
             .join(GiftItem, GiftItem.gift_id == Gift.id)
@@ -216,12 +216,6 @@ async def period_totals(
             t.gift_cost += _d(cost)
             t.gift_count += 1
             t.gift_pieces += int(pieces or 0)
-        back = (await db.execute(
-            select(GiftReturn.cost, GiftReturn.quantity).join(Gift, Gift.id == GiftReturn.gift_id)
-            .where(*tenant(GiftReturn.tenant_id), Gift.status != GIFT_CANCELLED, *in_range(GiftReturn.created_at)))).all()  # noqa: E712
-        for cost, qty in back:
-            t.gift_cost -= _d(cost)
-            t.gift_pieces -= int(qty or 0)
     return t
 
 

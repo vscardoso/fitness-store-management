@@ -1,4 +1,4 @@
-"""Brindes: gifts, gift_items e gift_returns.
+"""Brindes: gifts e gift_items.
 
 Revision ID: 20261127_gifts
 Revises: 20261126_card_auto
@@ -50,23 +50,12 @@ def upgrade() -> None:
         sa.Column("product_name", sa.String(200), nullable=True),
         sa.Column("variant_label", sa.String(120), nullable=True),
         sa.Column("quantity", sa.Integer(), nullable=False),
-        sa.Column("quantity_returned", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("unit_cost", sa.Numeric(12, 4), nullable=False, server_default="0"),
         sa.Column("list_price", sa.Numeric(12, 2), nullable=False, server_default="0"),
         sa.Column("sale_sources", sa.JSON(), nullable=True),
     )
-    op.create_table(
-        "gift_returns", *_base(),
-        sa.Column("gift_id", sa.Integer(), sa.ForeignKey("gifts.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("gift_item_id", sa.Integer(), sa.ForeignKey("gift_items.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("quantity", sa.Integer(), nullable=False),
-        sa.Column("cost", sa.Numeric(12, 2), nullable=False, server_default="0"),
-        sa.Column("note", sa.Text(), nullable=True),
-        sa.Column("created_by_name", sa.String(120), nullable=True),
-    )
 
 
 def downgrade() -> None:
-    op.drop_table("gift_returns")
     op.drop_table("gift_items")
     op.drop_table("gifts")

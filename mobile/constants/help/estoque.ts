@@ -618,13 +618,14 @@ const BRINDES: HelpEntry[] = [
     steps: [
       'Toque no “+” (no computador, “Dar um brinde”) para dar uma peça.',
       'Toque num brinde para ver o que saiu, o custo e quem deu.',
-      'Se a pessoa devolveu a peça, toque em “Peça voltou ao estoque”.',
+      'Para a pessoa validar o brinde, use “Enviar pelo WhatsApp da loja”, “Abrir no meu WhatsApp” ou “Baixar PDF”.',
       'Se lançou por engano, no mesmo mês, toque em “Cancelar este brinde (engano)”.',
     ],
     goodToKnow: [
       'Só o administrador dá, cancela e devolve brinde.',
       'O custo das peças aparece no Resultado do Mês como “Brindes dados”, separado do custo das vendas.',
       'Brinde não é venda: não entra no caixa, não dá pontos e não conta como peça vendida.',
+      'Brinde não aceita devolução. O comprovante não mostra custo nem código interno.',
     ],
     roles: ['admin'],
     related: ['resultado-mes'],

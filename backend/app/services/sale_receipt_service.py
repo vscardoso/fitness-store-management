@@ -327,6 +327,7 @@ class _Page:
         self.scale = 0.9 if width_mm <= 58 else (1.0 if width_mm <= 80 else 1.25)
         self.ops: List[tuple] = []
         self.y = 0.0
+        self.title = "Comprovante da venda"
 
     def fs(self, size: float) -> float:
         return size * self.scale
@@ -363,7 +364,7 @@ class _Page:
         height = self.y + 2 * self.margin
         buf = io.BytesIO()
         c = canvas.Canvas(buf, pagesize=(self.w, height))
-        c.setTitle("Comprovante da venda")
+        c.setTitle(self.title)
         for op in self.ops:
             top = height - self.margin - op[-1]
             if op[0] == "text":

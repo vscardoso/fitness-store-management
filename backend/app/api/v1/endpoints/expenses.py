@@ -104,8 +104,9 @@ async def monthly_result(
     today = today_brazil()
     y = year or today.year
     m = month or today.month
+    from app.services.gift_service import hide_gifts_in_result
     svc = ExpenseService(db)
-    return await svc.monthly_result(y, m, tenant_id)
+    return hide_gifts_in_result(await svc.monthly_result(y, m, tenant_id), current_user)
 
 
 @router.get("/resultado-mes/produtos", summary="Resultado do mês por produto")
@@ -132,8 +133,9 @@ async def result_by_period(
     Resultado financeiro dos últimos N dias corridos (janela móvel):
     mesma fórmula do resultado mensal, mas por período livre em dias.
     """
+    from app.services.gift_service import hide_gifts_in_result
     svc = ExpenseService(db)
-    return await svc.result_by_days(days, tenant_id)
+    return hide_gifts_in_result(await svc.result_by_days(days, tenant_id), current_user)
 
 
 @router.get("", response_model=List[ExpenseResponse])

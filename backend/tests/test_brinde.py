@@ -1,4 +1,5 @@
 """Brinde: peça que sai do estoque sem cobrança. Só administrador. O custo vira a linha "Brindes" do Resultado do Mês.
+Brinde NÃO aceita devolução (só cancelar por engano no mesmo mês).
 
 Regras do dono (09/11/2026): custo posto vira linha própria fora do custo das vendidas; não dá pontos; pode sem cliente
 cadastrada (com nome e motivo); só admin; registro separado, ligado à venda.
@@ -121,7 +122,6 @@ async def test_so_administrador_mexe_em_brinde(test_client, async_session, test_
         assert (await test_client.get(f"{API}/gifts/", headers=hh)).status_code == 403, papel
         assert (await test_client.get(f"{API}/gifts/{gid}", headers=hh)).status_code == 403, papel
         assert (await test_client.post(f"{API}/gifts/{gid}/cancel", headers=hh, json={"reason": "engano"})).status_code == 403, papel
-        assert (await test_client.post(f"{API}/gifts/{gid}/return", headers=hh, json={"items": []})).status_code == 403, papel
     async_session.expire_all()
     assert await _estoque(async_session, va.id) == 9               # só o brinde do admin
 
@@ -157,38 +157,10 @@ async def test_cancelar_devolve_a_peca_e_tira_o_brinde_do_mes(test_client, async
     res = await _resultado(test_client, h)
     assert float(res["gifts_total"]) == 0 and res["gifts_count"] == 0 and float(res["net_profit"]) == 0
     assert (await test_client.post(f"{API}/gifts/{g['id']}/cancel", headers=h, json={"reason": "Peça errada"})).status_code == 409
-    assert (await test_client.post(f"{API}/gifts/{g['id']}/return", headers=h, json={"items": [{"gift_item_id": 1, "quantity": 1}]})).status_code == 409
+    # não existe devolução de brinde: a rota nem existe
+    assert (await test_client.post(f"{API}/gifts/{g['id']}/return", headers=h, json={"items": [{"gift_item_id": 1, "quantity": 1}]})).status_code in (404, 405)
     (reg,) = await _auditoria(async_session, t_id, "GIFT_CANCELLED")
     assert reg[1]["motivo"] == "Peça errada" and reg[0].user_id == uid
-
-
-async def test_devolver_parcial_volta_o_custo_no_dia_e_nao_passa_do_dado(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
-    g = (await _dar(test_client, h, [{"variant_id": va.id, "quantity": 3}])).json()
-    item = g["items"][0]["id"]
-    for ruim, trecho in (({"items": []}, "quais peças"), ({"items": [{"gift_item_id": item, "quantity": 4}]}, "restam"),
-                         ({"items": [{"gift_item_id": item, "quantity": 0}]}, "maior que zero"),
-                         ({"items": [{"gift_item_id": 99999, "quantity": 1}]}, "não pertence")):
-        r = await test_client.post(f"{API}/gifts/{g['id']}/return", headers=h, json=ruim)
-        assert r.status_code == 400 and trecho in r.json()["detail"].lower(), (ruim, r.text)
-    r = await test_client.post(f"{API}/gifts/{g['id']}/return", headers=h, json={"items": [{"gift_item_id": item, "quantity": 2}], "note": "voltou"})
-    assert r.status_code == 200, r.text
-    assert r.json()["net_cost"] == 40.0 and r.json()["cost_returned"] == 80.0
-    assert r.json()["items"][0]["quantity_returned"] == 2
-    async_session.expire_all()
-    assert await _estoque(async_session, va.id) == 9                         # 10 - 3 + 2
-    res = await _resultado(test_client, h)
-    assert float(res["gifts_total"]) == 40.0                                  # 120 dado - 80 que voltou
-    # o que sobrou (1 peça) ainda pode voltar; mais do que isso não
-    assert (await test_client.post(f"{API}/gifts/{g['id']}/return", headers=h, json={"items": [{"gift_item_id": item, "quantity": 2}]})).status_code == 400
-    assert (await test_client.post(f"{API}/gifts/{g['id']}/return", headers=h, json={"items": [{"gift_item_id": item, "quantity": 1}]})).status_code == 200
-    async_session.expire_all()
-    assert await _estoque(async_session, va.id) == 10
-    assert float((await _resultado(test_client, h))["gifts_total"]) == 0.0
-    # com peça já devolvida, o cancelamento por engano não vale mais
-    r = await test_client.post(f"{API}/gifts/{g['id']}/cancel", headers=h, json={"reason": "engano"})
-    assert r.status_code == 409 and "Devolver" in r.json()["detail"]
-    assert len(await _auditoria(async_session, t_id, "GIFT_RETURNED")) == 2
 
 
 async def test_lote_fecha_a_conta_com_brinde_e_saude_do_estoque_nao_chama_de_perda(test_client, async_session, test_user):
@@ -214,3 +186,108 @@ async def test_listar_traz_custo_total_e_filtra_por_periodo(test_client, async_s
     assert f["total_count"] == 2
     f = (await test_client.get(f"{API}/gifts/", headers=h, params={"start_date": "2000-01-01", "end_date": "2000-01-31"})).json()
     assert f["total_count"] == 0
+
+
+
+# ───────────── comprovante para a pessoa validar (PDF e WhatsApp oficial da loja) ─────────────
+async def test_comprovante_do_brinde_texto_pdf_sem_custo_nem_codigo_interno(test_client, async_session, test_user):
+    from tests.test_comprovante_venda import _largura_mm, _texto_pdf
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    g = (await _dar(test_client, h, [{"variant_id": va.id, "quantity": 2}], reason_type="courtesy")).json()
+    info = (await test_client.get(f"{API}/gifts/{g['id']}/receipt", headers=h)).json()
+    t = info["text"]
+    assert "BRINDE, SEM VALOR" in t and "Sem valor fiscal" in t and g["gift_number"] in t and "Influenciadora Maria" in t
+    assert "2x" in t and "Valor de vitrine: R$ 200,00" in t and "Cortesia da loja" in t
+    assert "80,00" not in t and "custo" not in t.lower()                       # nunca o custo (R$ 40 por peça)
+    assert info["whatsapp_url"] is None and info["store_whatsapp"]["connected"] is False   # sem telefone nem número ligado
+    for tam, largura in (("58", 58), ("80", 80), ("a6", 105)):
+        r = await test_client.get(f"{API}/gifts/{g['id']}/receipt/pdf", headers=h, params={"size": tam})
+        assert r.status_code == 200 and r.headers["content-type"] == "application/pdf" and r.content.startswith(b"%PDF")
+        assert abs(_largura_mm(r.content) - largura) < 1
+    pdf = _texto_pdf((await test_client.get(f"{API}/gifts/{g['id']}/receipt/pdf", headers=h)).content)
+    assert "BRINDE, SEM VALOR" in pdf and "SEM COBRAN" in pdf and "200,00" in pdf
+    assert "40,00" not in pdf and "80,00" not in pdf
+    assert (await test_client.get(f"{API}/gifts/{g['id']}/receipt/pdf", headers=h, params={"size": "999"})).status_code == 422
+    assert (await test_client.get(f"{API}/gifts/99999999/receipt", headers=h)).status_code == 404
+
+
+async def test_comprovante_de_brinde_cancelado_sai_marcado_e_so_admin_baixa(test_client, async_session, test_user):
+    from app.models.user import UserRole
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    g = (await _dar(test_client, h, [{"variant_id": va.id, "quantity": 1}])).json()
+    await test_client.post(f"{API}/gifts/{g['id']}/cancel", headers=h, json={"reason": "Peça errada"})
+    assert "BRINDE CANCELADO" in (await test_client.get(f"{API}/gifts/{g['id']}/receipt", headers=h)).json()["text"]
+    for papel in (UserRole.MANAGER, UserRole.SELLER, UserRole.CASHIER):
+        hh = await _user(async_session, t_id, papel)
+        assert (await test_client.get(f"{API}/gifts/{g['id']}/receipt", headers=hh)).status_code == 403, papel
+        assert (await test_client.get(f"{API}/gifts/{g['id']}/receipt/pdf", headers=hh)).status_code == 403, papel
+        assert (await test_client.post(f"{API}/gifts/{g['id']}/receipt/send-whatsapp", headers=hh)).status_code == 403, papel
+
+
+async def test_envio_do_comprovante_pelo_whatsapp_oficial_e_recusas(test_client, async_session, test_user, monkeypatch):
+    from tests.test_comprovante_venda import _Meta, _meta, _zap
+    chamadas = _meta(monkeypatch)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    uid = test_user.id
+    # sem cliente cadastrada: explica e não manda nada
+    sem = (await _dar(test_client, h, [{"variant_id": va.id, "quantity": 1}])).json()
+    r = await test_client.post(f"{API}/gifts/{sem['id']}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 409 and "cliente cadastrada" in r.json()["detail"] and not chamadas
+    # cliente com janela aberta: sai o PDF pelo número da LOJA
+    c = await _zap(async_session, t_id)
+    cid = c.id
+    g = (await _dar(test_client, h, [{"variant_id": va.id, "quantity": 1}], customer_id=cid, recipient_name=None)).json()
+    info = (await test_client.get(f"{API}/gifts/{g['id']}/receipt", headers=h)).json()
+    assert info["store_whatsapp"] == {"connected": True, "number": "(34) 3305-0261"} and info["whatsapp_url"].startswith("https://wa.me/5534996500091")
+    r = await test_client.post(f"{API}/gifts/{g['id']}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 200 and r.json() == {"mode": "pdf", "store_number": "(34) 3305-0261", "customer": "Maria da Silva"}, r.text
+    assert len(chamadas) == 1 and chamadas[0][0] == "pn-comprovante"
+    corpo = chamadas[0][1]
+    assert corpo["type"] == "document" and corpo["to"] == "5534996500091" and corpo["document"]["filename"].startswith("brinde-")
+    assert g["gift_number"] in corpo["document"]["caption"]
+    assert _Meta.subidos and _Meta.subidos[0][1]["file"][1].startswith(b"%PDF")
+    # registrado: quem mandou, para quem, por qual canal
+    (reg,) = await _auditoria(async_session, t_id, "GIFT_RECEIPT_SENT")
+    assert reg[0].user_id == uid and reg[1]["para"] == "Maria da Silva" and reg[1]["canal"] == "whatsapp_oficial"
+    assert await _auditoria(async_session, t_id, "ROTA_POST_GIFTS_RECEIPT_SEND_WHATSAPP") == []
+
+
+async def test_envio_fora_da_janela_de_24h_explica_e_nao_manda(test_client, async_session, test_user, monkeypatch):
+    from tests.test_comprovante_venda import _meta, _zap
+    chamadas = _meta(monkeypatch)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    c = await _zap(async_session, t_id, janela_aberta=False)
+    g = (await _dar(test_client, h, [{"variant_id": va.id, "quantity": 1}], customer_id=c.id, recipient_name=None)).json()
+    r = await test_client.post(f"{API}/gifts/{g['id']}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 409 and "24 horas" in r.json()["detail"] and not chamadas
+
+
+# ───────────── quem não é admin não vê o brinde em lugar nenhum ─────────────
+async def test_gerente_nao_ve_brinde_o_valor_entra_nos_gastos_e_a_conta_fecha(test_client, async_session, test_user):
+    from app.models.entry_item import EntryItem
+    from app.models.user import UserRole
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _dar(test_client, h, [{"variant_id": va.id, "quantity": 1}])                          # custo R$ 40
+    hoje = date.today()
+    hg = await _user(async_session, t_id, UserRole.MANAGER)
+    adm = await _resultado(test_client, h)
+    ger = (await test_client.get(f"{API}/expenses/resultado-mes", params={"year": hoje.year, "month": hoje.month}, headers=hg)).json()
+    assert float(adm["gifts_total"]) == 40.0 and float(adm["total_expenses"]) == 0.0           # admin: linha própria
+    assert float(ger["gifts_total"]) == 0.0 and ger["gifts_count"] == 0 and float(ger["total_expenses"]) == 40.0
+    assert float(ger["net_profit"]) == float(adm["net_profit"]) == -40.0                       # o lucro é o mesmo para os dois
+    por_dias = (await test_client.get(f"{API}/expenses/resultado-periodo", params={"days": 30}, headers=hg))
+    if por_dias.status_code == 200:
+        assert float(por_dias.json()["gifts_total"]) == 0.0
+    # rastreio do lote e Saúde do Estoque: a peça dada aparece como "saiu sem venda" e a conta continua fechando
+    entry_id = (await async_session.execute(select(EntryItem.entry_id).where(EntryItem.variant_id == va.id))).scalars().first()
+    t = (await test_client.get(f"{API}/stock-entries/{entry_id}/tracking", headers=hg)).json()["totals"]
+    assert t["gifted"] == 0 and t["removed"] == 1 and t["closed"] is True, t
+    ta = (await test_client.get(f"{API}/stock-entries/{entry_id}/tracking", headers=h)).json()["totals"]
+    assert ta["gifted"] == 1 and ta["removed"] == 0 and ta["closed"] is True, ta
+    sg = (await test_client.get(f"{API}/dashboard/fifo-performance", headers=hg)).json()["sell_through"]
+    assert sg["gifts"] == 0 and sg["other_out"] == 1, sg
+    # relatório mensal (gerente): sem linha de brinde, despesas incluem o custo
+    rm = await test_client.get(f"{API}/reports/monthly", headers=hg)
+    if rm.status_code == 200:
+        cur = rm.json()["result"]["current"]
+        assert cur["gifts"] == 0 and cur["expenses"] == 40.0, cur

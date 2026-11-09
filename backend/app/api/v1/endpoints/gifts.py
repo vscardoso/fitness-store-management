@@ -53,10 +53,46 @@ async def cancel_gift(gift_id: int, data: Dict[str, Any] = Body(...), db: AsyncS
         raise _http(e)
 
 
-@router.post("/{gift_id}/return", summary="Peça de brinde que voltou ao estoque")
-async def return_gift(gift_id: int, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
-                      tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+@router.get("/{gift_id}/receipt", summary="Comprovante do brinde para a pessoa validar (texto e link do WhatsApp)")
+async def gift_receipt(gift_id: int, db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+                       current_user: User = Depends(get_current_active_user)):
+    from app.services import gift_receipt_service as gr
+    from app.services.sale_receipt_service import store_whatsapp_info
     try:
-        return await GiftService(db).return_items(tenant_id, current_user, gift_id, data)
+        gift = await GiftService(db).get(tenant_id, gift_id)
     except GiftError as e:
         raise _http(e)
+    data = await gr.build_gift_receipt_data(db, tenant_id, gift)
+    return {"receipt": data, "text": gr.build_gift_receipt_text(data), "whatsapp_url": gr.gift_whatsapp_link(data),
+            "store_whatsapp": await store_whatsapp_info(db, tenant_id)}
+
+
+@router.get("/{gift_id}/receipt/pdf", summary="Comprovante do brinde em PDF (58 mm, 80 mm ou A6)")
+async def gift_receipt_pdf(gift_id: int, size: str = Query("a6", pattern="^(58|80|a6)$"), db: AsyncSession = Depends(get_db),
+                           tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    from fastapi.responses import Response
+    from app.services import gift_receipt_service as gr
+    try:
+        gift = await GiftService(db).get(tenant_id, gift_id)
+    except GiftError as e:
+        raise _http(e)
+    pdf = gr.build_gift_receipt_pdf(await gr.build_gift_receipt_data(db, tenant_id, gift), size)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="brinde-{gift["gift_number"]}.pdf"'})
+
+
+@router.post("/{gift_id}/receipt/send-whatsapp", summary="Manda o comprovante do brinde pelo WhatsApp OFICIAL da loja")
+async def gift_receipt_send(gift_id: int, db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+                            current_user: User = Depends(get_current_active_user)):
+    from app.services import gift_receipt_service as gr
+    from app.services.whatsapp_cloud_service import SendError
+    try:
+        gift = await GiftService(db).get(tenant_id, gift_id)
+    except GiftError as e:
+        raise _http(e)
+    data = await gr.build_gift_receipt_data(db, tenant_id, gift)
+    try:
+        return await gr.send_gift_via_store_whatsapp(db, tenant_id, gift, data, current_user)
+    except SendError as e:
+        await db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.message)

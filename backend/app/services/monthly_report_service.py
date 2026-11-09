@@ -143,6 +143,11 @@ class MonthlyReportService:
         exp = ExpenseService(self.db)
         cur = _result_dict(await exp._build_period_result(first, end, tenant_id, month_label(year, month)))
         prv = _result_dict(await exp._build_period_result(pfirst, plast, tenant_id, month_label(py, pm)))
+        from app.services.gift_service import is_admin_user
+        if not is_admin_user(user):                  # quem não é admin não vê brinde: o custo entra nas despesas
+            for r in (cur, prv):
+                r["expenses"] = round(r["expenses"] + r["gifts"], 2)
+                r["gifts"] = 0.0
         change = {k: change_percent(cur[k], prv[k]) for k in
                   ("revenue", "gross_profit", "net_profit", "expenses", "sales_count", "units_sold", "average_ticket")}
 

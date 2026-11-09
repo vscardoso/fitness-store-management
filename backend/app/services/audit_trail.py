@@ -96,7 +96,7 @@ _LOGGED_ELSEWHERE = {
     ("DELETE", "/stock-entries/{entry_id}"), ("DELETE", "/stock-entries/entry-items/{item_id}"),
     ("POST", "/finance/accounts/{account_id}/adjust"), ("PATCH", "/finance/accounts/{account_id}"),
     ("PUT", "/finance/card-auto"),
-    ("POST", "/gifts"), ("POST", "/gifts/{gift_id}/cancel"), ("POST", "/gifts/{gift_id}/return"),
+    ("POST", "/gifts"), ("POST", "/gifts/{gift_id}/cancel"), ("POST", "/gifts/{gift_id}/receipt/send-whatsapp"),
 }
 
 

@@ -1,7 +1,7 @@
 /** Brindes dados: lista com o custo para a loja. Só administrador. */
 import React from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -26,9 +26,12 @@ export default function GiftsScreen() {
   const admin = isAdminRole(user?.role);
   const { data, isLoading, isRefetching, refetch, error } = useQuery({ queryKey: ['gifts'], queryFn: () => getGifts({ limit: 100 }), enabled: admin });
 
+  // quem não é admin nem sabe que existe: volta ao menu
+  if (!admin) return <Redirect href="/(tabs)/more" />;
+
   const renderItem = ({ item }: { item: Gift }) => {
     const cancelled = item.status === 'cancelled';
-    const pieces = item.items.reduce((n, i) => n + i.quantity - i.quantity_returned, 0);
+    const pieces = item.items.reduce((n, i) => n + i.quantity, 0);
     return (
       <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => router.push(`/gifts/${item.id}` as any)}>
         <View style={[styles.icon, { backgroundColor: brand.primary + '20' }]}>
@@ -57,9 +60,7 @@ export default function GiftsScreen() {
         showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
       />
       <View style={[{ flex: 1 }, desktop]}>
-        {!admin ? (
-          <View style={styles.empty}><Text style={styles.emptyTitle}>Só o administrador vê os brindes.</Text></View>
-        ) : isLoading ? (
+        {isLoading ? (
           <ScreenLoader message="Carregando brindes..." />
         ) : (
           <FlatList
@@ -77,7 +78,7 @@ export default function GiftsScreen() {
             }
           />
         )}
-        {admin && (isDesktop ? <FAB onPress={() => router.push('/gifts/new' as any)} label="Dar um brinde" /> : <FAB directRoute="/gifts/new" />)}
+        {(isDesktop ? <FAB onPress={() => router.push('/gifts/new' as any)} label="Dar um brinde" /> : <FAB directRoute="/gifts/new" />)}
       </View>
     </View>
   );

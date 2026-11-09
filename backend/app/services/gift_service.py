@@ -1,12 +1,12 @@
 """
-Brinde: peça que sai do estoque sem cobrança. Só administrador dá, cancela ou devolve (regra do dono, 09/11/2026).
+Brinde: peça que sai do estoque sem cobrança. Só administrador dá, cancela e vê (regra do dono, 09/11/2026).
 
 - Tudo ou nada: tira as peças pelo FIFO (mesmo da venda, com as camadas guardadas), trava as variações antes de ler o saldo
   e só então grava. Sem estoque suficiente, nada é gravado.
 - Não é venda: sem pagamento, sem receita, sem caixa, sem Financeiro, sem fiado, sem pontos de fidelidade.
 - O custo (custo posto de cada camada) vira a linha "Brindes" do Resultado do Mês (`money_ledger`), fora do custo das vendidas.
-- Cancelar (engano, mesmo mês): a peça volta às mesmas camadas e o brinde some do mês. Devolver (a pessoa trouxe a peça): a peça
-  volta e o custo volta a favor da loja NO DIA da devolução. Brinde nunca gera dinheiro de volta.
+- Cancelar (engano, mesmo mês): a peça volta às mesmas camadas e o brinde some do mês. Brinde NÃO aceita devolução (decisão do
+  dono, 09/11/2026) e nunca gera dinheiro de volta.
 """
 from __future__ import annotations
 
@@ -19,9 +19,10 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.dashboard_cache import invalidate_dashboard_cache
 from app.core.timezone import today_brazil
 from app.models.customer import Customer
-from app.models.gift import GIFT_CANCELLED, GIFT_GIVEN, GIFT_REASONS, Gift, GiftItem, GiftReturn
+from app.models.gift import GIFT_CANCELLED, GIFT_GIVEN, GIFT_REASONS, Gift, GiftItem
 from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.models.sale import Sale
@@ -95,8 +96,6 @@ class GiftService:
 
     async def _public(self, g: Gift) -> Dict[str, Any]:
         items = await self._items(g.id)
-        returns = list((await self.db.execute(select(GiftReturn).where(GiftReturn.gift_id == g.id).order_by(GiftReturn.id))).scalars().all())
-        cost_back = sum((_q(r.cost) for r in returns), D0)
         customer = None
         if g.customer_id:
             c = (await self.db.execute(select(Customer).where(Customer.id == g.customer_id))).scalar_one_or_none()
@@ -106,16 +105,14 @@ class GiftService:
             "reason_label": GIFT_REASONS.get(g.reason_type, g.reason_type), "reason_note": g.reason_note,
             "customer_id": g.customer_id, "customer_name": customer, "recipient_name": g.recipient_name,
             "recipient": customer or g.recipient_name, "related_sale_id": g.related_sale_id,
-            "given_by_name": g.given_by_name, "total_cost": float(_q(g.total_cost)), "cost_returned": float(cost_back),
-            "net_cost": float(_q(g.total_cost) - cost_back) if g.status == GIFT_GIVEN else 0.0,
+            "given_by_name": g.given_by_name, "total_cost": float(_q(g.total_cost)),
+            "net_cost": float(_q(g.total_cost)) if g.status == GIFT_GIVEN else 0.0,
             "list_value": float(_q(g.list_value)), "created_at": g.created_at.isoformat() if g.created_at else None,
             "cancelled_at": g.cancelled_at.isoformat() if g.cancelled_at else None, "cancel_reason": g.cancel_reason,
             "items": [{"id": i.id, "product_id": i.product_id, "variant_id": i.variant_id, "product_name": i.product_name,
-                       "variant_label": i.variant_label, "quantity": i.quantity, "quantity_returned": i.quantity_returned,
+                       "variant_label": i.variant_label, "quantity": i.quantity,
                        "unit_cost": float(Decimal(str(i.unit_cost)).quantize(Decimal("0.0001"))), "list_price": float(_q(i.list_price))}
                       for i in items],
-            "returns": [{"id": r.id, "gift_item_id": r.gift_item_id, "quantity": r.quantity, "cost": float(_q(r.cost)),
-                         "created_at": r.created_at.isoformat() if r.created_at else None, "note": r.note} for r in returns],
         }
 
     # ── dar o brinde ─────────────────────────────────────────────────────────
@@ -209,6 +206,7 @@ class GiftService:
             await self.db.rollback()
             raise
         await self._sync_inventory(product_ids, tenant_id)
+        invalidate_dashboard_cache(tenant_id)
         await self._notify(tenant_id, user, f"deu um brinde de R$ {self._fmt(gift.total_cost)} (custo para a loja)")
         return await self._public(await self._gift(tenant_id, gift.id))
 
@@ -229,11 +227,9 @@ class GiftService:
         if g.status != GIFT_GIVEN:
             raise GiftConflict("Este brinde já foi cancelado.")
         items = await self._items(g.id)
-        if any(i.quantity_returned for i in items):
-            raise GiftConflict("Este brinde já teve peça devolvida. Para o restante, use Devolver.")
         today = today_brazil()
         if (br_day(g.created_at).year, br_day(g.created_at).month) != (today.year, today.month):
-            raise GiftConflict("Só dá para cancelar um brinde no mesmo mês em que foi dado. Use Devolver.")
+            raise GiftConflict("Só dá para cancelar um brinde no mesmo mês em que foi dado. Brinde não aceita devolução.")
         await self._ensure_open_month(tenant_id, today)
         await lock_stock(self.db, variant_ids=[i.variant_id for i in items])
         try:
@@ -255,74 +251,8 @@ class GiftService:
             await self.db.rollback()
             raise
         await self._sync_inventory([i.product_id for i in items], tenant_id)
+        invalidate_dashboard_cache(tenant_id)
         await self._notify(tenant_id, user, f"cancelou o brinde {g.gift_number}: {reason}")
-        return await self._public(await self._gift(tenant_id, gift_id))
-
-    # ── devolver (a pessoa trouxe a peça de volta) ───────────────────────────
-    async def return_items(self, tenant_id: int, user: User, gift_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
-        raw = data.get("items") or []
-        if not isinstance(raw, list) or not raw:
-            raise GiftError("Escolha quais peças voltaram.")
-        note = (data.get("note") or "").strip() or None
-        g = await self._gift(tenant_id, gift_id)
-        if g.status != GIFT_GIVEN:
-            raise GiftConflict("Este brinde foi cancelado: não há o que devolver.")
-        items = {i.id: i for i in await self._items(g.id)}
-        wanted: Dict[int, int] = {}
-        for r in raw:
-            try:
-                iid, qty = int(r.get("gift_item_id")), int(r.get("quantity"))
-            except (TypeError, ValueError, AttributeError):
-                raise GiftError("Peça ou quantidade inválida na devolução.")
-            if iid not in items:
-                raise GiftError("Peça não pertence a este brinde.")
-            if qty <= 0:
-                raise GiftError("A quantidade devolvida deve ser maior que zero.")
-            wanted[iid] = wanted.get(iid, 0) + qty
-        for iid, qty in wanted.items():
-            livre = items[iid].quantity - items[iid].quantity_returned
-            if qty > livre:
-                raise GiftError(f"Só restam {livre} peça(s) de {items[iid].product_name} para devolver.")
-        today = today_brazil()
-        await self._ensure_open_month(tenant_id, today)
-        await lock_stock(self.db, variant_ids=[items[i].variant_id for i in wanted])
-        try:
-            total_back, pieces = D0, 0
-            for iid, qty in wanted.items():
-                it = items[iid]
-                await self.db.refresh(it)
-                livre = it.quantity - it.quantity_returned
-                if qty > livre:
-                    raise GiftError(f"Só restam {livre} peça(s) de {it.product_name} para devolver.")
-                sources = copy.deepcopy((it.sale_sources or {}).get("sources", []))
-                need, cost, back = qty, Decimal("0"), []
-                for s in sources:
-                    if need <= 0:
-                        break
-                    take = min(need, int(s["quantity_taken"]) - int(s.get("quantity_returned", 0)))
-                    if take <= 0:
-                        continue
-                    back.append({"entry_item_id": s["entry_item_id"], "quantity_taken": take})
-                    s["quantity_returned"] = int(s.get("quantity_returned", 0)) + take
-                    cost += Decimal(str(take)) * Decimal(str(s["unit_cost"]))
-                    need -= take
-                if need > 0:
-                    raise GiftError("Não foi possível saber de qual entrada esta peça saiu.")
-                await self.fifo.reverse_sale(sources=back, reason="brinde_volta", ref=f"gift:{g.id}", user_id=getattr(user, "id", None))
-                it.sale_sources = {"sources": sources}
-                it.quantity_returned += qty
-                self.db.add(GiftReturn(tenant_id=tenant_id, gift_id=g.id, gift_item_id=it.id, quantity=qty, cost=_q(cost),
-                                       note=note, created_by_name=_who(user), is_active=True))
-                total_back += _q(cost)
-                pieces += qty
-            await self._audit(tenant_id, user, "GIFT_RETURNED", g.id, {
-                "numero": g.gift_number, "pecas": pieces, "custo_que_volta": float(total_back), "observacao": note})
-            await self.db.commit()
-        except Exception:
-            await self.db.rollback()
-            raise
-        await self._sync_inventory([items[i].product_id for i in wanted], tenant_id)
-        await self._notify(tenant_id, user, f"registrou a devolução de {pieces} peça(s) do brinde {g.gift_number}")
         return await self._public(await self._gift(tenant_id, gift_id))
 
     # ── consultas ────────────────────────────────────────────────────────────
@@ -343,4 +273,32 @@ class GiftService:
         given = [g for g in gifts if g["status"] == GIFT_GIVEN]
         return {"items": gifts, "total_count": total,
                 "page_cost": round(sum(g["net_cost"] for g in given), 2),
-                "page_pieces": sum(i["quantity"] - i["quantity_returned"] for g in given for i in g["items"])}
+                "page_pieces": sum(i["quantity"] for g in given for i in g["items"])}
+
+
+# ── quem não é administrador não vê o brinde em lugar nenhum: o valor entra nos números que já existem ─────────────────────
+def is_admin_user(user: Any) -> bool:
+    role = getattr(user, "role", None)
+    return str(getattr(role, "value", role) or "").lower() == "admin"
+
+
+def hide_gifts_in_result(res: Any, user: Any) -> Any:
+    """Resultado do Mês (objeto MonthlyResultResponse): o custo dos brindes passa para "Gastos da loja"; o lucro não muda."""
+    if not is_admin_user(user) and getattr(res, "gifts_total", 0):
+        res.total_expenses = res.total_expenses + res.gifts_total
+        res.gifts_total = Decimal("0")
+        res.gifts_count = 0
+    return res
+
+
+def hide_gifts_in_tracking(data: Dict[str, Any], user: Any) -> Dict[str, Any]:
+    """Rastreio do lote: peça dada de brinde conta como "saiu sem venda" (a conta continua fechando)."""
+    if not is_admin_user(user):
+        data["totals"]["removed"] += data["totals"].get("gifted", 0)
+        data["totals"]["gifted"] = 0
+        for r in data.get("items", []):
+            r["removed"] += r.get("gifted", 0)
+            r["removed_unrecorded"] += r.get("gifted", 0)
+            r["gifted"] = 0
+        data["totals"]["removed_unrecorded"] = sum(r["removed_unrecorded"] for r in data.get("items", []))
+    return data
