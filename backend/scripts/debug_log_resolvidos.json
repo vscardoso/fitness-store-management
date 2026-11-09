@@ -131,11 +131,6 @@
     "nota": "500 por coluna c.name e token ':' no SQL."
   },
   {
-    "assinatura": "GET /trips/{id}/analytics",
-    "prova_teste": "tests/test_rotas_do_debug_log.py::test_analytics_da_viagem_nao_da_500",
-    "nota": "500 por token ':' no SQL."
-  },
-  {
     "assinatura": "DELETE /products/{id}",
     "prova_teste": "tests/test_rotas_do_debug_log.py::test_excluir_produto_sem_venda_nao_da_500",
     "nota": "500 por erro de sintaxe no SQL; produto com venda segue sendo recusado."

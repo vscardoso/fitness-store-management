@@ -132,42 +132,6 @@ async def test_peca_com_defeito_mesma_conta_em_todas_as_telas(test_client, async
         f"Rastreio do lote: vendidas={tr['sold']} sem venda={tr['removed']}; Saúde do Estoque: vendidas={f['total_sold']} outras saídas={f['other_out']}")
 
 
-# ───────────────────────────────────────────────────────── retorno da viagem
-async def test_retorno_da_viagem_bate_com_o_lucro_do_lote(test_client, async_session, test_user):
-    """Entrada 4 está na viagem (frete R$ 300; 60 peças a R$ 30). Vende 5 de B, devolve 1, e a viagem tem que ter a mesma receita do lote."""
-    from app.models.trip import Trip
-    t_id, h, ids, book = await mundo(async_session, test_user)
-    trip_id = (await async_session.execute(select(Trip.id).where(Trip.tenant_id == t_id))).scalar()
-    e4 = ids.entries[3]
-    r, s = await vende(test_client, h, ids, book, [(ids.b, 5, "0")], desconto="30")
-    assert (await devolve(test_client, h, book, s, s.lines[0], 1)).status_code == 201
-    _limpa(t_id)
-    a = (await test_client.get(f"{API}/stock-entries/{e4}/analytics", headers=h)).json()
-    tv = await test_client.get(f"{API}/trips/{trip_id}/analytics", headers=h)
-    assert tv.status_code == 200, tv.text
-    tv = tv.json()
-    t4 = (await test_client.get(f"{API}/stock-entries/{e4}/tracking", headers=h)).json()["totals"]
-    assert q2(a["real_revenue"]) == q2(book.by_entry()[e4]["revenue"]), "premissa: o lote está certo"
-    assert q2(tv["trip_revenue"]) == q2(a["real_revenue"]), (
-        f"Retorno da viagem: receita {tv['trip_revenue']} x lucro do lote {a['real_revenue']} (venda com desconto, 1 devolução)")
-    assert tv["total_quantity_sold"] == t4["sold"], f"viagem: {tv['total_quantity_sold']} vendidas, rastreio {t4['sold']}"
-
-
-async def test_retorno_da_viagem_nao_conta_peca_baixada_como_vendida(test_client, async_session, test_user):
-    from app.models.trip import Trip
-    t_id, h, ids, book = await mundo(async_session, test_user)
-    trip_id = (await async_session.execute(select(Trip.id).where(Trip.tenant_id == t_id))).scalar()
-    r, s = await vende(test_client, h, ids, book, [(ids.b, 2, "0")])
-    await test_client.put(f"{API}/store/stock-writeoff-settings", json={"enabled": True}, headers=h)
-    w = await test_client.post(f"{API}/reports/stock-check/writeoff", headers=h, json={
-        "reason": "perda", "items": [{"variant_id": ids.b, "quantity": 7}]})
-    assert w.status_code == 200, w.text
-    _limpa(t_id)
-    tv = (await test_client.get(f"{API}/trips/{trip_id}/analytics", headers=h)).json()
-    assert tv["total_quantity_sold"] == 2, f"viagem diz {tv['total_quantity_sold']} vendidas (2 vendidas + 7 baixadas)"
-    assert tv["sell_through_rate"] == pytest.approx(2 / 60 * 100, abs=0.01)
-
-
 # ───────────────────────────────────────────────────────── baixa, exclusão e produto zerado
 async def _estado(client, db, t_id, h, ids):
     _limpa(t_id)
@@ -330,18 +294,6 @@ async def test_mais_vendidos_do_relatorio_usam_o_valor_pago_com_desconto_no_item
     rel = (await test_client.get(f"{API}/reports/sales", headers=h, params={"period": "this_month"})).json()
     top_rel = sum(D(str(x["revenue"])) for x in rel["top_products"])
     assert q2(top_rel) == D("900.00"), f"Relatório de vendas, mais vendidos: R$ {top_rel} (desconto do item ignorado; esperado 900,00)"
-
-
-# ───────────────────────────────────────────────────────── retorno da viagem: caso simples (sem desconto/devolução)
-async def test_retorno_da_viagem_receita_de_venda_simples(test_client, async_session, test_user):
-    from app.models.trip import Trip
-    t_id, h, ids, book = await mundo(async_session, test_user)
-    trip_id = (await async_session.execute(select(Trip.id).where(Trip.tenant_id == t_id))).scalar()
-    r, s = await vende(test_client, h, ids, book, [(ids.b, 5, "0")])
-    assert r.status_code == 201
-    _limpa(t_id)
-    tv = (await test_client.get(f"{API}/trips/{trip_id}/analytics", headers=h)).json()
-    assert q2(tv["trip_revenue"]) == D("600.00"), f"Retorno da viagem: receita {tv['trip_revenue']} (vendeu 5 x R$ 120 = 600,00)"
 
 
 # ───────────────────────────────────────────────────────── relatório por período (tela "Vendas por período")

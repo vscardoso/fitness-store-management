@@ -3,7 +3,7 @@
  * 
  * Funcionalidades:
  * - Lista de entradas com cards informativos
- * - Badges de tipo (viagem, online, local)
+ * - Badges de tipo (online, local)
  * - Métricas: sell-through, ROI
  * - Filtros por tipo, período, fornecedor
  * - Busca por código/fornecedor
@@ -382,8 +382,7 @@ export default function StockEntriesScreen() {
     const query = searchQuery.toLowerCase();
     return (
       entry.entry_code.toLowerCase().includes(query) ||
-      entry.supplier_name.toLowerCase().includes(query) ||
-      entry.trip_code?.toLowerCase().includes(query)
+      entry.supplier_name.toLowerCase().includes(query)
     );
   }) || [];
 
@@ -392,7 +391,6 @@ export default function StockEntriesScreen() {
    */
   const renderTypeBadge = (type: EntryType) => {
     const typeConfig: Record<EntryType, { label: string; variant: 'info' | 'warning' | 'success' | 'neutral'; icon: keyof typeof Ionicons.glyphMap }> = {
-      [EntryType.TRIP]:              { label: 'Viagem',         variant: 'info',    icon: 'car-outline'           },
       [EntryType.ONLINE]:            { label: 'Online',         variant: 'warning', icon: 'cart-outline'          },
       [EntryType.LOCAL]:             { label: 'Local',          variant: 'success', icon: 'storefront-outline'    },
       [EntryType.INITIAL_INVENTORY]: { label: 'Est. Inicial',   variant: 'neutral', icon: 'archive-outline'       },
@@ -490,17 +488,6 @@ export default function StockEntriesScreen() {
               <Ionicons name="calendar-outline" size={16} color={Colors.light.textSecondary} />
               <Text style={styles.cardDate}>{formatDate(item.entry_date)}</Text>
             </View>
-
-            {/* Viagem (se houver) */}
-            {item.trip_code && (
-              <View style={styles.cardRow}>
-                <Ionicons name="airplane-outline" size={16} color={brandingColors.primary} />
-                <Text style={styles.cardTrip}>
-                  {item.trip_code}
-                  {item.trip_destination && ` - ${item.trip_destination}`}
-                </Text>
-              </View>
-            )}
 
             {/* Badge de status operacional */}
             <View style={styles.statusBadgesRow}>
@@ -733,7 +720,7 @@ export default function StockEntriesScreen() {
           <Ionicons name="search-outline" size={18} color={Colors.light.textSecondary} />
           <TextInput
             style={styles.searchbarInput}
-            placeholder="Buscar por código, fornecedor ou viagem..."
+            placeholder="Buscar por código ou fornecedor..."
             placeholderTextColor={Colors.light.textTertiary}
             onChangeText={setSearchQuery}
             value={searchQuery}
@@ -748,7 +735,7 @@ export default function StockEntriesScreen() {
         {/* Filtros de Tipo */}
         <View style={styles.filtersContainer}>
           <View style={styles.typeFilterRow}>
-            {([undefined, EntryType.TRIP, EntryType.ONLINE, EntryType.LOCAL] as (EntryType | undefined)[]).map((type) => {
+            {([undefined, EntryType.ONLINE, EntryType.LOCAL] as (EntryType | undefined)[]).map((type) => {
               const label = type ? getTypeLabel(type) : 'Todos';
               const isActive = typeFilter === type;
               return (
@@ -901,6 +888,7 @@ export default function StockEntriesScreen() {
             setShowLinkDialog(true);
           }}
           selectedSupplierId={linkSupplier?.id}
+          allowNone={selectedEntry?.supplier_name !== 'Vários fornecedores'}
           noneLabel={`Usar o fornecedor da entrada${selectedEntry?.supplier_name ? ` (${selectedEntry.supplier_name})` : ''}`}
         />
 
@@ -1033,7 +1021,6 @@ export default function StockEntriesScreen() {
  */
 function getTypeLabel(type: EntryType): string {
   const labels: Record<EntryType, string> = {
-    [EntryType.TRIP]: 'Viagens',
     [EntryType.ONLINE]: 'Compras Online',
     [EntryType.LOCAL]: 'Compras Locais',
     [EntryType.INITIAL_INVENTORY]: 'Estoque Inicial',
@@ -1190,11 +1177,6 @@ const styles = StyleSheet.create({
   cardDate: {
     fontSize: 13,
     color: Colors.light.textSecondary,
-  },
-  cardTrip: {
-    fontSize: 13,
-    color: Colors.light.primary,
-    fontWeight: '500',
   },
   statusBadgesRow: {
     flexDirection: 'row',

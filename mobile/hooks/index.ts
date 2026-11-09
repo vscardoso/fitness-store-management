@@ -9,7 +9,6 @@ export * from './useProducts';
 export * from './useCustomers';
 export * from './useSales';
 export * from './useCategories';
-export * from './useTrips';
 export * from './useStockEntries';
 export * from './useAIScanner';
 export * from './useProductWizard';

@@ -10,6 +10,7 @@ import { CLIENTES } from './clientes';
 import { ESTOQUE } from './estoque';
 import { DINHEIRO } from './dinheiro';
 import { RELATORIOS } from './relatorios';
+import { LOJA } from './loja';
 
 export type { HelpEntry, HelpGroup, HelpRole } from './types';
 
@@ -23,7 +24,7 @@ export const HELP_GROUPS: HelpGroup[] = [
   { key: 'loja', title: 'Loja', icon: 'storefront-outline' },
 ];
 
-export const HELP_ENTRIES: HelpEntry[] = [...VENDER, ...ESTOQUE, ...CLIENTES, ...DINHEIRO, ...RELATORIOS];
+export const HELP_ENTRIES: HelpEntry[] = [...VENDER, ...ESTOQUE, ...CLIENTES, ...DINHEIRO, ...RELATORIOS, ...LOJA];
 
 const BY_ID = new Map(HELP_ENTRIES.map((e) => [e.id, e]));
 

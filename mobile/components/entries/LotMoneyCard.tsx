@@ -134,13 +134,6 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
       {/* 1. Quanto gastou */}
       <Text style={styles.blockTitle}>1. Quanto você gastou</Text>
       <Row label="Mercadoria (o que pagou ao fornecedor)" value={c.merchandise_cost} />
-      {c.trip && c.trip.share_of_this_lot > 0 && (
-        <Row
-          label={`Viagem ${c.trip.trip_code} (a parte que coube a este lote)`}
-          value={c.trip.share_of_this_lot}
-          hint={`A viagem inteira custou ${formatCurrency(c.trip.trip_total_cost)} e é dividida entre os lotes dela, na proporção do que cada um custou.`}
-        />
-      )}
       {c.lot_expenses.map((e) => (
         <View key={e.id} style={styles.row}>
           <Text style={[styles.rowLabel, { flex: 1 }]} numberOfLines={2}>{e.description}</Text>
@@ -196,7 +189,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
               <Text style={styles.rowValue}>{formatCurrency(s.merchandise - s.discount)}</Text>
             </View>
           ))}
-          <Text style={styles.hint}>Mercadoria de cada fornecedor já com o desconto dele. Frete e viagem entram à parte, nas linhas acima.</Text>
+          <Text style={styles.hint}>Mercadoria de cada fornecedor já com o desconto dele. O frete entra à parte, nas linhas acima.</Text>
         </View>
       )}
       <View style={[styles.row, styles.totalRow]}>
@@ -241,7 +234,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
 
       {/* Antes de vender: o que esta entrada rende se tudo for vendido pelos preços de hoje */}
       <Text style={styles.blockTitle}>Se você vender tudo desta entrada</Text>
-      <Row label="Gasto (mercadoria, frete e viagem)" value={a.total_investment} />
+      <Row label="Gasto (mercadoria e frete)" value={a.total_investment} />
       <Row label="Venda prevista (pelos preços de hoje)" value={a.potential_revenue_total} valueColor={VALUE_COLORS.positive} />
       <View style={[styles.row, styles.totalRow]}>
         <Text style={[styles.rowLabel, styles.bold, { flex: 1 }]}>Lucro previsto</Text>
@@ -280,7 +273,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           <Money style={[styles.bigNumber, { color: profitColor }]} value={Number(a.gross_profit)} />
           <Text style={styles.note}>
             {a.gross_profit >= 0
-              ? `É o lucro das peças que já saíram, já descontado o custo delas (com a parte do frete e da viagem). De cada R$ 100 que você vendeu, R$ ${a.margin_pct.toFixed(0)} viraram lucro.`
+              ? `É o lucro das peças que já saíram, já descontado o custo delas (com a parte do frete). De cada R$ 100 que você vendeu, R$ ${a.margin_pct.toFixed(0)} viraram lucro.`
               : 'As peças vendidas até agora ainda não cobriram o custo delas.'}
           </Text>
         </>

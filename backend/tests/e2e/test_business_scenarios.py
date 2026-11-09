@@ -379,58 +379,6 @@ class BusinessScenarios:
             fail(f"HTTP {r.status_code}: {r.text}")
         return self.record("09_reaproveitar_mesma_entrada", passed)
 
-    # ── 10. Entrada vinculada a viagem e entrada local ──────────────────
-
-    def test_10_entry_trip_and_local(self):
-        step(10, "ENTRADAS — vinculada a viagem vs. local")
-        trip_payload = {
-            "trip_code": f"E2E-TRIP-{self.unique}",
-            "trip_date": date.today().isoformat(),
-            "destination": "São Paulo (teste E2E)",
-            "travel_cost_fuel": 150.0,
-        }
-        r = requests.post(f"{BASE_URL}/trips/", headers=self.headers, json=trip_payload)
-        if r.status_code not in (200, 201):
-            fail(f"Criar trip falhou: HTTP {r.status_code}: {r.text}")
-            return self.record("10_entrada_viagem_e_local", False)
-        trip_id = r.json()["id"]
-
-        # Produto para a entrada de viagem
-        rp = requests.post(f"{BASE_URL}/products/", headers=self.headers, json={
-            "name": f"Produto E2E Viagem {self.unique}", "sku": f"E2E-{self.unique}-TRIP",
-            "price": 59.9, "cost_price": 25.0, "category_id": self.category_id, "is_catalog": False,
-        })
-        trip_product_id = rp.json()["id"]
-
-        entry_trip = requests.post(f"{BASE_URL}/stock-entries/", headers=self.headers, json={
-            "entry_code": f"E2E-ENTRY-TRIP-{self.unique}",
-            "entry_date": date.today().isoformat(),
-            "entry_type": "trip",
-            "trip_id": trip_id,
-            "supplier_name": "Compra em viagem E2E",
-            "items": [{"product_id": trip_product_id, "quantity_received": 4, "unit_cost": 25.0}],
-        })
-        trip_ok = entry_trip.status_code == 201 and entry_trip.json().get("trip_id") == trip_id
-
-        entry_local = requests.post(f"{BASE_URL}/stock-entries/", headers=self.headers, json={
-            "entry_code": f"E2E-ENTRY-LOCAL-{self.unique}",
-            "entry_date": date.today().isoformat(),
-            "entry_type": "local",
-            "supplier_name": "Compra local E2E",
-            "items": [{"product_id": self.product_id, "quantity_received": 2, "unit_cost": 40.0}],
-        })
-        local_ok = entry_local.status_code == 201 and not entry_local.json().get("trip_id")
-
-        passed = trip_ok and local_ok
-        if passed:
-            ok(f"Entrada de viagem (trip_id={trip_id}) e entrada local (sem trip_id) criadas corretamente")
-        else:
-            if not trip_ok:
-                fail(f"Entrada de viagem: HTTP {entry_trip.status_code}: {entry_trip.text}")
-            if not local_ok:
-                fail(f"Entrada local: HTTP {entry_local.status_code}: {entry_local.text}")
-        return self.record("10_entrada_viagem_e_local", passed)
-
     # ── 11. Reaproveitar produto em OUTRA entrada (regressão do bug variant_id) ──
 
     def test_11_reuse_product_another_entry(self):
@@ -563,34 +511,6 @@ class BusinessScenarios:
         requests.delete(f"{BASE_URL}/expenses/{expense_id}", headers=self.headers)
         return self.record("13_perda_de_estoque", passed)
 
-    # ── 14. resultado-periodo desconta custo de viagem (regressão net_profit) ──
-
-    def test_14_result_by_period_trip_costs(self):
-        step(14, "P&L POR PERÍODO — custo de viagem entra no net_profit (regressão)")
-        trip_cost = 200.0
-        r = requests.post(f"{BASE_URL}/trips/", headers=self.headers, json={
-            "trip_code": f"E2E-TRIPCOST-{self.unique}",
-            "trip_date": date.today().isoformat(),
-            "destination": "Belo Horizonte (teste E2E)",
-            "travel_cost_fuel": trip_cost,
-        })
-        if r.status_code not in (200, 201):
-            fail(f"Criar trip falhou: HTTP {r.status_code}: {r.text}")
-            return self.record("14_pl_periodo_trip_costs", False)
-
-        before = requests.get(f"{BASE_URL}/expenses/resultado-periodo", headers=self.headers, params={"days": 7})
-        b = before.json()
-        gross_profit = float(b["revenue"]) - float(b["cmv"])
-        expected_net = gross_profit - float(b["total_expenses"]) - float(b["trip_costs"])
-        actual_net = float(b["net_profit"])
-        passed = abs(actual_net - expected_net) < 0.01
-        if passed:
-            ok(f"net_profit = gross_profit - despesas - custo_viagens = R${actual_net:.2f} (bate com o cálculo manual)")
-        else:
-            fail(f"net_profit={actual_net:.2f}, esperado {expected_net:.2f} "
-                 f"(gross={gross_profit:.2f} despesas={b['total_expenses']} viagens={b['trip_costs']})")
-        return self.record("14_pl_periodo_trip_costs", passed)
-
     # ── 15. Regressão: /sales/reports/top-products não deve dar 500 ─────
 
     def test_15_top_products_report(self):
@@ -658,11 +578,9 @@ def main():
     t.test_07_sale_full_price()
     t.test_08_payment_discount_campaign()
     t.test_09_reuse_product_same_entry()
-    t.test_10_entry_trip_and_local()
     t.test_11_reuse_product_another_entry()
     t.test_12_cancel_sale_restores_stock()
     t.test_13_stock_loss_registration()
-    t.test_14_result_by_period_trip_costs()
     t.test_15_top_products_report()
     t.test_16_get_supplier_by_id()
 

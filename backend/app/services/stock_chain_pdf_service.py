@@ -2,7 +2,7 @@
 Estoque atual em PDF com a cadeia completa: entrada > fornecedor > produto (cor, tamanho, código).
 
 Cada linha é um lote do FIFO com peças restantes (`entry_items.quantity_remaining > 0`, item e entrada ativos).
-Custo = custo posto (peça + frete/viagem - desconto), o mesmo do valor do estoque. Só gerente e admin
+Custo = custo posto (peça + frete - desconto), o mesmo do valor do estoque. Só gerente e admin
 (rota em /reports). Entradas na ordem do FIFO (mais antiga primeiro).
 """
 import io
@@ -31,7 +31,7 @@ from app.utils.variant_code import format_variant_code
 from app.utils.variant_grid import size_sort_key
 
 ENTRY_TYPES = {
-    "trip": "Viagem", "online": "Online", "local": "Local", "initial": "Estoque inicial",
+    "online": "Online", "local": "Local", "initial": "Estoque inicial",
     "adjustment": "Ajuste", "return": "Devolução", "donation": "Doação",
 }
 
@@ -84,7 +84,7 @@ async def load_stock_chain(db: AsyncSession, tenant_id: int, supplier_id: Option
             "received": int(received or 0),
             "remaining": int(remaining or 0),
             "base_cost": max(Decimal(unit_cost or 0), Decimal(0)),   # pago na peça
-            "unit_cost": max(cost, Decimal(0)),                       # custo final: pago + rateio de frete/viagem/desconto
+            "unit_cost": max(cost, Decimal(0)),                       # custo final: pago + rateio de frete/desconto
             "price": Decimal(price or 0),
         })
     out = list(entries.values())
@@ -113,7 +113,7 @@ def build_stock_chain_pdf(entries: List[Dict[str, Any]], store_name: str = "") -
         Paragraph(
             f"<b>{len(entries)}</b> entradas com peças · <b>{total_pcs}</b> peças · custo em estoque <b>{brl(total_cost)}</b>"
             f" · valor de venda <b>{brl(total_sale)}</b>", body),
-        Paragraph("<font size=8 color='#666666'>Custo: o que foi pago na peça. Custo final: com a parte do frete, da viagem"
+        Paragraph("<font size=8 color='#666666'>Custo: o que foi pago na peça. Custo final: com a parte do frete"
                   " e do desconto da compra. Venda: preço de venda de hoje.</font>", body),
         Spacer(1, 5 * mm),
     ]

@@ -12,7 +12,6 @@ from app.models.stock_entry import StockEntry, EntryType
 from app.models.entry_item import EntryItem
 from app.models.product import Product
 from app.models.product_variant import ProductVariant
-from app.models.trip import Trip
 from app.repositories.base import BaseRepository
 
 
@@ -45,7 +44,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             .options(
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
-                selectinload(StockEntry.trip)
             )
             .order_by(StockEntry.entry_date.desc())
             .offset(skip)
@@ -102,11 +100,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             query = query.options(
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
-                selectinload(StockEntry.trip).selectinload(Trip.stock_entries),
-            )
-        else:
-            query = query.options(
-                selectinload(StockEntry.trip).selectinload(Trip.stock_entries),
             )
         
         result = await db.execute(query)
@@ -147,7 +140,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         skip: int = 0,
         limit: int = 100,
         entry_type: Optional[EntryType] = None,
-        trip_id: Optional[int] = None,
         *,
         tenant_id: int | None = None,
     ) -> Sequence[StockEntry]:
@@ -159,7 +151,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             skip: Número de registros para pular
             limit: Número máximo de registros
             entry_type: Filtrar por tipo de entrada
-            trip_id: Filtrar por viagem
             tenant_id: ID do tenant
             
         Returns:
@@ -173,15 +164,11 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         if entry_type:
             query = query.where(StockEntry.entry_type == entry_type)
         
-        if trip_id:
-            query = query.where(StockEntry.trip_id == trip_id)
-        
         query = (
             query
             .options(
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
-                selectinload(StockEntry.trip)
             )
             .order_by(StockEntry.entry_date.desc())
             .offset(skip)
@@ -195,7 +182,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         self,
         db: AsyncSession,
         entry_type: Optional[EntryType] = None,
-        trip_id: Optional[int] = None,
         start_date: Optional[any] = None,
         end_date: Optional[any] = None,
         skip: int = 0,
@@ -209,7 +195,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         Args:
             db: Database session
             entry_type: Filtrar por tipo
-            trip_id: Filtrar por viagem
             start_date: Data inicial (entry_date >= start_date)
             end_date: Data final (entry_date <= end_date)
             skip: Número de registros para pular
@@ -227,9 +212,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         if entry_type:
             query = query.where(StockEntry.entry_type == entry_type)
         
-        if trip_id:
-            query = query.where(StockEntry.trip_id == trip_id)
-        
         if start_date:
             query = query.where(StockEntry.entry_date >= start_date)
         
@@ -241,46 +223,10 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             .options(
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
-                selectinload(StockEntry.trip)
             )
             .order_by(StockEntry.entry_date.desc())
             .offset(skip)
             .limit(limit)
-        )
-        
-        result = await db.execute(query)
-        return result.scalars().all()
-    
-    async def get_by_trip(
-        self, 
-        db: AsyncSession, 
-        trip_id: int,
-        *,
-        tenant_id: int | None = None,
-    ) -> Sequence[StockEntry]:
-        """
-        Busca entradas de uma viagem específica.
-        
-        Args:
-            db: Database session
-            trip_id: ID da viagem
-            tenant_id: ID do tenant
-            
-        Returns:
-            Lista de entradas da viagem
-        """
-        conditions = [StockEntry.trip_id == trip_id, StockEntry.is_active == True]
-        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
-            conditions.append(StockEntry.tenant_id == tenant_id)
-        
-        query = (
-            select(StockEntry)
-            .where(and_(*conditions))
-            .options(
-                selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
-                selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
-            )
-            .order_by(StockEntry.entry_date.desc())
         )
         
         result = await db.execute(query)
@@ -408,7 +354,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             .join(EntryItem, EntryItem.entry_id == StockEntry.id)
             .where(and_(*conditions))
             .options(
-                selectinload(StockEntry.trip),
                 selectinload(EntryItem.product).selectinload(Product.variants)
             )
             .order_by((func.julianday('now') - func.julianday(StockEntry.entry_date)).desc())
@@ -447,7 +392,6 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         query = (
             select(StockEntry)
             .where(and_(*conditions))
-            .options(selectinload(StockEntry.trip))
             .order_by(StockEntry.entry_date.desc())
         )
         

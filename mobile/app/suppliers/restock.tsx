@@ -1,5 +1,5 @@
 /**
- * Lista de reposição por fornecedor para a próxima viagem.
+ * Lista de reposição por fornecedor para a próxima compra.
  * Cada grupo tem texto pronto para WhatsApp (sem preço) e botão de compartilhar.
  */
 import { useState } from 'react';
@@ -70,7 +70,7 @@ export default function SupplierRestockScreen() {
     <View style={styles.container}>
       <PageHeader
         title="Reposição"
-        subtitle="O que comprar na próxima viagem"
+        subtitle="O que comprar na próxima compra"
         showBackButton
         onBack={() => router.replace('/suppliers' as any)}
       />

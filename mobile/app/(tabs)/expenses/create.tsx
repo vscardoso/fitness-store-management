@@ -16,7 +16,6 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import { createExpense, getExpenseCategories } from '@/services/expenseService';
 import { getStockEntries } from '@/services/stockEntryService';
-import { getTrips } from '@/services/tripService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -41,8 +40,8 @@ export default function CreateExpenseScreen() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceDay, setRecurrenceDay] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | null>(null);
-  // De onde vem a despesa: da loja (aluguel, luz), de um lote (frete da compra) ou de uma viagem
-  const [scope, setScope] = useState<'general' | 'lot' | 'trip'>('general');
+  // De onde vem a despesa: da loja (aluguel, luz), ou de um lote (frete da compra)
+  const [scope, setScope] = useState<'general' | 'lot'>('general');
   // Financeiro implantado: de qual conta saiu o dinheiro (gaveta, banco); sem escolher, só entra no resultado do mês
   const [accountId, setAccountId] = useState<number | null>(null);
   // "Vou pagar depois": vira despesa a pagar (entra no resultado do mês quando for paga)
@@ -51,17 +50,11 @@ export default function CreateExpenseScreen() {
   const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
   const payAccounts = (finance?.accounts ?? []).filter((a) => a.kind !== 'card');
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
-  const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
 
   const { data: lots } = useQuery({
     queryKey: ['expense-scope-lots'],
     queryFn: () => getStockEntries({ limit: 30 }),
     enabled: scope === 'lot',
-  });
-  const { data: trips } = useQuery({
-    queryKey: ['expense-scope-trips'],
-    queryFn: () => getTrips({ limit: 30 }),
-    enabled: scope === 'trip',
   });
 
   const [errorDialog, setErrorDialog] = useState(false);
@@ -120,15 +113,10 @@ export default function CreateExpenseScreen() {
       setErrorDialog(true);
       return;
     }
-    if (scope === 'trip' && !selectedTripId) {
-      setErrorMessage('Escolha de qual viagem é esta despesa.');
-      setErrorDialog(true);
-      return;
-    }
 
     if (payLater) {
       if (scope !== 'general') {
-        setErrorMessage('Gasto de lote ou de viagem a pagar: lance quando pagar (ele entra no custo das peças).');
+        setErrorMessage('Gasto de lote a pagar: lance quando pagar (ele entra no custo das peças).');
         setErrorDialog(true);
         return;
       }
@@ -153,7 +141,6 @@ export default function CreateExpenseScreen() {
       recurrence_day: isRecurring && recurrenceDay ? parseInt(recurrenceDay) : null,
       category_id: selectedCategory?.id ?? null,
       stock_entry_id: scope === 'lot' ? selectedEntryId : null,
-      trip_id: scope === 'trip' ? selectedTripId : null,
       account_id: accountId,
     };
     createMutation.mutate(payload);
@@ -277,7 +264,6 @@ export default function CreateExpenseScreen() {
                 {([
                   ['general', 'Da loja', 'storefront-outline'],
                   ['lot', 'De um lote', 'layers-outline'],
-                  ['trip', 'De uma viagem', 'airplane-outline'],
                 ] as const).map(([key, label, icon]) => {
                   const on = scope === key;
                   return (
@@ -298,8 +284,6 @@ export default function CreateExpenseScreen() {
                   'Gastos do dia a dia da loja, como aluguel, luz, internet e salários. Eles aparecem no resultado do mês em que você pagou.'}
                 {scope === 'lot' &&
                   'Gasto de uma compra específica, como frete, embalagem ou taxa. Ele soma no custo das peças daquele lote e só pesa no resultado quando as peças forem vendidas.'}
-                {scope === 'trip' &&
-                  'Gasto de uma viagem de compras, como combustível, pedágio ou hospedagem. Ele é dividido entre os lotes que vieram dessa viagem, proporcional ao que cada um custou.'}
               </Text>
 
               {scope === 'lot' &&
@@ -318,25 +302,8 @@ export default function CreateExpenseScreen() {
                     </View>
                   </TouchableOpacity>
                 ))}
-              {scope === 'trip' &&
-                (trips ?? []).map((t) => (
-                  <TouchableOpacity key={t.id} style={styles.pickRow} onPress={() => setSelectedTripId(t.id)} activeOpacity={0.75}>
-                    <Ionicons
-                      name={selectedTripId === t.id ? 'radio-button-on' : 'radio-button-off'}
-                      size={20}
-                      color={brandingColors.primary}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.pickTitle}>{t.trip_code}</Text>
-                      <Text style={styles.pickSub}>{t.destination}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
               {scope === 'lot' && lots && lots.length === 0 && (
                 <Text style={styles.scopeHelp}>Você ainda não tem nenhum lote cadastrado.</Text>
-              )}
-              {scope === 'trip' && trips && trips.length === 0 && (
-                <Text style={styles.scopeHelp}>Você ainda não tem nenhuma viagem cadastrada.</Text>
               )}
             </View>
           </View>

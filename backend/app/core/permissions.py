@@ -8,7 +8,7 @@ Rota autenticada que não casa com nenhuma regra exige GERENTE (falha fechada).
 O que cada papel faz (o mesmo texto da tela "Adicionar membro" do app):
 - caixa: só o PDV (vender, cobrar, cadastrar cliente, consultar produto).
 - vendedor: vende e consulta; edita cliente, faz devolução e envio condicional, consulta estoque, imprime etiqueta.
-- gerente: produtos, variações, entradas, viagens, fornecedores, despesas, relatórios e painel.
+- gerente: produtos, variações, entradas, fornecedores, despesas, relatórios e painel.
 - admin: tudo, mais equipe, dados da loja, PIX, descontos, maquininhas, estornos e apagar registros.
 
 As regras valem em ADDIÇÃO aos guards já escritos nas rotas (require_role): vale o mais restritivo.
@@ -21,6 +21,9 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.dependencies.utils import get_parameterless_sub_dependant
 from fastapi.routing import APIRoute
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
 from app.models.user import User, UserRole
 
 RANK = {UserRole.CASHIER: 1, UserRole.SELLER: 2, UserRole.MANAGER: 3, UserRole.ADMIN: 4}
@@ -67,7 +70,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"POST"}, r"^/returns/reconcile-status$", ADMIN),
     ({"POST"}, r"^/conditional-shipments/(notifications|sla)/", ADMIN),
     ({"POST", "PUT", "DELETE"}, r"^/payment-discounts/(\{discount_id\})?$", ADMIN),
-    ({"DELETE"}, r"^/(products|categories|suppliers|stock-entries|trips)/\{[a-z_]+\}$", ADMIN),
+    ({"DELETE"}, r"^/(products|categories|suppliers|stock-entries)/\{[a-z_]+\}$", ADMIN),
     ({"DELETE"}, r"^/expenses(/categories)?/\{[a-z_]+\}$", ADMIN),
 
     # ── caixa (PDV) ──────────────────────────────────────────────────────────
@@ -113,7 +116,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"POST", "GET", "DELETE"}, r"^/wishlist/(\{wishlist_id\}|customer/\{customer_id\})?$", SELLER),
 
     # ── gerente ──────────────────────────────────────────────────────────────
-    (ANY, r"^/(reports|dashboard|expenses|suppliers|stock-entries|trips)(/|$)", MANAGER),
+    (ANY, r"^/(reports|dashboard|expenses|suppliers|stock-entries)(/|$)", MANAGER),
     (ANY, r"^/sales/reports/", MANAGER),
     (ANY, r"^/wishlist/demand$", MANAGER),
     (WRITE, r"^/(products|product-variants|categories|looks|inventory|label-printers|suggestions)(/|$)", MANAGER),
@@ -176,17 +179,21 @@ def _make_dependency(by_method: dict[str, UserRole]):
     async def permission_matrix(
         request: Request,
         current_user: User = Depends(deps.get_current_active_user),
-    ) -> None:
+        db: AsyncSession = Depends(get_db),
+    ):
         role = current_user.role if isinstance(current_user.role, UserRole) else UserRole(str(current_user.role).lower())
         # cost_mask.CostMaskMiddleware esconde custo/lucro/margem da resposta para caixa e vendedor
         request.state.user_role = role.value
         need = by_method.get(request.method)
-        if need is None:
-            return
-        if RANK[role] < RANK[need]:
+        if need is not None and RANK[role] < RANK[need]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Permissão negada. Esta ação exige o papel {need.value} ou superior.",
             )
+        # histórico de alterações: guarda o "antes" e, se a rota terminar bem, grava o registro
+        from app.services.audit_trail import begin_trail, finish_trail
+        ctx = await begin_trail(request, db, current_user) if request.method != "GET" else None
+        yield
+        await finish_trail(request, db, current_user, ctx)
 
     return permission_matrix

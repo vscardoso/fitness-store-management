@@ -34,7 +34,7 @@ async def setup_fifo_data(async_session: AsyncSession, test_user):
     Dados de FIFO no modelo atual (produto + variação + EntryItem por variação).
 
     Whey (180 un): entrada 1 (30 dias atrás) 100 @ 85, entrada 2 (15 dias) 50 @ 90, entrada 3 (hoje) 30 @ 95.
-    Creatina (20 un): entrada 3, 20 @ 50. Sem rateio de viagem, então custo posto = custo da mercadoria.
+    Creatina (20 un): entrada 3, 20 @ 50. Sem frete no lote, então custo posto = custo da mercadoria.
     """
     t_id, _token, cat_id = await _loja_api(async_session, test_user)
     product1, variant1 = await _produto(async_session, t_id, cat_id, "Whey Protein", "150.00")

@@ -28,6 +28,7 @@ from app.services.stock_entry_service import StockEntryService, InvalidEntryData
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 from app.models.stock_entry import EntryType
+from app.schemas.stock_entry import entry_type_not_trip
 from app.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,12 @@ class StockEntryWithNewProductRequest(StockEntryCreate):
         return entry_date_not_future(v)
 
     entry_type: Optional[EntryType] = None
-    trip_id: Optional[int] = None
+
+    @field_validator("entry_type", mode="before")
+    @classmethod
+    def _entry_type_ok(cls, v):
+        return entry_type_not_trip(v)
+
     supplier_name: Optional[str] = None
     supplier_cnpj: Optional[str] = None
     supplier_contact: Optional[str] = None
@@ -176,7 +182,12 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
         return entry_date_not_future(v)
 
     entry_type: Optional[EntryType] = None
-    trip_id: Optional[int] = None
+
+    @field_validator("entry_type", mode="before")
+    @classmethod
+    def _entry_type_ok(cls, v):
+        return entry_type_not_trip(v)
+
     extra_costs: List[EntryExtraCost] = Field(default_factory=list)  # frete, pedágio... lançados junto com a entrada
     supplier_name: Optional[str] = None
     supplier_cnpj: Optional[str] = None
@@ -286,7 +297,6 @@ async def create_stock_entry_with_new_product(
                 "entry_code": request_data.entry_code,
                 "entry_date": request_data.entry_date,
                 "entry_type": request_data.entry_type,
-                "trip_id": request_data.trip_id,
                 "extra_costs": [c.model_dump() for c in request_data.extra_costs],
                 "supplier_id": request_data.supplier_id,
                 "supplier_name": request_data.supplier_name,
@@ -392,7 +402,6 @@ async def create_stock_entry_with_new_product_variants(
                 "entry_code": request_data.entry_code,
                 "entry_date": request_data.entry_date,
                 "entry_type": request_data.entry_type,
-                "trip_id": request_data.trip_id,
                 "extra_costs": [c.model_dump() for c in request_data.extra_costs],
                 "supplier_id": request_data.supplier_id,
                 "supplier_name": request_data.supplier_name,
@@ -491,7 +500,7 @@ async def create_stock_entry(
         
     Raises:
         HTTPException 400: Se entry_code já existe, dados inválidos ou sem itens
-        HTTPException 404: Se trip_id ou product_id não encontrado
+        HTTPException 404: Se product_id não encontrado
         HTTPException 401: Se não autenticado
         HTTPException 403: Se não tiver permissões
         
@@ -500,8 +509,7 @@ async def create_stock_entry(
         {
             "entry_code": "ENTRY-2025-001",
             "entry_date": "2025-01-15",
-            "entry_type": "trip",
-            "trip_id": 1,
+            "entry_type": "local",
             "supplier_name": "Fornecedor ABC",
             "supplier_cnpj": "12.345.678/0001-90",
             "invoice_number": "NF-12345",
@@ -528,7 +536,6 @@ async def create_stock_entry(
             entry_code=request_data.entry_code,
             entry_date=request_data.entry_date,
             entry_type=request_data.entry_type,
-            trip_id=request_data.trip_id,
             supplier_id=request_data.supplier_id,
             supplier_name=request_data.supplier_name,
             supplier_cnpj=request_data.supplier_cnpj,
@@ -566,13 +573,12 @@ async def create_stock_entry(
     "/",
     response_model=List[StockEntryResponse],
     summary="Listar entradas de estoque",
-    description="Lista entradas com filtros opcionais por tipo, data e trip"
+    description="Lista entradas com filtros opcionais por tipo e data"
 )
 async def list_stock_entries(
     skip: int = Query(0, ge=0, description="Número de registros para pular"),
     limit: int = Query(100, ge=1, le=1000, description="Limite de registros por página"),
-    entry_type: Optional[EntryType] = Query(None, description="Filtrar por tipo (trip/online/local)"),
-    trip_id: Optional[int] = Query(None, description="Filtrar por viagem"),
+    entry_type: Optional[EntryType] = Query(None, description="Filtrar por tipo (online/local)"),
     start_date: Optional[date] = Query(None, description="Data inicial (entry_date >= start_date)"),
     end_date: Optional[date] = Query(None, description="Data final (entry_date <= end_date)"),
     db: AsyncSession = Depends(get_db),
@@ -585,8 +591,7 @@ async def list_stock_entries(
     Args:
         skip: Número de registros para pular (paginação)
         limit: Limite de registros por página
-        entry_type: Filtrar por tipo (trip, online, local)
-        trip_id: Filtrar por ID da viagem
+        entry_type: Filtrar por tipo (online, local)
         start_date: Data inicial para filtro
         end_date: Data final para filtro
         db: Sessão do banco de dados
@@ -597,17 +602,15 @@ async def list_stock_entries(
         
     Examples:
         GET /stock-entries?skip=0&limit=10
-        GET /stock-entries?entry_type=trip
-        GET /stock-entries?trip_id=1
+        GET /stock-entries?entry_type=online
     """
     try:
         service = StockEntryService(db)
         
         # Aplicar filtros
-        if entry_type or trip_id or start_date or end_date:
+        if entry_type or start_date or end_date:
             entries = await service.get_entries_filtered(
                 entry_type=entry_type,
-                trip_id=trip_id,
                 start_date=start_date,
                 end_date=end_date,
                 skip=skip,
@@ -723,7 +726,7 @@ async def get_stock_entries_stats(
             .where(StockEntry.tenant_id == tenant_id)
         )
         total_invested = total_invested_result.scalar() or 0
-        # + viagem e despesas dos lotes (rateadas nos itens): o mesmo total que cada entrada mostra
+        # + despesas dos lotes (rateadas nos itens): o mesmo total que cada entrada mostra
         extras_result = await db.execute(
             select(func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.extra_unit_cost), 0))
             .join(StockEntry, StockEntry.id == EntryItem.entry_id)
@@ -904,7 +907,7 @@ async def get_best_performing_entries(
 @router.get(
     "/profit-ranking",
     summary="Lucro por lote",
-    description="Lista os lotes com investimento, receita, lucro e margem (custo posto: mercadoria + viagem + despesas do lote)",
+    description="Lista os lotes com investimento, receita, lucro e margem (custo posto: mercadoria + despesas do lote)",
 )
 async def get_profit_ranking(
     skip: int = Query(0, ge=0),
@@ -922,7 +925,7 @@ async def get_profit_ranking(
 @router.get(
     "/{entry_id}/costs",
     summary="Custos do lote",
-    description="Detalha os custos que entram no custo das peças do lote: mercadoria, parte da viagem e despesas do lote",
+    description="Detalha os custos que entram no custo das peças do lote: mercadoria e despesas do lote",
 )
 async def get_entry_costs(
     entry_id: int,
@@ -1060,8 +1063,7 @@ async def get_stock_entry(
             "id": 1,
             "entry_code": "ENTRY-2025-001",
             "entry_date": "2025-01-15",
-            "entry_type": "trip",
-            "trip_id": 1,
+            "entry_type": "local",
             "supplier_name": "Fornecedor ABC",
             "total_cost": 1600.00,
             "items": [
@@ -1197,7 +1199,7 @@ async def update_stock_entry(
     
     Campos atualizáveis:
     - entry_code, entry_date, entry_type
-    - trip_id, supplier_name, supplier_cnpj
+    - supplier_name, supplier_cnpj
     - supplier_contact, invoice_number
     - payment_method, notes
     

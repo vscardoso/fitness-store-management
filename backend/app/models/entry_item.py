@@ -84,7 +84,7 @@ class EntryItem(BaseModel):
         comment="Preço de tabela por peça (informativo); o pago é unit_cost"
     )
 
-    # Parte do custo do lote (viagem, frete, despesas ligadas ao lote) que cabe a CADA unidade deste item.
+    # Parte do custo do lote (frete, despesas ligadas ao lote) que cabe a CADA unidade deste item.
     # Calculado por app/services/lot_cost_service.py; nunca digitado à mão.
     extra_unit_cost: Mapped[Decimal] = mapped_column(
         Numeric(12, 4),

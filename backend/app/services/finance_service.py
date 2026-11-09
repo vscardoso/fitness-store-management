@@ -885,6 +885,15 @@ class FinanceService:
         await AuditService.log(self.db, action, tenant_id=tenant_id, user_id=getattr(user, "id", None),
                                user_email=getattr(user, "email", None), entity=entity, entity_id=entity_id, detail=detail)
 
+    async def _aviso_saldo(self, tenant_id: int, user: Optional[User], conta: str, antes: float, depois: float,
+                           partida: bool = False) -> None:
+        """Avisa os OUTROS administradores no celular (nunca derruba a operação)."""
+        from app.services.audit_service import notify_other_admins
+        nome = getattr(user, "full_name", None) or getattr(user, "email", None) or "Um administrador"
+        fmt = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")  # noqa: E731
+        what = "o saldo de partida da" if partida else "o saldo da"
+        await notify_other_admins(tenant_id, user, "Saldo corrigido", f"{nome} corrigiu {what} {conta}: {fmt(antes)} → {fmt(depois)}")
+
     async def _has_closed_month(self, tenant_id: int) -> bool:
         return (await self.db.execute(select(MonthClosing.id).where(
             MonthClosing.tenant_id == tenant_id, MonthClosing.is_active == True,  # noqa: E712
@@ -931,6 +940,9 @@ class FinanceService:
             await self._audit(tenant_id, user, "FINANCE_ACCOUNT_UPDATED", "financial_account", acc.id,
                               {"antes": before, "depois": {"name": acc.name, "opening_balance": float(_q(acc.opening_balance))}})
             await self.db.commit()
+            if opening_changed:
+                await self._aviso_saldo(tenant_id, user, acc.name, before["opening_balance"],
+                                        float(_q(acc.opening_balance)), partida=True)
         except FinanceError:
             await self.db.rollback()
             raise
@@ -967,6 +979,7 @@ class FinanceService:
             "conta": acc.name, "antes": float(current), "depois": float(target), "diferenca": float(diff),
             "motivo": reason, "lancamento_id": e.id})
         await self.db.commit()
+        await self._aviso_saldo(tenant_id, user, acc.name, float(current), float(target))
         result = await self.balances(tenant_id)
         if acc.kind == KIND_BANK and target < 0:
             result["warning"] = f"A conta {acc.name} ficou negativa. Confira se falta lançar alguma entrada."

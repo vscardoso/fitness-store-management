@@ -3,7 +3,7 @@ FIFO Integration Tests - fluxo de compra e venda com controle FIFO no modelo atu
 
 Produto + variação + EntryItem por variação. O saldo do estoque é sempre a soma de
 EntryItem.quantity_remaining (Inventory.quantity nunca é atualizado à mão). O custo da venda
-é o custo posto: unit_cost + extra_unit_cost (rateio de viagem/despesas do lote).
+é o custo posto: unit_cost + extra_unit_cost (rateio das despesas do lote).
 """
 from datetime import date
 from decimal import Decimal
@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.entry_item import EntryItem
 from app.services import lot_cost_service
 from app.services.fifo_service import FIFOService
-from tests.test_lot_costs import _limpa_loja_1, _loja_api, _lote, _produto, _viagem  # noqa: F401
+from tests.test_lot_costs import _limpa_loja_1, _loja_api, _lote, _produto  # noqa: F401
 
 pytestmark = pytest.mark.asyncio
 D = Decimal
@@ -108,12 +108,11 @@ async def test_fifo_cost_calculation(async_session: AsyncSession, test_user):
     assert 45 < margin < 46
 
 
-async def test_fifo_cost_is_landed_cost_with_trip_share(async_session: AsyncSession, test_user):
-    """Com viagem de R$ 1.000 sobre 100 peças a R$ 100, o custo da venda é o custo posto (110 por peça), não 100."""
+async def test_fifo_cost_is_landed_cost_with_lot_freight(async_session: AsyncSession, test_user):
+    """Com frete do lote de R$ 1.000 sobre 100 peças a R$ 100, o custo da venda é o custo posto (110 por peça), não 100."""
     t_id, _token, cat = await _loja_api(async_session, test_user)
-    product, variant = await _produto(async_session, t_id, cat, "Legging Viagem", "200.00")
-    trip = await _viagem(async_session, t_id, fuel=1000)
-    lote = await _lote(async_session, t_id, [(variant, product, 100, "100.00")], trip=trip)
+    product, variant = await _produto(async_session, t_id, cat, "Legging Frete", "200.00")
+    lote = await _lote(async_session, t_id, [(variant, product, 100, "100.00")], frete=1000)
     await lot_cost_service.recompute_entries(async_session, [lote.id], tenant_id=t_id)
     await async_session.commit()
 

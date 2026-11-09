@@ -16,7 +16,7 @@ const ALLOWED = new Set([
   'dashboard-stats', 'inventory-valuation', 'period-sales', 'period-purchases', 'recent-sales', 'daily-sales',
   'top-products', 'fifo-performance', 'yoy-comparison', 'monthly-result', 'inventory-health', 'low-stock',
   'products', 'grouped-products', 'active-products', 'products-inventory', 'categories', 'suppliers',
-  'stock-entries', 'stock-entries-stats', 'stock-entry', 'lot-analytics', 'lot-costs', 'sales', 'expenses', 'trips',
+  'stock-entries', 'stock-entries-stats', 'stock-entry', 'lot-analytics', 'lot-costs', 'sales', 'expenses',
 ]);
 
 function storage(): Storage | null {

@@ -1,7 +1,7 @@
 """A conta do lote tem que fechar sempre: o que os cards e relatórios mostram vem da mesma conta do estoque.
 
 Provas:
-- propriedade (muitos cenários aleatórios): soma das peças a custo posto = mercadoria + frete/viagem - descontos
+- propriedade (muitos cenários aleatórios): soma das peças a custo posto = mercadoria + frete - descontos
   (sobra só arredondamento de 4 casas por peça), nenhuma peça fica com custo negativo, e o desconto de um
   fornecedor nunca cai em peça de outro;
 - cada peça mostra frete e desconto e `extra = frete - desconto` exato;
@@ -16,14 +16,14 @@ import pytest
 from sqlalchemy import select
 
 from tests.test_desconto_fornecedor import _entrada_dois_fornecedores, _itens, _limpa_extras  # noqa: F401
-from tests.test_lot_costs import _limpa_loja_1, _loja_api, _produto, _viagem  # noqa: F401
+from tests.test_lot_costs import _limpa_loja_1, _loja_api, _produto  # noqa: F401
 
 pytestmark = pytest.mark.asyncio
 D = Decimal
 
 
 async def _cenario_aleatorio(db, test_user, rng):
-    """Entrada em viagem com 2 a 6 itens de até 3 fornecedores; descontos e frete aleatórios."""
+    """Entrada com frete do lote e 2 a 6 itens de até 3 fornecedores; descontos e frete aleatórios."""
     import itertools
     from datetime import date
     from app.models.entry_item import EntryItem
@@ -37,11 +37,11 @@ async def _cenario_aleatorio(db, test_user, rng):
     sups = [Supplier(name=f"F{k} {n}", tenant_id=t_id) for k in range(3)]
     db.add_all(sups)
     await db.flush()
-    trip = await _viagem(db, t_id, fuel=rng.choice([0, 0, 37.5, 100, 333.33, 1000]))
+    frete = rng.choice([0, 0, 37.5, 100, 333.33, 1000])
     p = Product(name=f"P{n}", category_id=cat, tenant_id=t_id, base_price=D("100"))
     db.add(p)
     await db.flush()
-    e = StockEntry(entry_code=f"CF-{n:06d}", entry_date=date.today(), entry_type=EntryType.TRIP, trip_id=trip.id,
+    e = StockEntry(entry_code=f"CF-{n:06d}", entry_date=date.today(), entry_type=EntryType.LOCAL,
                    supplier_id=sups[0].id, supplier_name=sups[0].name, total_cost=D("0"), tenant_id=t_id,
                    discount_amount=D("0"))
     db.add(e)
@@ -61,6 +61,9 @@ async def _cenario_aleatorio(db, test_user, rng):
         merch += qty * cost
         itens.append((it, sup))
     e.total_cost = merch
+    if frete:
+        from app.models.expense import Expense
+        db.add(Expense(amount=D(str(frete)), description="Frete", expense_date=date.today(), stock_entry_id=e.id, tenant_id=t_id))
     await db.flush()
     # descontos: geral e por fornecedor (podem exceder a mercadoria de propósito: o sistema limita)
     if rng.random() < 0.7:
@@ -71,7 +74,7 @@ async def _cenario_aleatorio(db, test_user, rng):
             pedidos[s.id] = D(rng.randint(0, 40000)) / D(100)
             db.add(EntrySupplierDiscount(entry_id=e.id, supplier_id=s.id, amount=pedidos[s.id], tenant_id=t_id))
     await db.flush()
-    return SimpleNamespace(t=t_id, entry=e, itens=itens, sups=sups, trip=trip, pedidos=pedidos, merch=merch)
+    return SimpleNamespace(t=t_id, entry=e, itens=itens, sups=sups, pedidos=pedidos, merch=merch)
 
 
 async def test_a_conta_fecha_em_cenarios_aleatorios(async_session, test_user):
@@ -83,7 +86,7 @@ async def test_a_conta_fecha_em_cenarios_aleatorios(async_session, test_user):
         await async_session.flush()
         itens = [i for i, _ in c.itens]
         unidades = sum(i.quantity_received for i in itens)
-        freight_gross = out["trip_share"] + out["own"]
+        freight_gross = out["own"]
         esperado = freight_gross - out["discount"]
         real = sum((D(i.quantity_received) * D(str(i.extra_unit_cost)) for i in itens), D("0"))
         tolerancia = D("0.0001") * unidades + D("0.01")

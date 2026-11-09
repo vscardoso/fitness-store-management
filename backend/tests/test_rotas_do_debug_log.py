@@ -5,7 +5,7 @@ o script `scripts/limpar_debug_log.py` considera aquele erro sanado e pode limpa
 """
 import pytest
 
-from tests.test_lot_costs import _limpa_loja_1, _loja_api, _lote, _produto, _viagem  # noqa: F401
+from tests.test_lot_costs import _limpa_loja_1, _loja_api, _lote, _produto  # noqa: F401
 
 pytestmark = pytest.mark.asyncio
 
@@ -14,9 +14,8 @@ async def _cenario(db, test_user):
     t_id, token, cat = await _loja_api(db, test_user)
     p, v = await _produto(db, t_id, cat, "Peca Trace", "80.00")
     p_id, v_id = p.id, v.id
-    trip = await _viagem(db, t_id, fuel=50)
-    lote = await _lote(db, t_id, [(v, p, 4, 20)], trip=trip)
-    ids = {"t": t_id, "p": p_id, "v": v_id, "trip": trip.id, "entry": lote.id}
+    lote = await _lote(db, t_id, [(v, p, 4, 20)], frete=50)
+    ids = {"t": t_id, "p": p_id, "v": v_id, "entry": lote.id}
     await db.commit()
     return ids, {"Authorization": f"Bearer {token}"}
 
@@ -25,13 +24,6 @@ async def test_pdv_vendas_pendentes_nao_da_500(test_client, async_session, test_
     """Trace: GET /pdv/pending-sales dava 500 (coluna c.name, token ':' no SQL)."""
     _, h = await _cenario(async_session, test_user)
     r = await test_client.get("/api/v1/pdv/pending-sales", headers=h)
-    assert r.status_code == 200, r.text[:200]
-
-
-async def test_analytics_da_viagem_nao_da_500(test_client, async_session, test_user):
-    """Trace: GET /trips/{id}/analytics dava 500 (unrecognized token ':')."""
-    ids, h = await _cenario(async_session, test_user)
-    r = await test_client.get(f"/api/v1/trips/{ids['trip']}/analytics", headers=h)
     assert r.status_code == 200, r.text[:200]
 
 

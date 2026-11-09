@@ -356,6 +356,16 @@ export default function MoreScreen() {
             )}
             {isAdminRole(user?.role) && (
               <MenuItem
+                icon="time-outline"
+                title="Histórico de alterações"
+                subtitle="Quem mudou valores, o que mudou e quando"
+                onPress={() => router.push('/settings/audit' as any)}
+                iconColor="#475569"
+                iconBg="#E2E8F0"
+              />
+            )}
+            {isAdminRole(user?.role) && (
+              <MenuItem
                 icon="star-outline"
                 title="Fidelidade"
                 subtitle="Pontos que viram desconto, validade e quanto vale cada ponto"
@@ -376,16 +386,6 @@ export default function MoreScreen() {
             )}
           </View>
         </View>
-
-        {/* Viagens - Apenas ADMIN/MANAGER */}
-        {isManagerRole(user?.role) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Viagens</Text>
-            <View style={styles.menuCard}>
-              <MenuItem icon="airplane-outline" title="Gerenciar Viagens" subtitle="Compras em viagem e envios" onPress={() => router.push('/trips')} iconColor="#F97316" iconBg="#FFEDD5" />
-            </View>
-          </View>
-        )}
 
         {/* Configurações */}
         <View style={styles.section}>

@@ -505,7 +505,7 @@ export default function InventoryDashboard() {
                   <StatCard
                     icon="receipt-outline"
                     label="Despesas"
-                    value={formatCurrency(Number(periodResult.total_expenses) + Number(periodResult.trip_costs))}
+                    value={formatCurrency(Number(periodResult.total_expenses))}
                     iconColor={Colors.light.error}
                     iconBg={Colors.light.errorLight}
                     onPress={() => router.push('/(tabs)/expenses')}
@@ -694,7 +694,6 @@ export default function InventoryDashboard() {
                     <View
                       style={[
                         styles.typeChip,
-                        entry.entry_type === EntryType.TRIP && { backgroundColor: Colors.light.infoLight, borderColor: Colors.light.info + '24' },
                         entry.entry_type === EntryType.ONLINE && { backgroundColor: Colors.light.warningLight, borderColor: Colors.light.warning + '24' },
                         entry.entry_type === EntryType.LOCAL && { backgroundColor: Colors.light.successLight, borderColor: Colors.light.success + '24' },
                       ]}
@@ -702,12 +701,11 @@ export default function InventoryDashboard() {
                       <Text
                         style={[
                           styles.typeChipText,
-                          entry.entry_type === EntryType.TRIP && { color: Colors.light.info },
                           entry.entry_type === EntryType.ONLINE && { color: Colors.light.warning },
                           entry.entry_type === EntryType.LOCAL && { color: Colors.light.success },
                         ]}
                       >
-                        {entry.entry_type === EntryType.TRIP ? 'Compra em Viagem' : entry.entry_type === EntryType.ONLINE ? 'Compra Online' : 'Compra Local'}
+                        {entry.entry_type === EntryType.ONLINE ? 'Compra Online' : 'Compra Local'}
                       </Text>
                     </View>
                   </View>

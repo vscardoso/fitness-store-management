@@ -15,21 +15,12 @@ const ENTRIES_ENDPOINT = '/stock-entries/';
  */
 export async function getStockEntries(params?: {
   entry_type?: EntryType;
-  trip_id?: number;
   start_date?: string;
   end_date?: string;
   limit?: number;
   skip?: number;
 }): Promise<StockEntry[]> {
   const response = await api.get<StockEntry[]>(ENTRIES_ENDPOINT, { params });
-  return response.data;
-}
-
-/**
- * Listar entradas por viagem específica
- */
-export async function getEntriesByTrip(trip_id: number): Promise<StockEntry[]> {
-  const response = await api.get<StockEntry[]>(ENTRIES_ENDPOINT, { params: { trip_id } });
   return response.data;
 }
 
@@ -53,19 +44,17 @@ export interface LotAnalytics {
   total_quantity_remaining: number;
   /** Mercadoria: o que foi pago ao fornecedor. */
   total_cost: number;
-  /** Parte da viagem que coube a este lote. */
-  trip_cost_share: number;
   /** Despesas lançadas neste lote (frete, embalagem...). */
   own_costs: number;
   /** Desconto do fornecedor (já abatido do custo). */
   discount_amount: number;
-  /** Viagem + despesas do lote, menos o desconto. */
+  /** Frete + despesas do lote, menos o desconto. */
   extra_costs_total: number;
   /** Mercadoria + custos do lote. */
   total_investment: number;
   /** Dinheiro que já entrou com as vendas deste lote (líquido de devolução). */
   real_revenue: number;
-  /** Custo das peças já vendidas (com a parte do frete/viagem). */
+  /** Custo das peças já vendidas (com a parte do frete). */
   cost_of_sold: number;
   gross_profit: number;
   /** De cada R$ 100 vendidos, quanto virou lucro. */
@@ -91,7 +80,7 @@ export interface LotItemNumbers {
   quantity_received: number;
   merchandise_unit_cost: number;
   extra_unit_cost: number;
-  /** Parte do custo que é frete e viagem, por peça. */
+  /** Parte do custo que é frete, por peça. */
   freight_unit_cost?: number;
   /** Preço de tabela por peça (opcional); o pago é o custo da mercadoria. */
   list_unit_cost?: number | null;
@@ -188,12 +177,6 @@ export async function getStockRemovals(params: {
 export interface LotCosts {
   entry_id: number;
   merchandise_cost: number;
-  trip: null | {
-    trip_id: number;
-    trip_code: string;
-    trip_total_cost: number;
-    share_of_this_lot: number;
-  };
   lot_expenses: Array<{ id: number; description: string; amount: number; date: string }>;
   lot_expenses_total: number;
   /** Desconto total (geral + por fornecedor). */
@@ -282,9 +265,8 @@ export async function createStockEntryWithNewProduct(
   entryData: {
     entry_code: string;
     entry_date?: string;
-    entry_type?: 'trip' | 'online' | 'local';
-    trip_id?: number;
-    supplier_id?: number;
+    entry_type?: 'online' | 'local';
+      supplier_id?: number;
     supplier_name?: string;
     supplier_cnpj?: string;
     supplier_contact?: string;
@@ -330,8 +312,7 @@ export async function createStockEntryWithNewProductVariants(
     entry_code: string;
     entry_date?: string;
     entry_type?: string;
-    trip_id?: number;
-    supplier_id?: number;
+      supplier_id?: number;
     supplier_name?: string;
     supplier_cnpj?: string;
     supplier_contact?: string;

@@ -103,7 +103,7 @@ class Expense(BaseModel):
         comment="Categoria da despesa"
     )
 
-    # Despesa de lote ou de viagem (no máximo uma das duas). Sem nenhuma = despesa geral (aluguel, luz...).
+    # Despesa de um lote (entrada). Sem lote = despesa geral (aluguel, luz...).
     # Despesa ligada entra no CUSTO das peças do lote (custo posto), não no resultado do mês direto.
     stock_entry_id: Mapped[int | None] = mapped_column(
         ForeignKey("stock_entries.id", ondelete="SET NULL"),
@@ -118,12 +118,6 @@ class Expense(BaseModel):
     # despesa nascida do pagamento de uma despesa a pagar (o Financeiro conta o pagamento, não esta linha)
     payable_id: Mapped[int | None] = mapped_column(
         ForeignKey("payables.id", ondelete="SET NULL"), nullable=True, comment="despesa a pagar que gerou esta despesa"
-    )
-    trip_id: Mapped[int | None] = mapped_column(
-        ForeignKey("trips.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-        comment="Viagem a que esta despesa pertence (rateada entre os lotes da viagem)"
     )
 
     # Relacionamentos

@@ -384,6 +384,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
         productId={choice?.productId}
         productName={choice?.label}
         selectedSupplierId={supplier?.id ?? null}
+        allowNone={entrySupplierName !== 'Vários fornecedores'}
         noneLabel={`Usar o fornecedor da entrada${entrySupplierName ? ` (${entrySupplierName})` : ''}`}
       />
     </>

@@ -47,17 +47,10 @@ class ExpenseBase(BaseModel):
     is_recurring: bool = False
     recurrence_day: Optional[int] = None
     category_id: Optional[int] = None
-    # Despesa de um lote (entrada) OU de uma viagem; sem nenhum dos dois é despesa geral.
+    # Despesa de um lote (entrada); sem lote é despesa geral.
     stock_entry_id: Optional[int] = None
-    trip_id: Optional[int] = None
     # Financeiro: conta de onde saiu o dinheiro (gaveta, banco); nulo = só entra no resultado do mês
     account_id: Optional[int] = None
-
-    @model_validator(mode="after")
-    def only_one_link(self):
-        if self.stock_entry_id is not None and self.trip_id is not None:
-            raise ValueError("A despesa pode ser de um lote ou de uma viagem, não dos dois")
-        return self
 
     @field_validator("amount")
     @classmethod
@@ -87,14 +80,7 @@ class ExpenseUpdate(BaseModel):
     recurrence_day: Optional[int] = None
     category_id: Optional[int] = None
     stock_entry_id: Optional[int] = None
-    trip_id: Optional[int] = None
     account_id: Optional[int] = None
-
-    @model_validator(mode="after")
-    def only_one_link(self):
-        if self.stock_entry_id is not None and self.trip_id is not None:
-            raise ValueError("A despesa pode ser de um lote ou de uma viagem, não dos dois")
-        return self
 
 
 class ExpenseResponse(ExpenseBase):
@@ -117,7 +103,6 @@ class MonthlyResultResponse(BaseModel):
     cmv: Decimal                # Custo das mercadorias vendidas (FIFO)
     gross_profit: Decimal       # Receita − CMV
     gross_margin_pct: Decimal   # % margem bruta
-    trip_costs: Decimal         # Custos de viagem do mês (combustível, hospedagem etc.)
     total_expenses: Decimal     # Soma das despesas operacionais (inclui perdas de estoque)
     stock_losses_total: Decimal = Decimal(0)  # Subconjunto de total_expenses — perdas de estoque
     net_profit: Decimal         # Lucro líquido = gross_profit − expenses

@@ -2,7 +2,7 @@
 
 Caso real (loja 2, 08/11/2026): três vendas com desconto na venda (R$ 89,94, R$ 32,97 e R$ 30,00) e os itens com desconto 0.
 A tela Lucro por lote somava o preço cheio dos itens (R$ 309,71) em vez do que foi pago (R$ 156,80) e mostrava lucro de
-R$ 191,71 em vez de R$ 38,80. Agora lote, Produtos mais vendidos e retorno da viagem usam a mesma regra do money_ledger."""
+R$ 191,71 em vez de R$ 38,80. Agora lote, Produtos mais vendidos e retorno do lote usam a mesma regra do money_ledger."""
 from datetime import date
 
 import pytest

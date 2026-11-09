@@ -6,8 +6,8 @@ Este teste cobre TODO o fluxo do sistema fitness store:
 1. Cadastro de usuário e loja (signup)
 2. Criação de categorias
 3. Criação de produtos
-4. Registro de viagem com custos
-5. Entrada de estoque via viagem
+4. Custo de frete
+5. Entrada de estoque com frete do lote
 6. Criação de clientes
 7. Venda de produtos (FIFO)
 8. Verificação de custos e lucros
@@ -30,7 +30,6 @@ from app.models.subscription import Subscription
 from app.models.category import Category
 from app.models.product import Product
 from app.models.customer import Customer
-from app.models.trip import Trip
 from app.models.stock_entry import StockEntry
 from app.models.entry_item import EntryItem
 from app.models.inventory import Inventory
@@ -40,7 +39,6 @@ from app.models.sale import Sale, SaleItem
 from app.services.signup_service import SignupService
 from app.services.product_service import ProductService
 from app.services.customer_service import CustomerService
-from app.services.trip_service import TripService
 from app.services.stock_entry_service import StockEntryService
 from app.services.sale_service import SaleService
 from app.services.fifo_service import FIFOService
@@ -54,7 +52,6 @@ from app.schemas.signup import SignupRequest
 from app.core.legal import LEGAL_VERSION
 from app.schemas.product import ProductCreate
 from app.schemas.customer import CustomerCreate
-from app.schemas.trip import TripCreate
 from app.schemas.stock_entry import StockEntryCreate
 from app.schemas.entry_item import EntryItemCreate
 from app.schemas.sale import SaleCreate, SaleItemCreate, PaymentCreate
@@ -71,7 +68,7 @@ async def test_complete_business_flow(db: AsyncSession):
     Cenário:
     1. Loja "Fitness Pro" se cadastra
     2. Cria categorias e produtos
-    3. Realiza viagem para Paraguai (custo: R$ 500)
+    3. Compra no Paraguai com frete do lote (R$ 800)
     4. Compra produtos no Paraguai
     5. Registra entrada de estoque
     6. Cadastra clientes
@@ -228,49 +225,19 @@ async def test_complete_business_flow(db: AsyncSession):
     print(f"   Produto criado: {product_halter.name} (ID={product_halter.id})")
 
     # ========================================
-    # PASSO 4: VIAGEM - Registrar viagem
+    # PASSO 4: FRETE do lote (despesa da própria entrada, lançada no passo 5)
     # ========================================
-    print("\n[PASSO 4] Registrando Viagem ao Paraguai...")
-
-    trip_service = TripService(db)
-
-    trip_data = TripCreate(
-        trip_code="VIAGEM-001",
-        trip_date=date.today() - timedelta(days=5),
-        destination="Ciudad del Este - Paraguai",
-        departure_time=None,
-        return_time=None,
-        travel_cost_fuel=Decimal("200.00"),     # Gasolina
-        travel_cost_toll=Decimal("50.00"),      # Pedágio
-        travel_cost_food=Decimal("150.00"),     # Alimentação
-        travel_cost_hotel=Decimal("300.00"),    # Hotel
-        travel_cost_other=Decimal("100.00"),    # Outros
-        notes="Viagem para compra de estoque inicial"
-    )
-
-    trip = await trip_service.create_trip(trip_data, user_id=user_id, tenant_id=tenant_id)
-
-    total_travel_cost = trip.calculate_total_cost()
-
-    print(f"   Viagem criada: {trip.destination}")
-    print(f"   Codigo: {trip.trip_code}")
-    print(f"   Data: {trip.trip_date}")
-    print(f"   Custos de viagem:")
-    print(f"      - Gasolina: R$ {trip.travel_cost_fuel}")
-    print(f"      - Pedagio: R$ {trip.travel_cost_toll}")
-    print(f"      - Alimentacao: R$ {trip.travel_cost_food}")
-    print(f"      - Hotel: R$ {trip.travel_cost_hotel}")
-    print(f"      - Outros: R$ {trip.travel_cost_other}")
-    print(f"      - TOTAL: R$ {total_travel_cost}")
+    print("\n[PASSO 4] Frete da compra no Paraguai: R$ 800,00")
+    total_travel_cost = Decimal("800.00")
 
     # ========================================
-    # PASSO 5: ENTRADA DE ESTOQUE - Via viagem
+    # PASSO 5: ENTRADA DE ESTOQUE
     # ========================================
-    print("\n[PASSO 5] Registrando Entrada de Estoque da Viagem...")
+    print("\n[PASSO 5] Registrando Entrada de Estoque...")
 
     entry_service = StockEntryService(db)
 
-    # Criar entrada de estoque vinculada à viagem
+    # Criar a entrada de estoque
     entry_items = [
         EntryItemCreate(
             product_id=product_whey.id,
@@ -294,14 +261,23 @@ async def test_complete_business_flow(db: AsyncSession):
 
     entry_data = StockEntryCreate(
         entry_code="ENT-001",
-        entry_type="trip",
+        entry_type="local",
         supplier_name="Importadora Paraguai",
         entry_date=date.today() - timedelta(days=2),
-        trip_id=trip.id,
-        notes="Produtos comprados na viagem ao Paraguai",
+        notes="Produtos comprados no Paraguai",
     )
 
     entry = await entry_service.create_entry(entry_data, entry_items, user_id=user_id, tenant_id=tenant_id)
+
+    # frete do lote: despesa da própria entrada, rateada nas peças (custo posto)
+    from app.models.expense import Expense
+    from app.services import lot_cost_service
+    db.add(Expense(amount=total_travel_cost, description="Frete do lote", expense_date=entry.entry_date,
+                   stock_entry_id=entry.id, tenant_id=tenant_id))
+    await db.flush()
+    await lot_cost_service.recompute_entries(db, [entry.id], tenant_id=tenant_id)
+    await db.commit()
+    await db.refresh(entry)
 
     print(f"   Entrada criada: {entry.entry_code}")
     print(f"   Tipo: {entry.entry_type}")
@@ -316,7 +292,7 @@ async def test_complete_business_flow(db: AsyncSession):
     # Calcular numero total de unidades
     total_units = sum(item.quantity_received for item in entry.entry_items)
 
-    # Rateio do custo de viagem por unidade
+    # Rateio do frete por unidade
     travel_cost_per_unit = total_travel_cost / Decimal(str(total_units))
 
     for item in entry.entry_items:
@@ -324,12 +300,12 @@ async def test_complete_business_flow(db: AsyncSession):
         print(f"      - {item.product.name}")
         print(f"        Quantidade: {item.quantity_received}")
         print(f"        Custo unitario (produto): R$ {item.unit_cost}")
-        print(f"        Custo viagem por unidade: R$ {travel_cost_per_unit:.2f}")
+        print(f"        Frete por unidade: R$ {travel_cost_per_unit:.2f}")
         print(f"        Custo TOTAL por unidade: R$ {cost_with_travel:.2f}")
 
     print(f"\n   Resumo da Entrada:")
     print(f"      - Total gasto em produtos: R$ {total_product_cost}")
-    print(f"      - Total gasto em viagem: R$ {total_travel_cost}")
+    print(f"      - Total gasto em frete: R$ {total_travel_cost}")
     print(f"      - TOTAL GERAL: R$ {total_product_cost + total_travel_cost}")
     print(f"      - Total de unidades: {total_units}")
 
@@ -589,7 +565,7 @@ async def test_complete_business_flow(db: AsyncSession):
     print(f"   {'='*70}")
     print(f"   Investimento Inicial:")
     print(f"      - Produtos: R$ {total_product_cost}")
-    print(f"      - Viagem: R$ {total_travel_cost}")
+    print(f"      - Frete: R$ {total_travel_cost}")
     print(f"      - TOTAL INVESTIDO: R$ {total_product_cost + total_travel_cost}")
     print(f"\n   Vendas Realizadas: 2")
     print(f"      - Receita Total: R$ {total_revenue}")
@@ -671,7 +647,7 @@ async def test_complete_business_flow(db: AsyncSession):
         sources = item.sale_sources.get("sources", []) if item.sale_sources else []
         for source in sources:
             assert source["entry_id"] == entry.id  # Deve vir da entrada que criamos
-            # o FIFO grava o custo POSTO (mercadoria + rateio da viagem), não só o custo da mercadoria
+            # o FIFO grava o custo POSTO (mercadoria + rateio do frete), não só o custo da mercadoria
             ei = next(i for i in entry.entry_items if i.id == source["entry_item_id"])
             assert source["unit_cost"] == float(ei.landed_unit_cost)
             assert ei.extra_unit_cost > 0
@@ -707,13 +683,6 @@ async def test_complete_business_flow(db: AsyncSession):
     print("   - Estatisticas de clientes atualizadas")
     print(f"   - Pontos de fidelidade: Joao={customer1.loyalty_points}, Maria={customer2.loyalty_points}")
 
-    # Verificar trip está vinculada à entrada
-    await db.refresh(trip, ['stock_entries'])
-    assert len(trip.stock_entries) == 1
-    assert trip.stock_entries[0].id == entry.id
-
-    print("   - Viagem vinculada corretamente a entrada")
-
     # ========================================
     # RESULTADO FINAL
     # ========================================
@@ -724,7 +693,7 @@ async def test_complete_business_flow(db: AsyncSession):
     print(f"   - Usuario e loja cadastrados")
     print(f"   - {2} categorias criadas")
     print(f"   - {3} produtos criados")
-    print(f"   - {1} viagem registrada (custo: R$ {total_travel_cost})")
+    print(f"   - frete do lote (R$ {total_travel_cost})")
     print(f"   - {1} entrada de estoque ({total_units} unidades)")
     print(f"   - {2} clientes cadastrados")
     print(f"   - {2} vendas realizadas")

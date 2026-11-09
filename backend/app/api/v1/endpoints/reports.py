@@ -415,7 +415,6 @@ async def get_history(
             entries = result.scalars().all()
 
             entry_type_labels = {
-                "TRIP": "Viagem",
                 "ONLINE": "Online",
                 "LOCAL": "Local",
                 "INITIAL_INVENTORY": "Inventário Inicial",

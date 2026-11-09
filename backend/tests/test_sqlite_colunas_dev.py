@@ -10,7 +10,7 @@ def test_todas_as_colunas_de_modelo_tem_cobertura_para_banco_sqlite_antigo():
     # bancos antigos nasceram sem estas colunas: cada uma precisa constar no ajuste automático
     cobertas = {(t, n) for t, cols in d._SQLITE_EXTRA_COLUMNS.items() for n, _ in cols}
     for par in [("stores", "catalog_feed_token"), ("stores", "allow_stock_writeoff"), ("expenses", "stock_entry_id"),
-                ("expenses", "trip_id"), ("entry_items", "extra_unit_cost")]:
+                ("entry_items", "extra_unit_cost")]:
         assert par in cobertas, par
 
 
@@ -24,4 +24,4 @@ def test_ajuste_acrescenta_colunas_que_faltam_em_loja_antiga():
         lojas = {x["name"] for x in inspect(c).get_columns("stores")}
         gastos = {x["name"] for x in inspect(c).get_columns("expenses")}
     assert {"catalog_feed_token", "allow_stock_writeoff"} <= lojas
-    assert {"stock_entry_id", "trip_id"} <= gastos
+    assert {"stock_entry_id", "account_id"} <= gastos

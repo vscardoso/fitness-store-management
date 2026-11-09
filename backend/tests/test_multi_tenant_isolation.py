@@ -2,7 +2,7 @@
 Testes de Isolamento Multi-Tenant (conjunto único; substitui o antigo v2, que era duplicata).
 
 Garante que os dados de uma loja (tenant) não sejam acessíveis por outra, nos módulos:
-Produto (repositório + API), Entrada de estoque, Viagem, Venda, Cliente, tentativa maliciosa
+Produto (repositório + API), Entrada de estoque, Venda, Cliente, tentativa maliciosa
 de acesso por id e analytics.
 
 Cada teste usa DUAS lojas novas (via tests.test_team_limit._nova_loja), então as contagens são
@@ -23,12 +23,10 @@ from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.models.sale import PaymentMethod, SaleStatus
 from app.models.stock_entry import EntryType
-from app.models.trip import TripStatus
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.sale_repository import SaleRepository
 from app.repositories.stock_entry_repository import StockEntryRepository
-from app.repositories.trip_repository import TripRepository
 from app.repositories.base import BaseRepository
 from tests.test_team_limit import _nova_loja
 
@@ -207,51 +205,7 @@ async def test_stock_entry_isolation_repository(async_session: AsyncSession, t1,
     assert (await repo.get(async_session, entry_t1.id, tenant_id=ten1)).id == entry_t1.id
 
 
-# ============================================================================
-# VIAGENS
-# ============================================================================
-
-
 @pytest.mark.asyncio
-async def test_trip_isolation_repository(async_session: AsyncSession, t1, t2):
-    """Isolamento de viagens no repositório."""
-    ten1, ten2 = t1[0], t2[0]
-    repo = TripRepository()
-
-    trip_t1 = await repo.create(async_session, {
-        "trip_code": f"TRIP-T1-{_uid()}",
-        "destination": "São Paulo",
-        "trip_date": date.today(),
-        "status": TripStatus.PLANNED,
-        "travel_cost_fuel": 500.00,
-    }, tenant_id=ten1)
-    trip_t2 = await repo.create(async_session, {
-        "trip_code": f"TRIP-T2-{_uid()}",
-        "destination": "Rio de Janeiro",
-        "trip_date": date.today(),
-        "status": TripStatus.PLANNED,
-        "travel_cost_fuel": 300.00,
-    }, tenant_id=ten2)
-
-    trips_t1 = await BaseRepository.get_multi(repo, async_session, skip=0, limit=100, tenant_id=ten1)
-    assert [t.id for t in trips_t1] == [trip_t1.id]
-    assert trips_t1[0].tenant_id == ten1
-
-    trips_t2 = await BaseRepository.get_multi(repo, async_session, skip=0, limit=100, tenant_id=ten2)
-    assert [t.id for t in trips_t2] == [trip_t2.id]
-    assert trips_t2[0].tenant_id == ten2
-
-    # Acesso cruzado por id e por código: None
-    assert await repo.get_by_id(async_session, trip_t1.id, tenant_id=ten2) is None
-    assert await repo.get_by_code(async_session, trip_t1.trip_code, tenant_id=ten2) is None
-    assert (await repo.get_by_code(async_session, trip_t1.trip_code, tenant_id=ten1)).id == trip_t1.id
-
-
-# ============================================================================
-# VENDAS
-# ============================================================================
-
-
 @pytest.mark.asyncio
 async def test_sale_isolation_repository(async_session: AsyncSession, t1, t2):
     """Isolamento de vendas no repositório."""

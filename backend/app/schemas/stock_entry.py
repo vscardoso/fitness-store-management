@@ -21,7 +21,7 @@ def validate_cpf_cnpj(value):
 
 
 class EntryExtraCost(BaseModel):
-    """Custo extra informado junto com a entrada (frete, pedágio, almoço da viagem...)."""
+    """Custo extra informado junto com a entrada (frete, pedágio...)."""
     description: str = Field(..., min_length=1, max_length=200, description="O que foi (ex.: frete)")
     amount: Decimal = Field(..., gt=0, description="Quanto custou")
 
@@ -32,6 +32,13 @@ class EntryExtraCost(BaseModel):
         if not v:
             raise ValueError("Diga o que foi essa despesa")
         return v
+
+
+def entry_type_not_trip(value):
+    """Compra em viagem deixou de existir: recusa o tipo antigo com uma frase clara (a API devolve 422)."""
+    if isinstance(value, str) and value.strip().lower() == "trip":
+        raise ValueError("Compra em viagem não existe mais. Use o tipo online ou local.")
+    return value
 
 
 def entry_date_not_future(value):
@@ -53,8 +60,13 @@ class StockEntryBase(BaseModel):
     @classmethod
     def _entry_date_ok(cls, v):
         return entry_date_not_future(v)
-    entry_type: EntryType = Field(..., description="Tipo de entrada (trip/online/local)")
-    trip_id: Optional[int] = Field(None, description="ID da viagem (se entry_type = 'trip')")
+    entry_type: EntryType = Field(..., description="Tipo de entrada (online/local)")
+
+    @field_validator("entry_type", mode="before")
+    @classmethod
+    def _entry_type_ok(cls, v):
+        return entry_type_not_trip(v)
+
     supplier_id: Optional[int] = Field(None, description="Fornecedor padrão da entrada (cadastro)")
     supplier_name: str = Field(..., min_length=1, max_length=255, description="Nome do fornecedor")
     supplier_cnpj: Optional[str] = Field(None, max_length=18, description="CNPJ do fornecedor")
@@ -69,15 +81,6 @@ class StockEntryBase(BaseModel):
     def validate_cnpj_format(cls, v):
         return validate_cpf_cnpj(v)
 
-    @field_validator('trip_id')
-    @classmethod
-    def validate_trip_for_type(cls, v, info):
-        """Valida que trip_id seja fornecido se entry_type = 'trip'."""
-        entry_type = info.data.get('entry_type')
-        if entry_type == EntryType.TRIP and v is None:
-            raise ValueError('Entrada do tipo viagem precisa da viagem: escolha a viagem ou troque o tipo da entrada.')
-        return v
-
 
 def normalize_entry_code(value):
     """Código da entrada: MAIÚSCULAS, sem espaço nas pontas, e cada espaço no meio vira traço (ENTRADA SP 22 -> ENTRADA-SP-22)."""
@@ -90,14 +93,13 @@ def normalize_entry_code(value):
 class StockEntryCreate(StockEntryBase):
     """Schema for creating a stock entry.
 
-    `extra_costs`: custos da compra lançados junto com a entrada. Em entrada de viagem viram despesa DA VIAGEM
-    (divididas entre as entradas dela); nos outros tipos viram despesa DESTA entrada. Tudo na mesma transação.
+    `extra_costs`: custos da compra lançados junto com a entrada. Viram despesa DESTA entrada. Tudo na mesma transação.
 
     Informe `supplier_id` (fornecedor cadastrado) OU `supplier_name` (texto: o servidor acha o
     cadastro pelo nome ou cria um novo). Se vierem os dois, vale o `supplier_id`.
     """
     supplier_name: Optional[str] = Field(None, min_length=1, max_length=255, description="Nome do fornecedor")
-    extra_costs: List[EntryExtraCost] = Field(default_factory=list, description="Frete, pedágio, almoço da viagem... lançados junto com a entrada")
+    extra_costs: List[EntryExtraCost] = Field(default_factory=list, description="Frete, pedágio... lançados junto com a entrada")
 
     @model_validator(mode='after')
     def require_supplier(self):
@@ -133,7 +135,12 @@ class StockEntryUpdate(BaseModel):
     def _entry_date_ok(cls, v):
         return entry_date_not_future(v)
     entry_type: Optional[EntryType] = None
-    trip_id: Optional[int] = None
+
+    @field_validator("entry_type", mode="before")
+    @classmethod
+    def _entry_type_ok(cls, v):
+        return entry_type_not_trip(v)
+
     supplier_name: Optional[str] = Field(None, min_length=1, max_length=255)
     supplier_cnpj: Optional[str] = Field(None, max_length=18)
     supplier_contact: Optional[str] = Field(None, max_length=255)
@@ -156,8 +163,8 @@ class StockEntryResponse(StockEntryBase):
     """Schema for stock entry response with metrics."""
     id: int
     total_cost: Decimal = Field(..., description="Custo total da entrada (só a mercadoria)")
-    extra_costs_total: float = Field(default=0.0, description="Viagem e despesas do lote, rateadas nas peças")
-    total_invested: Optional[float] = Field(default=None, description="Total gasto no lote: mercadoria + viagem + despesas do lote")
+    extra_costs_total: float = Field(default=0.0, description="Despesas do lote, rateadas nas peças")
+    total_invested: Optional[float] = Field(default=None, description="Total gasto no lote: mercadoria + despesas do lote")
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -170,10 +177,6 @@ class StockEntryResponse(StockEntryBase):
     roi: Optional[float] = Field(None, description="Retorno sobre investimento (%)")
     has_sales: bool = Field(default=False, description="Indica se entrada teve vendas (FIFO tracking)")
     entry_status: EntryStatus = Field(default=EntryStatus.OPEN, description="Status operacional: open/partial/sold_out/archived")
-
-    # Trip info (se houver)
-    trip_code: Optional[str] = Field(None, description="Código da viagem")
-    trip_destination: Optional[str] = Field(None, description="Destino da viagem")
 
     @field_serializer('total_cost')
     def serialize_total_cost(self, value: Decimal) -> float:
@@ -211,7 +214,6 @@ class StockEntrySummary(BaseModel):
 class StockEntryStats(BaseModel):
     """Schema para estatísticas de entradas de estoque."""
     total_entries: int = Field(..., description="Total de entradas")
-    entries_from_trips: int = Field(..., description="Entradas de viagens")
     entries_online: int = Field(..., description="Entradas de compras online")
     entries_local: int = Field(..., description="Entradas de compras locais")
     total_invested: Decimal = Field(..., description="Total investido")

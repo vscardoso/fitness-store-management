@@ -1,5 +1,5 @@
 /**
- * Custos da compra lançados junto com a entrada (frete, pedágio, almoço da viagem...).
+ * Custos da compra lançados junto com a entrada (frete, embalagem, taxa...).
  * Texto em linguagem simples: o lojista só precisa saber que isso soma no custo das peças.
  */
 import React, { useState } from 'react';
@@ -20,11 +20,9 @@ export interface EntryExtraCostInput {
 interface Props {
   costs: EntryExtraCostInput[];
   onChange: (costs: EntryExtraCostInput[]) => void;
-  /** Entrada do tipo Viagem: o gasto é da viagem e é dividido entre as entradas dela. */
-  isTrip: boolean;
 }
 
-export default function EntryExtraCostsInput({ costs, onChange, isTrip }: Props) {
+export default function EntryExtraCostsInput({ costs, onChange }: Props) {
   const brand = useBrandingColors();
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -48,13 +46,11 @@ export default function EntryExtraCostsInput({ costs, onChange, isTrip }: Props)
         <View style={[styles.iconWrap, { backgroundColor: `${brand.primary}14` }]}>
           <Ionicons name="cash-outline" size={20} color={brand.primary} />
         </View>
-        <Text style={styles.title}>{isTrip ? 'Gastos desta viagem' : 'Frete e outros custos desta compra'}</Text>
+        <Text style={styles.title}>Frete e outros custos desta compra</Text>
       </View>
 
       <Text style={styles.help}>
-        {isTrip
-          ? 'Combustível, pedágio, almoço, hospedagem... Esses gastos são divididos entre as entradas da viagem e somam no custo de cada peça. Se a viagem já tem esses custos cadastrados, não repita aqui.'
-          : 'Frete, embalagem, taxa... Esses gastos somam no custo das peças desta compra. Assim o lucro de cada venda já desconta o frete. É opcional: dá para lançar depois na tela da entrada.'}
+        {'Frete, embalagem, taxa... Esses gastos somam no custo das peças desta compra. Assim o lucro de cada venda já desconta o frete. É opcional: dá para lançar depois na tela da entrada.'}
       </Text>
 
       {costs.map((c, i) => (
@@ -72,7 +68,7 @@ export default function EntryExtraCostsInput({ costs, onChange, isTrip }: Props)
       ))}
 
       <TextInput
-        label={isTrip ? 'O que foi? (ex.: combustível)' : 'O que foi? (ex.: frete)'}
+        label="O que foi? (ex.: frete)"
         value={description}
         onChangeText={setDescription}
         mode="outlined"

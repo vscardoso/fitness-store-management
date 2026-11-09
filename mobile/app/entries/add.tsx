@@ -2,7 +2,7 @@
  * Stock Entry Add Screen - Nova Entrada de Estoque
  *
  * Funcionalidades:
- * - Escolher tipo de entrada (Viagem, Online, Local)
+ * - Escolher tipo de entrada (Online, Local)
  * - Formulário com fornecedor, NF, pagamento
  * - Lista de produtos com busca
  * - Cálculo automático do total
@@ -44,7 +44,6 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import PageHeader from '@/components/layout/PageHeader';
-import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
 import { createStockEntry, createStockEntryWithNewProduct, createStockEntryWithNewProductVariants, checkEntryCode, getStockEntryById } from '@/services/stockEntryService';
 import { getProductVariants } from '@/services/productVariantService';
@@ -139,7 +138,7 @@ export default function AddStockEntryScreen() {
     transform: [{ translateY: contentTranslateY.value }],
   }));
 
-  // Ler parâmetros da navegação (produto pré-selecionado do catálogo + viagem criada)
+  // Ler parâmetros da navegação (produto pré-selecionado do catálogo)
   const params = useLocalSearchParams<{
     // Legacy params (for backwards compatibility)
     preselectedProductId?: string;
@@ -160,9 +159,6 @@ export default function AddStockEntryScreen() {
     wizardAtomicVariantsData?: string; // ✨ Novo: dados produto+variantes para modo atomic-variants
     // Wizard variant params (produtos com variantes)
     preselectedVariantsData?: string;
-    // Trip params
-    newTripId?: string;
-    newTripCode?: string;
   }>();
 
   const isFromWizard = params.fromWizard === 'true';
@@ -265,18 +261,17 @@ export default function AddStockEntryScreen() {
   // Estados do formulário
   const [selectedType, setSelectedType] = useState<EntryType>(EntryType.LOCAL);
   const [entryCode, setEntryCode] = useState('');
-  const [tripId, setTripId] = useState<number | undefined>();
-  // Data da entrada: sugerida (viagem ou hoje), mas editável para lançar compra retroativa
+  // Data da entrada: sugerida (hoje), mas editável para lançar compra retroativa
   const [entryDateInput, setEntryDateInput] = useState('');
   const [entryDateEdited, setEntryDateEdited] = useState(false);
-  // Frete, pedágio, almoço da viagem... lançados junto com a entrada (mesma transação)
+  // Frete e outros custos lançados junto com a entrada (mesma transação)
   const [extraCosts, setExtraCosts] = useState<EntryExtraCostInput[]>([]);
   const [supplierName, setSupplierName] = useState('');
   const [supplierCnpj, setSupplierCnpj] = useState('');
   const [supplierContact, setSupplierContact] = useState('');
-  // Fornecedor padrão da entrada (cadastro); cada item pode ter o seu
+  // Último fornecedor escolhido: vira o padrão dos próximos produtos. Cada produto tem o seu fornecedor; o da ENTRADA não é mais
+  // digitado: ao salvar é o fornecedor dos produtos (se todos forem o mesmo) ou "Vários fornecedores".
   const [defaultSupplier, setDefaultSupplier] = useState<Supplier | null>(null);
-  const [supplierPickerHeaderOpen, setSupplierPickerHeaderOpen] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [discountText, setDiscountText] = useState('');
@@ -288,11 +283,10 @@ export default function AddStockEntryScreen() {
   const [itemPrices, setItemPrices] = useState<Record<string, string>>({});
 
   // Estado do seletor de fornecedor por item
-  const [supplierPickerItemId, setSupplierPickerItemId] = useState<string | null>(null);
+  const [supplierPickerIds, setSupplierPickerIds] = useState<string[] | null>(null);
 
   // Estados de UI
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [tripMenuVisible, setTripMenuVisible] = useState(false);
   const [productMenuVisible, setProductMenuVisible] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   // Seletor de variante — aberto quando o produto escolhido tem mais de 1 variante ativa
@@ -303,7 +297,6 @@ export default function AddStockEntryScreen() {
   const [newVariantSize, setNewVariantSize] = useState('');
   const [newVariantError, setNewVariantError] = useState('');
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
-  const [showCreateTripDialog, setShowCreateTripDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [createdEntryCode, setCreatedEntryCode] = useState<string | undefined>();
   const [createdEntryId, setCreatedEntryId] = useState<number | undefined>();
@@ -311,9 +304,6 @@ export default function AddStockEntryScreen() {
   const [cnpjValidationStatus, setCnpjValidationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const codeCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const preselectedProductAddedRef = useRef(false); // Previne adição dupla do produto pré-selecionado
-  const tripLinkedDialogShownRef = useRef(false); // Previne re-exibição do dialog ao hot-reload
-  const [showTripLinkedDialog, setShowTripLinkedDialog] = useState(false);
-  const [linkedTripInfo, setLinkedTripInfo] = useState<{ code: string; destination: string } | null>(null);
   const [showDeleteItemDialog, setShowDeleteItemDialog] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
   const [isFromAIScanner, setIsFromAIScanner] = useState(false); // ✨ Novo: flag para UX especial
@@ -375,18 +365,9 @@ export default function AddStockEntryScreen() {
   }, [params.wizardImageUri]);
 
   // Queries
-  const { data: trips = [], refetch: refetchTrips } = useTrips({ status: undefined, limit: 100 });
   const { data: products = [], isLoading: isLoadingProducts } = useProducts({ limit: 100 });
 
   const showCatalogHint = !isLoadingProducts && products.length === 0;
-
-  // Force refetch trips when returning from trip creation
-  useEffect(() => {
-    if (params.newTripId) {
-      // Refetch trips to ensure the new trip is in the list
-      refetchTrips();
-    }
-  }, [params.newTripId, refetchTrips]);
 
   /**
    * Detectar se veio do AI Scanner para UX especial
@@ -705,34 +686,6 @@ export default function AddStockEntryScreen() {
   }, [params.preselectedVariantsData, params.wizardAtomicVariantsData, params.wizardMode, params.wizardProductData, params.preselectedProductData, params.preselectedProductId, params.fromCatalog, params.fromWizard, products]);
 
   /**
-   * Auto-selecionar viagem recém-criada (quando volta de /trips/add)
-   */
-  useEffect(() => {
-    if (params.newTripId) {
-      const newTripIdNum = parseInt(params.newTripId);
-
-      // Always set trip type and ID immediately
-      setSelectedType(EntryType.TRIP);
-      setTripId(newTripIdNum);
-
-      // Try to find trip in list for full info
-      const trip = trips.find((t) => t.id === newTripIdNum);
-
-      if (!tripLinkedDialogShownRef.current) {
-        if (trip) {
-          setLinkedTripInfo({ code: trip.trip_code, destination: trip.destination });
-          setShowTripLinkedDialog(true);
-          tripLinkedDialogShownRef.current = true;
-        } else if (params.newTripCode) {
-          setLinkedTripInfo({ code: params.newTripCode, destination: 'Carregando...' });
-          setShowTripLinkedDialog(true);
-          tripLinkedDialogShownRef.current = true;
-        }
-      }
-    }
-  }, [params.newTripId, params.newTripCode, trips]);
-
-  /**
    * Validar CNPJ em tempo real
    */
   useEffect(() => {
@@ -820,12 +773,8 @@ export default function AddStockEntryScreen() {
         {
           entry_code: cleanEntryCode(entryCode),
           entry_date: computeEntryDateISO(),
-          entry_type: selectedType as 'trip' | 'online' | 'local',
-          trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
-          supplier_id: defaultSupplier?.id,
-          supplier_name: supplierName.trim(),
-          supplier_cnpj: supplierCnpj.trim() || undefined,
-          supplier_contact: supplierContact.trim() || undefined,
+          entry_type: selectedType as 'online' | 'local',
+          ...entrySupplierFields(),
           invoice_number: invoiceNumber.trim() || undefined,
           payment_method: paymentMethod.trim() || undefined,
           discount_amount: unmaskCurrency(discountText) || undefined,
@@ -890,11 +839,7 @@ export default function AddStockEntryScreen() {
           entry_code: cleanEntryCode(entryCode),
           entry_date: computeEntryDateISO(),
           entry_type: selectedType,
-          trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
-          supplier_id: defaultSupplier?.id,
-          supplier_name: supplierName.trim(),
-          supplier_cnpj: supplierCnpj.trim() || undefined,
-          supplier_contact: supplierContact.trim() || undefined,
+          ...entrySupplierFields(),
           invoice_number: invoiceNumber.trim() || undefined,
           payment_method: paymentMethod.trim() || undefined,
           discount_amount: unmaskCurrency(discountText) || undefined,
@@ -920,7 +865,6 @@ export default function AddStockEntryScreen() {
     // Invalidate stock entries queries
     queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
     queryClient.invalidateQueries({ queryKey: ['stock-entries-stats'] });
-    queryClient.invalidateQueries({ queryKey: ['trips'] });
     queryClient.invalidateQueries({ queryKey: ['products'] });
     queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
     queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
@@ -1105,7 +1049,7 @@ export default function AddStockEntryScreen() {
       if (!isValidDate(entryDateInput)) {
         newErrors.entryDate = 'Data inválida. Use DD/MM/AAAA';
       } else if (typedDateISO(entryDateInput) > autoEntryDateISO()) {
-        // sugerida pode ser a data de retorno da viagem; o limite é hoje ou a sugerida, o que for maior
+        // o limite é hoje ou a sugerida, o que for maior
         if (typedDateISO(entryDateInput) > todayISO()) {
           newErrors.entryDate = 'A data da entrada não pode ser no futuro';
         }
@@ -1116,8 +1060,9 @@ export default function AddStockEntryScreen() {
       newErrors.entryCode = 'Código deve ter no mínimo 5 caracteres';
     }
 
-    if (!supplierName.trim()) {
-      newErrors.supplierName = 'Selecione o fornecedor da entrada';
+    // cada produto tem o seu fornecedor (o da entrada é calculado ao salvar): sem fornecedor em algum produto, não salva
+    if (items.some((it) => it.quantity_received > 0 && !it.supplier_id && !defaultSupplier)) {
+      newErrors.items = newErrors.items || 'Escolha o fornecedor de cada produto (toque no nome do fornecedor abaixo dele).';
     }
 
     // Validar CNPJ se preenchido
@@ -1126,10 +1071,6 @@ export default function AddStockEntryScreen() {
       if (cleanCNPJ.length !== 14) {
         newErrors.supplierCnpj = 'CNPJ deve ter 14 dígitos';
       }
-    }
-
-    if (selectedType === EntryType.TRIP && !tripId) {
-      newErrors.tripId = 'Selecione uma viagem';
     }
 
     // Validar cada item
@@ -1166,25 +1107,30 @@ export default function AddStockEntryScreen() {
   };
 
   /** Data da entrada que vai para a API: a digitada (se editou e é válida) ou a sugerida. */
+  /** Fornecedor da entrada, calculado dos produtos: o mesmo para todos = ele; senão "Vários fornecedores". */
+  const entrySupplierFields = () => {
+    const ativos = items.filter((it) => it.quantity_received > 0);
+    const ids = Array.from(new Set(ativos.map((it) => it.supplier_id ?? defaultSupplier?.id ?? null).filter((x) => x != null)));
+    if (ids.length <= 1) {
+      const first = ativos.find((it) => (it.supplier_id ?? defaultSupplier?.id) === ids[0]);
+      const same = defaultSupplier && defaultSupplier.id === ids[0] ? defaultSupplier : null;
+      return {
+        supplier_id: (ids[0] as number | undefined) ?? undefined,
+        supplier_name: (first?.supplier_name || same?.name || defaultSupplier?.name || 'Fornecedor').trim(),
+        supplier_cnpj: same?.cnpj || undefined,
+        supplier_contact: same?.phone || undefined,
+      };
+    }
+    return { supplier_id: undefined, supplier_name: 'Vários fornecedores', supplier_cnpj: undefined, supplier_contact: undefined };
+  };
+
   const computeEntryDateISO = (): string =>
     entryDateEdited && isValidDate(entryDateInput) ? typedDateISO(entryDateInput) : autoEntryDateISO();
 
   /** Data sugerida
-   * - Viagem: usa data de retorno (se existir) ou data da viagem
-   * - Outros tipos: hoje
+   * - Hoje
    */
   const autoEntryDateISO = (): string => {
-    if (selectedType === EntryType.TRIP && tripId) {
-      const trip = trips.find((t) => t.id === tripId);
-      if (trip) {
-        const baseDate = trip.return_time ? new Date(trip.return_time) : new Date(trip.trip_date);
-        // Usar data local em vez de UTC
-        const year = baseDate.getFullYear();
-        const month = String(baseDate.getMonth() + 1).padStart(2, '0');
-        const day = String(baseDate.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
-    }
     // Usar data local em vez de UTC
     const today = new Date();
     const year = today.getFullYear();
@@ -1231,11 +1177,7 @@ export default function AddStockEntryScreen() {
       entry_code: cleanEntryCode(entryCode),
       entry_date: computeEntryDateISO(),
       entry_type: selectedType,
-      trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
-      supplier_id: defaultSupplier?.id,
-      supplier_name: supplierName.trim(),
-      supplier_cnpj: supplierCnpj.trim() || undefined,
-      supplier_contact: supplierContact.trim() || undefined,
+      ...entrySupplierFields(),
       invoice_number: invoiceNumber.trim() || undefined,
       payment_method: paymentMethod.trim() || undefined,
       discount_amount: unmaskCurrency(discountText) || undefined,
@@ -1249,7 +1191,7 @@ export default function AddStockEntryScreen() {
         unit_cost: item.unit_cost,
         selling_price: item.product?.price || undefined,
         notes: item.notes || undefined,
-        supplier_id: item.supplier_id ?? undefined,
+        supplier_id: item.supplier_id ?? defaultSupplier?.id ?? undefined,
         list_unit_cost: (() => {
           const l = parseCost(itemListPrices[item.id] || '0');
           return l > item.unit_cost ? l : undefined;
@@ -1261,7 +1203,6 @@ export default function AddStockEntryScreen() {
   };
 
   const total = calculateTotal();
-  const selectedTrip = trips.find(t => t.id === tripId);
 
   /**
    * Agrupar itens por product_id para exibir variantes dentro do card do produto
@@ -1363,6 +1304,36 @@ export default function AddStockEntryScreen() {
     );
   };
 
+  /** Chip do fornecedor do produto: vale para todas as cores/tamanhos dele (ids = itens do produto). */
+  const renderSupplierChip = (ids: string[]) => {
+    const first = items.find((i) => i.id === ids[0]);
+    const efetivo = first?.supplier_name || (first?.supplier_id ? undefined : defaultSupplier?.name);
+    const definido = !!(first?.supplier_id || defaultSupplier);
+    return (
+      <TouchableOpacity
+        style={[
+          styles.supplierChip,
+          definido
+            ? { backgroundColor: Colors.light.primaryLight, borderColor: brandingColors.primary }
+            : { backgroundColor: Colors.light.backgroundSecondary, borderColor: Colors.light.border },
+        ]}
+        onPress={() => setSupplierPickerIds(ids)}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Escolher o fornecedor deste produto"
+      >
+        <Ionicons name="business-outline" size={14} color={Colors.light.textSecondary} />
+        <Text
+          style={[styles.supplierChipText, { color: definido ? Colors.light.text : Colors.light.textSecondary }]}
+          numberOfLines={1}
+        >
+          {efetivo || 'Escolher fornecedor'}
+        </Text>
+        <Ionicons name="chevron-down" size={12} color={Colors.light.textTertiary} />
+      </TouchableOpacity>
+    );
+  };
+
   /**
    * Renderizar card de produto (simples ou agrupado com variantes)
    */
@@ -1439,28 +1410,7 @@ export default function AddStockEntryScreen() {
             </View>
             {renderListPriceInput(item)}
             {/* Chip de fornecedor */}
-            <TouchableOpacity
-              style={[
-                styles.supplierChip,
-                item.supplier_id
-                  ? { backgroundColor: Colors.light.primaryLight, borderColor: brandingColors.primary }
-                  : { backgroundColor: Colors.light.backgroundSecondary, borderColor: Colors.light.border },
-              ]}
-              onPress={() => setSupplierPickerItemId(item.id)}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="business-outline" size={14} color={Colors.light.textSecondary} />
-              <Text
-                style={[
-                  styles.supplierChipText,
-                  { color: item.supplier_id ? Colors.light.text : Colors.light.textSecondary },
-                ]}
-                numberOfLines={1}
-              >
-                {item.supplier_name || defaultSupplier?.name || 'Fornecedor'}
-              </Text>
-              <Ionicons name="chevron-down" size={12} color={Colors.light.textTertiary} />
-            </TouchableOpacity>
+            {renderSupplierChip([item.id])}
 
             <View style={styles.itemTotal}>
               <Text style={styles.itemTotalLabel}>Subtotal:</Text>
@@ -1492,6 +1442,7 @@ export default function AddStockEntryScreen() {
             )}
           </View>
           {indices.map((idx, i) => renderVariantRow(idx, i > 0))}
+          {renderSupplierChip(indices.map((idx) => items[idx].id))}
           <View style={[styles.itemTotal, { marginTop: 12 }]}>
             <Text style={styles.itemTotalLabel}>Subtotal:</Text>
             <Text style={[styles.itemTotalValue, { color: brandingColors.primary }]}>{formatCurrency(subtotal)}</Text>
@@ -1557,30 +1508,6 @@ export default function AddStockEntryScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipo de Entrada</Text>
           <View style={styles.typeButtons}>
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                selectedType === EntryType.TRIP && {
-                  borderColor: brandingColors.primary,
-                  backgroundColor: `${brandingColors.primary}14`,
-                },
-              ]}
-              activeOpacity={0.78}
-              onPress={() => setSelectedType(EntryType.TRIP)}
-            >
-              <Ionicons
-                name="car-outline"
-                size={18}
-                color={selectedType === EntryType.TRIP ? brandingColors.primary : Colors.light.textSecondary}
-              />
-              <Text style={[
-                styles.typeButtonText,
-                selectedType === EntryType.TRIP && { color: brandingColors.primary },
-              ]}>
-                Viagem
-              </Text>
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={[
                 styles.typeButton,
@@ -1708,138 +1635,13 @@ export default function AddStockEntryScreen() {
                 ? errors.entryDate
                 : entryDateEdited
                   ? 'Data informada por você. Toque em restaurar para voltar à sugerida.'
-                  : 'Sugerida (viagem ou hoje). Pode ser retroativa: toque e digite a data da compra.'}
+                  : 'Sugerida (hoje). Pode ser retroativa: toque e digite a data da compra.'}
             </HelperText>
           </View>
         </View>
 
-        {/* Seleção de Viagem (se tipo = TRIP) */}
-        {selectedType === EntryType.TRIP && (
-          <View style={styles.inputGroup}>
-            <View style={styles.labelWithAction}>
-              <Text style={styles.label}>Viagem *</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setTripMenuVisible(false);
-                  setShowCreateTripDialog(true);
-                }}
-                style={styles.addButton}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="add-circle" size={20} color={brandingColors.primary} />
-                <Text style={[styles.addButtonText, { color: brandingColors.primary }]}>Nova Viagem</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={[styles.selectButton, errors.tripId && styles.selectButtonError]}
-              onPress={() => {
-                Keyboard.dismiss();
-                setTripMenuVisible(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.selectButtonText}>
-                {selectedTrip ? `${selectedTrip.trip_code} - ${selectedTrip.destination}` : 'Selecionar viagem'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={Colors.light.textSecondary} />
-            </TouchableOpacity>
-
-            <BottomSheet
-              visible={tripMenuVisible}
-              onDismiss={() => setTripMenuVisible(false)}
-              title="Escolher viagem"
-              subtitle="A que viagem esta compra pertence"
-              icon="airplane-outline"
-            >
-              <TouchableOpacity
-                style={[styles.variantSheetRow, { borderColor: brandingColors.primary + '55', backgroundColor: brandingColors.primary + '0F' }]}
-                activeOpacity={0.8}
-                onPress={() => {
-                  setTripMenuVisible(false);
-                  setShowCreateTripDialog(true);
-                }}
-              >
-                <Text style={[styles.variantSheetName, { color: brandingColors.primary, flex: 1 }]}>Criar nova viagem</Text>
-                <Ionicons name="add-circle-outline" size={22} color={brandingColors.primary} />
-              </TouchableOpacity>
-              {trips.map((trip) => (
-                <TouchableOpacity
-                  key={trip.id}
-                  style={styles.variantSheetRow}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    setTripId(trip.id);
-                    setTripMenuVisible(false);
-                  }}
-                >
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.variantSheetName} numberOfLines={1}>{trip.destination}</Text>
-                    <Text style={styles.variantSheetMeta}>{trip.trip_code}</Text>
-                  </View>
-                  {selectedTrip?.id === trip.id && <Ionicons name="checkmark-circle" size={22} color={brandingColors.primary} />}
-                </TouchableOpacity>
-              ))}
-            </BottomSheet>
-            {errors.tripId && (
-              <HelperText type="error">{errors.tripId}</HelperText>
-            )}
-            {trips.length === 0 && !errors.tripId && (
-              <HelperText type="info">
-                Nenhuma viagem cadastrada. Crie uma nova viagem para continuar.
-              </HelperText>
-            )}
-          </View>
-        )}
-
         {/* Frete e outros custos da compra (somam no custo das peças) */}
-        <EntryExtraCostsInput costs={extraCosts} onChange={setExtraCosts} isTrip={selectedType === EntryType.TRIP} />
-
-        {/* Fornecedor */}
-        <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.cardHeaderIcon, { backgroundColor: `${brandingColors.primary}14` }]}>
-                <Ionicons name="briefcase-outline" size={20} color={brandingColors.primary} />
-              </View>
-              <Text style={styles.cardTitle}>Informações do Fornecedor</Text>
-            </View>
-
-          <TouchableOpacity
-            style={[
-              styles.supplierTile,
-              errors.supplierName ? { borderColor: Colors.light.error } : null,
-            ]}
-            onPress={() => setSupplierPickerHeaderOpen(true)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Selecionar fornecedor da entrada"
-          >
-            <View style={[styles.supplierTileIcon, { backgroundColor: `${brandingColors.primary}14` }]}>
-              <Ionicons name="storefront-outline" size={20} color={brandingColors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.supplierTileLabel}>Fornecedor da entrada *</Text>
-              <Text
-                style={defaultSupplier ? styles.supplierTileName : styles.supplierTilePlaceholder}
-                numberOfLines={1}
-              >
-                {defaultSupplier?.name || 'Selecione ou cadastre o fornecedor'}
-              </Text>
-              {defaultSupplier && (defaultSupplier.cnpj || defaultSupplier.phone) ? (
-                <Text style={styles.supplierTileInfo} numberOfLines={1}>
-                  {[defaultSupplier.cnpj, defaultSupplier.phone].filter(Boolean).join('  •  ')}
-                </Text>
-              ) : null}
-            </View>
-            <Ionicons name="chevron-down" size={18} color={Colors.light.textTertiary} />
-          </TouchableOpacity>
-          {errors.supplierName ? (
-            <HelperText type="error">{errors.supplierName}</HelperText>
-          ) : null}
-          <Text style={styles.supplierHint}>
-            Os produtos usam este fornecedor. Se a compra tem mais de um fornecedor, troque o fornecedor
-            de cada produto na lista de itens.
-          </Text>
-        </View>
+        <EntryExtraCostsInput costs={extraCosts} onChange={setExtraCosts}  />
 
         {/* Nota Fiscal e Pagamento */}
         <View style={styles.card}>
@@ -1952,7 +1754,7 @@ export default function AddStockEntryScreen() {
             }}
           />
 
-          {/* Produto já escolhido por outra tela (ex.: viagem) com várias variações: escolher a peça na grade */}
+          {/* Produto já escolhido por outra tela (ex.: catálogo) com várias variações: escolher a peça na grade */}
           {variantPickerProduct && (
             <ProductPickerSheet
               visible
@@ -2145,46 +1947,6 @@ export default function AddStockEntryScreen() {
         </KeyboardAwareScreen>
       </Animated.View>
 
-      {/* Dialog de Criar Nova Viagem */}
-      <ConfirmDialog
-        visible={showCreateTripDialog}
-        title="Criar Nova Viagem"
-        message="Você será redirecionado para cadastrar uma nova viagem. Seus dados da entrada atual serão preservados."
-        details={[
-          'Cadastre a viagem com destino, data e custos',
-          'Após salvar, você voltará automaticamente',
-          'A viagem será vinculada automaticamente',
-          'Continue preenchendo a entrada de estoque'
-        ]}
-        type="info"
-        confirmText="Ir para Nova Viagem"
-        cancelText="Cancelar"
-        onConfirm={() => {
-          setShowCreateTripDialog(false);
-          router.push({
-            pathname: '/trips/add',
-            params: {
-              from: 'entries',
-              ...(params.wizardImageUri && { wizardImageUri: params.wizardImageUri }),
-              // Preservar produto pré-selecionado (novo fluxo com dados completos)
-              ...(params.preselectedProductData && {
-                preselectedProductData: params.preselectedProductData,
-                preselectedQuantity: params.preselectedQuantity,
-                fromCatalog: params.fromCatalog,
-              }),
-              // Legacy: Preservar produto pré-selecionado (se houver)
-              ...(params.preselectedProductId && !params.preselectedProductData && {
-                preselectedProductId: params.preselectedProductId,
-                preselectedQuantity: params.preselectedQuantity,
-                preselectedPrice: params.preselectedPrice,
-              })
-            }
-          });
-        }}
-        onCancel={() => setShowCreateTripDialog(false)}
-        icon="airplane"
-      />
-
       {/* Dialog de Sucesso da Entrada */}
       <ConfirmDialog
         visible={showSuccessDialog}
@@ -2232,7 +1994,7 @@ export default function AddStockEntryScreen() {
                 '✅ Rastreabilidade completa garantida',
                 '📊 Você pode acompanhar:',
                 '  • Custo real de cada venda',
-                '  • Lucro por entrada/viagem',
+                '  • Lucro por entrada',
                 '  • Percentual já vendido',
                 '',
                 'Cada venda usa primeiro as peças da compra mais antiga',
@@ -2241,21 +2003,11 @@ export default function AddStockEntryScreen() {
             ? [
                 '📦 Entrada registrada sem produtos',
                 'Abra a entrada para vincular produtos a qualquer momento',
-                selectedType === EntryType.TRIP && selectedTrip
-                  ? `Viagem: ${selectedTrip.trip_code}`
-                  : '',
               ].filter(Boolean)
             : [
                 `${items.length} ${items.length === 1 ? 'item' : 'itens'} adicionados`,
                 `Total: ${formatCurrency(total)}`,
-                selectedType === EntryType.TRIP && selectedTrip
-                  ? `Viagem vinculada: ${selectedTrip.trip_code}`
-                  : 'Tipo: ' +
-                    (selectedType === EntryType.TRIP
-                      ? 'Viagem'
-                      : selectedType === EntryType.ONLINE
-                      ? 'Online'
-                      : 'Local'),
+                'Tipo: ' + (selectedType === EntryType.ONLINE ? 'Online' : 'Local'),
                 'Você pode acompanhar performance (percentual vendido e lucro) após vendas',
               ].filter(Boolean)
         }
@@ -2315,28 +2067,6 @@ export default function AddStockEntryScreen() {
         icon="checkmark-circle"
       />
 
-      {/* Dialog de Viagem Vinculada */}
-      <ConfirmDialog
-        visible={showTripLinkedDialog}
-        title="Viagem Vinculada!"
-        message={`A viagem foi vinculada automaticamente a esta entrada.`}
-        details={
-          linkedTripInfo
-            ? [
-                `Código: ${linkedTripInfo.code}`,
-                `Destino: ${linkedTripInfo.destination}`,
-                'Continue preenchendo os dados da entrada',
-              ]
-            : []
-        }
-        type="success"
-        confirmText="Continuar"
-        cancelText=""
-        onConfirm={() => setShowTripLinkedDialog(false)}
-        onCancel={() => setShowTripLinkedDialog(false)}
-        icon="checkmark-circle"
-      />
-
       {/* Dialog de Remover Item */}
       <ConfirmDialog
         visible={showDeleteItemDialog}
@@ -2364,48 +2094,36 @@ export default function AddStockEntryScreen() {
         onCancel={() => setFeedbackDialog({ visible: false, title: '', message: '', type: 'warning' })}
       />
 
-      {/* Seletor de fornecedor por item */}
-      {supplierPickerItemId !== null && (() => {
-        const pickerItem = items.find((i) => i.id === supplierPickerItemId);
+      {/* Seletor de fornecedor por produto (vale para todas as cores/tamanhos dele) */}
+      {supplierPickerIds !== null && (() => {
+        const pickerItem = items.find((i) => i.id === supplierPickerIds[0]);
         return (
           <SupplierPickerSheet
             visible={true}
-            onClose={() => setSupplierPickerItemId(null)}
+            onClose={() => setSupplierPickerIds(null)}
             onSelect={(supplier: Supplier | null) => {
               setItems((prev) =>
                 prev.map((i) =>
-                  i.id === supplierPickerItemId
+                  supplierPickerIds.includes(i.id)
                     ? { ...i, supplier_id: supplier?.id ?? null, supplier_name: supplier?.name ?? null }
                     : i
                 )
               );
-              setSupplierPickerItemId(null);
+              // o último fornecedor escolhido vira o padrão dos próximos produtos (não precisa escolher de novo)
+              if (supplier) {
+                setDefaultSupplier(supplier);
+                setErrors((prev) => ({ ...prev, items: '' }));
+              }
+              setSupplierPickerIds(null);
             }}
             productId={pickerItem?.product_id}
             productName={pickerItem?.product?.name}
             selectedSupplierId={pickerItem?.supplier_id}
-            noneLabel="Usar o fornecedor da entrada"
+            allowNone={false}
           />
         );
       })()}
 
-      {/* Seletor do fornecedor padrão da entrada */}
-      <SupplierPickerSheet
-        visible={supplierPickerHeaderOpen}
-        onClose={() => setSupplierPickerHeaderOpen(false)}
-        allowNone={false}
-        selectedSupplierId={defaultSupplier?.id}
-        onSelect={(supplier: Supplier | null) => {
-          if (supplier) {
-            setDefaultSupplier(supplier);
-            setSupplierName(supplier.name);
-            setSupplierCnpj(supplier.cnpj ?? '');
-            setSupplierContact(supplier.phone ?? '');
-            setErrors((prev) => ({ ...prev, supplierName: '' }));
-          }
-          setSupplierPickerHeaderOpen(false);
-        }}
-      />
     </View>
   );
 }

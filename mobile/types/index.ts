@@ -581,87 +581,10 @@ export interface StockAlert {
 }
 
 // ============================================
-// TRIP TYPES
-// ============================================
-
-export enum TripStatus {
-  PLANNED = 'planned',
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-}
-
-export interface Trip {
-  id: number;
-  trip_code: string;
-  trip_date: string;
-  destination: string;
-  departure_time?: string;
-  return_time?: string;
-  travel_cost_fuel: number;
-  travel_cost_food: number;
-  travel_cost_toll: number;
-  travel_cost_hotel: number;
-  travel_cost_other: number;
-  travel_cost_total: number;
-  status: TripStatus;
-  notes?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TripCreate {
-  trip_code: string;
-  trip_date: string;
-  destination: string;
-  departure_time?: string;
-  return_time?: string;
-  travel_cost_fuel?: number;
-  travel_cost_food?: number;
-  travel_cost_toll?: number;
-  travel_cost_hotel?: number;
-  travel_cost_other?: number;
-  notes?: string;
-}
-
-export interface TripUpdate {
-  trip_date?: string;
-  destination?: string;
-  departure_time?: string;
-  return_time?: string;
-  travel_cost_fuel?: number;
-  travel_cost_food?: number;
-  travel_cost_toll?: number;
-  travel_cost_hotel?: number;
-  travel_cost_other?: number;
-  status?: TripStatus;
-  notes?: string;
-}
-
-export interface TripAnalytics {
-  total_purchases: number;
-  total_cost: number;
-  total_pieces: number;
-  total_revenue?: number;
-  total_profit?: number;
-  roi?: number;
-  sell_through_rate?: number;
-  trip_revenue?: number;
-  total_quantity_purchased?: number;
-  total_quantity_sold?: number;
-  quantity_remaining?: number;
-  travel_cost_total?: number;
-  total_invested?: number;
-  total_entries?: number;
-  total_items?: number;
-}
-
-// ============================================
 // STOCK ENTRY TYPES
 // ============================================
 
 export enum EntryType {
-  TRIP = 'trip',
   ONLINE = 'online',
   LOCAL = 'local',
   INITIAL_INVENTORY = 'initial',
@@ -713,7 +636,6 @@ export interface StockEntry {
   entry_code: string;
   entry_date: string;
   entry_type: EntryType;
-  trip_id?: number;
   supplier_id?: number | null;
   supplier_name: string;
   supplier_cnpj?: string;
@@ -723,17 +645,15 @@ export interface StockEntry {
   discount_amount?: number;
   notes?: string;
   total_cost: number;
-  /** Viagem e despesas do lote, rateadas nas peças. */
+  /** Frete e despesas do lote, rateadas nas peças. */
   extra_costs_total?: number;
-  /** Total gasto no lote: mercadoria + viagem + despesas do lote. */
+  /** Total gasto no lote: mercadoria + frete + despesas do lote. */
   total_invested?: number;
   total_items: number;
   total_quantity: number;
   items_sold: number;
   sell_through_rate: number;
   roi?: number;
-  trip_code?: string;
-  trip_destination?: string;
   has_sales: boolean;
   entry_status: 'open' | 'partial' | 'sold_out' | 'archived';
   is_active: boolean;
@@ -741,7 +661,7 @@ export interface StockEntry {
   updated_at: string;
 }
 
-/** Custo da compra lançado junto com a entrada (frete, pedágio...). */
+/** Custo da compra lançado junto com a entrada (frete, embalagem...). */
 export interface EntryExtraCostInput {
   description: string;
   amount: number;
@@ -752,7 +672,6 @@ export interface StockEntryCreate {
   entry_code?: string;
   entry_date: string;
   entry_type: EntryType;
-  trip_id?: number;
   supplier_id?: number;
   supplier_name: string;
   supplier_cnpj?: string;

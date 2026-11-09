@@ -79,7 +79,6 @@ export default function DesktopSidebar() {
           { label: 'Inventário', icon: 'layers-outline', href: '/(tabs)/inventory', match: ['/inventory'] },
           ...(manager ? [
             { label: 'Fornecedores', icon: 'business-outline' as Icon, href: '/suppliers', match: ['/suppliers'] },
-            { label: 'Viagens', icon: 'airplane-outline' as Icon, href: '/trips', match: ['/trips'] },
           ] : []),
         ],
       },
@@ -141,6 +140,7 @@ export default function DesktopSidebar() {
           ...(FEATURES.pixIntegrado ? [{ label: 'Chave PIX', icon: 'qr-code-outline' as Icon, href: '/settings/pix-key', match: ['/settings/pix-key'] }] : []),
           { label: 'Prazo de troca', icon: 'swap-horizontal-outline' as Icon, href: '/settings/returns', match: ['/settings/returns'] },
           { label: 'Fidelidade', icon: 'star-outline' as Icon, href: '/settings/loyalty', match: ['/settings/loyalty'] },
+          { label: 'Histórico de alterações', icon: 'time-outline' as Icon, href: '/settings/audit', match: ['/settings/audit'] },
         ] : []),
         ...(FEATURES.maquininhas ? [{ label: 'Terminais', icon: 'hardware-chip-outline' as Icon, href: '/(tabs)/pdv/terminals', match: ['/pdv/terminals'] }] : []),
         { label: 'Ajuda e tutoriais', icon: 'help-circle-outline', href: '/(tabs)/help', match: ['/help'] },

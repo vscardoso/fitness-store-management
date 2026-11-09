@@ -27,7 +27,7 @@ export const VENDER: HelpEntry[] = [
       'O aviso de estoque baixo abre a lista de produtos já filtrada.',
     ],
     web: ['O botão “Cadastrar” no canto abre o mesmo menu do “+” do celular.'],
-    mobile: ['O “+” no canto abre atalhos para nova venda, cliente, produto, entrada e viagem.'],
+    mobile: ['O “+” no canto abre atalhos para nova venda, cliente, produto, entrada.'],
     related: ['pdv', 'vendas'],
     sources: ['app/(tabs)/index.tsx', 'components/FAB.tsx', 'utils/saleRefund.ts'],
   },

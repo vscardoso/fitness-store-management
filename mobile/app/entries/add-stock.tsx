@@ -52,7 +52,6 @@ const ENTRY_TYPES: {
 }[] = [
   { type: EntryType.LOCAL,       label: 'Compra Local', icon: 'bag-handle-outline' },
   { type: EntryType.ONLINE,      label: 'Online',       icon: 'globe-outline'      },
-  { type: EntryType.TRIP,        label: 'Viagem',       icon: 'airplane-outline'   },
   { type: EntryType.ADJUSTMENT,  label: 'Ajuste',       icon: 'construct-outline'  },
 ];
 
@@ -181,7 +180,6 @@ export default function AddStockScreen() {
     const supplierByType: Record<string, string> = {
       local:      'Compra Local',
       online:     'Compra Online',
-      trip:       'Viagem',
       adjustment: 'Ajuste Manual',
       initial:    'Estoque Inicial',
       return:     'Devolução',

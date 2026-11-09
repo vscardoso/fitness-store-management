@@ -459,7 +459,6 @@ export default function StockEntryDetailsScreen() {
    */
   const renderTypeBadge = (type: EntryType) => {
     const typeConfig: Record<EntryType, { label: string; variant: 'info' | 'warning' | 'success' | 'neutral'; icon: keyof typeof Ionicons.glyphMap }> = {
-      [EntryType.TRIP]:              { label: 'Viagem',       variant: 'info',    icon: 'car-outline'           },
       [EntryType.ONLINE]:            { label: 'Online',       variant: 'warning', icon: 'cart-outline'          },
       [EntryType.LOCAL]:             { label: 'Local',        variant: 'success', icon: 'storefront-outline'    },
       [EntryType.INITIAL_INVENTORY]: { label: 'Est. Inicial', variant: 'neutral', icon: 'archive-outline'       },
@@ -607,7 +606,7 @@ export default function StockEntryDetailsScreen() {
             {(itemNumbers.freight_unit_cost ?? Math.max(itemNumbers.extra_unit_cost, 0)) > 0 || (itemNumbers.discount_unit_cost ?? 0) > 0
               ? ` (${formatCurrency(itemNumbers.merchandise_unit_cost)} da peça` +
                 ((itemNumbers.freight_unit_cost ?? Math.max(itemNumbers.extra_unit_cost, 0)) > 0
-                  ? ` + ${formatCurrency(itemNumbers.freight_unit_cost ?? itemNumbers.extra_unit_cost)} de frete e viagem`
+                  ? ` + ${formatCurrency(itemNumbers.freight_unit_cost ?? itemNumbers.extra_unit_cost)} de frete`
                   : '') +
                 ((itemNumbers.discount_unit_cost ?? 0) > 0 ? ` - ${formatCurrency(itemNumbers.discount_unit_cost ?? 0)} de desconto` : '') +
                 ')'
@@ -795,13 +794,6 @@ export default function StockEntryDetailsScreen() {
             )}
             {!!entry.payment_method && (
               <InfoRow label="Pagamento" value={entry.payment_method} icon="cash-outline" />
-            )}
-            {!!entry.trip_code && (
-              <InfoRow
-                label="Viagem"
-                value={`${entry.trip_code}${entry.trip_destination ? ` - ${entry.trip_destination}` : ''}`}
-                icon="airplane-outline"
-              />
             )}
             {!!entry.notes && (
               <InfoRow label="Observações" value={entry.notes} icon="document-outline" />

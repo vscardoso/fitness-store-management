@@ -49,7 +49,6 @@ const ROUTE_LABELS: Record<string, string> = {
   '/entries/add': 'Nova entrada',
   '/checkout': 'Nova venda',
   '/team/add': 'Novo usuário',
-  '/trips/add': 'Nova viagem',
   '/looks/builder': 'Novo look',
   '/(tabs)/conditional/create': 'Novo envio',
   '/products/wizard': 'Novo produto',
@@ -106,14 +105,6 @@ export default function FAB({ bottom = 20, directRoute, onPress, label }: FABPro
       icon: 'layers',
       colors: ['#f093fb', '#f5576c'],
       route: '/entries/add',
-    },
-    {
-      id: 'new-trip',
-      title: 'Nova Viagem',
-      subtitle: 'Planejar viagem',
-      icon: 'car',
-      colors: ['#fa709a', '#fee140'],
-      route: '/trips/add',
     },
   ];
 

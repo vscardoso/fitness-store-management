@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import desc, select
 
 from tests.test_financeiro import _zerar_implantacao
-from tests.test_lot_costs import _viagem
 from tests.test_team_limit import _nova_loja
 from tests.test_troca import _cenario
 from .conftest import bearer, novo_usuario, quatro_papeis
@@ -94,7 +93,6 @@ async def duas_lojas(async_session, test_user, test_client, loja_real):
     exp_a = r.json()["id"]
     from app.models.stock_entry import StockEntry
     entrada_a = (await async_session.execute(select(StockEntry.id).where(StockEntry.tenant_id == t_a).order_by(desc(StockEntry.id)).limit(1))).scalar()
-    viagem_a = (await _viagem(async_session, t_a, fuel=10)).id
     await async_session.commit()
 
     # ── loja B ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -108,7 +106,7 @@ async def duas_lojas(async_session, test_user, test_client, loja_real):
     contas_b = {a["name"]: a["id"] for a in r.json()["accounts"]}
     return dict(t_a=t_a, t_b=t_b, ha=ha, hb=hb, p=p, va=va, vb=vb, cli=cli, contas=contas, contas_b=contas_b, pay_a=pay_a,
                 cash_a=cash_a, venda=venda, fiado_venda=fiado_venda, rec=rec, rec_pay=rec_pay, transf_a=transf_a,
-                entry_a=entry_a, cat_a=cat_a, exp_a=exp_a, entrada_a=entrada_a, viagem_a=viagem_a)
+                entry_a=entry_a, cat_a=cat_a, exp_a=exp_a, entrada_a=entrada_a)
 
 
 async def _foto_de_A(client, m):
@@ -179,7 +177,6 @@ async def test_B_nao_le_nem_mexe_em_nada_da_loja_A(test_client, async_session, d
         ("POST", "/expenses", {"amount": "1", "description": "x", "expense_date": HOJE, "account_id": contas["Gaveta"]}),
         ("POST", "/expenses", {"amount": "1", "description": "x", "expense_date": HOJE, "category_id": m["cat_a"]}),
         ("POST", "/expenses", {"amount": "999", "description": "x", "expense_date": HOJE, "stock_entry_id": m["entrada_a"]}),
-        ("POST", "/expenses", {"amount": "999", "description": "x", "expense_date": HOJE, "trip_id": m["viagem_a"]}),
         ("POST", "/finance/payables", {"description": "x", "amount": "10", "due_date": HOJE, "expense_category_id": m["cat_a"]}),
         ("GET", f"/cash/sessions/{m['cash_a']}", None),
         ("POST", "/sales/", {"customer_id": cli, "payment_method": "cash",

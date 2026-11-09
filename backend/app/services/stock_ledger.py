@@ -50,7 +50,7 @@ REASONS: Dict[str, str] = {
 }
 # o que conta como "saiu sem ser venda" na conta fechada do lote
 REMOVAL_REASONS = {"baixa_conferencia", "variacao_excluida", "produto_excluido", "entrada_excluida", "ajuste_estoque",
-                   "baixa_sem_registro", "edicao_item"}
+                   "baixa_sem_registro", "edicao_item", "fornecedor_envio"}   # peça enviada de volta ao fornecedor também saiu sem venda
 
 _ctx: ContextVar[Optional[Dict[str, Any]]] = ContextVar("stock_reason_ctx", default=None)
 

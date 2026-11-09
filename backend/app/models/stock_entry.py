@@ -11,7 +11,6 @@ import enum
 from .base import BaseModel
 
 if TYPE_CHECKING:
-    from .trip import Trip
     from .entry_item import EntryItem
 
 
@@ -25,7 +24,6 @@ class EntryStatus(str, enum.Enum):
 
 class EntryType(str, enum.Enum):
     """Tipos de entrada de estoque."""
-    TRIP = "trip"                    # Compra em viagem
     ONLINE = "online"                # Compra online
     LOCAL = "local"                  # Compra local
     INITIAL_INVENTORY = "initial"    # Estoque inicial (antes do sistema)
@@ -38,7 +36,7 @@ class StockEntry(BaseModel):
     """
     Stock Entry model - Nova versão do Batch.
     
-    Representa uma entrada de estoque no sistema, podendo ser de uma viagem,
+    Representa uma entrada de estoque no sistema, podendo ser de
     compra online ou compra local. Agrupa vários itens de produto.
     """
     __tablename__ = "stock_entries"
@@ -63,15 +61,7 @@ class StockEntry(BaseModel):
     entry_type: Mapped[EntryType] = mapped_column(
         SQLEnum(EntryType, native_enum=False, length=20, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        comment="Tipo de entrada (trip/online/local)"
-    )
-    
-    # Relacionamento com viagem (opcional)
-    trip_id: Mapped[int | None] = mapped_column(
-        ForeignKey("trips.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-        comment="ID da viagem associada (se entry_type = 'trip')"
+        comment="Tipo de entrada (online/local)"
     )
     
     # Fornecedor padrão da entrada (cadastro). Cada item pode ter o seu (entry_items.supplier_id);
@@ -133,12 +123,6 @@ class StockEntry(BaseModel):
     )
     
     # Relacionamentos
-    trip: Mapped[Optional["Trip"]] = relationship(
-        "Trip",
-        back_populates="stock_entries",
-        lazy="selectin"
-    )
-    
     entry_items: Mapped[List["EntryItem"]] = relationship(
         "EntryItem",
         back_populates="stock_entry",
@@ -244,7 +228,7 @@ class StockEntry(BaseModel):
 
     @property
     def extra_costs_total(self) -> Decimal:
-        """Parte do custo do lote que não é mercadoria: viagem e despesas do lote (rateadas nos itens)."""
+        """Parte do custo do lote que não é mercadoria: despesas do lote (rateadas nos itens)."""
         from sqlalchemy import inspect as _inspect
         if "entry_items" in _inspect(self).unloaded:  # itens não carregados: não dispara consulta
             return Decimal("0.00")
@@ -256,7 +240,7 @@ class StockEntry(BaseModel):
 
     @property
     def total_invested(self) -> Decimal:
-        """Total gasto no lote: mercadoria + viagem e despesas do lote."""
+        """Total gasto no lote: mercadoria + despesas do lote."""
         return Decimal(str(self.total_cost or 0)) + self.extra_costs_total
     @property
     def entry_status(self) -> "EntryStatus":
@@ -273,11 +257,6 @@ class StockEntry(BaseModel):
             return EntryStatus.SOLD_OUT
         return EntryStatus.PARTIAL
 
-    @property
-    def is_from_trip(self) -> bool:
-        """Verifica se a entrada é de uma viagem."""
-        return self.entry_type == EntryType.TRIP and self.trip_id is not None
-    
     @property
     def is_online_purchase(self) -> bool:
         """Verifica se a entrada é de compra online."""
@@ -302,20 +281,3 @@ class StockEntry(BaseModel):
         if not self.entry_items:
             return False
         return any(item.quantity_sold > 0 for item in self.entry_items if item.is_active)
-
-    def get_trip_details(self) -> Optional[dict]:
-        """
-        Retorna detalhes da viagem associada, se houver.
-        
-        Returns:
-            dict | None: Dados da viagem ou None
-        """
-        if self.trip:
-            return {
-                "trip_code": self.trip.trip_code,
-                "destination": self.trip.destination,
-                "trip_date": self.trip.trip_date,
-                "status": self.trip.status,
-                "travel_cost_total": float(self.trip.travel_cost_total)
-            }
-        return None

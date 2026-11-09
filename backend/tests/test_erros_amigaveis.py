@@ -67,18 +67,18 @@ async def test_erro_tecnico_do_servidor_chega_limpo(test_client, async_session, 
 
 
 def test_regra_do_validador_chega_em_portugues_e_sem_texto_tecnico():
-    """Entrada do tipo viagem sem viagem: antes a pessoa via "Não conseguimos concluir agora"
+    """Entrada do tipo antigo (compra em viagem): antes a pessoa via "Não conseguimos concluir agora"
     (o texto do Pydantic, em inglês, era tratado como erro técnico). Agora vê a regra."""
     from pydantic import ValidationError
     from app.core.friendly_errors import friendly_from_text, is_technical
     from app.schemas.stock_entry import StockEntryCreate
 
     try:
-        StockEntryCreate(entry_code="ENT-X", entry_date="2026-11-04", entry_type="trip", supplier_name="X", trip_id=None)
+        StockEntryCreate(entry_code="ENT-X", entry_date="2026-11-04", entry_type="trip", supplier_name="X")
     except ValidationError as e:
         bruto = str(e)
     else:  # pragma: no cover
-        raise AssertionError("deveria recusar entrada de viagem sem viagem")
+        raise AssertionError("deveria recusar o tipo antigo")
     assert is_technical(bruto)
     msg = friendly_from_text(bruto)
     assert "viagem" in msg.lower()

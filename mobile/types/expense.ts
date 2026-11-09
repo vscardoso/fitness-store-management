@@ -16,9 +16,8 @@ export interface Expense {
   recurrence_day?: number | null;
   category_id?: number | null;
   category?: ExpenseCategory | null;
-  /** Despesa de um lote (entrada) ou de uma viagem; sem nenhum dos dois é despesa geral da loja. */
+  /** Despesa de um lote (entrada); sem lote é despesa geral da loja. */
   stock_entry_id?: number | null;
-  trip_id?: number | null;
   account_id?: number | null;
   is_active: boolean;
 }
@@ -32,7 +31,6 @@ export interface ExpenseCreate {
   recurrence_day?: number | null;
   category_id?: number | null;
   stock_entry_id?: number | null;
-  trip_id?: number | null;
   account_id?: number | null;
 }
 
@@ -45,7 +43,6 @@ export interface ExpenseUpdate {
   recurrence_day?: number | null;
   category_id?: number | null;
   stock_entry_id?: number | null;
-  trip_id?: number | null;
   account_id?: number | null;
 }
 
@@ -61,7 +58,6 @@ export interface MonthlyResult {
   cmv: number;
   gross_profit: number;
   gross_margin_pct: number;
-  trip_costs: number;
   total_expenses: number;
   stock_losses_total: number;
   net_profit: number;

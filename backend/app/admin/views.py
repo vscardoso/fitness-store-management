@@ -15,7 +15,6 @@ from app.models.inventory import Inventory
 from app.models.stock_entry import StockEntry
 from app.models.entry_item import EntryItem
 from app.models.subscription import Subscription
-from app.models.trip import Trip
 
 
 class UserAdmin(ModelView, model=User):
@@ -307,27 +306,7 @@ class StockEntryAdmin(ModelView, model=StockEntry):
     column_sortable_list = ["id", "entry_date", "total_cost"]
     column_default_sort = [("entry_date", True)]
 
-    form_excluded_columns = ["entry_items", "trip"]
-
-    can_create = True
-    can_edit = True
-    can_delete = True
-    can_view_details = True
-    page_size = 50
-
-
-class TripAdmin(ModelView, model=Trip):
-    name = "Viagem / Compra"
-    name_plural = "Viagens / Compras"
-    icon = "fa-solid fa-plane"
-    category = "Estoque"
-
-    column_list = ["id", "trip_code", "destination", "trip_date", "tenant_id", "is_active", "created_at"]
-    column_searchable_list = ["trip_code", "destination"]
-    column_filters = [
-        BooleanFilter(Trip.is_active, title="Ativo"),
-    ]
-    column_sortable_list = ["id", "created_at"]
+    form_excluded_columns = ["entry_items"]
 
     can_create = True
     can_edit = True
@@ -349,5 +328,4 @@ ALL_VIEWS = [
     InventoryAdmin,
     EntryItemAdmin,
     StockEntryAdmin,
-    TripAdmin,
 ]

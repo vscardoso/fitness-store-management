@@ -610,7 +610,7 @@ export default function DashboardScreen() {
                 <View style={styles.plSummaryItem}>
                   <Text style={styles.plSummaryLabel}>Gastos da loja</Text>
                   <Text style={[styles.plSummaryValue, { color: Colors.light.error }]}>
-                    -{formatCurrency(Number(monthlyResult.total_expenses) + Number(monthlyResult.trip_costs))}
+                    -{formatCurrency(Number(monthlyResult.total_expenses))}
                   </Text>
                 </View>
                 <View style={[styles.plSummaryItem, styles.plSummaryNet, {
@@ -1277,7 +1277,7 @@ export default function DashboardScreen() {
                     <Text style={styles.tooltipTitle}>Lucro das vendas</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`O que sobrou das vendas depois de pagar o custo das peças vendidas (já com o frete e a viagem da compra). Ainda não desconta os gastos da loja, como aluguel e luz. O lucro final do mês está no card Resultado do Mês.`}</Text>
+                  <Text style={styles.tooltipText}>{`O que sobrou das vendas depois de pagar o custo das peças vendidas (já com o frete da compra). Ainda não desconta os gastos da loja, como aluguel e luz. O lucro final do mês está no card Resultado do Mês.`}</Text>
                 </>
               )}
               {activeTooltip === 'cmv' && (
@@ -1289,7 +1289,7 @@ export default function DashboardScreen() {
                     <Text style={styles.tooltipTitle}>Custo das peças</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`Quanto custaram as peças que você vendeu neste período, já com a parte do frete e da viagem de cada compra. Não inclui as peças que ainda estão no estoque.`}</Text>
+                  <Text style={styles.tooltipText}>{`Quanto custaram as peças que você vendeu neste período, já com a parte do frete de cada compra. Não inclui as peças que ainda estão no estoque.`}</Text>
                 </>
               )}
               {activeTooltip === 'giro' && (

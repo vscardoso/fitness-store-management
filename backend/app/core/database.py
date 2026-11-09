@@ -191,7 +191,7 @@ _SQLITE_EXTRA_COLUMNS = {
     "sales": [("idempotency_key", "VARCHAR(80)"), ("idempotency_hash", "VARCHAR(64)")],
     "stock_entries": [("supplier_id", "INTEGER"), ("discount_amount", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
     "entry_items": [("supplier_id", "INTEGER"), ("list_unit_cost", "NUMERIC(10,2)"), ("extra_unit_cost", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
-    "expenses": [("stock_entry_id", "INTEGER"), ("trip_id", "INTEGER"), ("account_id", "INTEGER"), ("payable_id", "INTEGER")],
+    "expenses": [("stock_entry_id", "INTEGER"), ("account_id", "INTEGER"), ("payable_id", "INTEGER")],
     "payables": [("counts_as_expense", "BOOLEAN NOT NULL DEFAULT 0"), ("expense_category_id", "INTEGER")],
     "stock_count_items": [("counted_by_name", "VARCHAR(120)")],
     "sale_returns": [("receivable_abated", "NUMERIC(10,2) NOT NULL DEFAULT 0")],

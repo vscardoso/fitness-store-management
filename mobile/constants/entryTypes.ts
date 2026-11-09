@@ -12,7 +12,6 @@ import { Colors } from '@/constants/Colors';
 // --------------------------------------------------------------------------
 
 export const ENTRY_TYPE_LABELS: Record<string, string> = {
-  trip: 'Viagem',
   online: 'Online',
   local: 'Local',
   initial: 'Inicial',
@@ -26,7 +25,6 @@ export const ENTRY_TYPE_LABELS: Record<string, string> = {
 // --------------------------------------------------------------------------
 
 export const ENTRY_TYPE_COLORS: Record<string, string> = {
-  trip: Colors.light.info,
   online: Colors.light.warning,
   local: Colors.light.success,
   initial: Colors.light.textSecondary,
@@ -40,7 +38,6 @@ export const ENTRY_TYPE_COLORS: Record<string, string> = {
 // --------------------------------------------------------------------------
 
 export const ENTRY_TYPE_ICONS: Record<string, string> = {
-  trip: 'car-outline',
   online: 'cart-outline',
   local: 'storefront-outline',
   initial: 'archive-outline',

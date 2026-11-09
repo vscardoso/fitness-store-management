@@ -18,7 +18,6 @@ import {
  */
 export function useStockEntries(params?: {
   entry_type?: EntryType;
-  trip_id?: number;
   start_date?: string;
   end_date?: string;
   limit?: number;
@@ -51,7 +50,6 @@ export function useCreateStockEntry() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['trips'] });
     },
   });
 }

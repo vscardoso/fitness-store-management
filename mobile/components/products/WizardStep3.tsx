@@ -418,7 +418,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 Vincular a uma entrada já criada
               </Text>
               <Text style={styles.optionHint}>
-                Viagem ou compra em andamento
+                Compra em andamento
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={brandingColors.secondary} />

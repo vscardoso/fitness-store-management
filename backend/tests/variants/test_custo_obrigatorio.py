@@ -20,7 +20,7 @@ def test_mensagem_explica_o_motivo():
         exige(None, "Legging P", "local")
 
 
-@pytest.mark.parametrize("tipo", [EntryType.LOCAL, EntryType.TRIP, EntryType.ONLINE, "local", None])
+@pytest.mark.parametrize("tipo", [EntryType.LOCAL, EntryType.ONLINE, "local", None])
 def test_custo_positivo_e_aceito(tipo):
     assert exige(35.5, "Legging P", tipo) == Decimal("35.5")
 

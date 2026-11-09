@@ -83,7 +83,7 @@ def test_matriz_nunca_e_mais_frouxa_que_o_guard_da_rota():
     ("GET", "/api/v1/stock-entries/", ["manager", "admin"]),
     ("POST", "/api/v1/stock-entries/", ["manager", "admin"]),
     ("DELETE", "/api/v1/stock-entries/1", ["admin"]),
-    ("GET", "/api/v1/trips/", ["manager", "admin"]),
+    ("GET", "/api/v1/stock-entries/removals", ["manager", "admin"]),
     ("GET", "/api/v1/suppliers", ["manager", "admin"]),
     ("DELETE", "/api/v1/suppliers/1", ["admin"]),
     ("GET", "/api/v1/expenses", ["manager", "admin"]),

@@ -15,13 +15,15 @@ from app.models.entry_supplier_discount import EntrySupplierDiscount
 from app.services import lot_cost_service, sku_service
 from app.repositories.stock_entry_repository import StockEntryRepository
 from app.repositories.entry_item_repository import EntryItemRepository
-from app.repositories.trip_repository import TripRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.inventory_repository import InventoryRepository
 from app.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
 from app.schemas.entry_item import EntryItemCreate
 from app.services.inventory_service import InventoryService
 
+
+# Texto reservado de uma compra com vários fornecedores (cada item tem o seu); nunca vira cadastro de fornecedor
+MULTI_SUPPLIER_LABEL = "Vários fornecedores"
 
 class InvalidEntryData(ValueError):
     """Dado da entrada recusado (vira 400 na API, diferente de entrada não encontrada)."""
@@ -40,7 +42,6 @@ class StockEntryService:
         self.db = db
         self.entry_repo = StockEntryRepository()
         self.item_repo = EntryItemRepository()
-        self.trip_repo = TripRepository()
         self.product_repo = ProductRepository(db)
         self.inventory_repo = InventoryRepository(db)
 
@@ -300,22 +301,16 @@ class StockEntryService:
             unique_code = await self._generate_unique_entry_code(entry_data.entry_code, tenant_id=tenant_id)
             entry_data.entry_code = unique_code
             
-            # Validar trip_id se fornecido
-            if entry_data.trip_id:
-                trip = await self.trip_repo.get_by_id(self.db, entry_data.trip_id, tenant_id=tenant_id)
-                if not trip:
-                    raise ValueError(f"Trip {entry_data.trip_id} não encontrada")
-                
-                # Garantir que entry_type seja 'trip' se trip_id fornecido
-                if entry_data.entry_type != EntryType.TRIP:
-                    raise ValueError("entry_type deve ser 'trip' quando trip_id é fornecido")
-            
             # Fornecedor padrão da entrada (cadastro): achado pelo id ou pelo nome, ou criado
-            default_supplier = await self._resolve_supplier(
+            # Compra com vários fornecedores: o app manda o texto reservado "Vários fornecedores" (sem id) e cada item leva o seu
+            # fornecedor. Esse texto NUNCA vira cadastro de fornecedor.
+            is_multi = (not entry_data.supplier_id) and (
+                self._norm_text(entry_data.supplier_name) == self._norm_text(MULTI_SUPPLIER_LABEL))
+            default_supplier = None if is_multi else await self._resolve_supplier(
                 entry_data.supplier_id, entry_data.supplier_name,
                 entry_data.supplier_cnpj, entry_data.supplier_contact, tenant_id,
             )
-            if default_supplier is None:
+            if default_supplier is None and not is_multi:
                 raise ValueError("Informe o fornecedor da entrada")
 
             # VALIDA TUDO ANTES de criar a entrada: o repositório faz commit ao criar, então um erro
@@ -383,16 +378,18 @@ class StockEntryService:
                 if item_dict.get('supplier_id'):
                     item_supplier = await self._resolve_supplier(item_dict['supplier_id'], None, None, None, tenant_id)
                     item_dict['supplier_id'] = item_supplier.id
-                else:
+                elif default_supplier is not None:
                     item_dict['supplier_id'] = default_supplier.id
+                else:
+                    raise ValueError("Escolha o fornecedor de cada produto: esta compra tem vários fornecedores")
 
                 prepared_items.append(item_dict)
 
             # Criar entrada (o fornecedor do cadastro é a fonte do nome exibido)
             entry_dict = entry_data.model_dump(exclude_unset=True)
             extra_costs = entry_dict.pop('extra_costs', None) or []
-            entry_dict['supplier_id'] = default_supplier.id
-            entry_dict['supplier_name'] = default_supplier.name
+            entry_dict['supplier_id'] = default_supplier.id if default_supplier else None
+            entry_dict['supplier_name'] = default_supplier.name if default_supplier else MULTI_SUPPLIER_LABEL
             entry_dict['total_cost'] = Decimal('0.00')  # Será calculado depois
 
             entry = await self.entry_repo.create(self.db, entry_dict, tenant_id=tenant_id)
@@ -528,17 +525,6 @@ class StockEntryService:
         from app.services.stock_flow_service import attach_flows
         await attach_flows(self.db, tenant_id, entry)   # vendido = venda real
         
-        # Informações da viagem (se houver)
-        trip_info = None
-        if entry.trip:
-            trip_info = {
-                "trip_id": entry.trip.id,
-                "trip_code": entry.trip.trip_code,
-                "destination": entry.trip.destination,
-                "trip_date": entry.trip.trip_date,
-                "status": entry.trip.status,
-            }
-        
         # Informações dos itens
         items = []
         for item in entry.entry_items:
@@ -573,7 +559,6 @@ class StockEntryService:
             "is_active": entry.is_active,
             "created_at": entry.created_at,
             "updated_at": entry.updated_at,
-            "trip": trip_info,
             "items": items,
             "total_items": len(items),
             "total_quantity": entry.total_quantity,
@@ -628,19 +613,14 @@ class StockEntryService:
         if total_received > 0:
             sell_through_rate = (total_sold / total_received) * 100
         
-        # Custos do lote: mercadoria + rateio (viagem e despesas do lote), já gravados por item
+        # Custos do lote: mercadoria + rateio (despesas do lote), já gravados por item
         extra_total = sum(
             (Decimal(str(i.quantity_received)) * Decimal(str(i.extra_unit_cost or 0))
              for i in entry.entry_items if i.is_active),
             Decimal('0.00'),
         )
-        trip_travel_cost = Decimal('0.00')
-        trip_cost_share = Decimal('0.00')
         own_costs = await lot_cost_service.entry_own_costs(self.db, entry.id)
         discount = await self._applied_discount(entry, tenant_id)
-        if entry.trip_id and entry.trip:
-            trip_travel_cost = await lot_cost_service.trip_cost_pool(self.db, entry.trip)
-            trip_cost_share = max(extra_total - own_costs + discount, Decimal('0.00'))
 
         total_investment = total_cost + extra_total
 
@@ -669,7 +649,7 @@ class StockEntryService:
 
         # Antes de vender: o que a entrada inteira rende pelos preços de hoje, e por peça (custo posto x preço)
         items_view = []
-        # Conta de cada peça (frete e viagem, desconto): calculada sem gravar, igual ao rateio que grava o custo
+        # Conta de cada peça (frete, desconto): calculada sem gravar, igual ao rateio que grava o custo
         _calc = await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id, dry_run=True)
         breakdown = (_calc.get(entry.id) or {}).get("items", {})
         potential_revenue_total = Decimal('0.00')
@@ -686,7 +666,7 @@ class StockEntryService:
                 "quantity_received": i.quantity_received,
                 "merchandise_unit_cost": float(i.unit_cost),
                 "extra_unit_cost": float(i.extra_unit_cost or 0),
-                "freight_unit_cost": float(breakdown.get(i.id, (Decimal('0'), Decimal('0')))[0]),     # frete e viagem por peça
+                "freight_unit_cost": float(breakdown.get(i.id, (Decimal('0'), Decimal('0')))[0]),     # frete por peça
                 "discount_unit_cost": float(breakdown.get(i.id, (Decimal('0'), Decimal('0')))[1]),    # desconto por peça
                 "list_unit_cost": float(i.list_unit_cost) if i.list_unit_cost is not None else None,    # preço de tabela (opcional)
                 "item_discount_unit": float(max(Decimal(str(i.list_unit_cost)) - i.unit_cost, Decimal('0'))) if i.list_unit_cost is not None else 0.0,
@@ -715,11 +695,9 @@ class StockEntryService:
 
             # Custos
             "total_cost": float(total_cost),                  # mercadoria
-            "trip_travel_cost": float(trip_travel_cost),      # custo total da viagem (todos os lotes dela)
-            "trip_cost_share": float(trip_cost_share),        # parte da viagem que coube a este lote
             "own_costs": float(own_costs),                    # despesas ligadas a este lote
             "discount_amount": float(discount),               # desconto do fornecedor (já abatido do custo)
-            "extra_costs_total": float(extra_total),          # viagem + despesas do lote
+            "extra_costs_total": float(extra_total),          # despesas do lote
             "total_investment": float(total_investment),      # mercadoria + custos do lote
 
             # Resultado (vendas reais, líquidas de devolução)
@@ -747,7 +725,7 @@ class StockEntryService:
     async def _add_entry_costs(self, entry: StockEntry, extra_costs, tenant_id: int) -> None:
         """
         Cria as despesas informadas junto com a entrada (antes do rateio, na mesma transação).
-        Entrada de viagem: despesa da viagem (rateada entre as entradas dela). Outros tipos: despesa da entrada.
+        Cada custo vira despesa da entrada.
         """
         from app.models.expense import Expense
 
@@ -756,14 +734,12 @@ class StockEntryService:
             description = str(c["description"]).strip()
             if amount <= 0 or not description:
                 raise ValueError("Custo extra inválido: informe o que foi e um valor maior que zero")
-            of_trip = entry.entry_type == EntryType.TRIP and entry.trip_id is not None
             self.db.add(Expense(
                 amount=amount,
                 description=description[:200],
                 expense_date=entry.entry_date,
                 tenant_id=tenant_id,
-                trip_id=entry.trip_id if of_trip else None,
-                stock_entry_id=None if of_trip else entry.id,
+                stock_entry_id=entry.id,
             ))
         await self.db.flush()
 
@@ -825,38 +801,10 @@ class StockEntryService:
              "discount": float(sup_disc.get(sid, 0))}
             for sid, m in merch_by_sup.items()
         ]
-        trip_info = None
-        trip_share = Decimal('0.00')
-        if entry.trip_id and entry.trip:
-            trip = entry.trip
-            pool = await lot_cost_service.trip_cost_pool(self.db, trip)
-            trip_share = max(extra_total - own + total_discount, Decimal('0.00'))
-            trip_rows = (await self.db.execute(
-                select(Expense).where(
-                    Expense.trip_id == trip.id, Expense.is_active == True, Expense.tenant_id == tenant_id  # noqa: E712
-                ).order_by(Expense.expense_date, Expense.id)
-            )).scalars().all()
-            trip_info = {
-                "trip_id": trip.id,
-                "trip_code": trip.trip_code,
-                "travel_costs": {
-                    "fuel": float(trip.travel_cost_fuel or 0), "food": float(trip.travel_cost_food or 0),
-                    "toll": float(trip.travel_cost_toll or 0), "hotel": float(trip.travel_cost_hotel or 0),
-                    "other": float(trip.travel_cost_other or 0), "total": float(trip.travel_cost_total or 0),
-                },
-                "trip_expenses": [
-                    {"id": e.id, "description": e.description, "amount": float(e.amount), "date": e.expense_date}
-                    for e in trip_rows
-                ],
-                "trip_total_cost": float(pool),
-                "share_of_this_lot": float(trip_share),
-            }
-
         return {
             "entry_id": entry.id,
             "entry_code": entry.entry_code,
             "merchandise_cost": float(merchandise),
-            "trip": trip_info,
             "lot_expenses": [
                 {"id": e.id, "description": e.description, "amount": float(e.amount), "date": e.expense_date}
                 for e in rows
@@ -986,52 +934,6 @@ class StockEntryService:
                     out["cost"] -= back_cost          # custo da peça com defeito fica (prejuízo)
         return out
 
-    async def link_to_trip(
-        self, 
-        entry_id: int, 
-        trip_id: int,
-        *,
-        tenant_id: int,
-    ) -> StockEntry:
-        """
-        Vincula uma entrada a uma viagem.
-        
-        Args:
-            entry_id: ID da entrada
-            trip_id: ID da viagem
-            tenant_id: ID do tenant
-            
-        Returns:
-            StockEntry: Entrada atualizada
-            
-        Raises:
-            ValueError: Se entrada ou viagem não encontradas
-        """
-        # Verificar entrada
-        entry = await self.entry_repo.get_by_id(self.db, entry_id, tenant_id=tenant_id)
-        if not entry:
-            raise ValueError(f"Entry {entry_id} não encontrada")
-        
-        # Verificar viagem
-        trip = await self.trip_repo.get_by_id(self.db, trip_id, tenant_id=tenant_id)
-        if not trip:
-            raise ValueError(f"Trip {trip_id} não encontrada")
-        
-        # Atualizar entrada
-        updated = await self.entry_repo.update(
-            self.db, 
-            entry_id, 
-            {
-                "trip_id": trip_id,
-                "entry_type": EntryType.TRIP
-            },
-            tenant_id=tenant_id,
-        )
-        await lot_cost_service.recompute_trip(self.db, trip_id, tenant_id=tenant_id)
-        await self.db.commit()
-        
-        return updated
-    
     async def _set_supplier_discounts(self, entry_id: int, items: list, tenant_id: int) -> None:
         """Define o desconto de cada fornecedor da entrada (valor 0 remove). Só aceita fornecedor que tem item na entrada."""
         entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
@@ -1094,24 +996,14 @@ class StockEntryService:
             if existing:
                 raise ValueError(f"Entry code {entry_data.entry_code} já existe")
         
-        # Validar trip_id se fornecido
-        if entry_data.trip_id:
-            trip = await self.trip_repo.get_by_id(self.db, entry_data.trip_id, tenant_id=tenant_id)
-            if not trip:
-                raise ValueError(f"Trip {entry_data.trip_id} não encontrada")
-        
         # Atualizar
-        old_trip_id = entry.trip_id
         entry_dict = entry_data.model_dump(exclude_unset=True)
         supplier_discounts = entry_dict.pop('supplier_discounts', None)
         updated = await self.entry_repo.update(self.db, entry_id, entry_dict, tenant_id=tenant_id)
         if supplier_discounts is not None:
             await self._set_supplier_discounts(entry_id, supplier_discounts, tenant_id)
 
-        # Mudou de viagem (ou saiu dela): refaz o rateio do lote e dos lotes da viagem antiga
         await lot_cost_service.recompute_entries(self.db, [entry_id], tenant_id=tenant_id)
-        if old_trip_id and old_trip_id != getattr(updated, "trip_id", None):
-            await lot_cost_service.recompute_trip(self.db, old_trip_id, tenant_id=tenant_id)
         await self.db.commit()
         
         return updated
@@ -1227,7 +1119,6 @@ class StockEntryService:
             entry.tenant_id = None
 
             # Soft delete da entrada (cascata para itens via is_active=False)
-            _deleted_trip_id = entry.trip_id
             success = await self.entry_repo.delete(self.db, entry_id, tenant_id=tenant_id)
 
             # Flush para que o soft delete seja visível antes do rebuild
@@ -1313,8 +1204,6 @@ class StockEntryService:
                 except Exception as sync_err:
                     print(f"  [Inventory Sync DELETE_ENTRY] Falha sync produto {pid}: {sync_err}")
 
-            if _deleted_trip_id:
-                await lot_cost_service.recompute_trip(self.db, _deleted_trip_id, tenant_id=tenant_id)
             await self.db.commit()
 
             return {
@@ -1332,7 +1221,6 @@ class StockEntryService:
     async def get_entries_filtered(
         self,
         entry_type: Optional[EntryType] = None,
-        trip_id: Optional[int] = None,
         start_date: Optional[Any] = None,
         end_date: Optional[Any] = None,
         skip: int = 0,
@@ -1345,7 +1233,6 @@ class StockEntryService:
         
         Args:
             entry_type: Filtrar por tipo
-            trip_id: Filtrar por viagem
             start_date: Data inicial
             end_date: Data final
             skip: Registros para pular
@@ -1358,7 +1245,6 @@ class StockEntryService:
         return await self.entry_repo.get_filtered(
             self.db,
             entry_type=entry_type,
-            trip_id=trip_id,
             start_date=start_date,
             end_date=end_date,
             skip=skip,
@@ -2202,7 +2088,6 @@ class StockEntryService:
                 entry_code=unique_code,
                 entry_date=entry_data.get('entry_date') or today_brazil(),  # sem data: hoje (o app sempre manda; cliente da API pode esquecer)
                 entry_type=entry_data.get('entry_type') or 'local',
-                trip_id=entry_data.get('trip_id'),
                 supplier_id=default_supplier.id,
                 supplier_name=default_supplier.name,
                 supplier_cnpj=entry_data.get('supplier_cnpj'),
@@ -2382,7 +2267,6 @@ class StockEntryService:
                 entry_code=unique_code,
                 entry_date=entry_data.get('entry_date') or today_brazil(),  # sem data: hoje (o app sempre manda; cliente da API pode esquecer)
                 entry_type=entry_data.get('entry_type') or 'local',
-                trip_id=entry_data.get('trip_id'),
                 supplier_id=default_supplier.id,
                 supplier_name=default_supplier.name,
                 supplier_cnpj=entry_data.get('supplier_cnpj'),

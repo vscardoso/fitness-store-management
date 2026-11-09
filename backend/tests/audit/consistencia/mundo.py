@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from sqlalchemy import select
 
 from tests.test_estresse_vendas_fifo import _variacao
-from tests.test_lot_costs import _loja_api, _lote, _produto, _viagem
+from tests.test_lot_costs import _loja_api, _lote, _produto
 
 D = Decimal
 C = D("0.01")
@@ -198,7 +198,7 @@ class Book:
 
 
 async def mundo(db, test_user, *, com_extras=True):
-    """Loja 1 com 2 produtos, 3 variações e 5 lotes (A em 3 camadas, B em viagem com frete, C com desconto do fornecedor).
+    """Loja 1 com 2 produtos, 3 variações e 5 lotes (A em 3 camadas, B com frete do lote, C com desconto do fornecedor).
     Devolve (t_id, headers, ctx) com ctx.ids, ctx.entries e o Book já com as camadas lidas do banco (custo posto)."""
     from app.models.entry_item import EntryItem
     from app.models.stock_entry import StockEntry
@@ -209,11 +209,11 @@ async def mundo(db, test_user, *, com_extras=True):
     vb = await _variacao(db, p1, t_id, "120.00", cor="Verde", tam="G")
     p2, vc = await _produto(db, t_id, cat, "Auditoria P2", "80.00")
     hoje = date.today()
-    trip = await _viagem(db, t_id, fuel=300) if com_extras else None
+    frete = 300 if com_extras else 0
     e1 = await _lote(db, t_id, [(va, p1, 10, 40)], entry_date=hoje - timedelta(days=30))
     e2 = await _lote(db, t_id, [(va, p1, 15, 45)], entry_date=hoje - timedelta(days=20))
     e3 = await _lote(db, t_id, [(va, p1, 20, 50)], entry_date=hoje - timedelta(days=10))
-    e4 = await _lote(db, t_id, [(vb, p1, 60, 30)], trip=trip, entry_date=hoje - timedelta(days=15))
+    e4 = await _lote(db, t_id, [(vb, p1, 60, 30)], frete=frete, entry_date=hoje - timedelta(days=15))
     e5 = await _lote(db, t_id, [(vc, p2, 50, 35)], entry_date=hoje - timedelta(days=5))
     if com_extras:
         e2.discount_amount = D("75.00")   # desconto do fornecedor na entrada

@@ -44,7 +44,7 @@ export default function LotProfitScreen() {
         <View style={styles.intro}>
           <Ionicons name="information-circle-outline" size={20} color={Colors.light.textSecondary} />
           <Text style={styles.introText}>
-            Cada lote é uma compra que você deu entrada. Aqui você vê, para cada uma, quanto gastou (mercadoria, viagem e frete), quanto
+            Cada lote é uma compra que você deu entrada. Aqui você vê, para cada uma, quanto gastou (mercadoria e frete), quanto
             já vendeu e o lucro do que já saiu. Mostra as 30 compras mais recentes; toque num lote para ver os detalhes.
           </Text>
         </View>

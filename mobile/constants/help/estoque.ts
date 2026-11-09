@@ -199,7 +199,7 @@ const ENTRADAS: HelpEntry[] = [
     purpose: 'Lista as compras de mercadoria, com quanto custou cada uma e quanto já foi vendido.',
     steps: [
       'Escolha a aba “Ativas” (ainda com peças), “Histórico” (tudo vendido) ou “Todas”.',
-      'Filtre pelo tipo de compra ou busque pelo código, fornecedor ou viagem.',
+      'Filtre pelo tipo de compra ou busque pelo código ou fornecedor.',
       'Toque na entrada para ver quanto ela rendeu e cuidar dos produtos dela.',
       'Para lançar uma compra, toque no “+” (no computador, “Nova entrada”).',
     ],
@@ -218,20 +218,20 @@ const ENTRADAS: HelpEntry[] = [
     open: '/entries/add',
     purpose: 'Registra uma compra de mercadoria: fornecedor, custos e as peças que chegaram.',
     steps: [
-      'Escolha o tipo (“Viagem”, “Online” ou “Local”), dê um código e confira a data da compra.',
-      'Escolha o fornecedor da entrada (ou cadastre um novo).',
+      'Escolha o tipo (“Online” ou “Local”), dê um código e confira a data da compra.',
+      'Escolha o fornecedor de cada produto (ou cadastre um novo); o último escolhido já vem preenchido no próximo.',
       'Lance o frete e outros gastos da compra, se houver.',
       'Toque em “Adicionar” e escolha cada produto e peça, com quantidade e quanto pagou em cada uma.',
       'Confira o resumo e toque em “Salvar Entrada”.',
     ],
     goodToKnow: [
-      'Frete, gastos extras e o custo da viagem entram no custo de cada peça.',
+      'Frete e gastos extras entram no custo de cada peça.',
       'O desconto do fornecedor reduz o custo de cada peça.',
       'A data pode ser antiga (compra já feita), mas não pode ser no futuro.',
       'Toda peça precisa de custo: sem ele o lucro das vendas sai errado.',
     ],
     roles: ['manager'],
-    related: ['entrada-detalhe', 'produto-novo', 'viagem-nova'],
+    related: ['entrada-detalhe', 'produto-novo'],
     sources: ['app/entries/add.tsx', 'components/entries/EntryExtraCostsInput.tsx', 'components/suppliers/SupplierPickerSheet.tsx'],
   },
   {
@@ -246,7 +246,7 @@ const ENTRADAS: HelpEntry[] = [
       'Informe quanto pagou em cada peça.',
       'Toque no botão de registrar as unidades.',
     ],
-    goodToKnow: ['Para escolher fornecedor ou viagem, use a Nova entrada completa.'],
+    goodToKnow: ['Para escolher o fornecedor, use a Nova entrada completa.'],
     roles: ['manager'],
     related: ['entrada-nova', 'scanner-ia'],
     sources: ['app/entries/add-stock.tsx'],
@@ -607,60 +607,4 @@ const FORNECEDORES: HelpEntry[] = [
   },
 ];
 
-const VIAGENS: HelpEntry[] = [
-  {
-    id: 'viagens',
-    group: 'estoque',
-    title: 'Viagens',
-    routes: ['/trips'],
-    open: '/trips',
-    purpose: 'Lista as viagens de compra com a situação e o custo de cada uma.',
-    steps: [
-      'Toque numa viagem para ver custos e quanto ela rendeu.',
-      'Para registrar uma viagem, toque no “+” (no computador, “Nova viagem”).',
-    ],
-    goodToKnow: ['O custo da viagem é dividido entre as peças compradas nela e entra no custo de cada peça.'],
-    roles: ['manager'],
-    related: ['viagem-nova', 'viagem-detalhe'],
-    sources: ['app/(tabs)/trips.tsx', 'components/FAB.tsx'],
-  },
-  {
-    id: 'viagem-nova',
-    group: 'estoque',
-    title: 'Nova viagem',
-    routes: ['/trips/add'],
-    open: '/trips/add',
-    purpose: 'Registra uma viagem de compra e quanto ela custou.',
-    steps: [
-      'Dê um código à viagem (mínimo de 5 letras), a data e o destino.',
-      'Preencha os custos: combustível, alimentação, pedágios, hospedagem e outros.',
-      'Toque em “Salvar Viagem”.',
-      'Ao lançar as entradas compradas na viagem, escolha esta viagem nelas.',
-    ],
-    goodToKnow: [
-      'O app avisa na hora se o código já foi usado.',
-      'Os custos são divididos entre as entradas da viagem, proporcional ao valor das mercadorias.',
-    ],
-    roles: ['manager'],
-    related: ['viagens', 'viagem-detalhe'],
-    sources: ['app/trips/add.tsx'],
-  },
-  {
-    id: 'viagem-detalhe',
-    group: 'estoque',
-    title: 'Detalhe da viagem',
-    routes: ['/trips/[id]'],
-    purpose: 'Mostra a situação, os custos e o desempenho de uma viagem de compra.',
-    steps: [
-      'Toque em “Iniciar” quando sair para a viagem.',
-      'Ao voltar, toque em “Concluir”.',
-      'Acompanhe em “DESEMPENHO DA VIAGEM” quanto foi investido, quanto já vendeu e quantas peças restam.',
-    ],
-    goodToKnow: ['Só dá para excluir a viagem sem entradas ligadas a ela e sem vendas.'],
-    roles: ['manager'],
-    related: ['viagens'],
-    sources: ['app/trips/[id].tsx'],
-  },
-];
-
-export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES, ...VIAGENS];
+export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES];

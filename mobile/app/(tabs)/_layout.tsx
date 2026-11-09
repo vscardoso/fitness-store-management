@@ -191,7 +191,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="categories" options={{ href: null }} />
       <Tabs.Screen name="customers" options={{ href: null }} />
       <Tabs.Screen name="inventory" options={{ href: null }} />
-      <Tabs.Screen name="trips" options={{ href: null }} />
       
       {/* Envios Condicionais: oculto do tab bar mas mantém rotas acessíveis */}
       <Tabs.Screen name="conditional" options={{ href: null }} />

@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.timezone import today_brazil
 from app.models.expense import Expense, ExpenseCategory
 from app.models.stock_entry import StockEntry
-from app.models.trip import Trip
 from app.services import lot_cost_service
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.repositories.expense import ExpenseCategoryRepository, ExpenseRepository
@@ -192,28 +191,20 @@ class ExpenseService:
         if found is None:
             raise ValueError("Conta de pagamento não encontrada")
 
-    async def _validate_link(self, stock_entry_id: Optional[int], trip_id: Optional[int], tenant_id: Optional[int]) -> None:
-        """Lote/viagem informados precisam existir, estar ativos e ser da mesma loja."""
+    async def _validate_link(self, stock_entry_id: Optional[int], tenant_id: Optional[int]) -> None:
+        """O lote informado precisa existir, estar ativos e ser da mesma loja."""
         if stock_entry_id is not None:
             stmt = select(StockEntry.id).where(StockEntry.id == stock_entry_id, StockEntry.is_active == True)  # noqa: E712
             if tenant_id is not None:
                 stmt = stmt.where(StockEntry.tenant_id == tenant_id)
             if (await self.db.execute(stmt)).scalar_one_or_none() is None:
                 raise ValueError("Lote (entrada) não encontrado")
-        if trip_id is not None:
-            stmt = select(Trip.id).where(Trip.id == trip_id, Trip.is_active == True)  # noqa: E712
-            if tenant_id is not None:
-                stmt = stmt.where(Trip.tenant_id == tenant_id)
-            if (await self.db.execute(stmt)).scalar_one_or_none() is None:
-                raise ValueError("Viagem não encontrada")
 
-    async def _reallocate(self, entry_ids: set, trip_ids: set, tenant_id: Optional[int]) -> None:
-        """Refaz o rateio dos lotes/viagens afetados (mesma transação da despesa)."""
+    async def _reallocate(self, entry_ids: set, tenant_id: Optional[int]) -> None:
+        """Refaz o rateio dos lotes afetados (mesma transação da despesa)."""
         ids = {i for i in entry_ids if i}
         if ids:
             await lot_cost_service.recompute_entries(self.db, ids, tenant_id=tenant_id)
-        for t in {i for i in trip_ids if i}:
-            await lot_cost_service.recompute_trip(self.db, t, tenant_id=tenant_id)
 
     async def _ensure_open(self, tenant_id: Optional[int], day: Optional[date]) -> None:
         """Despesa COM conta mexe no saldo: mês fechado não aceita (a fotografia não pode mudar por fora)."""
@@ -231,14 +222,14 @@ class ExpenseService:
         from sqlalchemy import select as sa_select
 
         await self._validate_category(data.category_id, tenant_id)
-        await self._validate_link(data.stock_entry_id, data.trip_id, tenant_id)
+        await self._validate_link(data.stock_entry_id, tenant_id)
         await self._validate_account(data.account_id, tenant_id)
         if data.account_id:
             await self._ensure_open(tenant_id, data.expense_date)
         obj = Expense(**data.model_dump(), tenant_id=tenant_id)
         self.db.add(obj)
         await self.db.flush()
-        await self._reallocate({obj.stock_entry_id}, {obj.trip_id}, tenant_id)
+        await self._reallocate({obj.stock_entry_id}, tenant_id)
         await self.db.commit()
         # Recarregar com categoria
         result = await self.db.execute(
@@ -270,21 +261,13 @@ class ExpenseService:
             await self._ensure_open(tenant_id, exp.expense_date)     # sai de um mês fechado
         if new_account:
             await self._ensure_open(tenant_id, new_date)             # entra num mês fechado
-        old_entry, old_trip = exp.stock_entry_id, exp.trip_id
+        old_entry = exp.stock_entry_id
         new_entry = changes.get("stock_entry_id", old_entry)
-        new_trip = changes.get("trip_id", old_trip)
-        # trocar de lote para viagem (ou vice-versa) exige limpar o outro vínculo na mesma chamada
-        if new_entry is not None and new_trip is not None:
-            raise ValueError("A despesa pode ser de um lote ou de uma viagem, não dos dois")
-        await self._validate_link(
-            new_entry if "stock_entry_id" in changes else None,
-            new_trip if "trip_id" in changes else None,
-            tenant_id,
-        )
+        await self._validate_link(new_entry if "stock_entry_id" in changes else None, tenant_id)
         for field, value in changes.items():
             setattr(exp, field, value)
         await self.db.flush()
-        await self._reallocate({old_entry, exp.stock_entry_id}, {old_trip, exp.trip_id}, tenant_id)
+        await self._reallocate({old_entry, exp.stock_entry_id}, tenant_id)
         await self.db.commit()
         await self.db.refresh(exp)
         return exp
@@ -303,7 +286,7 @@ class ExpenseService:
             await self._ensure_open(tenant_id, exp.expense_date)
         exp.is_active = False
         await self.db.flush()
-        await self._reallocate({exp.stock_entry_id}, {exp.trip_id}, tenant_id)
+        await self._reallocate({exp.stock_entry_id}, tenant_id)
         await self.db.commit()
         return True
 
@@ -380,11 +363,6 @@ class ExpenseService:
         cmv = led.cost
         units_sold = led.pieces_sold - led.pieces_returned
 
-        # 3. Custos de viagem: entram no CUSTO das peças do lote (custo posto, rateado em entry_items.extra_unit_cost)
-        #    e portanto já estão no CMV quando a peça é vendida. Não somar de novo aqui (antes a viagem inteira caía
-        #    no mês da viagem, muito antes da venda). O campo trip_costs segue na resposta, sempre 0, por compatibilidade.
-        trip_costs = Decimal("0")
-
         # 4. Despesas operacionais (inclui perdas de estoque, destacadas à parte abaixo)
         total_expenses = await _exp_repo.sum_by_period(
             self.db,
@@ -405,7 +383,7 @@ class ExpenseService:
         # 5. Cálculos
         gross_profit = revenue - cmv
         gross_margin_pct = (gross_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
-        net_profit = gross_profit - total_expenses - trip_costs
+        net_profit = gross_profit - total_expenses
         net_margin_pct = (net_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
 
         return MonthlyResultResponse(
@@ -414,7 +392,6 @@ class ExpenseService:
             cmv=cmv,
             gross_profit=gross_profit,
             gross_margin_pct=gross_margin_pct,
-            trip_costs=trip_costs,
             total_expenses=total_expenses,
             stock_losses_total=stock_losses_total,
             net_profit=net_profit,

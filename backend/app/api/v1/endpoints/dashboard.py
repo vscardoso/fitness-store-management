@@ -107,7 +107,7 @@ def get_previous_period_dates(start: date, end: date) -> tuple[date, date]:
 
 
 def _entry_extra_costs_subquery():
-    """Por entrada: viagem e despesas do lote já rateadas nos itens (quantidade x custo extra por peça)."""
+    """Por entrada: despesas do lote já rateadas nos itens (quantidade x custo extra por peça)."""
     return (
         select(
             EntryItem.entry_id.label("entry_id"),
@@ -1051,7 +1051,6 @@ async def get_fifo_performance(
                 "entry_date": str(meta.entry_date),
                 "total_cost": round(float(meta.total_cost or 0), 2),
                 "cost_of_sold": round(e["cost"], 2),
-                "trip_cost_share": 0.0,
                 "estimated_revenue": round(e["revenue"], 2),
                 "roi": round(profit / e["cost"] * 100, 1),
                 "sell_through": round(e["qty"] / received * 100, 1),
@@ -1202,7 +1201,7 @@ async def get_period_purchases(
     - total_invested: valor total investido em compras
     - entries_count: quantidade de entradas
     - items_count: quantidade de itens/produtos comprados
-    - by_type: distribuicao por tipo de entrada (trip, online, local)
+    - by_type: distribuicao por tipo de entrada (online, local)
     - comparison: comparacao com periodo anterior
     """
     _ck = f"purchases:{tenant_id}:{period}"
@@ -1288,7 +1287,6 @@ async def get_period_purchases(
 
     # Labels para tipo de entrada
     type_labels = {
-        "trip": "Viagem",
         "online": "Online",
         "local": "Local",
         "initial": "Estoque Inicial",

@@ -69,7 +69,7 @@ async def test_numeros_do_cenario_do_lojista_em_todas_as_telas(test_client, asyn
     # ---- resultado do mês: receita 120, CMV 80, despesas gerais 0 (o almoço do lote já está no custo), lucro 40
     mes = (await test_client.get("/api/v1/expenses/resultado-mes", headers=h)).json()
     assert float(mes["revenue"]) == 120.0 and float(mes["cmv"]) == 80.0
-    assert float(mes["total_expenses"]) == 0.0 and float(mes["trip_costs"]) == 0.0
+    assert float(mes["total_expenses"]) == 0.0
     assert float(mes["net_profit"]) == 40.0
 
     # ---- cartão da entrada: gasto 200, vendeu 4 de 10, entrou 120, sobrou 40, voltou 60%
