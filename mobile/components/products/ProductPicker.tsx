@@ -108,7 +108,7 @@ export function ProductPickerList({ onPick, onNewVariant, markedVariantIds = [],
       </View>}
 
       {isLoading ? (
-        <ActivityIndicator size="small" color={brand.primary} style={{ marginVertical: 24 }} />
+        <ActivityIndicator size="large" color={brand.primary} style={{ marginVertical: 24 }} />
       ) : error ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>{parseApiError(error) || 'Não foi possível carregar os produtos'}</Text>

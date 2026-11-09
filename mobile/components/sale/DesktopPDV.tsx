@@ -400,7 +400,7 @@ export default function DesktopPDV() {
               <Text style={styles.listHeadText}>CLIQUE NA COR E TAMANHO PARA ADICIONAR</Text>
             </View>
             {isLoading ? (
-              <View style={styles.empty}><ActivityIndicator size="small" color={primary} /></View>
+              <View style={styles.empty}><ActivityIndicator size="large" color={primary} /></View>
             ) : results.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyText}>

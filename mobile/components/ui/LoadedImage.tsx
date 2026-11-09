@@ -55,7 +55,7 @@ export default function LoadedImage({ style, source, onLoad, onError, loaderSize
       />
       {state === 'loading' && (
         <View style={styles.center} pointerEvents="none">
-          <ActivityIndicator size={small ? 'small' : 'large'} color={Colors.light.textTertiary} />
+          <ActivityIndicator size={small ? 'small' : 56} color={Colors.light.textTertiary} />
         </View>
       )}
       {state === 'error' && (

@@ -88,7 +88,7 @@ export default function ReplacementPicker({ visible, productId, excludeVariantId
 
       {!!error && <Text style={styles.error}>{error}</Text>}
       {loading ? (
-        <ActivityIndicator size="small" color={brand.primary} style={{ marginVertical: 24 }} />
+        <ActivityIndicator size="large" color={brand.primary} style={{ marginVertical: 24 }} />
       ) : withStock.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="search-outline" size={40} color={Colors.light.textTertiary} />

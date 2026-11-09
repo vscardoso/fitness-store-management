@@ -25,7 +25,7 @@ import Animated, {
 import { useBrandingColors } from '@/store/brandingStore';
 
 export interface MagnifierLoaderProps {
-  /** 'small' = 20, 'large' = 56 (mesmos nomes do ActivityIndicator) ou número em px */
+  /** 'small' = 20, 'large' = 124 (o mesmo do carregamento global) ou número em px */
   size?: 'small' | 'large' | number;
   /** Cor do logo. Padrão: degradê da loja (primária -> secundária). */
   color?: string;
@@ -64,7 +64,7 @@ export function useHasScreenLoader(): boolean {
 }
 
 const SIZE_SMALL = 20;
-const SIZE_LARGE = 56;
+const SIZE_LARGE = 124; // carregamento de tela: igual ao global (LoadingOverlay), em qualquer tela
 const SWING_MS = 1300; // meio balanço (ida); a volta repete invertida
 const GLINT_MS = 1800;
 const SWING_DEG = 13;
@@ -133,7 +133,7 @@ export function MagnifierLoader({
     <View
       accessibilityRole="progressbar"
       accessibilityLabel="Carregando"
-      style={[{ width: px, height: px, alignItems: 'center', justifyContent: 'center' }, style]}
+      style={[{ width: px, height: px, alignItems: 'center', justifyContent: 'center' }, px >= 36 && { alignSelf: 'center' }, style]}
     >
       {!small && (
         <Animated.View

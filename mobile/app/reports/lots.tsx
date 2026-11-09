@@ -49,7 +49,7 @@ export default function LotProfitScreen() {
           </Text>
         </View>
 
-        {isLoading && <ActivityIndicator color={brand.primary} style={{ marginTop: 32 }} />}
+        {isLoading && <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 32 }} />}
 
         {!isLoading && (data ?? []).length === 0 && (
           <Text style={styles.empty}>Você ainda não tem lotes. Quando der entrada numa compra, ela aparece aqui.</Text>

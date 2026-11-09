@@ -34,7 +34,7 @@ export default function CashHistoryScreen() {
       <View style={[{ flex: 1 }, desktopColumn]}>
       <ScrollView
           style={bleed.scrollStyle} contentContainerStyle={[styles.content, bleed.contentStyle]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
-        {isLoading && <ActivityIndicator style={{ marginTop: 24 }} />}
+        {isLoading && <ActivityIndicator size="large" style={{ marginTop: 24 }} />}
         {!!error && <Text style={styles.error}>{parseApiError(error) || 'Não foi possível carregar o histórico.'}</Text>}
         {!isLoading && !error && (data?.length ?? 0) === 0 && <Text style={styles.empty}>Nenhum caixa aberto ainda.</Text>}
         {(data ?? []).map((s) => {

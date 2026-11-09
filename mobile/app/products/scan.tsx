@@ -149,7 +149,7 @@ export default function ScanProductScreen() {
             resizeMode="cover"
           />
           <View style={styles.imageOverlay}>
-            <ActivityIndicator size="large" color="#fff" />
+            <ActivityIndicator size={56} color="#fff" />
           </View>
         </View>
       )}

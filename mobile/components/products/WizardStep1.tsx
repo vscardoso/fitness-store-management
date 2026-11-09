@@ -340,7 +340,7 @@ export default function WizardStep1({
             />
           )}
           <View style={styles.analyzingOverlay}>
-            <ActivityIndicator size="large" color="#fff" />
+            <ActivityIndicator size={56} color="#fff" />
             <Text style={styles.analyzingText}>Analisando...</Text>
             <ProgressBar indeterminate color="#fff" style={styles.progressBar} />
           </View>
