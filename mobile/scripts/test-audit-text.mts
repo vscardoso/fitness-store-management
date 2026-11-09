@@ -40,7 +40,29 @@ t('sem nome usa o e-mail e sem ninguém diz "Alguém"', () => {
   assert.ok(describeAudit({ action: 'TRANSFER_DELETED' }).text.startsWith('Alguém apagou'));
 });
 t('ação desconhecida e detalhe quebrado caem numa frase genérica', () => {
-  assert.equal(describeAudit({ action: 'COISA_NOVA_FEITA', user_name: 'Fê', detail: '{quebrado' }).text, 'Fê fez uma alteração (coisa nova feita)');
+  assert.equal(describeAudit({ action: 'COISA_NOVA_FEITA', user_name: 'Fê', detail: '{quebrado' }).text, 'Fê fez uma ação no sistema (coisa nova feita)');
   assert.equal(describeAudit({ action: 'EXPENSE_CREATED', user_name: 'Fê', detail: null }).reason, null);
 });
 console.log(`${ok} testes de texto do histórico passaram`);
+
+// ── regra geral e acessos (08/11/2026: "fez uma alteração (login success)" estava errado) ──
+{
+  const login = describeAudit({ action: 'LOGIN_SUCCESS', user_name: 'Wanessa Santos Cardoso' });
+  assert.equal(login.text, 'Wanessa Santos Cardoso entrou no sistema');
+  assert.ok(!login.text.includes('alteração'));
+  assert.equal(describeAudit({ action: 'CUSTOMER_VIEWED', user_name: 'Alice' }).text, 'Alice abriu a ficha de uma cliente');
+  assert.ok(describeAudit({ action: 'LOGIN_FAILED', user_email: 'x@y.com' }).text.includes('x@y.com'));
+  const forn = describeAudit({ action: 'ROTA_PUT_SUPPLIERS', user_name: 'Victor', detail: JSON.stringify({
+    metodo: 'PUT', rota: '/suppliers/{supplier_id}', nome: 'Loja B', antes: { name: 'Loja A' }, depois: { name: 'Loja B' } }) });
+  assert.ok(forn.text.startsWith('Victor alterou o fornecedor “Loja B”') && forn.text.includes('Loja A'), forn.text);
+  assert.equal(describeAudit({ action: 'ROTA_DELETE_PRODUCTS', user_name: 'Alice', detail: JSON.stringify({ metodo: 'DELETE', rota: '/products/{product_id}', nome: 'Top Alfa' }) }).text,
+    'Alice apagou o produto “Top Alfa”');
+  assert.equal(describeAudit({ action: 'ROTA_POST_PRODUCTS_ADJUST_QUANTITY', user_name: 'Alice', detail: JSON.stringify({ metodo: 'POST', rota: '/products/{product_id}/adjust-quantity' }) }).text,
+    'Alice ajustou a quantidade de um produto');
+  assert.equal(describeAudit({ action: 'ROTA_PATCH_TEAM_ROLE', user_name: 'Victor', detail: JSON.stringify({ metodo: 'PATCH', rota: '/team/{user_id}/role' }) }).text,
+    'Victor mudou o papel de uma pessoa');
+  assert.equal(describeAudit({ action: 'ROTA_POST_RETURNS', user_name: 'Alice', detail: JSON.stringify({ metodo: 'POST', rota: '/returns/{sale_id}' }) }).text,
+    'Alice registrou uma devolução');
+  assert.ok(describeAudit({ action: 'COISA_NOVA', user_name: 'Alice' }).text.includes('fez uma ação no sistema'));
+  console.log('ok regra geral e acessos');
+}

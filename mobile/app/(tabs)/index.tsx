@@ -365,7 +365,7 @@ export default function DashboardScreen() {
           subtitle={user?.store_name || 'Provador'}
           leftVisual={
             logoUri ? (
-              <Image source={{ uri: logoUri }} style={styles.headerStoreLogoImage} resizeMode="cover" />
+              <Image source={{ uri: logoUri }} style={styles.headerStoreLogoImage} resizeMode="contain" />
             ) : (
               <View style={styles.headerStoreLogoFallback}>
                 <FitFlowLogo size={32} />

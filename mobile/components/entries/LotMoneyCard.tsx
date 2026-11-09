@@ -6,7 +6,7 @@
  * ser entendida por quem quer entender o dinheiro, não a contabilidade.
  */
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { TextInput } from 'react-native-paper';
@@ -24,6 +24,7 @@ import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 interface Props {
   entryId: number;
   /** Quem pode lançar despesa do lote (gerente e admin). */

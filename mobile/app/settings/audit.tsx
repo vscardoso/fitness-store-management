@@ -10,6 +10,8 @@ import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
+import HScroll from '@/components/ui/HScroll';
+import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { getAuditPage, type AuditCategory, type AuditRow } from '@/services/auditService';
@@ -20,11 +22,12 @@ import { isAdminRole } from '@/utils/roles';
 
 const PAGE = 30;
 const CATEGORIES: { key: AuditCategory | null; label: string }[] = [
-  { key: null, label: 'Tudo' },
+  { key: null, label: 'Alterações' },
   { key: 'dinheiro', label: 'Dinheiro' },
   { key: 'estoque', label: 'Estoque' },
   { key: 'vendas', label: 'Vendas' },
   { key: 'pessoas', label: 'Pessoas' },
+  { key: 'acessos', label: 'Acessos (quem entrou)' },
 ];
 
 const dayKey = (iso: string) => {
@@ -35,9 +38,10 @@ const hour = (iso: string) =>
   parseApiDate(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
 
 function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const brand = useBrandingColors();   // cores da loja (cada loja tem a sua paleta depois do login)
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.chip, active && styles.chipOn]} accessibilityRole="button" accessibilityState={{ selected: active }}>
-      <Text style={[styles.chipText, active && styles.chipTextOn]}>{label}</Text>
+    <TouchableOpacity onPress={onPress} style={[styles.chip, active && styles.chipOn, active && { backgroundColor: brand.primary, borderColor: brand.primary }]} accessibilityRole="button" accessibilityState={{ selected: active }}>
+      <Text style={[styles.chipText, active && styles.chipTextOn]} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -47,6 +51,7 @@ export default function AuditHistoryScreen() {
   const { user } = useAuth();
   const desktopContent = useDesktopContentStyle();
   const admin = isAdminRole(user?.role);
+  const brand = useBrandingColors();
   const [category, setCategory] = useState<AuditCategory | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
   const [rows, setRows] = useState<AuditRow[]>([]);
@@ -104,22 +109,22 @@ export default function AuditHistoryScreen() {
         <Text style={styles.intro}>
           Tudo que alguém muda em valores fica aqui, com o nome de quem fez. Estes registros não podem ser apagados nem editados.
         </Text>
-        <View style={styles.chips}>
+        <HScroll contentContainerStyle={styles.chips} style={styles.chipsWrap}>
           {CATEGORIES.map((c) => (
             <Chip key={c.label} label={c.label} active={category === c.key} onPress={() => setCategory(c.key)} />
           ))}
-        </View>
+        </HScroll>
         {Object.keys(people).length > 0 && (
-          <View style={styles.chips}>
+          <HScroll contentContainerStyle={styles.chips} style={styles.chipsWrap}>
             <Chip label="Todas as pessoas" active={userId === null} onPress={() => setUserId(null)} />
             {Object.entries(people).map(([id, name]) => (
               <Chip key={id} label={name} active={userId === Number(id)} onPress={() => setUserId(Number(id))} />
             ))}
-          </View>
+          </HScroll>
         )}
 
         {loading ? (
-          <View style={styles.center}><ActivityIndicator size="large" color={Colors.light.primary} /></View>
+          <View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View>
         ) : error ? (
           <Text style={styles.error}>{error}</Text>
         ) : groups.length === 0 ? (
@@ -144,7 +149,7 @@ export default function AuditHistoryScreen() {
             ))}
             {rows.length < total && (
               <TouchableOpacity style={styles.moreBtn} onPress={() => load(rows.length)} disabled={more} accessibilityRole="button">
-                <Text style={styles.moreText}>{more ? 'Carregando...' : 'Ver mais antigos'}</Text>
+                <Text style={[styles.moreText, { color: brand.primary }]}>{more ? 'Carregando...' : 'Ver mais antigos'}</Text>
               </TouchableOpacity>
             )}
           </>
@@ -158,7 +163,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: 16, paddingBottom: 48 },
   intro: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary, marginBottom: 12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  // uma linha só, sem quebrar: o HScroll põe setas nas pontas quando há mais chips escondidos
+  chips: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: 8, paddingRight: 8 },
+  chipsWrap: { marginBottom: 12, flexGrow: 0 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
   chipOn: { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
   chipText: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
@@ -173,5 +180,5 @@ const styles = StyleSheet.create({
   reason: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary, marginTop: 4 },
   time: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 6 },
   moreBtn: { alignSelf: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card, marginTop: 4 },
-  moreText: { fontSize: 14, fontWeight: '600', color: Colors.light.primary },
+  moreText: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
 });

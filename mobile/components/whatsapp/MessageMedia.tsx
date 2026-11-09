@@ -3,7 +3,7 @@
  * O arquivo é buscado no servidor (que o pega na Meta na hora), sempre com a sessão da loja.
  */
 import { createElement, useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import api from '@/services/api';
 import { parseApiError } from '@/utils/apiError';
@@ -11,6 +11,7 @@ import type { WaMessage } from '@/services/whatsappService';
 import MediaViewer from './MediaViewer';
 import { useChatColors } from '@/hooks/useThemeColors';
 import LoadedImage from '@/components/ui/LoadedImage';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 function toBase64(bytes: Uint8Array): string {

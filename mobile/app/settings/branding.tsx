@@ -13,13 +13,14 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 export default function BrandingScreen() {
   const desktopContent = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)/more');
+  const goBack = () => router.replace('/(tabs)/more');
   const { branding, applyPreset, uploadLogoToServer, saveToServer, fetchFromServer, setBranding } = useBrandingStore();
 
   const [name, setName] = useState(branding.name);
@@ -123,7 +124,7 @@ export default function BrandingScreen() {
                 <ActivityIndicator color={branding.primaryColor} />
               </View>
             ) : logoUri ? (
-              <Image source={{ uri: logoUri }} style={styles.logoImage} />
+              <LoadedImage source={{ uri: logoUri }} style={styles.logoImage} resizeMode="contain" />
             ) : (
               <View style={[styles.logoPlaceholder, { backgroundColor: branding.primaryColor + '20' }]}>
                 <Ionicons name="storefront-outline" size={40} color={branding.primaryColor} />
@@ -191,7 +192,7 @@ export default function BrandingScreen() {
           <Text style={styles.sectionTitle}>Preview</Text>
           <View style={[styles.preview, { backgroundColor: branding.primaryColor }]}>
             {logoUri
-              ? <Image source={{ uri: logoUri }} style={styles.previewLogo} />
+              ? <LoadedImage source={{ uri: logoUri }} style={styles.previewLogo} resizeMode="contain" />
               : <Ionicons name="storefront-outline" size={28} color="#fff" />
             }
             <Text style={styles.previewName}>{name || 'Nome da loja'}</Text>

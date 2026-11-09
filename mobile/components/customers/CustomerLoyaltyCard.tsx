@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/authStore';
 import { parseApiError } from '@/utils/apiError';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { adjustCustomerLoyalty, getCustomerLoyalty } from '@/services/loyaltyService';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const pts = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(n % 1 === 0 ? 0 : 2).replace('.', ',')}`;
 
@@ -26,7 +27,7 @@ export default function CustomerLoyaltyCard({ customerId }: { customerId: number
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
 
-  const { data } = useQuery({ queryKey: ['customer-loyalty', customerId], queryFn: () => getCustomerLoyalty(customerId) });
+  const { data, isLoading } = useQuery({ queryKey: ['customer-loyalty', customerId], queryFn: () => getCustomerLoyalty(customerId) });
   const adjust = useMutation({
     mutationFn: () => adjustCustomerLoyalty(customerId, parseFloat(points.replace(',', '.')), note.trim()),
     onSuccess: () => {
@@ -37,6 +38,7 @@ export default function CustomerLoyaltyCard({ customerId }: { customerId: number
     onError: (e) => setError(parseApiError(e) || 'Não foi possível ajustar.'),
   });
 
+  if (isLoading) return <View style={[styles.card, { alignItems: 'center', paddingVertical: 20 }]}><ActivityIndicator color={brand.primary} /></View>;
   // loja sem programa e cliente sem histórico: nada para mostrar
   if (!data || (!data.enabled && data.entries.length === 0)) return null;
   const n = parseFloat(points.replace(',', '.'));

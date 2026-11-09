@@ -2,7 +2,7 @@
 import api from './api';
 import type { AuditItem } from '@/utils/auditText';
 
-export type AuditCategory = 'dinheiro' | 'estoque' | 'vendas' | 'pessoas';
+export type AuditCategory = 'dinheiro' | 'estoque' | 'vendas' | 'pessoas' | 'acessos';
 
 export interface AuditRow extends AuditItem {
   id: number;
@@ -26,6 +26,7 @@ export const getAuditPage = async (p: {
 }): Promise<AuditPage> => {
   const params: Record<string, string | number> = { limit: p.limit ?? 30, skip: p.skip ?? 0 };
   if (p.category) params.category = p.category;
+  else params.exclude_category = 'acessos';   // lista padrão = só alterações; entrar no sistema e abrir ficha ficam em "Acessos"
   if (p.userId) params.user_id = p.userId;
   const { data } = await api.get<AuditPage>('/audit', { params, headers: { 'X-Skip-Loading': 'true' } });
   return data;

@@ -3,10 +3,11 @@
  * que fecha no X, tocando fora ou na tecla Esc. Nada abre em outra aba do navegador.
  */
 import { createElement, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface Props {
   visible: boolean;

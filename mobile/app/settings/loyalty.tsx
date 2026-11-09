@@ -15,6 +15,7 @@ import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { parseApiError } from '@/utils/apiError';
 import { describeLoyalty } from '@/utils/loyaltyText';
 import { getLoyaltySettings, updateLoyaltySettings } from '@/services/loyaltyService';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const num = (t: string) => {
   const n = parseFloat(String(t).replace(',', '.'));
@@ -32,6 +33,8 @@ export default function LoyaltySettingsScreen() {
   const [expires, setExpires] = useState(false);
   const [days, setDays] = useState('90');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);       // enquanto a configuração da loja não chegou, não mostra valores padrão
+  const [loadFailed, setLoadFailed] = useState(false);   // se não carregou, não deixa salvar (gravaria os padrões por cima)
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -45,7 +48,8 @@ export default function LoyaltySettingsScreen() {
         setExpires(!!s.expiry_days);
         if (s.expiry_days) setDays(String(s.expiry_days));
       })
-      .catch((e) => setError(parseApiError(e) || 'Não foi possível carregar.'));
+      .catch((e) => { setLoadFailed(true); setError(parseApiError(e) || 'Não foi possível carregar.'); })
+      .finally(() => setLoading(false));
   }, []);
 
   const rule = useMemo(() => ({
@@ -77,6 +81,17 @@ export default function LoyaltySettingsScreen() {
       setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <PageHeader title="Fidelidade" subtitle="Pontos que viram desconto" showBackButton onBack={() => router.back()} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={brand.primary} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -152,7 +167,7 @@ export default function LoyaltySettingsScreen() {
           {!!message && <Text style={[styles.ok, { color: brand.primary }]}>{message}</Text>}
         </FormGrid>
 
-        <Button mode="contained" onPress={save} loading={saving} disabled={saving} buttonColor={brand.primary} style={{ marginTop: 8 }}>
+        <Button mode="contained" onPress={save} loading={saving} disabled={saving || loadFailed} buttonColor={brand.primary} style={{ marginTop: 8 }}>
           Salvar
         </Button>
       </ScrollView>

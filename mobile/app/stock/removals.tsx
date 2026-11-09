@@ -3,7 +3,7 @@
  * Só gerente e admin. Dados: GET /stock-entries/removals.
  */
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -17,6 +17,7 @@ import { getStockRemovals, type StockRemoval } from '@/services/stockEntryServic
 import { dateToIso } from '@/utils/dateBr';
 import { formatCurrency, formatDate, formatInt } from '@/utils/format';
 import { isManagerRole } from '@/utils/roles';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const PAGE = 50;
 

@@ -68,6 +68,48 @@ function changes(d: Record<string, any>): string {
 
 const q = (s: unknown) => (s ? ` "${String(s)}"` : '');
 
+
+// ── Regra geral do servidor (ROTA_<MÉTODO>_<CAMINHO>): toda gravação sem frase própria ──────────────────────────
+const ENTIDADE: Record<string, string> = {
+  suppliers: 'o fornecedor', categories: 'a categoria', products: 'o produto', 'product-variants': 'a variação do produto',
+  'stock-entries': 'a entrada de estoque', 'stock-import': 'a importação de estoque', inventory: 'o estoque',
+  returns: 'uma devolução', team: 'a equipe', customers: 'o cadastro de clientes', store: 'as configurações da loja',
+  finance: 'o financeiro', expenses: 'as despesas', receivables: 'o fiado', cash: 'o caixa', looks: 'o lookbook',
+  wishlist: 'a lista de desejos', 'label-printers': 'as impressoras de etiqueta', 'payment-discounts': 'os descontos por forma de pagamento',
+  pdv: 'o ponto de venda', 'conditional-shipments': 'o envio condicional', reports: 'a conferência de estoque',
+  'supplier-returns': 'a devolução ao fornecedor', whatsapp: 'o WhatsApp', 'catalog-feed': 'o catálogo do WhatsApp',
+  'mp-connect': 'a conexão com o Mercado Pago', suggestions: 'as sugestões', sales: 'a venda', labels: 'as etiquetas',
+};
+const ACAO_ESPECIAL: Record<string, string> = {
+  'adjust-quantity': 'ajustou a quantidade de um produto', 'reset-password': 'redefiniu a senha de uma pessoa',
+  role: 'mudou o papel de uma pessoa', commit: 'importou o estoque por planilha', 'cover-variant': 'trocou a cor da capa do produto',
+  reorder: 'reordenou as fotos', cover: 'trocou a foto de capa', 'main-photo': 'definiu a foto principal', upload: 'enviou uma foto',
+  rebuild: 'refez o saldo do estoque', writeoff: 'deu baixa no estoque', items: 'adicionou item', variants: 'adicionou variação',
+  bulk: 'alterou várias variações de uma vez', pix: 'mudou a chave Pix', branding: 'mudou a identidade visual da loja',
+  logo: 'trocou o logo da loja', setup: 'configurou', resolve: 'resolveu a devolução ao fornecedor', 'postpone-return': 'adiou o retorno',
+  'postpone-departure': 'adiou a saída', 'mark-as-sent': 'marcou como enviado', 'process-return': 'processou a devolução do condicional',
+  rotate: 'gerou outro link', 'whatsapp-visible': 'mudou a visibilidade no WhatsApp', stock: 'fez uma ação no estoque',
+};
+
+/** Frase da regra geral. `rota` é o caminho do servidor ("/products/{product_id}/adjust-quantity"). */
+function describeRoute(who: string, d: Record<string, any>, nome: unknown, ch: string): string {
+  const rota = String(d.rota ?? '');
+  const metodo = String(d.metodo ?? '').toUpperCase();
+  const partes = rota.split('/').filter((x) => x && !x.startsWith('{'));
+  const base = partes[0] ?? '';
+  const objeto = ENTIDADE[base] ?? (base ? `o registro de ${base.replace(/-/g, ' ')}` : 'um registro');
+  const nomeTxt = nome ? ` “${String(nome)}”` : '';
+  const ultima = partes[partes.length - 1];
+  let verbo: string;
+  if (partes.length > 1 && ACAO_ESPECIAL[ultima]) {
+    return `${who} ${ACAO_ESPECIAL[ultima]}${nomeTxt}${ch ? `: ${ch}` : ''}`;
+  }
+  if (metodo === 'POST') verbo = partes.length > 1 ? 'registrou em' : objeto.startsWith('uma ') ? 'registrou' : 'cadastrou';
+  else if (metodo === 'DELETE') verbo = 'apagou';
+  else verbo = 'alterou';
+  return `${who} ${verbo} ${objeto}${nomeTxt}${ch ? `: ${ch}` : ''}`;
+}
+
 export function describeAudit(item: AuditItem): AuditSentence {
   const who = (item.user_name || item.user_email || 'Alguém').trim();
   const d = parse(item.detail);
@@ -177,8 +219,33 @@ export function describeAudit(item: AuditItem): AuditSentence {
     case 'SALE_RETURN_CORRECTION':
       text = `${who} estornou uma venda por erro de lançamento`;
       break;
+    case 'LOGIN_SUCCESS':
+      text = `${who} entrou no sistema`;
+      break;
+    case 'LOGIN_FAILED':
+      text = `Tentativa de entrada que falhou${item.user_email ? ` para ${item.user_email}` : ''}`;
+      break;
+    case 'CUSTOMER_VIEWED':
+      text = `${who} abriu a ficha de uma cliente`;
+      break;
+    case 'CUSTOMER_UPDATED':
+      text = `${who} alterou o cadastro de uma cliente`;
+      break;
+    case 'CUSTOMER_DELETED':
+      text = `${who} apagou o cadastro de uma cliente`;
+      break;
+    case 'CUSTOMER_EXPORTED':
+      text = `${who} exportou os dados de uma cliente`;
+      break;
+    case 'CUSTOMER_ANONYMIZED':
+      text = `${who} anonimizou os dados de uma cliente`;
+      break;
     default:
-      text = `${who} fez uma alteração (${item.action.toLowerCase().replace(/_/g, ' ')})`;
+      if (item.action.startsWith('ROTA_')) {
+        text = describeRoute(who, d, nome, ch);
+      } else {
+        text = `${who} fez uma ação no sistema (${item.action.toLowerCase().replace(/_/g, ' ')})`;
+      }
   }
   return { text: text.replace(/\s+/g, ' ').trim(), reason };
 }

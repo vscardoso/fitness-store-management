@@ -1,6 +1,6 @@
 /** Histórico dos caixas (gerente e admin): data, quem abriu e fechou, esperado, contado e a diferença de cada um. */
 import React, { useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
@@ -12,6 +12,7 @@ import { differenceText } from '@/utils/cashMoney';
 import { parseApiError } from '@/utils/apiError';
 import { getCashSession, getCashSessions } from '@/services/cashService';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function CashHistoryScreen() {
   // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
