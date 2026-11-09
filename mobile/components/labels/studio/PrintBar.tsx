@@ -34,12 +34,13 @@ export default function PrintBar({ p, summary }: Props) {
         <>
           {p.canQueue && p.total > 0 ? (
             <View style={styles.queueRow}>
-              <TouchableOpacity style={[styles.secondary, { flex: 1 }]} onPress={p.sendToQueue} disabled={busy} accessibilityRole="button">
-                <Text style={styles.secondaryText}>{p.busy === 'queue' ? 'Colocando...' : 'Colocar na fila de impressão'}</Text>
+              <TouchableOpacity style={styles.link} onPress={p.sendToQueue} disabled={busy} accessibilityRole="button" accessibilityLabel="Colocar na fila de impressão">
+                <Ionicons name="list-outline" size={18} color={brand.primary} />
+                <Text style={styles.linkText}>{p.busy === 'queue' ? 'Colocando...' : 'Colocar na fila de impressão'}</Text>
               </TouchableOpacity>
               {p.queuedCount > 0 ? (
-                <TouchableOpacity style={styles.secondary} onPress={() => router.push('/etiquetas/fila' as any)} accessibilityRole="button">
-                  <Text style={[styles.secondaryText, { color: brand.primary }]}>Abrir a fila</Text>
+                <TouchableOpacity style={styles.link} onPress={() => router.push('/etiquetas/fila' as any)} accessibilityRole="button">
+                  <Text style={styles.linkText}>Abrir a fila</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -91,11 +92,13 @@ export default function PrintBar({ p, summary }: Props) {
 
 const makeStyles = (primary: string) => StyleSheet.create({
   bar: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, gap: theme.spacing.sm, padding: theme.spacing.md,
+    position: 'absolute', left: 0, right: 0, bottom: 0, gap: theme.spacing.md, paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.lg,
     backgroundColor: Colors.light.background, borderTopWidth: 1, borderTopColor: Colors.light.border,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
-  queueRow: { flexDirection: 'row', gap: theme.spacing.sm },
+  queueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, paddingBottom: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  link: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  linkText: { color: primary, fontWeight: '700', fontSize: theme.fontSize.sm },
   title: { fontSize: theme.fontSize.base, fontWeight: '800', color: Colors.light.text },
   total: { fontSize: theme.fontSize.lg, fontWeight: '800', color: Colors.light.text },
   sub: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary },

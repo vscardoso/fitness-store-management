@@ -88,7 +88,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
             lastJob={p.step === 'done' ? null : p.lastJob} onUndo={p.undo} undoing={p.busy === 'undo'}
           />
         ) : null}
-        <View style={{ height: 170 }} />
+        <View style={{ height: 200 }} />
       </ScrollView>
       <PrintBar p={p} summary={summary} />
     </View>
