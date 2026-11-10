@@ -1,17 +1,17 @@
 /**
  * Últimos PDFs gerados (24 horas): abre de novo o arquivo para imprimir, sem salvar nada outra vez.
- * O servidor refaz o PDF com as mesmas peças, quantidades, papel e posição na folha; depois de 24 horas some da lista.
+ * O servidor refaz o PDF com as mesmas peças, quantidades, papel e posição na folha, num link https assinado; depois de 24 horas some da lista.
  * "Abrir" mostra o PDF numa aba (dali o compartilhar do visualizador manda o arquivo certo à impressora). O ícone de compartilhar
  * manda o arquivo direto; no iPhone isso só abre a partir de um toque: se o aparelho recusar logo depois de baixar, a linha mostra
  * "Toque para compartilhar" com o PDF já pronto.
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 
 import AppButton from '@/components/ui/AppButton';
 import { Colors, theme } from '@/constants/Colors';
-import { fetchRecentPrintPdf, type PdfMode, type PrintedPdf } from '@/services/labelService';
+import { pdfFromUrl, type PdfMode, type PrintedPdf } from '@/services/labelService';
 import { getRecentPrints, type RecentPrint } from '@/services/labelQueueService';
 import { parseApiDate } from '@/utils/format';
 
@@ -27,23 +27,28 @@ function when(iso: string): string {
 
 export default function RecentPrints() {
   const { data } = useQuery({ queryKey: ['label-recent-prints'], queryFn: getRecentPrints, refetchInterval: 60_000 });
+  const pdfs = useRef<Record<number, PrintedPdf>>({});   // guarda o arquivo baixado: o 2º toque em compartilhar não espera
+  const [blocked, setBlocked] = useState<Record<number, boolean>>({});
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [ready, setReady] = useState<Record<number, PrintedPdf>>({});
   const [error, setError] = useState<string | null>(null);
 
   if (!data || data.length === 0) return null;
 
-  const open = async (job: RecentPrint, mode: PdfMode = 'open') => {
+  // Abrir não espera nada antes de abrir (o link já veio na lista): o toque ainda vale para o navegador abrir o PDF
+  const open = async (job: RecentPrint, mode: PdfMode) => {
     if (busyId != null) return;
-    setBusyId(job.id);
     setError(null);
+    const pdf = (pdfs.current[job.id] ??= pdfFromUrl(job.url, job.filename));
+    if (mode === 'open') {
+      try { await pdf.deliver('open'); } catch (e: any) { setError(e?.message || 'Não foi possível abrir o PDF.'); }
+      return;
+    }
+    setBusyId(job.id);
     try {
-      const pdf = ready[job.id] ?? (await fetchRecentPrintPdf(job.id, `etiquetas-${job.width_mm}x${job.height_mm}-${job.total}un.pdf`));
-      const r = await pdf.deliver(mode).catch(() => 'blocked' as const);
-      if (r === 'blocked') setReady((p) => ({ ...p, [job.id]: pdf }));
-      else setReady((p) => { const n = { ...p }; delete n[job.id]; return n; });
+      const r = await pdf.deliver('share').catch(() => 'blocked' as const);
+      setBlocked((p) => ({ ...p, [job.id]: r === 'blocked' }));
     } catch (e: any) {
-      setError(e?.message || 'Não foi possível abrir o PDF.');
+      setError(e?.message || 'Não foi possível compartilhar o PDF.');
     } finally {
       setBusyId(null);
     }
@@ -62,10 +67,11 @@ export default function RecentPrints() {
             </Text>
           </View>
           <AppButton
-            label={ready[job.id] ? 'Toque para compartilhar' : 'Compartilhar o arquivo'}
+            label={blocked[job.id] ? 'Toque para compartilhar' : 'Compartilhar o arquivo'}
             icon="share-outline"
-            iconOnly={!ready[job.id]}
-            variant={ready[job.id] ? 'primary' : 'ghost'}
+            iconOnly={!blocked[job.id]}
+            variant={blocked[job.id] ? 'primary' : 'ghost'}
+            loading={busyId === job.id}
             size="sm"
             disabled={busyId != null}
             onPress={() => open(job, 'share')}
@@ -75,7 +81,6 @@ export default function RecentPrints() {
             icon="print-outline"
             variant="outlined"
             size="sm"
-            loading={busyId === job.id}
             disabled={busyId != null}
             onPress={() => open(job, 'open')}
           />

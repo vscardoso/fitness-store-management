@@ -97,24 +97,67 @@ async function openPdf(url: string, body: object, filename: string): Promise<voi
 /** O que aconteceu ao entregar o PDF: compartilhado, aberto/baixado, a pessoa fechou, ou o iPhone exigiu um toque novo. */
 export type PdfDelivery = 'shared' | 'opened' | 'cancelled' | 'blocked';
 
-/** open = abre o PDF numa aba (o visualizador do navegador, com o botão de compartilhar de sempre); share = manda o arquivo direto para outro app. */
+/** open = abre o PDF no visualizador do navegador (dali o compartilhar manda o PDF de verdade); share = manda o arquivo direto para outro app. */
 export type PdfMode = 'open' | 'share';
 
 export interface PrintedPdf {
   filename: string;
-  /**
-   * Entrega o PDF (de novo). O padrão é ABRIR o PDF: o Label Expert e a impressora recebem certo pelo botão de compartilhar do
-   * visualizador; o compartilhar direto de arquivo chegava vazio na impressora (07/11/2026). `share` fica como botão à parte.
-   * Chamar de dentro de um toque quando for pelo botão: o iPhone só abre o compartilhar assim.
-   */
+  /** Link https do PDF (assinado, vale 24 horas). Nunca um endereço blob: do navegador. */
+  url: string;
+  /** Entrega o PDF (de novo). Chamar de dentro de um toque: o iPhone só abre janela e compartilhar assim. */
   deliver: (mode?: PdfMode) => Promise<PdfDelivery>;
 }
 
 /**
- * Gera o PDF E JÁ SALVA a impressão (tira da fila e anda a folha), tudo numa chamada do servidor: gerar = imprimir.
+ * PDF a partir do link https do servidor. Abrir um endereço blob: do navegador e compartilhar mandava para o WhatsApp o TEXTO
+ * "blob:https://app..." (só existe no aparelho); com o link https o visualizador do iPhone compartilha o arquivo PDF.
+ */
+export function pdfFromUrl(url: string, filename: string): PrintedPdf {
+  if (Platform.OS === 'web') {
+    let cached: Blob | null = null;   // o 2º toque em "compartilhar" já usa o arquivo baixado (o iPhone exige um toque novo)
+    const deliver = async (mode: PdfMode = 'open'): Promise<PdfDelivery> => {
+      if (mode === 'share') {
+        try {
+          if (!cached) cached = await (await fetch(url)).blob();
+          const file = new File([cached], filename, { type: 'application/pdf' });
+          const nav: any = navigator;
+          if (nav.canShare && nav.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(nav.userAgent || '')) {
+            await nav.share({ files: [file], title: 'Etiquetas' });
+            return 'shared';
+          }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') return 'cancelled';      // a pessoa fechou o compartilhar
+          if (e?.name === 'NotAllowedError') return 'blocked';   // passou o tempo do toque: precisa de um toque novo
+        }
+      }
+      const win = window.open(url, '_blank');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      return 'opened';
+    };
+    return { filename, url, deliver };
+  }
+
+  const deliver = async (_mode: PdfMode = 'open'): Promise<PdfDelivery> => {
+    const path = `${LegacyFileSystem.cacheDirectory}${filename}`;
+    await LegacyFileSystem.downloadAsync(url, path);
+    if (!(await Sharing.isAvailableAsync())) throw new Error('Compartilhamento não disponível neste aparelho.');
+    await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Etiquetas' });
+    return 'shared';
+  };
+  return { filename, url, deliver };
+}
+
+/**
+ * Salva a impressão (tira da fila e anda a folha) e devolve o link https do PDF, numa chamada só do servidor: gerar = imprimir.
  * Nada é gravado se o PDF falhar ou se a fila mudou (outra pessoa imprimiu): o servidor responde com a frase do motivo.
- * No app web o PDF ABRE numa aba (visualizador do navegador): dali o botão de compartilhar manda o arquivo certo ao Label Expert.
- * "Compartilhar" (modo share) manda o arquivo direto, para quem prefere; no WhatsApp o endereço blob: da aba vira um link inútil.
  */
 export async function printLabelsSaved(input: {
   items: { variantId: number; quantity: number }[];
@@ -134,66 +177,10 @@ export async function printLabelsSaved(input: {
     from_queue: input.fromQueue,
     entry_id: input.entryId ?? null,
   };
-  const total = body.items.reduce((sum, i) => sum + i.quantity, 0);
-  const filename = `etiquetas-${input.widthMm}x${input.heightMm}-${input.layout === 'roll' ? 'grafica' : 'folha'}-${total}un.pdf`;
-
-  const data = await fetchPdf<Blob | ArrayBuffer>('/labels/prints/pdf', body, Platform.OS === 'web' ? 'blob' : 'arraybuffer');
-  return buildPrintedPdf(data, filename);
-}
-
-/** Abre de novo o PDF de uma impressão das últimas 24 horas (o servidor refaz com as mesmas peças e posição; não salva nada). */
-export async function fetchRecentPrintPdf(jobId: number, filename: string): Promise<PrintedPdf> {
-  const res = await api.get(`/labels/prints/${jobId}/pdf`, {
-    responseType: Platform.OS === 'web' ? 'blob' : 'arraybuffer',
-    headers: { 'X-Loading-Message': 'Abrindo o PDF...' },
-    validateStatus: (status) => status !== 401,
+  const { data } = await api.post<{ url: string; filename: string }>('/labels/prints/pdf', body, {
+    headers: { 'X-Loading-Message': 'Gerando etiquetas...' },
   });
-  if (res.status !== 200) throw new Error((await detailFromBinary(res.data)) || 'Não foi possível abrir o PDF.');
-  return buildPrintedPdf(res.data as Blob | ArrayBuffer, filename);
-}
-
-/** Guarda o PDF e devolve como entregá-lo (compartilhar do aparelho, abrir ou baixar), quantas vezes for preciso. */
-async function buildPrintedPdf(data: Blob | ArrayBuffer, filename: string): Promise<PrintedPdf> {
-  if (Platform.OS === 'web') {
-    const blob = new Blob([data as Blob], { type: 'application/pdf' });
-    const deliver = async (mode: PdfMode = 'open'): Promise<PdfDelivery> => {
-      if (mode === 'share') {
-        try {
-          const file = new File([blob], filename, { type: 'application/pdf' });
-          const nav: any = navigator;
-          if (nav.canShare && nav.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(nav.userAgent || '')) {
-            await nav.share({ files: [file], title: 'Etiquetas' });
-            return 'shared';
-          }
-        } catch (e: any) {
-          if (e?.name === 'AbortError') return 'cancelled';      // a pessoa fechou o compartilhar
-          if (e?.name === 'NotAllowedError') return 'blocked';   // passou o tempo do toque: precisa de um toque novo
-        }
-      }
-      const href = URL.createObjectURL(blob);
-      const win = window.open(href, '_blank');
-      if (!win) {
-        const a = document.createElement('a');
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }
-      setTimeout(() => URL.revokeObjectURL(href), 5 * 60_000);
-      return 'opened';
-    };
-    return { filename, deliver };
-  }
-
-  const path = `${LegacyFileSystem.cacheDirectory}${filename}`;
-  await LegacyFileSystem.writeAsStringAsync(path, arrayBufferToBase64(data as ArrayBuffer), { encoding: 'base64' as any });
-  const deliver = async (_mode: PdfMode = 'open'): Promise<PdfDelivery> => {
-    if (!(await Sharing.isAvailableAsync())) throw new Error('Compartilhamento não disponível neste aparelho.');
-    await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Etiquetas' });
-    return 'shared';
-  };
-  return { filename, deliver };
+  return pdfFromUrl(data.url, data.filename);
 }
 
 /** PDF com as etiquetas das peças escolhidas (variante x quantidade). */

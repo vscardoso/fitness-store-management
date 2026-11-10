@@ -110,6 +110,9 @@ export interface RecentPrint {
   height_mm: number;
   start_position: number;
   expires_at: string;
+  filename: string;
+  /** Link https do PDF (assinado, vale 24 horas). */
+  url: string;
 }
 
 /** PDFs gerados nas últimas 24 horas (depois disso somem). */

@@ -32,6 +32,11 @@ async def _cenario(db, qtds=(5, 4)):
 SHEET = {"layout": "sheet", "width_mm": 47, "height_mm": 42}
 
 
+def _caminho(url: str) -> str:
+    """O link é https://api.../api/v1/public/...: o teste chama só o caminho."""
+    return "/api/v1" + url.split("/api/v1", 1)[1]
+
+
 async def test_entrada_na_fila_so_o_que_falta_e_nao_dobra(test_client, async_session):
     _sem_override()
     t, h, entry_id, (va, vb) = await _cenario(async_session)
@@ -141,7 +146,11 @@ async def test_gerar_pdf_ja_salva_a_impressao_e_tira_da_fila(test_client, async_
     await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
     r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": True,
                                                           "items": [{"variant_id": va, "quantity": 5}, {"variant_id": vb, "quantity": 4}]}, headers=h)
-    assert r.status_code == 200 and r.content[:4] == b"%PDF"
+    assert r.status_code == 200, r.text
+    dados = r.json()
+    assert dados["url"].startswith("https://") and "blob:" not in dados["url"] and dados["url"].endswith(".pdf")   # link de verdade
+    pdf = await test_client.get(_caminho(dados["url"]))                                       # sem login: o token na URL é a permissão
+    assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and pdf.headers["content-type"] == "application/pdf"
     assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 0           # tirou da fila na mesma hora
     st = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()
     assert st["next_position"] == 4 and st["last_job"]["total"] == 9                          # folha andou, "Não saiu" disponível
@@ -215,7 +224,7 @@ async def test_reabrir_ultimo_pdf_sem_salvar_nada_e_expira_em_24h(test_client, a
     r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 2, "from_queue": True,
                                                           "items": [{"variant_id": va, "quantity": 5}, {"variant_id": vb, "quantity": 4}]}, headers=h)
     assert r.status_code == 200
-    original = r.content
+    original = (await test_client.get(_caminho(r.json()["url"]))).content
     rec = (await test_client.get(f"{API}/prints/recent", headers=h)).json()
     assert len(rec) == 1 and rec[0]["total"] == 9 and rec[0]["start_position"] == 2 and rec[0]["expires_at"]
 
@@ -253,3 +262,31 @@ async def test_ultimos_pdfs_sao_da_loja_e_o_desfeito_some(test_client, async_ses
     await test_client.post(f"{API}/prints/{job_id}/undo", headers=h)                                   # "não saiu": desfeita
     assert (await test_client.get(f"{API}/prints/recent", headers=h)).json() == []
     assert (await test_client.get(f"{API}/prints/{job_id}/pdf", headers=h)).status_code == 400
+
+
+async def test_link_do_pdf_e_https_sem_login_assinado_e_vence_em_24h(test_client, async_session):
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import update
+    from app.models.label_queue import LabelPrintJob
+
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
+    dados = (await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": True,
+                                                                "items": [{"variant_id": va, "quantity": 5}]}, headers=h)).json()
+    url = dados["url"]
+    assert url.startswith("https://") and "/public/label-files/" in url and url.endswith(dados["filename"])
+    assert (await test_client.get(f"{API}/prints/recent", headers=h)).json()[0]["url"].startswith("https://")   # a lista também traz o link
+    caminho = _caminho(url)
+    ok = await test_client.get(caminho)
+    assert ok.status_code == 200 and ok.content[:4] == b"%PDF" and "inline" in ok.headers["content-disposition"]
+
+    # adulterado ou de outra impressão: 404
+    token = caminho.split("/label-files/")[1].split("/")[0]
+    ruim = token[:-3] + ("AAA" if not token.endswith("AAA") else "BBB")
+    assert (await test_client.get(f"{API}/public/label-files/{ruim}/etiquetas.pdf")).status_code == 404
+    assert (await test_client.get(f"{API}/public/label-files/abc/etiquetas.pdf")).status_code == 404
+
+    # desfeita ("não saiu"): o link para de abrir
+    await test_client.post(f"{API}/prints/{dados['id']}/undo", headers=h)
+    assert (await test_client.get(caminho)).status_code == 404

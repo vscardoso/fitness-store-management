@@ -80,6 +80,7 @@ api_router = APIRouter(prefix="/api/v1")
 
 # Catálogo público — sem autenticação (site wamodafitness.com.br)
 api_router.include_router(public_catalog.router)
+api_router.include_router(labels.public_router)  # link https do PDF de etiquetas (token assinado na URL)
 api_router.include_router(catalog_feed.public_router)  # feed CSV lido pela Meta (token na URL)
 
 # Autenticação e autorização

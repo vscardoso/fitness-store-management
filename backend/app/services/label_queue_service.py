@@ -10,10 +10,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+import jwt
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.models.entry_item import EntryItem
 from app.models.label_queue import LabelPrintJob, LabelQueueItem
 from app.models.product_variant import ProductVariant
@@ -321,6 +323,7 @@ async def recent_jobs(db: AsyncSession, tenant_id: int, limit: int = 20) -> List
         "id": j.id, "at": j.created_at.isoformat(), "by": j.printed_by_name, "total": j.total, "layout": j.layout,
         "width_mm": j.width_mm, "height_mm": j.height_mm, "start_position": j.start_position,
         "expires_at": (_aware(j.created_at) + timedelta(hours=RECENT_HOURS)).isoformat(),
+        "filename": pdf_filename(j), "url": pdf_link(j),
     } for j in jobs]
 
 
@@ -332,3 +335,34 @@ async def get_recent_job(db: AsyncSession, tenant_id: int, job_id: int) -> Label
     if _aware(job.created_at) < datetime.now(timezone.utc) - timedelta(hours=RECENT_HOURS):
         raise QueueError("Esse PDF passou de 24 horas e foi apagado. Gere as etiquetas de novo.")
     return job
+
+
+# ── Link do PDF: endereço https de verdade (nada de blob:) ─────────────────────────────────────────────────────────────
+# O PDF aberto de um endereço blob: só existe no aparelho: compartilhado (WhatsApp, impressora) vira um texto "blob:https://..." que
+# ninguém abre. Aqui o servidor entrega o PDF num link comum, assinado e com validade de 24 horas (a mesma da lista dos últimos PDFs).
+
+def pdf_filename(job: LabelPrintJob) -> str:
+    return f"etiquetas-{job.width_mm:g}x{job.height_mm:g}-{job.total}un.pdf"
+
+
+def make_file_token(job: LabelPrintJob) -> str:
+    exp = _aware(job.created_at) + timedelta(hours=RECENT_HOURS)
+    return jwt.encode({"typ": "label-pdf", "job": job.id, "tid": job.tenant_id, "exp": int(exp.timestamp())},
+                      settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def pdf_link(job: LabelPrintJob) -> str:
+    return f"{settings.PUBLIC_API_URL.rstrip('/')}/api/v1/public/label-files/{make_file_token(job)}/{pdf_filename(job)}"
+
+
+def read_file_token(token: str) -> tuple[int, int]:
+    """Devolve (id da impressão, id da loja) de um link válido; link vencido ou adulterado recusa."""
+    try:
+        data = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise QueueError("Este link do PDF passou de 24 horas. Gere as etiquetas de novo.")
+    except jwt.PyJWTError:
+        raise QueueError("Link do PDF inválido.")
+    if data.get("typ") != "label-pdf" or not isinstance(data.get("job"), int) or not isinstance(data.get("tid"), int):
+        raise QueueError("Link do PDF inválido.")
+    return data["job"], data["tid"]

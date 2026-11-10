@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_current_tenant_id
-from app.core.database import get_db
+from app.core.database import get_db, get_db_unscoped
 from app.models.user import User
 from app.services.label_pdf_service import DEFAULT_H_MM, DEFAULT_W_MM, MAX_MM, MIN_MM, a4_grid, build_pdf
 from app.services import label_queue_service as queue
@@ -176,12 +176,8 @@ async def reopen_print_pdf(job_id: int, db: AsyncSession = Depends(get_db), user
     """Refaz o PDF com as mesmas peças, quantidades, papel e posição da impressão salva. Só leitura: não mexe em fila nem em folha."""
     try:
         job = await queue.get_recent_job(db, tenant_id, job_id)
-        wanted: dict[int, int] = {}
-        for it in job.items or []:
-            wanted[int(it["variant_id"])] = wanted.get(int(it["variant_id"]), 0) + int(it["quantity"])
-        labels = await labels_for_variants(db, tenant_id, list(wanted.items()))
-        content = build_pdf(labels, job.layout, job.start_position, job.width_mm, job.height_mm)
-        fname = f"etiquetas-{job.width_mm:g}x{job.height_mm:g}-{job.total}un.pdf"
+        content = await _render_job_pdf(db, tenant_id, job)
+        fname = queue.pdf_filename(job)
         await db.rollback()   # leitura pura: nada a gravar
     except (queue.QueueError, LabelRequestError, ValueError) as e:
         await db.rollback()
@@ -189,26 +185,40 @@ async def reopen_print_pdf(job_id: int, db: AsyncSession = Depends(get_db), user
     return _pdf(content, fname)
 
 
-@router.post("/prints/pdf", summary="Imprimir: gera o PDF e já salva a impressão (tira da fila e anda a folha) numa operação só")
+async def _render_job_pdf(db: AsyncSession, tenant_id: int, job) -> bytes:
+    wanted: dict[int, int] = {}
+    for it in job.items or []:
+        wanted[int(it["variant_id"])] = wanted.get(int(it["variant_id"]), 0) + int(it["quantity"])
+    labels = await labels_for_variants(db, tenant_id, list(wanted.items()))
+    return build_pdf(labels, job.layout, job.start_position, job.width_mm, job.height_mm)
+
+
+@router.post("/prints/pdf", summary="Imprimir: salva a impressão (tira da fila e anda a folha) e devolve o link https do PDF")
 async def print_pdf(body: PrintConfirm, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
                     tenant_id: int = Depends(get_current_tenant_id)):
-    """Gerar o PDF = imprimir. Tudo ou nada: se o PDF não sai, nada é gravado; se a fila mudou, nada é gravado e a pessoa atualiza."""
+    """Gerar o PDF = imprimir. Tudo ou nada: se o PDF não sai, nada é gravado; se a fila mudou, nada é gravado e a pessoa atualiza.
+
+    Devolve um link https comum para o PDF (não um blob: do navegador), que o WhatsApp e o app da impressora conseguem abrir.
+    """
     try:
         await queue.lock_queue(db, tenant_id)
         items = [i.model_dump() for i in body.items]
         labels = await labels_for_variants(db, tenant_id, [(i["variant_id"], i["quantity"]) for i in items])
-        content = build_pdf(labels, body.layout, body.start_position, body.width_mm, body.height_mm)
+        build_pdf(labels, body.layout, body.start_position, body.width_mm, body.height_mm)   # confere que o PDF sai ANTES de gravar
         result = await queue.confirm_print(db, tenant_id, user, body.layout, body.width_mm, body.height_mm, body.start_position,
                                            items, body.from_queue, body.entry_id)
         await AuditService.log(db, "LABEL_PRINT_SAVED", tenant_id=tenant_id, user_id=getattr(user, "id", None),
                                user_email=getattr(user, "email", None), entity="label_print", entity_id=result["id"],
                                detail={"etiquetas": result["total"], "papel": body.layout, "medida": f"{body.width_mm:g}x{body.height_mm:g}",
                                        "da_fila": body.from_queue})
+        job = await queue.get_recent_job(db, tenant_id, result["id"])
+        out = {**result, "filename": queue.pdf_filename(job), "url": queue.pdf_link(job),
+               "expires_at": (queue._aware(job.created_at) + queue.timedelta(hours=queue.RECENT_HOURS)).isoformat()}
         await db.commit()
     except (queue.QueueError, LabelRequestError, ValueError) as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    return _pdf(content, f"etiquetas-{body.width_mm:g}x{body.height_mm:g}-{result['total']}un.pdf")
+    return out
 
 
 @router.post("/prints/{job_id}/undo", summary="Não saiu: desfaz a última impressão salva (volta para a fila)")
@@ -220,3 +230,27 @@ async def undo_print(job_id: int, db: AsyncSession = Depends(get_db), user: User
                            detail={"etiquetas": result["returned"]})
     await db.commit()
     return result
+
+
+# ── Link público do PDF (sem login: o token assinado na URL é a permissão) ────────────────────────────────────────────
+
+public_router = APIRouter(prefix="/public", tags=["Etiquetas (link do PDF)"])
+
+
+@public_router.get("/label-files/{token}/{filename}", include_in_schema=False)
+async def public_label_pdf(token: str, filename: str, db: AsyncSession = Depends(get_db_unscoped)):
+    """PDF de uma impressão das últimas 24 horas, num link https comum (o que o iPhone compartilha de verdade).
+
+    O token é assinado pelo servidor e vale 24 horas; o nome no fim do endereço só dá nome ao arquivo.
+    """
+    try:
+        job_id, tenant_id = queue.read_file_token(token)
+        job = await queue.get_recent_job(db, tenant_id, job_id)
+        content = await _render_job_pdf(db, tenant_id, job)
+        fname = queue.pdf_filename(job)
+        await db.rollback()
+    except (queue.QueueError, LabelRequestError, ValueError):
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF não encontrado ou vencido.")
+    return Response(content=content, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{fname}"', "Cache-Control": "private, max-age=300"})
