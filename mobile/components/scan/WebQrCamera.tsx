@@ -17,9 +17,9 @@ const TICK_MS = 80;
 
 type Decode = (img: ImageData) => Promise<string | null>;
 
-// A câmera já liberada fica ligada 3 minutos depois de fechar o leitor: no iPhone instalado o aviso "deseja ter acesso à câmera"
+// A câmera já liberada fica ligada 30 minutos depois de fechar o leitor (quem confere o estoque bipa o dia todo): no iPhone instalado o aviso "deseja ter acesso à câmera"
 // aparecia a CADA abertura. Ao sair do app (segundo plano) ela desliga na hora.
-const KEEP_CAMERA_MS = 3 * 60 * 1000;
+const KEEP_CAMERA_MS = 30 * 60 * 1000;
 const keeper = createCameraKeeper<MediaStream>({
   open: () => navigator.mediaDevices.getUserMedia({
     video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
