@@ -170,7 +170,7 @@ const PRODUTOS: HelpEntry[] = [
       'O app lembra onde a última folha parou e já começa na próxima posição livre. Se colocar uma folha nova, toque em “Coloquei uma folha nova”.',
     ],
     related: ['etiquetas-produto'],
-    sources: ['app/products/label/index.tsx', 'components/labels/StickerStudio.tsx', 'components/labels/LabelProductPickerModal.tsx'],
+    sources: ['app/products/label/index.tsx', 'components/labels/StickerStudio.tsx', 'components/labels/studio/LabelItems.tsx', 'components/labels/studio/PrintSettings.tsx', 'components/labels/studio/SheetMap.tsx', 'components/labels/studio/PrintBar.tsx', 'components/labels/LabelProductPickerModal.tsx'],
   },
   {
     id: 'etiquetas-produto',
@@ -185,7 +185,7 @@ const PRODUTOS: HelpEntry[] = [
     ],
     goodToKnow: ['Produto sem peças no estoque precisa de uma entrada antes de imprimir.'],
     related: ['etiquetas', 'produto-detalhe'],
-    sources: ['app/products/label/[id].tsx', 'components/labels/StickerStudio.tsx'],
+    sources: ['app/products/label/[id].tsx', 'components/labels/StickerStudio.tsx', 'components/labels/studio/LabelItems.tsx', 'components/labels/studio/PrintSettings.tsx', 'components/labels/studio/SheetMap.tsx', 'components/labels/studio/PrintBar.tsx'],
   },
 ];
 
@@ -628,7 +628,7 @@ const ETIQUETAS_ENTRADA: HelpEntry[] = [
     ],
     roles: ['manager'],
     related: ['entradas'],
-    sources: ['app/entries/labels/[id].tsx', 'components/labels/StickerStudio.tsx'],
+    sources: ['app/entries/labels/[id].tsx', 'components/labels/StickerStudio.tsx', 'components/labels/studio/LabelItems.tsx', 'components/labels/studio/PrintSettings.tsx', 'components/labels/studio/SheetMap.tsx', 'components/labels/studio/PrintBar.tsx'],
   },
 ];
 
@@ -641,7 +641,7 @@ const FILA_ETIQUETAS: HelpEntry[] = [
     open: '/etiquetas/fila',
     purpose: 'Junta as etiquetas que ainda não foram impressas, de várias entradas, para imprimir na mesma folha sem desperdiçar.',
     steps: [
-      'Na entrada, toque em “Etiquetas” e depois em “Colocar na fila de impressão”.',
+      'Na entrada, abra as etiquetas e toque em “Colocar na fila de impressão”.',
       'Aqui, confira as quantidades, escolha o tamanho e o papel e toque em “Gerar PDF”.',
       'Imprima. Quando as etiquetas saírem, toque em “Já imprimi”: elas saem da fila e a folha avança.',
       'Peça avulsa: no Estúdio de etiquetas (ou no produto), escolha as peças e toque em “Colocar na fila de impressão”.',
@@ -653,7 +653,7 @@ const FILA_ETIQUETAS: HelpEntry[] = [
     ],
     roles: ['manager'],
     related: ['etiquetas-entrada'],
-    sources: ['app/etiquetas/fila.tsx', 'components/labels/StickerStudio.tsx'],
+    sources: ['app/etiquetas/fila.tsx', 'components/labels/StickerStudio.tsx', 'components/labels/studio/LabelItems.tsx', 'components/labels/studio/PrintSettings.tsx', 'components/labels/studio/SheetMap.tsx', 'components/labels/studio/PrintBar.tsx'],
   },
 ];
 

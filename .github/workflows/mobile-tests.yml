@@ -60,7 +60,7 @@ jobs:
     
     - name: Run tests
       working-directory: ./mobile
-      run: npm test || echo "No tests configured yet"
+      run: npm test
     
     - name: Generate test coverage
       working-directory: ./mobile
