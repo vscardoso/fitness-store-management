@@ -34,7 +34,7 @@ export default function EntryLabelsScreen() {
   const entryId = Number(id);
   const queryClient = useQueryClient();
   const { data: entry, isLoading, error } = useQuery({ queryKey: ['stock-entry', entryId], queryFn: () => getStockEntryById(entryId), enabled: !!entryId });
-  const { data: progress } = useQuery({ queryKey: ['label-progress', entryId], queryFn: () => getEntryLabelProgress(entryId), enabled: !!entryId });
+  const { data: progress, isLoading: progressLoading } = useQuery({ queryKey: ['label-progress', entryId], queryFn: () => getEntryLabelProgress(entryId), enabled: !!entryId });
   // soma por variação o que foi RECEBIDO nesta entrada; a quantidade já vem só com o que ainda falta imprimir
   const { items, initialQty } = useMemo(() => {
     const byVariant = new Map<number, StickerItem>();
@@ -71,7 +71,8 @@ export default function EntryLabelsScreen() {
       <PageHeader title="Etiquetas da entrada" subtitle={entry ? `${entry.entry_code} · ${total} peças` : ''}
         showBackButton backFallback={`/entries/${entryId}`} />
       <View style={[{ flex: 1 }, desktopColumn]}>
-        {isLoading || !entry ? (
+        {/* Só monta a lista depois de saber o que já foi impresso: antes ela abria com TODAS as peças e imprimia de novo as que já tinham saído */}
+        {isLoading || !entry || progressLoading ? (
           error ? <View style={styles.center}><Text style={styles.muted}>{parseApiError(error) || 'Não foi possível carregar a entrada.'}</Text></View> : <ScreenLoader message="Carregando a entrada..." />
         ) : (
           <>
@@ -93,6 +94,9 @@ export default function EntryLabelsScreen() {
                       ? 'Tudo já está na fila de impressão. Falta imprimir.'
                       : `Faltam ${progress.missing}. Escolha abaixo as peças e quantidades: só o que estiver marcado sai ou vai para a fila.`}
                 </Text>
+                {(progress.reprinted ?? 0) > 0 ? (
+                  <Text style={styles.progressHint}>{progress.reprinted} etiqueta{progress.reprinted !== 1 ? 's' : ''} foram impressas mais de uma vez (reimpressão).</Text>
+                ) : null}
                 {progress.queued > 0 ? (
                   <TouchableOpacity style={[styles.btn, { borderColor: brand.primary, borderWidth: 1.5 }]} onPress={() => router.push('/etiquetas/fila' as any)} accessibilityRole="button">
                     <Text style={[styles.btnText, { color: brand.primary }]}>Abrir a fila ({progress.queued})</Text>

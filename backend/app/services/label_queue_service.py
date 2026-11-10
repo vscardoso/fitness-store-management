@@ -161,14 +161,18 @@ async def entry_progress(db: AsyncSession, tenant_id: int, entry_id: int) -> Dic
             queued[r.variant_id] = queued.get(r.variant_id, 0) + r.quantity
     lines = []
     for vid, rec in received.items():
-        p, q = printed.get(vid, 0), queued.get(vid, 0)
-        lines.append({"variant_id": vid, "received": rec, "printed": p, "queued": q, "missing": max(0, rec - p - q)})
+        p_total, q = printed.get(vid, 0), queued.get(vid, 0)
+        # "impressas" = peças da entrada que já tiveram a etiqueta impressa, NUNCA mais que as recebidas. O que passa disso é
+        # reimpressão (a mesma peça impressa de novo) e vai à parte: somar tudo dava "28 impressas" para uma entrada de 17 peças.
+        p = min(p_total, rec)
+        lines.append({"variant_id": vid, "received": rec, "printed": p, "reprinted": max(0, p_total - rec), "queued": q,
+                      "missing": max(0, rec - p - q)})
 
     def tot(k: str) -> int:
         return sum(line[k] for line in lines)
 
-    return {"entry_code": entry.entry_code, "received": tot("received"), "printed": tot("printed"), "queued": tot("queued"),
-            "missing": tot("missing"), "lines": lines}
+    return {"entry_code": entry.entry_code, "received": tot("received"), "printed": tot("printed"), "reprinted": tot("reprinted"),
+            "queued": tot("queued"), "missing": tot("missing"), "lines": lines}
 
 
 async def add_entry_missing(db: AsyncSession, tenant_id: int, user: Any, entry_id: int) -> Dict[str, Any]:

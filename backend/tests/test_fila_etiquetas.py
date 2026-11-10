@@ -332,3 +332,17 @@ async def test_toda_impressao_comeca_na_primeira_posicao_sem_espaco_em_branco(te
     assert (await imprimir(h, 1, 5))["start_position"] == 1
     assert (await imprimir(h, 7, 3))["start_position"] == 1           # 7 etiquetas: 2 folhas, a primeira cheia desde a posição 1
 
+
+
+async def test_impressas_da_entrada_nunca_passa_do_total_reimpressao_vai_a_parte(test_client, async_session):
+    """Caso real: entrada de 17 peças mostrava '28 impressas' porque somava as reimpressões."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)                 # va recebeu 5, vb recebeu 4 = 9 peças
+    corpo = lambda itens: {**SHEET, "start_position": 1, "from_queue": False, "entry_id": entry_id, "items": itens}
+    await test_client.post(f"{API}/prints/pdf", json=corpo([{"variant_id": va, "quantity": 5}, {"variant_id": vb, "quantity": 4}]), headers=h)
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["printed"] == 9 and prog["reprinted"] == 0 and prog["missing"] == 0
+    await test_client.post(f"{API}/prints/pdf", json=corpo([{"variant_id": va, "quantity": 5}]), headers=h)          # reimprime 5
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["printed"] == 9 and prog["reprinted"] == 5 and prog["missing"] == 0                                  # continua 9, não 14
+    assert all(l["printed"] <= l["received"] for l in prog["lines"])

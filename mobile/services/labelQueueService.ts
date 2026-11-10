@@ -40,10 +40,13 @@ export interface PrintState {
 export interface EntryLabelProgress {
   entry_code: string;
   received: number;
+  /** Peças da entrada que já tiveram a etiqueta impressa (nunca passa do recebido). */
   printed: number;
+  /** Etiquetas impressas de novo (a mesma peça duas vezes): vai à parte. */
+  reprinted?: number;
   queued: number;
   missing: number;
-  lines: { variant_id: number; received: number; printed: number; queued: number; missing: number }[];
+  lines: { variant_id: number; received: number; printed: number; reprinted?: number; queued: number; missing: number }[];
 }
 
 export type QueuePaper = 'a4' | 'roll' | 'sheet';
