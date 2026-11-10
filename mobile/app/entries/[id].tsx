@@ -40,7 +40,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import AppButton from '@/components/ui/AppButton';
-import { getLabelQueue } from '@/services/labelQueueService';
+import { addToQueue as addLabelsToQueue, getEntryLabelProgress, getLabelQueue } from '@/services/labelQueueService';
+import { parseApiError } from '@/utils/apiError';
 import HScroll from '@/components/ui/HScroll';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
@@ -146,6 +147,31 @@ export default function StockEntryDetailsScreen() {
   const [editPrice, setEditPrice] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const { data: labelQueue } = useQuery({ queryKey: ['label-queue'], queryFn: getLabelQueue, refetchOnWindowFocus: true });   // atalho da fila de impressão
+  // "Fila de impressão" no cartão da peça: inclui as etiquetas que faltam dessa peça (as que ainda não saíram nem estão na fila) e abre a fila
+  const { data: labelProgress } = useQuery({ queryKey: ['label-progress', entryId], queryFn: () => getEntryLabelProgress(entryId), enabled: !!entryId });
+  const [queueingItemId, setQueueingItemId] = useState<number | null>(null);
+  const openQueueWithItem = async (item: EntryItemResponse) => {
+    if (queueingItemId) return;
+    const line = item.variant_id ? labelProgress?.lines.find((l) => l.variant_id === item.variant_id) : undefined;
+    const missing = item.variant_id ? (line ? line.missing : item.quantity_received) : 0;
+    if (!item.variant_id || missing <= 0) {
+      router.push('/etiquetas/fila' as any);
+      return;
+    }
+    setQueueingItemId(item.id);
+    try {
+      await addLabelsToQueue([{ variantId: item.variant_id, quantity: missing }], entryId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['label-queue'] }),
+        queryClient.invalidateQueries({ queryKey: ['label-progress', entryId] }),
+      ]);
+      router.push('/etiquetas/fila' as any);
+    } catch (e: any) {
+      setErrorDialog({ visible: true, message: parseApiError(e) || 'Não foi possível pôr na fila.' });
+    } finally {
+      setQueueingItemId(null);
+    }
+  };
   const [editSupplier, setEditSupplier] = useState<{ id: number; name: string } | null>(null);   // fornecedor escolhido na edição
   const [pickingSupplier, setPickingSupplier] = useState(false);
 
@@ -609,13 +635,14 @@ export default function StockEntryDetailsScreen() {
             </TouchableOpacity>
           )}
           <TouchableOpacity
-            onPress={() => router.push('/etiquetas/fila' as any)}
-            style={[styles.itemTool, styles.itemToolWide, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
+            onPress={() => openQueueWithItem(item)}
+            disabled={queueingItemId != null}
+            style={[styles.itemTool, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12', opacity: queueingItemId === item.id ? 0.5 : 1 }]}
             activeOpacity={0.7}
-            accessibilityLabel="Abrir a fila de impressão de etiquetas"
+            accessibilityLabel="Incluir as etiquetas desta peça na fila de impressão e abrir a fila"
           >
             <Ionicons name="list-outline" size={16} color={brandingColors.primary} />
-            <Text style={[styles.itemToolText, { color: brandingColors.primary }]} numberOfLines={1}>Fila de impressão</Text>
+            <Text style={[styles.itemToolText, { color: brandingColors.primary, fontSize: 11, textAlign: 'center' }]} numberOfLines={2}>Fila de impressão</Text>
           </TouchableOpacity>
         </View>
 
@@ -1578,13 +1605,8 @@ const styles = StyleSheet.create({
   },
   itemToolbar: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: theme.spacing.xs,
     marginBottom: theme.spacing.md,
-  },
-  itemToolWide: {
-    flexBasis: '100%',
-    flexDirection: 'row',
   },
   itemTool: {
     flex: 1,
