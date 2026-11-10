@@ -1,4 +1,4 @@
-import { Colors } from '@/constants/Colors';
+import { Colors, DESK, REFUNDED_COLOR } from '@/constants/Colors';
 /**
  * Vendas no modo notebook (app web com 1024 px ou mais): tabela com período, situação, busca, ordenação e páginas.
  * O celular continua com a lista de cartões (app/(tabs)/sales/index.tsx).
@@ -20,9 +20,9 @@ import { saleCodes, saleCodesText } from '@/utils/saleCodes';
 import type { Sale } from '@/types';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 
-const INK = '#160F28';
-const MUTED = '#5B5670';
-const LINE = '#E6E3EE';
+const INK = DESK.ink;
+const MUTED = DESK.muted;
+const LINE = DESK.line;
 const BATCH = 100;
 const MAX_SALES = 3000;
 
@@ -31,7 +31,7 @@ const STATUS: Record<string, { label: string; color: string }> = {
   completed: { label: 'Concluída', color: Colors.light.successDark },
   cancelled: { label: 'Cancelada', color: VALUE_COLORS.negative },
   partially_refunded: { label: 'Dev. parcial', color: Colors.light.warningDark },
-  refunded: { label: 'Devolvida', color: '#7B1FA2' },
+  refunded: { label: 'Devolvida', color: REFUNDED_COLOR },
 };
 
 const PAYMENT: Record<string, string> = {
@@ -235,19 +235,19 @@ export default function DesktopSalesTable() {
 
         <View style={styles.toolbar}>
           <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={18} color="#8A839E" />
+            <Ionicons name="search-outline" size={18} color={DESK.faint} />
             <TextInput
               value={search}
               onChangeText={setSearch}
               placeholder="Buscar por número, cliente, vendedor, pagamento ou código da peça"
-              placeholderTextColor="#8A839E"
+              placeholderTextColor={DESK.faint}
               style={styles.searchInput}
               autoCorrect={false}
               accessibilityLabel="Buscar venda"
             />
             {search ? (
               <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Limpar busca">
-                <Ionicons name="close-circle" size={18} color="#8A839E" />
+                <Ionicons name="close-circle" size={18} color={DESK.faint} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -282,7 +282,7 @@ export default function DesktopSalesTable() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F6F5FA' },
+  screen: { flex: 1, backgroundColor: DESK.screen },
   // no PC largo as colunas espalhavam por 1.800 px: tabela na largura padrão do PC, centralizada
   scroll: { flex: 1 },
   body: { flexGrow: 1, padding: 20, gap: 12, width: '100%', maxWidth: 1200, alignSelf: 'center' },
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   primaryBtn: { height: 44, paddingHorizontal: 16, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
   primaryBtnText: { color: Colors.light.white, fontSize: 14, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: Colors.light.white, justifyContent: 'center' },
+  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: DESK.border, backgroundColor: Colors.light.white, justifyContent: 'center' },
   chipOn: { backgroundColor: INK, borderColor: INK },
   chipText: { fontSize: 13, fontWeight: '600', color: INK },
   chipTextOn: { color: Colors.light.white },

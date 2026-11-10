@@ -14,7 +14,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Colors, VALUE_COLORS } from '@/constants/Colors';
+import { Colors, DESK, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
@@ -34,10 +34,10 @@ import { HelpIconButton } from '@/components/help/HelpHost';
 import type { Customer, ProductGrouped, ProductVariant } from '@/types';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 
-const INK = '#160F28';
-const MUTED = '#5B5670';
-const LINE = '#E6E3EE';
-const SOFT_LINE = '#F0EDF5';
+const INK = DESK.ink;
+const MUTED = DESK.muted;
+const LINE = DESK.line;
+const SOFT_LINE = DESK.softLine;
 
 type Dialog = {
   title: string;
@@ -347,7 +347,7 @@ export default function DesktopPDV() {
               onSubmitEditing={handleEnter}
               onKeyPress={(e: any) => { if (e.nativeEvent?.key === 'Escape') { setQuery(''); setNotice(null); } }}
               placeholder="Nome, cor, tamanho ou código da etiqueta (Enter adiciona)"
-              placeholderTextColor="#8A839E"
+              placeholderTextColor={DESK.faint}
               autoFocus
               autoCorrect={false}
               autoCapitalize="none"
@@ -357,7 +357,7 @@ export default function DesktopPDV() {
             />
             {query ? (
               <TouchableOpacity onPress={() => { setQuery(''); setNotice(null); searchRef.current?.focus(); }} accessibilityLabel="Limpar busca">
-                <Ionicons name="close-circle" size={20} color="#8A839E" />
+                <Ionicons name="close-circle" size={20} color={DESK.faint} />
               </TouchableOpacity>
             ) : (
               <Text style={styles.kbd}>/</Text>
@@ -390,7 +390,7 @@ export default function DesktopPDV() {
               style={[styles.notice, notice.ok ? styles.noticeOk : styles.noticeWarn]}
             >
               <Ionicons name={notice.ok ? 'checkmark-circle' : 'alert-circle'} size={16} color={notice.ok ? Colors.light.successDark : Colors.light.warningDark} />
-              <Text style={[styles.noticeText, { color: notice.ok ? '#065F46' : Colors.light.warningDarker }]}>{notice.text}</Text>
+              <Text style={[styles.noticeText, { color: notice.ok ? DESK.okText : Colors.light.warningDarker }]}>{notice.text}</Text>
             </View>
           )}
 
@@ -439,7 +439,7 @@ export default function DesktopPDV() {
                             >
                               {hex ? <View style={[styles.swatch, { backgroundColor: hex }]} /> : null}
                               <Text style={[styles.vchipText, off && styles.vchipTextOff]}>{variantLabel(v)}</Text>
-                              <Text style={[styles.vchipStock, { color: off ? '#9A93AD' : left <= 2 ? Colors.light.warningDark : Colors.light.successDark }]}>
+                              <Text style={[styles.vchipStock, { color: off ? DESK.fainter : left <= 2 ? Colors.light.warningDark : Colors.light.successDark }]}>
                                 {off ? 'esgotado' : `${left} un.`}
                               </Text>
                               {code ? <Text style={styles.vchipCode}>{code}</Text> : null}
@@ -470,7 +470,7 @@ export default function DesktopPDV() {
                 </View>
                 <TouchableOpacity onPress={() => setCustomerOpen(true)}><Text style={[styles.link, { color: primary }]}>Trocar</Text></TouchableOpacity>
                 <TouchableOpacity onPress={() => cart.setCustomer(undefined)} accessibilityLabel="Tirar o cliente da venda">
-                  <Ionicons name="close-circle" size={20} color="#8A839E" />
+                  <Ionicons name="close-circle" size={20} color={DESK.faint} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -543,7 +543,7 @@ export default function DesktopPDV() {
                   onChangeText={setDiscountInput}
                   onSubmitEditing={applyDiscount}
                   placeholder="0,00"
-                  placeholderTextColor="#8A839E"
+                  placeholderTextColor={DESK.faint}
                   keyboardType="decimal-pad"
                   autoFocus
                   style={styles.discountInput}
@@ -586,13 +586,13 @@ export default function DesktopPDV() {
               </View>
             )}
             <TouchableOpacity
-              style={[styles.finish, { backgroundColor: cart.items.length ? primary : '#E6E3EE' }]}
+              style={[styles.finish, { backgroundColor: cart.items.length ? primary : DESK.line }]}
               onPress={finish}
               disabled={cart.items.length === 0}
               accessibilityLabel="Finalizar venda, atalho F9"
             >
-              <Text style={[styles.finishText, !cart.items.length && { color: '#8A839E' }]}>Finalizar venda</Text>
-              <Text style={[styles.kbdDark, !cart.items.length && { color: '#8A839E', backgroundColor: 'transparent' }]}>F9</Text>
+              <Text style={[styles.finishText, !cart.items.length && { color: DESK.faint }]}>Finalizar venda</Text>
+              <Text style={[styles.kbdDark, !cart.items.length && { color: DESK.faint, backgroundColor: 'transparent' }]}>F9</Text>
             </TouchableOpacity>
             <Text style={styles.payHint}>Pagamento, troco, PIX e maquininha na próxima tela.</Text>
           </View>
@@ -619,7 +619,7 @@ export default function DesktopPDV() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F6F5FA' },
+  screen: { flex: 1, backgroundColor: DESK.screen },
   header: {
     flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12,
     paddingHorizontal: 24, paddingVertical: 14, backgroundColor: Colors.light.white, borderBottomWidth: 1, borderBottomColor: LINE,
@@ -640,16 +640,16 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, minWidth: 0, fontSize: 16, color: INK, outlineStyle: 'none' } as any,
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: Colors.light.white, justifyContent: 'center' },
+  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: DESK.border, backgroundColor: Colors.light.white, justifyContent: 'center' },
   chipOn: { backgroundColor: INK, borderColor: INK },
   chipText: { fontSize: 13, fontWeight: '600', color: INK },
   chipTextOn: { color: Colors.light.white },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
-  noticeOk: { backgroundColor: Colors.light.successSoft, borderColor: '#A7F3D0' },
-  noticeWarn: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+  noticeOk: { backgroundColor: Colors.light.successSoft, borderColor: DESK.okBorder },
+  noticeWarn: { backgroundColor: DESK.noteBg, borderColor: DESK.noteBorder },
   noticeText: { fontSize: 13, flex: 1 },
   list: { flex: 1, minHeight: 0, backgroundColor: Colors.light.white, borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
-  listHead: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: LINE, backgroundColor: '#FBFAFD' },
+  listHead: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: LINE, backgroundColor: DESK.surfaceAlt },
   listHeadText: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.3 },
   empty: { padding: 32, alignItems: 'center' },
   emptyText: { fontSize: 14, color: MUTED, textAlign: 'center' },
@@ -659,24 +659,24 @@ const styles = StyleSheet.create({
   rowMeta: { fontSize: 13, color: MUTED },
   rowPrice: { fontSize: 15, fontWeight: '700', marginTop: 2 },
   variants: { flexGrow: 2, flexShrink: 1, flexBasis: 320, flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', alignContent: 'flex-start' },
-  vchip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: Colors.light.white },
-  vchipOff: { borderColor: '#ECEAF2', backgroundColor: '#F7F6FA' },
+  vchip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: DESK.border, backgroundColor: Colors.light.white },
+  vchipOff: { borderColor: DESK.track, backgroundColor: DESK.surfaceHover },
   vchipText: { fontSize: 13, fontWeight: '600', color: INK },
-  vchipTextOff: { color: '#9A93AD' },
+  vchipTextOff: { color: DESK.fainter },
   vchipStock: { fontSize: 12 },
-  vchipCode: { fontSize: 11, color: '#8A839E' },
+  vchipCode: { fontSize: 11, color: DESK.faint },
   swatch: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(22,15,40,0.2)' },
   hint: { fontSize: 12, color: MUTED },
   right: { width: 380, flexShrink: 0, backgroundColor: Colors.light.white, borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
   block: { padding: 14, borderBottomWidth: 1, borderBottomColor: SOFT_LINE },
   customer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  customerPick: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: '#CFC8DE' },
+  customerPick: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: DESK.borderStrong },
   customerName: { fontSize: 14, fontWeight: '600', color: INK },
   customerHint: { fontSize: 12, color: MUTED },
   link: { fontSize: 13, fontWeight: '600' },
   cartHead: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
   cartTitle: { fontSize: 13, fontWeight: '600', color: MUTED },
-  clear: { fontSize: 13, fontWeight: '600', color: '#B4235C' },
+  clear: { fontSize: 13, fontWeight: '600', color: DESK.danger },
   cartList: { flex: 1, minHeight: 120 },
   cartEmpty: { padding: 24, textAlign: 'center', color: MUTED, fontSize: 14, lineHeight: 21 },
   cartItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: SOFT_LINE },
@@ -686,18 +686,18 @@ const styles = StyleSheet.create({
   qtyBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   qtyText: { minWidth: 22, textAlign: 'center', fontSize: 14, fontWeight: '600', color: INK },
   cartTotal: { width: 92, textAlign: 'right', fontSize: 14, fontWeight: '700', color: INK },
-  totals: { padding: 16, gap: 10, borderTopWidth: 1, borderTopColor: LINE, backgroundColor: '#FBFAFD' },
+  totals: { padding: 16, gap: 10, borderTopWidth: 1, borderTopColor: LINE, backgroundColor: DESK.surfaceAlt },
   line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   lineLabel: { fontSize: 14, color: MUTED },
   lineValue: { fontSize: 14, color: INK },
   totalLabel: { fontSize: 15, fontWeight: '700', color: INK },
   totalValue: { fontSize: 28, fontWeight: '800', color: INK },
   discountRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dtype: { height: 32, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: '#E0DBEA', justifyContent: 'center', backgroundColor: Colors.light.white },
+  dtype: { height: 32, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: DESK.border, justifyContent: 'center', backgroundColor: Colors.light.white },
   dtypeOn: { borderColor: INK, backgroundColor: INK },
   dtypeText: { fontSize: 13, fontWeight: '700', color: INK },
   dtypeTextOn: { color: Colors.light.white },
-  discountInput: { flex: 1, minWidth: 0, height: 32, borderWidth: 1, borderColor: '#CFC8DE', borderRadius: 7, paddingHorizontal: 8, fontSize: 14, color: INK, backgroundColor: Colors.light.white },
+  discountInput: { flex: 1, minWidth: 0, height: 32, borderWidth: 1, borderColor: DESK.borderStrong, borderRadius: 7, paddingHorizontal: 8, fontSize: 14, color: INK, backgroundColor: Colors.light.white },
   smallBtn: { height: 32, paddingHorizontal: 10, borderRadius: 7, justifyContent: 'center' },
   smallBtnText: { color: Colors.light.white, fontSize: 13, fontWeight: '600' },
   finish: { height: 50, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4 },

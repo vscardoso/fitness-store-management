@@ -21,7 +21,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import { getSales } from '@/services/saleService';
 import { formatCurrency, formatClock, formatDayMonth } from '@/utils/format';
-import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
+import { Colors, REFUNDED_COLOR, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
@@ -38,7 +38,7 @@ const statusMap: Record<string, { label: string; color: string; icon: string }> 
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, icon: 'checkmark-circle-outline' },
   cancelled:          { label: 'Cancelada',    color: VALUE_COLORS.negative, icon: 'close-circle-outline' },
   partially_refunded: { label: 'Dev. Parcial', color: Colors.light.warning,             icon: 'return-down-back-outline' },
-  refunded:           { label: 'Devolvida',    color: '#7B1FA2',             icon: 'refresh-outline' },
+  refunded:           { label: 'Devolvida',    color: REFUNDED_COLOR,             icon: 'refresh-outline' },
 };
 
 /** Notebook (app web com 1024 px ou mais): tabela. Celular: a lista de cartões de sempre. */

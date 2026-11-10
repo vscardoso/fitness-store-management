@@ -28,12 +28,12 @@ export default function CashStatusCard() {
       accessibilityLabel={s ? 'Caixa aberto: ver, colocar, retirar ou fechar' : 'Caixa fechado: abrir o caixa'}
     >
       <View style={styles.head}>
-        <View style={[styles.icon, { backgroundColor: (s ? '#16A34A' : brand.primary) + '18' }]}>
-          <Ionicons name="cash-outline" size={20} color={s ? '#16A34A' : brand.primary} />
+        <View style={[styles.icon, { backgroundColor: (s ? Colors.light.success : brand.primary) + '18' }]}>
+          <Ionicons name="cash-outline" size={20} color={s ? Colors.light.success : brand.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Caixa da gaveta</Text>
-          <Text style={[styles.status, { color: s ? '#16A34A' : Colors.light.textSecondary }]}>
+          <Text style={[styles.status, { color: s ? Colors.light.success : Colors.light.textSecondary }]}>
             {s ? `Aberto desde ${formatDateTime(s.opened_at)}` : 'Fechado'}
           </Text>
         </View>

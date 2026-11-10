@@ -25,7 +25,7 @@ import { checkReturnEligibility, getReturnHistory } from '@/services/returnServi
 import { confirmManualPayment, cancelOrder } from '@/services/pdvService';
 import { formatCurrency, formatDateTime, formatPercent } from '@/utils/format';
 import type { SaleReturn } from '@/services/returnService';
-import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
+import { Colors, REFUNDED_COLOR, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useAuthStore } from '@/store/authStore';
 import { haptics } from '@/utils/haptics';
@@ -44,7 +44,7 @@ const statusMap: Record<string, { label: string; color: string; solid?: boolean;
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, solid: true, icon: 'checkmark-circle' },
   cancelled:          { label: 'Cancelada',    color: VALUE_COLORS.negative, icon: 'close-circle' },
   partially_refunded: { label: 'Dev. Parcial', color: Colors.light.warning, icon: 'refresh-circle' },
-  refunded:           { label: 'Devolvida',    color: '#7B1FA2', solid: true, icon: 'arrow-undo-circle' },
+  refunded:           { label: 'Devolvida',    color: REFUNDED_COLOR, solid: true, icon: 'arrow-undo-circle' },
 };
 
 const paymentLabel: Record<string, string> = {
@@ -231,7 +231,7 @@ export default function SaleDetailsScreen() {
       <View style={styles.container}>
         <PageHeader title="Venda" showBackButton onBack={goBack} />
         <View style={styles.centerContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color="#999" />
+          <Ionicons name="alert-circle-outline" size={64} color={Colors.light.textTertiary} />
           <Text style={styles.errorTitle}>Erro ao carregar venda</Text>
           <Text style={styles.errorSubtitle}>Toque para tentar novamente</Text>
           <AppButton
@@ -411,11 +411,11 @@ export default function SaleDetailsScreen() {
                     {hasMargin && (
                       <View style={[
                         styles.marginBadge,
-                        { backgroundColor: (item.margin_percent ?? 0) >= 30 ? '#E8F5E9' : '#FFF3E0' },
+                        { backgroundColor: (item.margin_percent ?? 0) >= 30 ? Colors.light.successSoft : Colors.light.warningLight },
                       ]}>
                         <Text style={[
                           styles.marginBadgeText,
-                          { color: (item.margin_percent ?? 0) >= 30 ? '#2E7D32' : '#F57C00' },
+                          { color: (item.margin_percent ?? 0) >= 30 ? Colors.light.successDark : Colors.light.warningDark },
                         ]}>
                           {`Lucro ${formatCurrency(item.profit ?? 0)} · ${formatPercent((item.margin_percent ?? 0), 0)}`}
                         </Text>
@@ -437,8 +437,8 @@ export default function SaleDetailsScreen() {
             )}
             {hasDiscount && (
               <View style={styles.totalLine}>
-                <Text style={[styles.totalLineLabel, { color: '#F57C00' }]}>Desconto</Text>
-                <Text style={[styles.totalLineValue, { color: '#F57C00' }]}>
+                <Text style={[styles.totalLineLabel, { color: Colors.light.warningDark }]}>Desconto</Text>
+                <Text style={[styles.totalLineValue, { color: Colors.light.warningDark }]}>
                   -{formatCurrency(sale.discount_amount)}
                 </Text>
               </View>

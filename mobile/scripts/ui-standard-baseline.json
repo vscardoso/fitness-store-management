@@ -177,7 +177,7 @@
  "app/(tabs)/sales/index.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
-  "hexColors": 1,
+  "hexColors": 0,
   "handButton": 0,
   "oddWeight": 2
  },
@@ -548,7 +548,7 @@
  "app/sales/[id].tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
-  "hexColors": 8,
+  "hexColors": 0,
   "handButton": 0,
   "oddWeight": 4
  },
@@ -751,7 +751,7 @@
  "components/cash/CashStatusCard.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
-  "hexColors": 3,
+  "hexColors": 0,
   "handButton": 0,
   "oddWeight": 1
  },
@@ -989,14 +989,14 @@
  "components/sale/DesktopPDV.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
-  "hexColors": 29,
+  "hexColors": 0,
   "handButton": 5,
   "oddWeight": 1
  },
  "components/sale/DesktopSalesTable.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
-  "hexColors": 9,
+  "hexColors": 0,
   "handButton": 2,
   "oddWeight": 1
  },

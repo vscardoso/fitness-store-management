@@ -178,6 +178,33 @@ export const VALUE_COLORS = {
 
 export type ValueColorType = keyof typeof VALUE_COLORS;
 
+/**
+ * Cores do app no notebook (PDV de balcão e tabela de vendas): cinzas com um toque de violeta, mesmo visual de antes,
+ * agora com nome. Em tela nova de notebook usar estes, não hexadecimal solto.
+ */
+export const DESK = {
+  ink: '#160F28',          // texto principal
+  muted: '#5B5670',        // texto secundário
+  faint: '#8A839E',        // placeholder e ícone apagado
+  fainter: '#9A93AD',      // ícone ainda mais apagado
+  line: '#E6E3EE',         // linha divisória
+  softLine: '#F0EDF5',     // linha divisória fraca
+  border: '#E0DBEA',       // contorno de campo e chip
+  borderStrong: '#CFC8DE', // contorno de campo desligado
+  screen: '#F6F5FA',       // fundo da tela
+  surfaceAlt: '#FBFAFD',   // fundo de cartão interno
+  surfaceHover: '#F7F6FA', // fundo de linha sob o cursor
+  track: '#ECEAF2',        // trilho e botão neutro
+  okText: '#065F46',       // texto de confirmação
+  okBorder: '#A7F3D0',     // contorno de confirmação
+  noteBg: '#FFFBEB',       // fundo de aviso
+  noteBorder: '#FDE68A',   // contorno de aviso
+  danger: '#B4235C',       // ação de risco
+} as const;
+
+/** Cor do selo de venda devolvida (roxo), igual em lista, tabela e detalhe da venda. */
+export const REFUNDED_COLOR = '#7B1FA2';
+
 // Paletas de branding pré-definidas
 export const PRESET_THEMES = [
   { name: 'Provador',       primary: '#7C3AED', secondary: '#DB2777', accent: '#10B981' },
