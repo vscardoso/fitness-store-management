@@ -17,7 +17,8 @@ import { getStockRemovals, type StockRemoval } from '@/services/stockEntryServic
 import { dateToIso } from '@/utils/dateBr';
 import { formatCurrency, formatDate, formatInt } from '@/utils/format';
 import { isManagerRole } from '@/utils/roles';
-import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ScreenLoader from '@/components/ui/ScreenLoader';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const PAGE = 50;
 
@@ -46,6 +47,7 @@ function periodRange(p: Period): { start_date?: string; end_date?: string } {
 const num = (v: number | string | null | undefined) => Number(v ?? 0) || 0;
 
 export default function RemovalsScreen() {
+  const brand = useBrandingColors();
   const router = useRouter();
   const { user } = useAuth();
   const allowed = isManagerRole(user?.role);
@@ -103,7 +105,7 @@ export default function RemovalsScreen() {
         {REASONS.map((r) => {
           const on = reason === r.key;
           return (
-            <TouchableOpacity key={r.key || 'todas'} style={[styles.chip, on && styles.chipOn]} onPress={() => setReason(r.key)}
+            <TouchableOpacity key={r.key || 'todas'} style={[styles.chip, on && { backgroundColor: brand.primary, borderColor: brand.primary }]} onPress={() => setReason(r.key)}
               accessibilityRole="button" accessibilityState={{ selected: on }}>
               <Text style={[styles.chipText, on && styles.chipTextOn]}>{r.label} ({formatInt(countFor(r.key))})</Text>
             </TouchableOpacity>
@@ -114,7 +116,7 @@ export default function RemovalsScreen() {
         {PERIODS.map((p) => {
           const on = period === p.key;
           return (
-            <TouchableOpacity key={p.key} style={[styles.chip, on && styles.chipOn]} onPress={() => setPeriod(p.key)}
+            <TouchableOpacity key={p.key} style={[styles.chip, on && { backgroundColor: brand.primary, borderColor: brand.primary }]} onPress={() => setPeriod(p.key)}
               accessibilityRole="button" accessibilityState={{ selected: on }}>
               <Text style={[styles.chipText, on && styles.chipTextOn]}>{p.label}</Text>
             </TouchableOpacity>
@@ -172,11 +174,11 @@ export default function RemovalsScreen() {
         refreshing={list.isRefetching && !list.isFetchingNextPage}
         onRefresh={() => { list.refetch(); summary.refetch(); }}
         ListEmptyComponent={
-          list.isLoading ? <ActivityIndicator style={styles.loading} color={Colors.light.primary} />
+          list.isLoading ? <ScreenLoader inline message="Carregando as saídas..." />
           : list.isError ? <EmptyState type="error" title="Não foi possível carregar" actionLabel="Tentar de novo" onAction={() => list.refetch()} />
           : <EmptyState title="Nenhuma saída sem venda" />
         }
-        ListFooterComponent={list.isFetchingNextPage ? <ActivityIndicator style={styles.loading} color={Colors.light.primary} /> : null}
+        ListFooterComponent={list.isFetchingNextPage ? <ScreenLoader inline compact /> : null}
       />
     </View>
   );
@@ -192,7 +194,6 @@ const styles = StyleSheet.create({
   cardValue: { fontSize: 22, fontWeight: '800', color: Colors.light.text },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
-  chipOn: { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
   chipText: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
   chipTextOn: { color: Colors.light.card },
   row: { flexDirection: 'row', gap: 12, backgroundColor: Colors.light.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.light.border },

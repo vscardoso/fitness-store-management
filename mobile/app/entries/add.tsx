@@ -21,13 +21,13 @@ import {
 } from 'react-native';
 import {
   TextInput,
-  Button,
   HelperText,
   Chip,
   IconButton,
   Divider,
 } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import AppButton from '@/components/ui/AppButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { markWizardCompleted, PRODUCT_LIST_ROUTE, wasWizardJustCompleted } from '@/utils/wizardGuard';
@@ -1236,7 +1236,7 @@ export default function AddStockEntryScreen() {
         <View style={styles.variantRowHeader}>
           <View style={styles.variantChipsRow}>
             {variantSize && (
-              <View style={styles.variantChipSize}>
+              <View style={[styles.variantChipSize, { backgroundColor: brandingColors.primary + '20' }]}>
                 <Text style={styles.variantChipText}>{variantSize}</Text>
               </View>
             )}
@@ -1711,16 +1711,7 @@ export default function AddStockEntryScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Produtos ({items.length}) <Text style={{ fontSize: 12, color: '#888', fontWeight: 'normal' }}>opcional</Text></Text>
-            <Button
-              mode="outlined"
-              onPress={() => setProductMenuVisible(true)}
-              icon="plus"
-              compact
-              textColor={brandingColors.primary}
-              style={{ borderColor: `${brandingColors.primary}55` }}
-            >
-              Adicionar
-            </Button>
+            <AppButton variant="outlined" size="sm" icon="add" label="Adicionar" onPress={() => setProductMenuVisible(true)} />
           </View>
 
           {errors.items && (
@@ -1894,16 +1885,12 @@ export default function AddStockEntryScreen() {
 
         {/* Botões */}
         <View style={styles.actions}>
-          <Button
-            mode="outlined"
+          <AppButton
+            variant="outlined" size="lg" label="Cancelar"
             onPress={() => isFromWizard ? router.back() : router.replace('/(tabs)/entries')}
             disabled={createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending}
-            textColor={brandingColors.primary}
-            style={[styles.actionButton, { borderColor: `${brandingColors.primary}55` }]}
-            contentStyle={styles.cancelButtonContent}
-          >
-            Cancelar
-          </Button>
+            style={styles.actionButton}
+          />
 
           <TouchableOpacity
             onPress={handleSubmit}
@@ -2149,12 +2136,10 @@ const styles = StyleSheet.create({
   },
   wizardBanner: {
     flexDirection: 'column',
-    backgroundColor: Colors.light.primary + '10',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     gap: theme.spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.primary + '20',
   },
   wizardBannerHeaderRow: {
     flexDirection: 'row',
@@ -2207,7 +2192,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: Colors.light.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -2249,18 +2233,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  typeButtonActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primaryLight,
-    ...theme.shadows.sm,
-  },
   typeButtonText: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
     color: Colors.light.textSecondary,
-  },
-  typeButtonTextActive: {
-    color: Colors.light.primary,
   },
   inputGroup: {
     marginBottom: 16,
@@ -2276,20 +2252,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: Colors.light.primaryLight,
-  },
-  addButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.light.primary,
   },
   selectButton: {
     flexDirection: 'row',
@@ -2375,10 +2337,6 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 8,
     textAlign: 'center',
-  },
-  catalogButton: {
-    marginTop: 16,
-    backgroundColor: Colors.light.primary,
   },
   itemCard: {
     marginBottom: 12,
@@ -2497,7 +2455,6 @@ const styles = StyleSheet.create({
   itemTotalValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.light.primary,
   },
   paymentChips: {
     flexDirection: 'row',
@@ -2540,7 +2497,6 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.light.primary,
   },
   actions: {
     marginTop: 8,
@@ -2571,9 +2527,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: theme.fontSize.base,
   },
-  cancelButtonContent: {
-    height: 52,
-  },
   // Variante grouped card styles
   variantDivider: {
     height: 1,
@@ -2590,12 +2543,10 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: Colors.light.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
   variantCountBadge: {
-    backgroundColor: Colors.light.primary,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
@@ -2619,7 +2570,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   variantChipSize: {
-    backgroundColor: Colors.light.primary + '20',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,

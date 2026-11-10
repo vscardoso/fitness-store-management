@@ -467,7 +467,7 @@ export default function StockEntriesScreen() {
         onPress={() => handleEntryPress(item)}
         activeOpacity={0.7}
       >
-        <View style={[styles.card, isSelectMode && styles.cardSelectMode]}>
+        <View style={[styles.card, isSelectMode && { borderWidth: 2, borderColor: brandingColors.primary + '50' }]}>
           <View style={styles.cardContent}>
             {/* Header: Código e Tipo */}
             <View style={styles.cardHeader}>
@@ -1201,18 +1201,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.light.border,
   },
-  filterChipActive: {
-    backgroundColor: Colors.light.primary + '15',
-    borderColor: Colors.light.primary,
-  },
   filterChipText: {
     fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
     flexShrink: 1,
-  },
-  filterChipTextActive: {
-    color: Colors.light.primary,
   },
   filterBadge: {
     minWidth: 22,
@@ -1222,9 +1215,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
-  },
-  filterBadgeActive: {
-    backgroundColor: Colors.light.primary,
   },
   filterBadgeText: {
     fontSize: 11,
@@ -1318,16 +1308,11 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   // Estilos para modo de seleção
-  cardSelectMode: {
-    borderWidth: 2,
-    borderColor: Colors.light.primary + '50',
-  },
   selectModeBanner: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.light.primary,
     paddingVertical: 12,
     paddingHorizontal: 16,
     paddingBottom: 32,

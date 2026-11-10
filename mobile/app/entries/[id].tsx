@@ -527,7 +527,7 @@ export default function StockEntryDetailsScreen() {
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.productName} numberOfLines={2}>{item.product_name}</Text>
             {!!item.variant_label && (
-              <Text style={styles.variantLabel} numberOfLines={1}>{item.variant_label}</Text>
+              <Text style={[styles.variantLabel, { color: brandingColors.primary }]} numberOfLines={1}>{item.variant_label}</Text>
             )}
             {!!item.product_sku && (
               <Text style={styles.productSku} numberOfLines={1}>SKU: {item.product_sku}</Text>
@@ -919,7 +919,7 @@ export default function StockEntryDetailsScreen() {
               ))}
               {slowMovers.length > 3 && (
                 <TouchableOpacity onPress={() => setShowAllSlow(v => !v)} style={{ paddingVertical: 8 }}>
-                  <Text style={{ color: Colors.light.primary, fontWeight: '700' }}>
+                  <Text style={{ color: brandingColors.primary, fontWeight: '700' }}>
                     {showAllSlow ? 'Mostrar só 3' : `Ver todos os ${slowMovers.length} parados`}
                   </Text>
                 </TouchableOpacity>
@@ -1253,7 +1253,7 @@ export default function StockEntryDetailsScreen() {
             },
           ]}
         >
-          <View style={styles.warningBox}>
+          <View style={[styles.warningBox, { borderLeftColor: brandingColors.primary, backgroundColor: brandingColors.primary + '10' }]}>
             <Ionicons name="information-circle" size={20} color={brandingColors.primary} />
             <Text style={styles.warningText}>
               Ao editar quantidade ou custo, o inventário será recalculado automaticamente.
@@ -1623,17 +1623,8 @@ const styles = StyleSheet.create({
   },
   variantLabel: {
     fontSize: 12,
-    color: Colors.light.primary,
     fontWeight: '500',
     marginTop: 2,
-  },
-  editButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.light.primary + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   editButtonDisabled: {
     backgroundColor: Colors.light.border + '50',
@@ -1769,15 +1760,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.light.error,
   },
-  protectionInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: Colors.light.primary + '10',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
   protectionInfoText: {
     flex: 1,
     fontSize: 13,
@@ -1804,12 +1786,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    backgroundColor: Colors.light.primary + '10',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: Colors.light.primary,
   },
   warningText: {
     flex: 1,

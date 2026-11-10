@@ -33,13 +33,13 @@ import {
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-import { Text, TextInput, Switch, Button } from 'react-native-paper';
+import { Text, TextInput, Switch } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import { colorNameToHex } from '@/utils/colorHex';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import AppButton from '@/components/ui/AppButton';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import {
   DEFAULT_SIZES,
@@ -980,12 +980,8 @@ export default function VariantBuilderInline({
 
             {/* Ações do modal */}
             <View style={styles.modalActions}>
-              <Button mode="outlined" onPress={() => setBatchEdit(null)} style={styles.modalBtn}>
-                Cancelar
-              </Button>
-              <Button mode="contained" onPress={saveBatchEdit} style={styles.modalBtn} icon="check">
-                Salvar preços
-              </Button>
+              <AppButton variant="outlined" size="md" label="Cancelar" onPress={() => setBatchEdit(null)} style={styles.modalBtn} />
+              <AppButton variant="primary" size="md" icon="checkmark" label="Salvar preços" onPress={saveBatchEdit} style={styles.modalBtn} />
             </View>
             </TouchableOpacity>
           </KeyboardAvoidingView>

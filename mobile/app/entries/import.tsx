@@ -5,7 +5,8 @@
  */
 import React, { useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { TextInput } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -138,22 +139,16 @@ export default function ImportStockScreen() {
               {result.categories_created.length ? ` Categorias criadas: ${result.categories_created.join(', ')}.` : ''}
             </Text>
             <View style={styles.actions}>
-              <Button mode="contained" buttonColor={brand.primary} onPress={() => router.replace(`/entries/${result.entry_id}` as any)}>
-                Ver a entrada
-              </Button>
-              <Button mode="outlined" onPress={() => router.replace('/(tabs)/products' as any)}>
-                Ver produtos
-              </Button>
-              <Button
-                mode="text"
+              <AppButton variant="primary" size="md" fullWidth label="Ver a entrada" onPress={() => router.replace(`/entries/${result.entry_id}` as any)} />
+              <AppButton variant="outlined" size="md" fullWidth label="Ver produtos" onPress={() => router.replace('/(tabs)/products' as any)} />
+              <AppButton
+                variant="text" size="md" fullWidth label="Importar outra planilha"
                 onPress={() => {
                   setFile(null);
                   setText('');
                   reset();
                 }}
-              >
-                Importar outra planilha
-              </Button>
+              />
             </View>
           </View>
         ) : (
@@ -164,9 +159,7 @@ export default function ImportStockScreen() {
                 Uma linha por peça: Produto, Categoria, Cor, Tamanho, Quantidade, Custo e Preço. O custo é obrigatório: sem ele o lucro
                 fica errado. Cada tamanho e cor é uma linha. Até 1.500 linhas por vez.
               </Text>
-              <Button mode="outlined" icon="download" onPress={download} style={styles.btn}>
-                Baixar modelo
-              </Button>
+              <AppButton variant="outlined" size="md" fullWidth icon="download-outline" label="Baixar modelo" onPress={download} style={styles.btn} />
             </View>
 
             <View style={styles.card}>
@@ -180,9 +173,8 @@ export default function ImportStockScreen() {
                     onChange: pickFile,
                     style: { display: 'none' },
                   })}
-                  <Button mode="contained-tonal" icon="file-upload-outline" onPress={() => fileInput.current?.click()} style={styles.btn}>
-                    {file ? 'Trocar arquivo' : 'Escolher arquivo (Excel ou CSV)'}
-                  </Button>
+                  <AppButton variant="secondary" size="md" fullWidth icon="cloud-upload-outline" onPress={() => fileInput.current?.click()} style={styles.btn}
+                    label={file ? 'Trocar arquivo' : 'Escolher arquivo (Excel ou CSV)'} />
                   {!!file && <Text style={styles.fileName}>{file.name}</Text>}
                 </>
               )}
@@ -213,9 +205,7 @@ export default function ImportStockScreen() {
                 placeholder="DD/MM/AAAA"
                 style={styles.input}
               />
-              <Button mode="contained" buttonColor={brand.primary} onPress={check} disabled={!hasInput || busy} style={styles.btn}>
-                Conferir planilha
-              </Button>
+              <AppButton variant="primary" size="md" fullWidth label="Conferir planilha" onPress={check} disabled={!hasInput || busy} style={styles.btn} />
               {busy && !confirm && (
                 <ScreenLoader inline message="Conferindo a planilha..." style={styles.checking} />
               )}
@@ -255,15 +245,7 @@ export default function ImportStockScreen() {
                 {s.errors} linha(s) com erro. Corrija a planilha e confira de novo: nada é importado enquanto houver erro.
               </Text>
             ) : preview?.can_import ? (
-              <Button
-                mode="contained"
-                buttonColor={brand.primary}
-                onPress={() => setConfirm(true)}
-                disabled={busy}
-                style={styles.btn}
-              >
-                {`Importar ${s.pieces} peças`}
-              </Button>
+              <AppButton variant="primary" size="lg" fullWidth label={`Importar ${s.pieces} peças`} onPress={() => setConfirm(true)} disabled={busy} style={styles.btn} />
             ) : null}
           </View>
         )}

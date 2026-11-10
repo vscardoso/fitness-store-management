@@ -4,7 +4,8 @@
  */
 import React, { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { TextInput } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -88,16 +89,11 @@ export default function SupplierReturnsScreen() {
             <View key={d.return_item_id} style={styles.card}>
               <Text style={styles.cardTitle}>{d.quantity_pending} peça(s) com defeito</Text>
               <Text style={styles.note}>Custo de cada uma: {formatCurrency(d.unit_cost)}</Text>
-              <Button
-                mode="contained"
-                compact
-                buttonColor={brand.primary}
-                style={{ marginTop: 8 }}
+              <AppButton
+                variant="primary" size="md" fullWidth label="Enviar ao fornecedor" style={{ marginTop: 8 }}
                 loading={send.isPending}
                 onPress={() => send.mutate({ return_item_id: d.return_item_id, quantity: d.quantity_pending })}
-              >
-                Enviar ao fornecedor
-              </Button>
+              />
             </View>
           ))
         )}
@@ -114,9 +110,9 @@ export default function SupplierReturnsScreen() {
               <Text style={styles.cardTitle}>{r.quantity} peça(s), {formatCurrency(r.unit_cost)} cada</Text>
               <Text style={styles.note}>{r.reason}</Text>
               <View style={styles.actions}>
-                <Button compact mode="outlined" onPress={() => resolve.mutate({ id: r.id, outcome: 'exchanged' })}>Fornecedor trocou</Button>
-                <Button compact mode="outlined" onPress={() => { setCreditFor(r.id); setCredit(''); }}>Creditou</Button>
-                <Button compact mode="outlined" textColor={Colors.light.error} onPress={() => resolve.mutate({ id: r.id, outcome: 'rejected' })}>Recusou</Button>
+                <AppButton variant="outlined" size="sm" label="Fornecedor trocou" onPress={() => resolve.mutate({ id: r.id, outcome: 'exchanged' })} />
+                <AppButton variant="outlined" size="sm" label="Creditou" onPress={() => { setCreditFor(r.id); setCredit(''); }} />
+                <AppButton variant="danger-outline" size="sm" label="Recusou" onPress={() => resolve.mutate({ id: r.id, outcome: 'rejected' })} />
               </View>
               {creditFor === r.id && (
                 <View style={{ marginTop: 8 }}>
@@ -128,19 +124,14 @@ export default function SupplierReturnsScreen() {
                     keyboardType="numeric"
                     left={<TextInput.Affix text="R$" />}
                   />
-                  <Button
-                    mode="contained"
-                    compact
-                    buttonColor={brand.primary}
-                    style={{ marginTop: 8 }}
+                  <AppButton
+                    variant="primary" size="md" fullWidth label="Confirmar crédito" style={{ marginTop: 8 }}
                     onPress={() => {
                       const v = unmaskCurrency(credit);
                       if (v <= 0) return setError('Informe o valor creditado.');
                       resolve.mutate({ id: r.id, outcome: 'credited', credit_amount: v });
                     }}
-                  >
-                    Confirmar crédito
-                  </Button>
+                  />
                   <Text style={styles.note}>O valor abate o custo das peças da entrada de origem.</Text>
                 </View>
               )}

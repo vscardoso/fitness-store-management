@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { getEntryTracking } from '@/services/stockEntryService';
 
 function fmtWhen(iso: string | null) {
@@ -17,6 +18,7 @@ function fmtWhen(iso: string | null) {
 }
 
 export default function EntryTrackingCard({ entryId }: { entryId: number }) {
+  const brand = useBrandingColors();
   const [open, setOpen] = useState(false);
   const [onlyOut, setOnlyOut] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -27,7 +29,7 @@ export default function EntryTrackingCard({ entryId }: { entryId: number }) {
   return (
     <View style={styles.card}>
       <TouchableOpacity style={styles.head} onPress={() => setOpen(o => !o)} accessibilityRole="button">
-        <Ionicons name="git-compare-outline" size={20} color={Colors.light.primary} />
+        <Ionicons name="git-compare-outline" size={20} color={brand.primary} />
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Rastreio das peças</Text>
           <Text style={styles.sub}>Para onde foi cada peça: vendida, com a cliente, saiu sem venda ou ainda em estoque</Text>
@@ -46,7 +48,7 @@ export default function EntryTrackingCard({ entryId }: { entryId: number }) {
             </Text>
           )}
           <TouchableOpacity onPress={() => setOnlyOut(v => !v)} style={styles.filter}>
-            <Text style={styles.filterTxt}>{onlyOut ? 'Mostrando só as que saíram sem venda (toque para ver todas)' : 'Mostrar só as que saíram sem venda'}</Text>
+            <Text style={[styles.filterTxt, { color: brand.primary }]}>{onlyOut ? 'Mostrando só as que saíram sem venda (toque para ver todas)' : 'Mostrar só as que saíram sem venda'}</Text>
           </TouchableOpacity>
           <View style={styles.row}>
             <Text style={[styles.cName, styles.th]}>Peça</Text>
@@ -98,7 +100,7 @@ const styles = StyleSheet.create({
   sum: { fontSize: 13, color: Colors.light.text },
   warn: { fontSize: 12, color: '#B45309' },
   filter: { alignSelf: 'flex-start' },
-  filterTxt: { fontSize: 12, color: Colors.light.primary, fontWeight: '600' },
+  filterTxt: { fontSize: 12, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
   th: { fontSize: 11, color: Colors.light.textSecondary, fontWeight: '700' },
   cName: { flex: 1 },
