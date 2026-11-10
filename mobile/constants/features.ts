@@ -14,6 +14,8 @@ const DEFAULTS = {
   pixIntegrado: false,
   /** Meu Perfil: a tela não existe, só mostrava "em breve". */
   meuPerfil: false,
+  /** Receber compra: tela única para lançar a mercadoria que chegou (produto novo ou cadastrado, vários fornecedores, grade de cores e tamanhos). Em teste no SIT; ainda não substitui o cadastro e a entrada de hoje. */
+  receberCompra: false,
 } as const;
 
 export type FeatureKey = keyof typeof DEFAULTS;
