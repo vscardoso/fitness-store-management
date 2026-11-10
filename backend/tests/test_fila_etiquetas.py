@@ -395,3 +395,24 @@ async def test_nao_saiu_devolve_a_peca_para_a_entrada_de_origem(test_client, asy
     assert q["total"] == 9 and all(i["entry_id"] == entry_id for i in q["items"])                      # voltou na linha da entrada, sem linha solta
     prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
     assert prog["printed"] == 0 and prog["queued"] == 9 and prog["missing"] == 0
+
+
+async def test_pôr_na_fila_pelo_produto_vai_para_a_entrada_e_a_entrada_toda_nao_duplica(test_client, async_session):
+    """Caso real (10/11/2026, loja 2): a tela do produto põe na fila SEM entrada; a entrada achava que nada dela estava na fila
+    e 'pôr a entrada toda' repunha tudo, dobrando a fila."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)                                            # va 5, vb 4 recebidas
+    r = await test_client.post(f"{API}/queue", json={"items": [{"variant_id": va, "quantity": 3}], "entry_id": None}, headers=h)
+    assert r.status_code == 201, r.text
+    q = (await test_client.get(f"{API}/queue", headers=h)).json()
+    assert [(i["variant_id"], i["quantity"], i["entry_id"]) for i in q["items"]] == [(va, 3, entry_id)]   # ligada à entrada de origem
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["queued"] == 3 and prog["missing"] == 6
+    r = await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)                              # só o que falta: 2 de va + 4 de vb
+    assert r.json()["added"] == 6
+    assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 9                        # nunca passa do que a entrada recebeu
+    # repetir o mesmo pelo produto: a peça já está toda na fila, o que passa fica sem entrada (não some, mas não conta como faltando)
+    r = await test_client.post(f"{API}/queue", json={"items": [{"variant_id": va, "quantity": 2}], "entry_id": None}, headers=h)
+    q = (await test_client.get(f"{API}/queue", headers=h)).json()
+    assert q["total"] == 11 and any(i["entry_id"] is None and i["quantity"] == 2 for i in q["items"])
+    assert (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()["missing"] == 0

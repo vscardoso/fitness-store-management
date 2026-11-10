@@ -43,6 +43,9 @@ export default function LabelItems({ items, qty, focusId, onFocus, onChange, onF
         <Text style={styles.muted}>{emptyText ?? 'Nenhuma peça ainda.'}</Text>
       ) : (
         <>
+          {items.every((it) => (qty[it.variantId] ?? 0) === 0) ? (
+            <Text style={styles.muted}>Nenhuma peça escolhida. Toque no + das peças que quer etiquetar, ou use “Igual ao estoque” para todas.</Text>
+          ) : null}
           <View style={styles.quick}>
             <TouchableOpacity style={styles.chip} onPress={() => onFill(() => 1)}><Text style={styles.chipText}>1 de cada</Text></TouchableOpacity>
             <TouchableOpacity style={styles.chip} onPress={() => onFill((it) => it.stock)}><Text style={styles.chipText}>Igual ao estoque</Text></TouchableOpacity>

@@ -38,11 +38,12 @@ export default function ProductLabelScreen() {
       }));
   }, [product, variants]);
 
-  // vindo de uma peça específica: só ela começa com 1; as outras ficam em 0
+  // NENHUMA variação começa escolhida: quem escolhe 2 de 8 quer só essas 2 (antes todas já vinham com a quantidade do estoque e
+  // iam todas para a fila). Vindo de uma peça específica, só ela começa com 1.
   const initialQty = useMemo(() => {
     const only = variantId && !Number.isNaN(Number(variantId)) ? Number(variantId) : null;
-    if (only == null || !items.some((i) => i.variantId === only)) return undefined;
-    return Object.fromEntries(items.map((i) => [i.variantId, i.variantId === only ? 1 : 0]));
+    const hasOnly = only != null && items.some((i) => i.variantId === only);
+    return Object.fromEntries(items.map((i) => [i.variantId, hasOnly && i.variantId === only ? 1 : 0]));
   }, [items, variantId]);
 
   return (

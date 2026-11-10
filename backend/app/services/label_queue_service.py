@@ -151,15 +151,33 @@ async def add_items(db: AsyncSession, tenant_id: int, user: Any, items: List[Dic
     if sum(r.quantity for r in rows) + sum(q for _, q in wanted) > MAX_QUEUE:
         raise QueueError(f"A fila aceita no máximo {MAX_QUEUE} etiquetas. Imprima e salve as que já estão nela.")
     existing = {(r.variant_id, r.entry_id): r for r in rows}
+    jobs = await _jobs(db, tenant_id) if entry_id is None else []
+
+    def put(vid: int, eid: Optional[int], q: int) -> None:
+        row = existing.get((vid, eid))
+        if row is None:
+            row = LabelQueueItem(tenant_id=tenant_id, variant_id=vid, entry_id=eid, quantity=q, added_by_name=_user_name(user), is_active=True)
+            db.add(row)
+            existing[(vid, eid)] = row
+            rows.append(row)
+        else:
+            row.quantity += q
+
     added = 0
     for vid, qty in wanted:
-        row = existing.get((vid, entry_id))
-        if row is None:
-            row = LabelQueueItem(tenant_id=tenant_id, variant_id=vid, entry_id=entry_id, quantity=qty, added_by_name=_user_name(user))
-            db.add(row)
-            existing[(vid, entry_id)] = row
-        else:
-            row.quantity += qty
+        left = qty
+        if entry_id is None:
+            # Pôr na fila pela tela do produto não diz de qual entrada é a peça. Sem isso a fila ficava com linhas soltas, a entrada
+            # achava que nada dela estava na fila e "pôr a entrada toda" repunha tudo (a fila crescia em dobro, loja 2, 10/11/2026).
+            # A etiqueta vai para a entrada MAIS ANTIGA que ainda tem essa peça sem etiqueta (nem impressa nem na fila).
+            for eid, miss in await _entries_missing(db, tenant_id, vid, rows, jobs):
+                if left == 0:
+                    break
+                take = min(left, miss)
+                put(vid, eid, take)
+                left -= take
+        if left > 0:
+            put(vid, entry_id, left)
         added += qty
     await db.flush()
     return added
