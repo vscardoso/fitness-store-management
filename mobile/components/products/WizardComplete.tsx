@@ -12,6 +12,9 @@ import { Text, Card } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import AppButton from '@/components/ui/AppButton';
+import { getLabelQueue } from '@/services/labelQueueService';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency, formatPercent } from '@/utils/format';
@@ -36,6 +39,9 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
   const { state, resetWizard } = wizard;
   const { createdProduct, linkedEntry } = state;
   const [showAllVariants, setShowAllVariants] = useState(false);
+  // atalho para a fila de impressão com quantas etiquetas já estão nela
+  const { data: labelQueue } = useQuery({ queryKey: ['label-queue'], queryFn: getLabelQueue, refetchOnWindowFocus: true });
+  const queued = labelQueue?.total ?? 0;
 
   // Detectar variantes
   const variants = (createdProduct as any)?.variants as ProductVariant[] | undefined;
@@ -420,6 +426,26 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
               <Ionicons name="images-outline" size={18} color={brandingColors.primary} />
               <Text style={[styles.secondaryButtonText, { color: brandingColors.primary }]}>Adicionar Fotos</Text>
             </TouchableOpacity>
+          )}
+
+          {canViewProduct && (
+            <AppButton
+              label="Etiquetas desta peça"
+              icon="pricetag-outline"
+              variant="outlined"
+              onPress={() => router.push(`/products/label/${createdProduct!.id}` as any)}
+              style={styles.shortcut}
+            />
+          )}
+
+          {linkedEntry && (
+            <AppButton
+              label={queued > 0 ? `Fila de impressão (${queued})` : 'Fila de impressão'}
+              icon="list-outline"
+              variant="outlined"
+              onPress={() => router.push('/etiquetas/fila' as any)}
+              style={styles.shortcut}
+            />
           )}
 
           {canViewProduct && (
@@ -847,6 +873,10 @@ const createStyles = (brand: string) => StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
+  },
+  shortcut: {
+    flex: 1,
+    minWidth: 140,
   },
   secondaryButton: {
     flex: 1,

@@ -39,6 +39,8 @@ import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
+import AppButton from '@/components/ui/AppButton';
+import { getLabelQueue } from '@/services/labelQueueService';
 import HScroll from '@/components/ui/HScroll';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
@@ -143,6 +145,7 @@ export default function StockEntryDetailsScreen() {
   const [editCost, setEditCost] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const { data: labelQueue } = useQuery({ queryKey: ['label-queue'], queryFn: getLabelQueue, refetchOnWindowFocus: true });   // atalho da fila de impressão
   const [editSupplier, setEditSupplier] = useState<{ id: number; name: string } | null>(null);   // fornecedor escolhido na edição
   const [pickingSupplier, setPickingSupplier] = useState(false);
 
@@ -976,6 +979,13 @@ export default function StockEntryDetailsScreen() {
               <Ionicons name="qr-code-outline" size={14} color={brandingColors.primary} />
               <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Conferir recebimento</Text>
             </TouchableOpacity>
+            <AppButton
+              label={(labelQueue?.total ?? 0) > 0 ? `Fila de impressão (${labelQueue?.total})` : 'Fila de impressão'}
+              icon="list-outline"
+              variant="outlined"
+              size="sm"
+              onPress={() => router.push('/etiquetas/fila' as any)}
+            />
             <TouchableOpacity
               onPress={() => router.push({ pathname: '/entries/labels/[id]', params: { id: String(entryId) } } as any)}
               style={[styles.editItemButton, { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary }]}
