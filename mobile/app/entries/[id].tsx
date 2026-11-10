@@ -980,57 +980,53 @@ export default function StockEntryDetailsScreen() {
           <Text style={styles.sectionTitleLarge}>
             Produtos ({entry.entry_items?.length || 0})
           </Text>
-          <View style={styles.itemActionsRow}>
+          {/* Ações da entrada: mesmo botão do app em grade de duas colunas (antes eram cinco estilos diferentes e quebra irregular) */}
+          <View style={styles.entryActionGrid}>
             {isManagerRole(user?.role) && (
               <>
-              <TouchableOpacity
-                onPress={() => {
-                  setPresetEntry(entryId);
-                  router.push('/products/wizard' as any);
-                }}
-                style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
-                activeOpacity={0.7}
-                accessibilityLabel="Cadastrar um produto novo e lançar nesta entrada"
-              >
-                <Ionicons name="sparkles-outline" size={14} color={brandingColors.primary} />
-                <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Produto novo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setAddProductOpen(true)}
-                style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
-                activeOpacity={0.7}
-                accessibilityLabel="Adicionar um produto já cadastrado a esta entrada"
-              >
-                <Ionicons name="add-circle-outline" size={14} color={brandingColors.primary} />
-                <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Produto já cadastrado</Text>
-              </TouchableOpacity>
+                <View style={styles.entryActionCell}>
+                  <AppButton
+                    label="Produto novo"
+                    icon="sparkles-outline"
+                    fullWidth
+                    onPress={() => {
+                      setPresetEntry(entryId);
+                      router.push('/products/wizard' as any);
+                    }}
+                  />
+                </View>
+                <View style={styles.entryActionCell}>
+                  <AppButton label="Produto já cadastrado" icon="add-circle-outline" variant="outlined" fullWidth onPress={() => setAddProductOpen(true)} />
+                </View>
               </>
             )}
-            <TouchableOpacity
-              onPress={() => router.push({ pathname: '/entries/check/[id]', params: { id: String(entryId) } } as any)}
-              style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
-              activeOpacity={0.7}
-              accessibilityLabel="Conferir as peças recebidas lendo o QR de cada uma"
-            >
-              <Ionicons name="qr-code-outline" size={14} color={brandingColors.primary} />
-              <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Conferir recebimento</Text>
-            </TouchableOpacity>
-            <AppButton
-              label={(labelQueue?.total ?? 0) > 0 ? `Fila de impressão (${labelQueue?.total})` : 'Fila de impressão'}
-              icon="list-outline"
-              variant="outlined"
-              size="sm"
-              onPress={() => router.push('/etiquetas/fila' as any)}
-            />
-            <TouchableOpacity
-              onPress={() => router.push({ pathname: '/entries/labels/[id]', params: { id: String(entryId) } } as any)}
-              style={[styles.editItemButton, { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary }]}
-              activeOpacity={0.8}
-              accessibilityLabel="Imprimir as etiquetas de todas as peças desta entrada"
-            >
-              <Ionicons name="print-outline" size={14} color={Colors.light.white} />
-              <Text style={[styles.editItemButtonText, { color: Colors.light.white, fontWeight: '700' }]}>Imprimir etiquetas</Text>
-            </TouchableOpacity>
+            <View style={styles.entryActionCell}>
+              <AppButton
+                label="Conferir recebimento"
+                icon="qr-code-outline"
+                variant="outlined"
+                fullWidth
+                onPress={() => router.push({ pathname: '/entries/check/[id]', params: { id: String(entryId) } } as any)}
+              />
+            </View>
+            <View style={styles.entryActionCell}>
+              <AppButton
+                label={(labelQueue?.total ?? 0) > 0 ? `Fila de impressão (${labelQueue?.total})` : 'Fila de impressão'}
+                icon="list-outline"
+                variant="outlined"
+                fullWidth
+                onPress={() => router.push('/etiquetas/fila' as any)}
+              />
+            </View>
+            <View style={styles.entryActionCell}>
+              <AppButton
+                label="Imprimir etiquetas"
+                icon="print-outline"
+                variant="outlined"
+                fullWidth
+                onPress={() => router.push({ pathname: '/entries/labels/[id]', params: { id: String(entryId) } } as any)}
+              />
+            </View>
           </View>
           {entry.entry_items && entry.entry_items.length > 1 && (
             <RNTextInput
@@ -1628,6 +1624,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: theme.spacing.xs,
     marginBottom: theme.spacing.md,
+  },
+  entryActionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  entryActionCell: {
+    flexBasis: '47%',
+    flexGrow: 1,
   },
   itemActionsWrap: {
     marginBottom: theme.spacing.md,
