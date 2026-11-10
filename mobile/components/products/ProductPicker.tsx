@@ -6,7 +6,7 @@
  * cria a próxima variação do MESMO produto (mesmo #123). Peças que já estão na entrada aparecem marcadas.
  */
 import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 
@@ -70,8 +70,11 @@ export function ProductPickerList({ onPick, onNewVariant, markedVariantIds = [],
     return () => clearTimeout(t);
   }, [query]);
 
+  // placeholderData: enquanto a busca nova chega, a lista anterior continua na tela. Sem isso, a cada letra a lista era trocada
+  // por um "carregando" e a janela encolhia e crescia (a tela tremia ao digitar).
   const { data: found = [], isLoading: loadingList, isFetching, error, refetch } = useQuery({
     queryKey: ['product-picker', debounced],
+    placeholderData: (previous) => previous,
     queryFn: () => getGroupedProducts({ search: debounced || undefined, limit: 60 }, { headers: { 'X-Skip-Loading': 'true' } }),
     staleTime: 30 * 1000,
     enabled: !fixedProduct,
@@ -91,7 +94,7 @@ export function ProductPickerList({ onPick, onNewVariant, markedVariantIds = [],
       {!fixedProduct && <View style={styles.searchBar}>
         <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, Platform.OS === 'web' ? ({ outlineStyle: 'none', outlineWidth: 0 } as any) : null]}
           placeholder="Nome, código (#123) ou SKU"
           placeholderTextColor={Colors.light.textTertiary}
           value={query}
@@ -100,7 +103,10 @@ export function ProductPickerList({ onPick, onNewVariant, markedVariantIds = [],
           autoCapitalize="none"
           accessibilityLabel="Buscar produto"
         />
-        {isFetching && !isLoading ? <ActivityIndicator size="small" color={brand.primary} /> : null}
+        {/* o espaço do indicador é sempre reservado: aparecer e sumir a cada letra mexia na largura do campo */}
+        <View style={styles.spinnerSlot}>
+          {isFetching && !isLoading ? <ActivityIndicator size="small" color={brand.primary} /> : null}
+        </View>
         {query.length > 0 && (
           <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="Limpar busca">
             <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
@@ -204,7 +210,7 @@ interface SheetProps extends ListProps {
 
 export default function ProductPickerSheet({ visible, onDismiss, title = 'Produto já cadastrado', subtitle, ...list }: SheetProps) {
   return (
-    <BottomSheet visible={visible} onDismiss={onDismiss} title={title} subtitle={subtitle} icon="cube-outline">
+    <BottomSheet visible={visible} onDismiss={onDismiss} title={title} subtitle={subtitle} icon="cube-outline" tall>
       {visible ? <ProductPickerList {...list} /> : null}
     </BottomSheet>
   );
@@ -216,6 +222,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.lg, paddingHorizontal: theme.spacing.md, height: 44, marginBottom: theme.spacing.md,
   },
   searchInput: { flex: 1, fontSize: 14, color: Colors.light.text },
+  spinnerSlot: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
   hint: { fontSize: 12, color: Colors.light.textSecondary },
   empty: { alignItems: 'center', gap: 6, paddingVertical: 24 },
   emptyTitle: { fontSize: 14, fontWeight: '600', color: Colors.light.text, textAlign: 'center' },

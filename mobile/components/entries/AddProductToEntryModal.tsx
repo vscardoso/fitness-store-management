@@ -207,6 +207,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
         title={step === 'newVariant' && newVar ? newVar.product.name : (step === 'form' || step === 'duplicate') && choice ? choice.label : 'Produto já cadastrado'}
         subtitle={step === 'form' ? (entryCode ? `Entrada ${entryCode}` : undefined) : entryCode ? `Lançar na entrada ${entryCode}` : undefined}
         icon="cube-outline"
+        tall={step === 'list'}
         dismissOnBackdrop={!add.isPending && !addNewVariant.isPending}
         actions={
           step === 'form'

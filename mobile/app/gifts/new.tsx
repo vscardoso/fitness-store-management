@@ -158,7 +158,7 @@ export default function NewGiftScreen() {
         </Button>
       </ScrollView>
 
-      <BottomSheet visible={pickerOpen} onDismiss={() => setPickerOpen(false)} title="Escolher a peça" icon="shirt-outline">
+      <BottomSheet visible={pickerOpen} onDismiss={() => setPickerOpen(false)} title="Escolher a peça" icon="shirt-outline" tall>
         <ProductPickerList onPick={add} />
       </BottomSheet>
       <CustomerSelectionModal

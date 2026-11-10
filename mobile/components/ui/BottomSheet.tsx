@@ -55,6 +55,8 @@ interface BottomSheetProps {
   children: React.ReactNode;
   /** Fechar ao tocar no backdrop (padrão: true) */
   dismissOnBackdrop?: boolean;
+  /** Altura fixa (90% da área visível): para janelas com busca e lista, que mudam de tamanho a cada letra e fariam a janela tremer. */
+  tall?: boolean;
 }
 
 function ActionLoading({ color }: { color: string }) {
@@ -120,6 +122,7 @@ export default function BottomSheet({
   actions = [],
   children,
   dismissOnBackdrop = true,
+  tall = false,
 }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const brandingColors = useBrandingColors();
@@ -167,7 +170,7 @@ export default function BottomSheet({
           visibleBox && { position: 'absolute', left: 0, right: 0, top: visibleBox.top, height: visibleBox.height, flex: undefined }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        <View style={[styles.sheet, { paddingBottom: insets.bottom }, isDesktop && styles.sheetDesktop]}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom }, isDesktop && styles.sheetDesktop, tall && (isDesktop ? styles.sheetTallDesktop : styles.sheetTall)]}>
 
           {/* Header com gradiente — cobre os cantos arredondados do sheet */}
           <LinearGradient
@@ -378,6 +381,8 @@ const styles = StyleSheet.create({
   scroll: {
     flexShrink: 1,
   },
+  sheetTall: { height: '90%' },
+  sheetTallDesktop: { height: '80%' },
   scrollContent: {
     padding: 20,
     paddingBottom: 8,
