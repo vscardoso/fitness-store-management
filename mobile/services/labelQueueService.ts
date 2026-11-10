@@ -109,13 +109,12 @@ export interface RecentPrint {
   width_mm: number;
   height_mm: number;
   start_position: number;
-  expires_at: string;
   filename: string;
-  /** Link https do PDF (assinado, vale 24 horas). */
+  /** Link https do PDF (assinado; só abre enquanto for um dos 3 últimos). */
   url: string;
 }
 
-/** PDFs gerados nas últimas 24 horas (depois disso somem). */
+/** Os 3 últimos PDFs gerados (os mais antigos deixam de abrir sozinhos). */
 export async function getRecentPrints(): Promise<RecentPrint[]> {
   return (await api.get('/labels/prints/recent')).data;
 }

@@ -1,6 +1,6 @@
 /**
- * Últimos PDFs gerados (24 horas): abre de novo o arquivo para imprimir, sem salvar nada outra vez.
- * O servidor refaz o PDF com as mesmas peças, quantidades, papel e posição na folha, num link https assinado; depois de 24 horas some da lista.
+ * Últimos PDFs gerados (só os 3 últimos; os mais antigos somem sozinhos): abre de novo o arquivo para imprimir, sem salvar nada outra vez.
+ * O servidor refaz o PDF com as mesmas peças, quantidades, papel e posição na folha, num link https assinado; e só os 3 últimos ficam na lista.
  * "Abrir" mostra o PDF numa aba (dali o compartilhar do visualizador manda o arquivo certo à impressora). O ícone de compartilhar
  * manda o arquivo direto; no iPhone isso só abre a partir de um toque: se o aparelho recusar logo depois de baixar, a linha mostra
  * "Toque para compartilhar" com o PDF já pronto.
@@ -57,7 +57,7 @@ export default function RecentPrints() {
   return (
     <View style={styles.box}>
       <Text style={styles.title}>Últimos PDFs gerados</Text>
-      <Text style={styles.hint}>Ficam por 24 horas. Abrir de novo não marca nada como impresso outra vez.</Text>
+      <Text style={styles.hint}>Ficam só os 3 últimos. Abrir de novo não marca nada como impresso outra vez.</Text>
       {data.map((job) => (
         <View key={job.id} style={styles.row}>
           <View style={{ flex: 1, minWidth: 0 }}>

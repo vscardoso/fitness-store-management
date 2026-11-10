@@ -47,6 +47,8 @@ export default function StickerPreview({
   const qrSize = Math.min(17 * k, ZONES[3] * unit - 2) * s;
   const size = (data.size || 'U').toUpperCase();
   const box = Math.min(8.5 * k, ZONES[1] * unit - 3) * s;
+  // tamanho longo (ÚNICO, P/M, G/GG) ganha um retângulo mais largo, como no PDF
+  const boxW = size.length > 2 ? Math.min(box * (1 + (size.length - 2) * 0.3), (widthMm * s) * 0.4) : box;
 
   return (
     <View
@@ -68,7 +70,7 @@ export default function StickerPreview({
         </View>
         <View style={{ alignItems: 'center' }}>
           <Text style={[styles.bold, { fontSize: fs(5.4) }]}>TAM</Text>
-          <View style={[styles.sizeBox, { width: box, height: box, borderRadius: 1.6 * s, borderWidth: Math.max(1, 0.4 * s) }]}>
+          <View style={[styles.sizeBox, { width: boxW, height: box, borderRadius: 1.6 * s, borderWidth: Math.max(1, 0.4 * s) }]}>
             <Text style={[styles.bold, { fontSize: fs(size.length > 2 ? 10 : 14.7) }]}>{size}</Text>
           </View>
         </View>

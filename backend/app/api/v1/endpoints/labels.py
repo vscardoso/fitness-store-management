@@ -164,13 +164,13 @@ async def save_print(body: PrintConfirm, db: AsyncSession = Depends(get_db), use
     return result
 
 
-@router.get("/prints/recent", summary="Últimos PDFs gerados (24 horas)")
+@router.get("/prints/recent", summary="Os 3 últimos PDFs gerados")
 async def recent_prints(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
                         tenant_id: int = Depends(get_current_tenant_id)):
     return await queue.recent_jobs(db, tenant_id)
 
 
-@router.get("/prints/{job_id}/pdf", summary="Abre de novo o PDF de uma impressão das últimas 24 horas (não salva nada)")
+@router.get("/prints/{job_id}/pdf", summary="Abre de novo o PDF de uma das 3 últimas impressões (não salva nada)")
 async def reopen_print_pdf(job_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
                            tenant_id: int = Depends(get_current_tenant_id)):
     """Refaz o PDF com as mesmas peças, quantidades, papel e posição da impressão salva. Só leitura: não mexe em fila nem em folha."""
@@ -203,17 +203,20 @@ async def print_pdf(body: PrintConfirm, db: AsyncSession = Depends(get_db), user
     try:
         await queue.lock_queue(db, tenant_id)
         items = [i.model_dump() for i in body.items]
+        # A posição na folha é AUTOMÁTICA: continua de onde a última impressão do mesmo papel e tamanho parou, calculado aqui,
+        # dentro da trava (duas pessoas imprimindo seguido nunca se sobrepõem). Quem chama não escolhe a posição.
+        state = await queue.print_state(db, tenant_id, body.layout, body.width_mm, body.height_mm, user)
+        start = 1 if body.layout == "roll" else int(state["next_position"])
         labels = await labels_for_variants(db, tenant_id, [(i["variant_id"], i["quantity"]) for i in items])
-        build_pdf(labels, body.layout, body.start_position, body.width_mm, body.height_mm)   # confere que o PDF sai ANTES de gravar
-        result = await queue.confirm_print(db, tenant_id, user, body.layout, body.width_mm, body.height_mm, body.start_position,
+        build_pdf(labels, body.layout, start, body.width_mm, body.height_mm)   # confere que o PDF sai ANTES de gravar
+        result = await queue.confirm_print(db, tenant_id, user, body.layout, body.width_mm, body.height_mm, start,
                                            items, body.from_queue, body.entry_id)
         await AuditService.log(db, "LABEL_PRINT_SAVED", tenant_id=tenant_id, user_id=getattr(user, "id", None),
                                user_email=getattr(user, "email", None), entity="label_print", entity_id=result["id"],
                                detail={"etiquetas": result["total"], "papel": body.layout, "medida": f"{body.width_mm:g}x{body.height_mm:g}",
                                        "da_fila": body.from_queue})
         job = await queue.get_recent_job(db, tenant_id, result["id"])
-        out = {**result, "filename": queue.pdf_filename(job), "url": queue.pdf_link(job),
-               "expires_at": (queue._aware(job.created_at) + queue.timedelta(hours=queue.RECENT_HOURS)).isoformat()}
+        out = {**result, "filename": queue.pdf_filename(job), "url": queue.pdf_link(job)}
         await db.commit()
     except (queue.QueueError, LabelRequestError, ValueError) as e:
         await db.rollback()
@@ -239,9 +242,9 @@ public_router = APIRouter(prefix="/public", tags=["Etiquetas (link do PDF)"])
 
 @public_router.get("/label-files/{token}/{filename}", include_in_schema=False)
 async def public_label_pdf(token: str, filename: str, db: AsyncSession = Depends(get_db_unscoped)):
-    """PDF de uma impressão das últimas 24 horas, num link https comum (o que o iPhone compartilha de verdade).
+    """PDF de uma das 3 últimas impressões, num link https comum (o que o iPhone compartilha de verdade).
 
-    O token é assinado pelo servidor e vale 24 horas; o nome no fim do endereço só dá nome ao arquivo.
+    O token é assinado pelo servidor; só abre enquanto a impressão for uma das 3 últimas; o nome no fim do endereço só dá nome ao arquivo.
     """
     try:
         job_id, tenant_id = queue.read_file_token(token)

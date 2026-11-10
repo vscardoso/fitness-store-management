@@ -167,7 +167,7 @@ const PRODUTOS: HelpEntry[] = [
     goodToKnow: [
       'O adesivo leva nome, cor, tamanho, preço, o QR e o código da peça (#101-1); nunca o custo.',
       'Peça sem código ganha o código ao gerar o PDF.',
-      'O app lembra onde a última folha parou e já começa na próxima posição livre. Se colocar uma folha nova, toque em “Coloquei uma folha nova”.',
+      'O app lembra onde a última folha parou e já começa na próxima posição livre, sozinho. Não precisa marcar nada, nem avisar quando troca a folha.',
     ],
     related: ['etiquetas-produto'],
     sources: ['app/products/label/index.tsx', 'components/labels/StickerStudio.tsx', 'components/labels/studio/LabelItems.tsx', 'components/labels/studio/PrintSettings.tsx', 'components/labels/studio/SheetMap.tsx', 'components/labels/studio/PrintBar.tsx', 'components/labels/LabelProductPickerModal.tsx'],
@@ -623,7 +623,8 @@ const ETIQUETAS_ENTRADA: HelpEntry[] = [
     ],
     goodToKnow: [
       'Só saem as cores e tamanhos que vieram nesta entrada: peça antiga do mesmo produto não é reimpressa.',
-      'A quantidade já vem só com o que falta imprimir. Os últimos PDFs ficam na lista Últimos PDFs gerados, no fim da tela, por 24 horas: toque em “Abrir” para imprimir de novo sem marcar nada outra vez.',
+      'A quantidade já vem só com o que falta imprimir. A posição na folha é automática: continua de onde a última impressão parou.',
+      'Os 3 últimos PDFs ficam no fim da tela e os mais antigos somem sozinhos. Toque em “Abrir” para imprimir de novo sem marcar nada outra vez.',
       'Na impressora térmica use etiqueta térmica do tamanho escolhido e o papel Uma por página.',
     ],
     roles: ['manager'],

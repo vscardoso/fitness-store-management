@@ -58,7 +58,6 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const [size, setSize] = useState<StickerSize>(DEFAULT_STICKER);
   const [paper, setPaper] = useState<TagLabelLayout>('a4');
   const [qty, setQty] = useState<Record<number, number>>({});
-  const [start, setStart] = useState(1);
   const [step, setStep] = useState<Step>('edit');
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,15 +110,6 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
     setQty(Object.fromEntries(items.map((it) => [it.variantId, Math.max(0, Math.min(MAX_PER_ITEM, fn(it)))])));
   }, [items]);
 
-  // ── contas da folha
-  const perA4 = stickersPerSheet(size.widthMm, size.heightMm);
-  const perThermal = stickersPerThermalSheet(size.widthMm, size.heightMm);
-  const perSheet = paper === 'sheet' ? Math.max(1, perThermal) : paper === 'a4' ? perA4 : 1;
-  const chosen = useMemo(() => items.map((it) => ({ it, q: qty[it.variantId] ?? 0 })).filter((x) => x.q > 0), [items, qty]);
-  const total = chosen.reduce((sum, x) => sum + x.q, 0);
-  const sheets = paper === 'roll' ? total : total > 0 ? Math.ceil((total + start - 1) / perSheet) : 0;
-  const leftover = paper === 'roll' ? 0 : (start - 1 + total) % perSheet;   // quantas posições da última folha ficam usadas
-
   // ── onde a folha parou: vem do SERVIDOR (última impressão confirmada), vale em qualquer aparelho
   const stateQ = useQuery({
     queryKey: ['label-print-state', paper, size.widthMm, size.heightMm],
@@ -128,7 +118,18 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const serverNext = paper === 'roll' ? 1 : stateQ.data?.next_position ?? 1;
   const usedCells = paper === 'roll' ? [] : stateQ.data?.sheet ?? [];
   const lastJob = stateQ.data?.last_job ?? null;
-  useEffect(() => { setStart(serverNext); }, [serverNext, paper, size.widthMm, size.heightMm]);
+  // A posição na folha é AUTOMÁTICA: continua de onde a última impressão parou. Ninguém escolhe posição nem marca "folha nova"
+  // (o servidor também decide na hora de gravar, então duas pessoas nunca se sobrepõem).
+  const start = serverNext;
+
+  // ── contas da folha
+  const perA4 = stickersPerSheet(size.widthMm, size.heightMm);
+  const perThermal = stickersPerThermalSheet(size.widthMm, size.heightMm);
+  const perSheet = paper === 'sheet' ? Math.max(1, perThermal) : paper === 'a4' ? perA4 : 1;
+  const chosen = useMemo(() => items.map((it) => ({ it, q: qty[it.variantId] ?? 0 })).filter((x) => x.q > 0), [items, qty]);
+  const total = chosen.reduce((sum, x) => sum + x.q, 0);
+  const sheets = paper === 'roll' ? total : total > 0 ? Math.ceil((total + start - 1) / perSheet) : 0;
+  const leftover = paper === 'roll' ? 0 : (start - 1 + total) % perSheet;   // quantas posições da última folha ficam usadas
 
   const refresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['label-print-state'] });
@@ -215,13 +216,12 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   }, [total, run, lines, entryId, queryClient]);
 
   const backToEdit = useCallback(() => { setStep('edit'); setPdf(null); setDelivery(null); setNotice(null); setError(null); }, []);
-  const newSheet = useCallback(() => setStart(1), []);
 
   return {
     // escolhas
     size, chooseSize, paper, choosePaper, qty, setQuantity, fill,
     // folha
-    start, setStart, newSheet, perA4, perThermal, perSheet, sheets, leftover, usedCells, lastJob,
+    start, perA4, perThermal, perSheet, sheets, leftover, usedCells, lastJob,
     // peças escolhidas
     chosen, total,
     // fluxo

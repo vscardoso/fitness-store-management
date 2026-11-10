@@ -23,6 +23,7 @@ export default function PrintSettings({ size, onSize, paper, onPaper, perA4, per
   const brand = useBrandingColors();
   const styles = useMemo(() => makeStyles(brand.primary), [brand.primary]);
   const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState(false);   // as escolhas ficam escondidas: o app lembra o último tamanho e papel
   const [wText, setWText] = useState('');
   const [hText, setHText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +68,22 @@ export default function PrintSettings({ size, onSize, paper, onPaper, perA4, per
     setEditing(false);
   };
 
+  const paperName = paper === 'sheet' ? 'Folha 10 × 15' : paper === 'a4' ? 'Folha A4' : 'Uma por página';
+  if (!open) {
+    return (
+      <View style={styles.wrap}>
+        <Text style={styles.title}>2. Como imprimir</Text>
+        <TouchableOpacity style={styles.summaryRow} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Alterar tamanho do adesivo e papel">
+          <View style={{ flex: 1 }}>
+            <Text style={styles.summaryMain}>{sizeDims(size.widthMm, size.heightMm)} cm · {paperName}</Text>
+            <Text style={styles.muted}>Usa o último tamanho e papel. Toque só se precisar mudar.</Text>
+          </View>
+          <Text style={styles.summaryLink}>Alterar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>2. Como imprimir</Text>
@@ -108,4 +125,7 @@ const makeStyles = (primary: string) => StyleSheet.create({
   error: { color: Colors.light.errorDark, fontSize: theme.fontSize.sm },
   useBtn: { borderRadius: theme.borderRadius.xl, borderWidth: 1.5, borderColor: primary, paddingVertical: 13, alignItems: 'center' },
   useText: { color: primary, fontWeight: '800', fontSize: theme.fontSize.sm },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, backgroundColor: Colors.light.card, borderRadius: theme.borderRadius.xl, borderWidth: 1, borderColor: Colors.light.border, padding: theme.spacing.md },
+  summaryMain: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
+  summaryLink: { color: primary, fontWeight: '700', fontSize: theme.fontSize.sm },
 });

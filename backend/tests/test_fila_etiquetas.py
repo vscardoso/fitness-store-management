@@ -162,8 +162,8 @@ async def test_pdf_que_falha_nao_grava_nada(test_client, async_session):
     _sem_override()
     t, h, entry_id, (va, vb) = await _cenario(async_session)
     await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
-    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 99, "from_queue": True,
-                                                          "items": [{"variant_id": va, "quantity": 5}]}, headers=h)
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": True,
+                                                          "items": [{"variant_id": va, "quantity": 5}, {"variant_id": 99999999, "quantity": 1}]}, headers=h)
     assert r.status_code == 400
     assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 9           # fila intacta
     assert (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()["last_job"] is None
@@ -213,7 +213,7 @@ async def test_so_o_que_foi_escolhido_vai_para_a_fila(test_client, async_session
 
 # ── Últimos PDFs gerados: reabrir por 24 horas ────────────────────────────────────────────────────────────────────────
 
-async def test_reabrir_ultimo_pdf_sem_salvar_nada_e_expira_em_24h(test_client, async_session):
+async def test_reabrir_ultimo_pdf_sem_salvar_nada_e_so_os_3_ultimos_ficam(test_client, async_session):
     from datetime import datetime, timedelta, timezone
     from sqlalchemy import update
     from app.models.label_queue import LabelPrintJob
@@ -226,7 +226,7 @@ async def test_reabrir_ultimo_pdf_sem_salvar_nada_e_expira_em_24h(test_client, a
     assert r.status_code == 200
     original = (await test_client.get(_caminho(r.json()["url"]))).content
     rec = (await test_client.get(f"{API}/prints/recent", headers=h)).json()
-    assert len(rec) == 1 and rec[0]["total"] == 9 and rec[0]["start_position"] == 2 and rec[0]["expires_at"]
+    assert len(rec) == 1 and rec[0]["total"] == 9 and rec[0]["start_position"] == 1   # posição automática: folha nova = 1
 
     antes = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()
     again = await test_client.get(f"{API}/prints/{rec[0]['id']}/pdf", headers=h)
@@ -240,13 +240,17 @@ async def test_reabrir_ultimo_pdf_sem_salvar_nada_e_expira_em_24h(test_client, a
     assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 0
     assert len((await test_client.get(f"{API}/prints/recent", headers=h)).json()) == 1  # continua um só
 
-    # passou de 24 horas: some da lista e o PDF não abre mais
-    velho = datetime.now(timezone.utc) - timedelta(hours=25)
-    await async_session.execute(update(LabelPrintJob).where(LabelPrintJob.id == rec[0]["id"]).values(created_at=velho))
-    await async_session.commit()
-    assert (await test_client.get(f"{API}/prints/recent", headers=h)).json() == []
+    # só os 3 últimos: com mais 3 impressões, o primeiro some da lista e o link dele deixa de abrir
+    for _ in range(3):
+        r_n = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": False, "entry_id": entry_id,
+                                                                 "items": [{"variant_id": va, "quantity": 1}]}, headers=h)
+        assert r_n.status_code == 200, r_n.text
+    lista = (await test_client.get(f"{API}/prints/recent", headers=h)).json()
+    assert len(lista) == 3 and rec[0]["id"] not in [j["id"] for j in lista]
     gone = await test_client.get(f"{API}/prints/{rec[0]['id']}/pdf", headers=h)
-    assert gone.status_code == 400 and "24 horas" in gone.json()["detail"]
+    assert gone.status_code == 400 and "3 últimos" in gone.json()["detail"]
+    assert (await test_client.get(_caminho(rec[0]["url"]))).status_code == 404                  # o link antigo também
+    assert (await test_client.get(_caminho(lista[0]["url"]))).status_code == 200                # o mais novo abre
 
 
 async def test_ultimos_pdfs_sao_da_loja_e_o_desfeito_some(test_client, async_session):
@@ -309,3 +313,25 @@ async def test_imprimir_pela_entrada_ou_produto_tira_a_peca_da_fila(test_client,
     assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 0
     prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
     assert prog["queued"] == 0
+
+
+async def test_posicao_na_folha_e_automatica_e_o_servidor_decide(test_client, async_session):
+    """Quem imprime não escolhe a posição: a folha continua de onde a última impressão parou, mesmo se o app mandar outro número."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    h_b = await _user(async_session, t, UserRole.SELLER)
+
+    async def imprimir(headers, qtd, start_enviado):
+        r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": start_enviado, "from_queue": False, "entry_id": entry_id,
+                                                              "items": [{"variant_id": va, "quantity": qtd}]}, headers=headers)
+        assert r.status_code == 200, r.text
+        return (await test_client.get(f"{API}/prints/recent", headers=headers)).json()[0]
+
+    j1 = await imprimir(h, 2, 6)             # o app mandou 6, mas a folha é nova: começa no 1
+    assert j1["start_position"] == 1
+    j2 = await imprimir(h_b, 3, 1)           # outra pessoa; o app mandou 1, mas a folha já tem 2: continua no 3
+    assert j2["start_position"] == 3
+    j3 = await imprimir(h, 1, 5)             # 2 + 3 = 5 usadas: continua no 6
+    assert j3["start_position"] == 6
+    j4 = await imprimir(h, 1, 3)             # folha cheia: a próxima é folha nova
+    assert j4["start_position"] == 1

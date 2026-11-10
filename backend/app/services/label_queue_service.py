@@ -24,7 +24,8 @@ from app.services.label_pdf_service import a4_grid, sheet_grid
 from app.services.short_code_service import format_short_code, format_variant_code
 
 MAX_QUEUE = 3000
-RECENT_HOURS = 24   # os últimos PDFs gerados ficam disponíveis por 24 horas
+KEEP_LAST_PDFS = 3        # só os 3 últimos PDFs gerados ficam disponíveis; os mais antigos deixam de abrir sozinhos
+LINK_MAX_DAYS = 7         # limite técnico do link (o que vale é ser um dos 3 últimos)
 
 
 async def lock_queue(db: AsyncSession, tenant_id: int) -> None:
@@ -330,38 +331,38 @@ def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-async def recent_jobs(db: AsyncSession, tenant_id: int, limit: int = 20) -> List[Dict[str, Any]]:
-    """Impressões salvas nas últimas 24 horas (as desfeitas não entram), da mais nova para a mais antiga."""
-    since = datetime.now(timezone.utc) - timedelta(hours=RECENT_HOURS)
-    jobs = [j for j in reversed(await _jobs(db, tenant_id)) if _aware(j.created_at) >= since][:limit]
+async def recent_jobs(db: AsyncSession, tenant_id: int, limit: int = KEEP_LAST_PDFS) -> List[Dict[str, Any]]:
+    """Os 3 últimos PDFs gerados (impressões salvas; as desfeitas não entram), do mais novo para o mais antigo.
+    O registro da impressão em si NÃO é apagado (conta o que já saiu e onde a folha parou): só o PDF deixa de abrir."""
+    jobs = list(reversed(await _jobs(db, tenant_id)))[:min(limit, KEEP_LAST_PDFS)]
     return [{
         "id": j.id, "at": j.created_at.isoformat(), "by": j.printed_by_name, "total": j.total, "layout": j.layout,
         "width_mm": j.width_mm, "height_mm": j.height_mm, "start_position": j.start_position,
-        "expires_at": (_aware(j.created_at) + timedelta(hours=RECENT_HOURS)).isoformat(),
         "filename": pdf_filename(j), "url": pdf_link(j),
     } for j in jobs]
 
 
 async def get_recent_job(db: AsyncSession, tenant_id: int, job_id: int) -> LabelPrintJob:
+    keep = [j.id for j in list(reversed(await _jobs(db, tenant_id)))[:KEEP_LAST_PDFS]]
+    if job_id not in keep:
+        raise QueueError("Esse PDF não está mais disponível (só ficam os 3 últimos gerados). Gere as etiquetas de novo.")
     job = (await db.execute(select(LabelPrintJob).where(
         LabelPrintJob.id == job_id, LabelPrintJob.tenant_id == tenant_id, LabelPrintJob.is_active == True))).scalar_one_or_none()  # noqa: E712
     if job is None:
         raise QueueError("Impressão não encontrada (ela pode ter sido desfeita).")
-    if _aware(job.created_at) < datetime.now(timezone.utc) - timedelta(hours=RECENT_HOURS):
-        raise QueueError("Esse PDF passou de 24 horas e foi apagado. Gere as etiquetas de novo.")
     return job
 
 
 # ── Link do PDF: endereço https de verdade (nada de blob:) ─────────────────────────────────────────────────────────────
 # O PDF aberto de um endereço blob: só existe no aparelho: compartilhado (WhatsApp, impressora) vira um texto "blob:https://..." que
-# ninguém abre. Aqui o servidor entrega o PDF num link comum, assinado e com validade de 24 horas (a mesma da lista dos últimos PDFs).
+# ninguém abre. Aqui o servidor entrega o PDF num link comum, assinado, e só abre enquanto a impressão estiver entre os 3 últimos PDFs gerados.
 
 def pdf_filename(job: LabelPrintJob) -> str:
     return f"etiquetas-{job.width_mm:g}x{job.height_mm:g}-{job.total}un.pdf"
 
 
 def make_file_token(job: LabelPrintJob) -> str:
-    exp = _aware(job.created_at) + timedelta(hours=RECENT_HOURS)
+    exp = _aware(job.created_at) + timedelta(days=LINK_MAX_DAYS)
     return jwt.encode({"typ": "label-pdf", "job": job.id, "tid": job.tenant_id, "exp": int(exp.timestamp())},
                       settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -375,7 +376,7 @@ def read_file_token(token: str) -> tuple[int, int]:
     try:
         data = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except jwt.ExpiredSignatureError:
-        raise QueueError("Este link do PDF passou de 24 horas. Gere as etiquetas de novo.")
+        raise QueueError("Este link do PDF venceu. Gere as etiquetas de novo.")
     except jwt.PyJWTError:
         raise QueueError("Link do PDF inválido.")
     if data.get("typ") != "label-pdf" or not isinstance(data.get("job"), int) or not isinstance(data.get("tid"), int):

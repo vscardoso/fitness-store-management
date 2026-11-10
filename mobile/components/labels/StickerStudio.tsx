@@ -84,8 +84,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         <PrintSettings size={p.size} onSize={p.chooseSize} paper={p.paper} onPaper={p.choosePaper} perA4={p.perA4} perThermal={p.perThermal} />
         {p.paper !== 'roll' ? (
           <SheetMap
-            start={p.start} onPick={p.setStart} onNewSheet={p.newSheet} perSheet={p.perSheet} total={p.total} sheets={p.sheets}
-            leftover={p.leftover} usedCells={p.usedCells}
+            start={p.start} perSheet={p.perSheet} total={p.total} sheets={p.sheets} leftover={p.leftover}
             lastJob={p.step === 'done' ? null : p.lastJob} onUndo={p.undo} undoing={p.busy === 'undo'}
           />
         ) : null}

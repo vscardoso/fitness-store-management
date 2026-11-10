@@ -145,15 +145,19 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
     box = min(8.5 * k * mm, ZONES[1] * unit - 3 * mm)   # cabe na faixa com o "TAM" em cima
     label_size = 5.4 * k
     box_y = z2 - zone_h + (zone_h - box - label_size - 1) / 2
-    box_x = x + w - pad - box
-    c.setFont(BOLD, label_size)
-    c.drawCentredString(box_x + box / 2, box_y + box + 1.2, "TAM")
-    c.setLineWidth(1.1)
-    c.roundRect(box_x, box_y, box, box, 1.6 * mm, stroke=1, fill=0)
     size_text = (d.size or "U").strip().upper()
-    fs = _fit(size_text, BOLD, 14.7 * k, box - 1.6 * mm, 6)
+    # Tamanho de 1 ou 2 letras (P, M, GG) cabe no quadrado. Tamanho longo (ÚNICO, P/M, G/GG) ganha um retângulo mais largo, do
+    # tamanho do texto: antes o texto passava das bordas do quadrado (foto de 10/11/2026).
+    fs0 = (14.7 if len(size_text) <= 2 else 10.5) * k
+    box_w = min(max(box, stringWidth(size_text, BOLD, fs0) + 3.4 * mm), inner_w * 0.46)
+    box_x = x + w - pad - box_w
+    c.setFont(BOLD, label_size)
+    c.drawCentredString(box_x + box_w / 2, box_y + box + 1.2, "TAM")
+    c.setLineWidth(1.1)
+    c.roundRect(box_x, box_y, box_w, box, 1.6 * mm, stroke=1, fill=0)
+    fs = _fit(size_text, BOLD, fs0, box_w - 1.8 * mm, 6)
     c.setFont(BOLD, fs)
-    c.drawCentredString(box_x + box / 2, box_y + box / 2 - fs * 0.35, size_text)
+    c.drawCentredString(box_x + box_w / 2, box_y + box / 2 - fs * 0.35, size_text)
     color_w = box_x - (x + pad) - 2 * mm
     color_text = (d.color or "Única").strip()
     cs = _fit(color_text, BOLD, 9 * k, color_w, 6.5 * k)
