@@ -84,7 +84,8 @@ export default function StockCheckScreen() {
   const myName = useAuthStore((s) => s.user?.full_name || s.user?.email || '');
 
   const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [onlyInStock, setOnlyInStock] = useState(false);
+  // Só conta o que está em estoque: peça vendida (sistema 0) não entra na lista nem na contagem
+  const onlyInStock = true;
   const [onlyDiffs, setOnlyDiffs] = useState(false);
   const [onlyPending, setOnlyPending] = useState(false);   // "Falta bipar": só o que ninguém contou ainda
   const [search, setSearch] = useState('');
@@ -633,6 +634,10 @@ export default function StockCheckScreen() {
         if (inAll !== null) {
           const r = (allData?.rows ?? []).find((x) => x.variant_id === inAll);
           playScan('warn');
+          if (r && r.system_quantity <= 0) {
+            setScanStatus({ kind: 'warn', text: r.product_name + ' · ' + variantLabel(r) + ' está com estoque 0 no sistema (já vendida): não entra na contagem.' });
+            return;
+          }
           setScanStatus({ kind: 'warn', text: (r?.product_name ?? 'Peça') + ' está fora do filtro atual. Escolha "Todas as categorias" para contar.' });
           return;
         }
@@ -873,7 +878,6 @@ export default function StockCheckScreen() {
         <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           <Chip label="Falta bipar" active={onlyPending} onPress={() => { setOnlyPending((v) => !v); setOnlyDiffs(false); }} color={brand.primary} />
           <Chip label="Só divergências" active={onlyDiffs} onPress={() => { setOnlyDiffs((v) => !v); setOnlyPending(false); }} color={brand.primary} />
-          <Chip label="Só com estoque" active={onlyInStock} onPress={() => setOnlyInStock((v) => !v)} color={brand.primary} />
           <View style={styles.chipDivider} />
           <Chip label="Todas" active={categoryId === null} onPress={() => setCategoryId(null)} color={brand.primary} disabled={!!draft && draft.categoryId !== null} />
           {categories.map(([id, name]) => (
