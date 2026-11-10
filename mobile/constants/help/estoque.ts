@@ -658,6 +658,37 @@ const FILA_ETIQUETAS: HelpEntry[] = [
   },
 ];
 
+const RECEBER_COMPRA: HelpEntry[] = [
+  {
+    id: 'receber-compra',
+    group: 'estoque',
+    title: 'Receber compra',
+    routes: ['/receber'],
+    open: '/receber',
+    purpose: 'Lança numa tela só a mercadoria que chegou: produto novo ou já cadastrado, de vários fornecedores, com cores e tamanhos.',
+    steps: [
+      'Em “Comprando de”, escolha o fornecedor. Para um novo, digite o nome e cadastre ali mesmo.',
+      'Digite o nome da peça. Se ela já existe, toque nela; se não, toque na opção “Cadastrar” com o nome digitado.',
+      'Digite as quantidades por cor e tamanho, com as setas de mais e menos ou a grade fechada, e informe o custo.',
+      'Toque em “Adicionar à compra” e siga com a próxima peça. Trocou de barraca? Troque o fornecedor.',
+      'Quando terminar, toque em “Concluir compra”, confira o total por fornecedor e toque em “Lançar no estoque”.',
+    ],
+    parts: [
+      { label: 'Nesta compra', text: 'as peças já lançadas, com o fornecedor de cada uma. Toque para corrigir.' },
+      { label: 'Grade fechada', text: 'cada toque soma uma caixa (por exemplo 1, 2, 2 e 1 peças) na cor escolhida.' },
+    ],
+    goodToKnow: [
+      'Nada entra no estoque antes de “Lançar no estoque”. Se der erro, nada fica gravado e dá para tentar de novo.',
+      'O rascunho fica salvo neste aparelho. Tocar duas vezes em “Lançar no estoque” não lança duas vezes.',
+      'Frete e desconto de cada fornecedor entram no custo real de cada peça.',
+      'Peça nova nasce junto com a entrada, nunca antes dela.',
+    ],
+    roles: ['manager'],
+    related: ['entrada-nova', 'produto-novo'],
+    sources: ['app/receber/index.tsx', 'components/receber/PieceSheet.tsx', 'components/receber/SupplierSheet.tsx', 'components/receber/QuantityGrid.tsx'],
+  },
+];
+
 const BRINDES: HelpEntry[] = [
   {
     id: 'brindes',
@@ -705,4 +736,4 @@ const BRINDES: HelpEntry[] = [
   },
 ];
 
-export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES, ...BRINDES, ...ETIQUETAS_ENTRADA, ...FILA_ETIQUETAS];
+export const ESTOQUE: HelpEntry[] = [...PRODUTOS, ...ENTRADAS, ...RECEBER_COMPRA, ...CATEGORIAS_E_ESTOQUE, ...FORNECEDORES, ...BRINDES, ...ETIQUETAS_ENTRADA, ...FILA_ETIQUETAS];

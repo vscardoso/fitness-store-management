@@ -74,6 +74,7 @@ if ($primeiraVez -or -not (Test-Path $Acesso)) {
 if (-not $SemBuild -or -not (Test-Path (Join-Path $Dist 'index.html'))) {
   Write-Host 'Gerando o app com o código atual (uns 3 a 5 minutos)...'
   $env:EXPO_PUBLIC_API_URL = "$Api/api/v1"
+  $env:EXPO_PUBLIC_FEATURES = 'receberCompra'   # só no ambiente de teste: liga a tela nova Receber compra (em produção a chave é falsa)
   $env:CI = '1'
   Push-Location $Mobile
   try {

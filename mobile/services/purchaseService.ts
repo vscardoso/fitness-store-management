@@ -26,6 +26,8 @@ export interface ReceivePurchaseResult {
   products: number;
   items: ReceivedItem[];
   replay: boolean;
+  /** etiquetas que o servidor pôs na fila de impressão junto com a compra (uma por peça) */
+  labels_queued?: number;
 }
 
 export const receivePurchase = async (payload: Record<string, unknown>): Promise<ReceivePurchaseResult> =>

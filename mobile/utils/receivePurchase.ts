@@ -158,7 +158,7 @@ export function quantitiesToLines(q: Quantities, variants: VariantInfo[] = []): 
       const quantity = q[color][size];
       if (!(quantity > 0)) continue;
       const found = variants.find((v) => norm(v.color) === norm(color) && norm(v.size) === norm(size));
-      lines.push({ variantId: found?.id, color: found ? (found.color ?? null) : color, size: found ? (found.size ?? null) : size, quantity });
+      lines.push({ variantId: found?.id, color: found ? (found.color ?? null) : (color || null), size: found ? (found.size ?? null) : (size || null), quantity });
     }
   }
   return lines;

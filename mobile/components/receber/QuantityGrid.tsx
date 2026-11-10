@@ -35,7 +35,7 @@ export default function QuantityGrid({ colors, sizes, q, onChange }: Props) {
         return (
           <View key={color} style={styles.card}>
             <View style={styles.head}>
-              <Text style={styles.colorName}>{color}</Text>
+              <Text style={styles.colorName}>{color || 'Sem cor'}</Text>
               <Text style={styles.colorTotal}>{total} peça{total === 1 ? '' : 's'}</Text>
             </View>
             <View style={styles.tiles}>

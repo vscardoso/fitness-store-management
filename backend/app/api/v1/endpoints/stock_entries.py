@@ -453,7 +453,7 @@ async def receive_purchase(
     from app.services.purchase_receive_service import PurchaseReceiveService
 
     try:
-        return await PurchaseReceiveService(db).receive(data, current_user.id, tenant_id=tenant_id)
+        return await PurchaseReceiveService(db).receive(data, current_user, tenant_id=tenant_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:

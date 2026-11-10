@@ -25,7 +25,7 @@ from app.models.product_variant import ProductVariant
 from app.models.stock_entry import StockEntry
 from app.repositories.base import BaseRepository
 from app.schemas.stock_entry import StockEntryCreate
-from app.services import lot_cost_service
+from app.services import label_queue_service, lot_cost_service
 from app.services.inventory_service import InventoryService
 from app.services.stock_entry_service import InvalidEntryData, StockEntryService
 from app.utils.variant_grid import normalize_color, normalize_gender, normalize_size
@@ -218,7 +218,7 @@ class PurchaseReceiveService(StockEntryService):
                 "products": len({i["product_id"] for i in items}), "items": items, "replay": replay}
 
     # ------------------------------------------------------------------ gravação
-    async def receive(self, payload: Dict[str, Any], user_id: int, *, tenant_id: int) -> Dict[str, Any]:
+    async def receive(self, payload: Dict[str, Any], user: Any, *, tenant_id: int) -> Dict[str, Any]:
         plan = self._validate(payload)
         await self._lock_catalog(tenant_id)
         try:
@@ -345,9 +345,18 @@ class PurchaseReceiveService(StockEntryService):
                     resolved.append({"supplier_id": s.id, "amount": d["amount"]})
                 await self._set_supplier_discounts(entry.id, resolved, tenant_id)
             await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
+            # TODA peça recebida vai para a fila de impressão, na mesma transação (regra do Victor, 10/11/2026): não existe peça
+            # lançada sem etiqueta na fila, e fila cheia recusa a compra inteira (nada fica gravado pela metade).
+            queue_lines = [{"variant_id": ln["_variant"].id, "quantity": ln["quantity"]} for it in plan["items"] for ln in it["lines"]]
+            try:
+                labels_queued = await label_queue_service.add_items(self.db, tenant_id, user, queue_lines, entry_id=entry.id)
+            except label_queue_service.QueueError as e:
+                raise InvalidEntryData(f"Não consegui pôr as etiquetas na fila: {e}")
             entry_id = entry.id
             await self.db.commit()
         except Exception:
             await self.db.rollback()
             raise
-        return await self._result(entry_id, tenant_id)
+        out = await self._result(entry_id, tenant_id)
+        out["labels_queued"] = labels_queued
+        return out

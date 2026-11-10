@@ -175,3 +175,37 @@ async def test_produto_desativado_nao_recebe_entrada(test_client, async_session,
 async def test_sem_login_e_recusado(test_client):
     r = await test_client.post(f"{API}/receive", json={"items": []})
     assert r.status_code in (401, 403)
+
+
+async def test_toda_peca_da_compra_vai_para_a_fila_de_etiquetas_na_mesma_transacao(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    pid, vid = await _produto_existente(test_client, async_session, h, cat, f"Meia Base {next(_n)}")
+    fila_antes = (await test_client.get("/api/v1/labels/queue", headers=h)).json()["total"]
+    pay = _compra(cat, pid, vid)
+    r = await test_client.post(f"{API}/receive", headers=h, json=pay)
+    assert r.status_code == 201, r.text
+    j = r.json()
+    assert j["labels_queued"] == j["total_pieces"] == 8                                                  # uma etiqueta por peça recebida
+    fila = (await test_client.get("/api/v1/labels/queue", headers=h)).json()
+    assert fila["total"] - fila_antes == 8
+    assert {i["entry_id"] for i in fila["items"] if i["variant_id"] in {x["variant_id"] for x in j["items"]}} == {j["entry_id"]}   # ligadas à entrada
+    # reenviar a MESMA compra (toque duplo) não põe etiqueta de novo
+    r2 = await test_client.post(f"{API}/receive", headers=h, json=pay)
+    assert r2.status_code == 201 and r2.json()["replay"] is True
+    assert (await test_client.get("/api/v1/labels/queue", headers=h)).json()["total"] == fila["total"]
+
+
+async def test_fila_cheia_recusa_a_compra_inteira_e_nada_fica_gravado(test_client, async_session, test_user, monkeypatch):
+    from app.services import label_queue_service
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    pid, vid = await _produto_existente(test_client, async_session, h, cat, f"Luva Base {next(_n)}")
+    antes = await _estado(async_session, t_id)
+    fila_antes = (await test_client.get("/api/v1/labels/queue", headers=h)).json()["total"]
+    monkeypatch.setattr(label_queue_service, "MAX_QUEUE", fila_antes + 3)                                 # cabem 3 etiquetas; a compra tem 8
+    r = await test_client.post(f"{API}/receive", headers=h, json=_compra(cat, pid, vid))
+    assert r.status_code == 400 and "fila" in r.json()["detail"].lower(), r.text
+    await async_session.rollback()
+    assert await _estado(async_session, t_id) == antes                                                   # nem entrada, nem produto, nem etiqueta
+    assert (await test_client.get("/api/v1/labels/queue", headers=h)).json()["total"] == fila_antes
