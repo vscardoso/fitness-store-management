@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import jwt
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -75,6 +75,28 @@ async def _jobs(db: AsyncSession, tenant_id: int) -> List[LabelPrintJob]:
         select(LabelPrintJob).where(LabelPrintJob.tenant_id == tenant_id, LabelPrintJob.is_active == True)  # noqa: E712
         .order_by(LabelPrintJob.id)
     )).scalars().all())
+
+
+async def _entries_missing(db: AsyncSession, tenant_id: int, variant_id: int, rows: List[LabelQueueItem],
+                           jobs: List[LabelPrintJob]) -> List[tuple]:
+    """Entradas que ainda têm etiqueta faltando desta peça (a mais antiga primeiro): [(entry_id, quantas faltam)]."""
+    recs = (await db.execute(
+        select(EntryItem.entry_id, func.sum(EntryItem.quantity_received))
+        .join(StockEntry, StockEntry.id == EntryItem.entry_id)
+        .where(EntryItem.tenant_id == tenant_id, EntryItem.variant_id == variant_id, EntryItem.is_active == True,  # noqa: E712
+               StockEntry.is_active == True)  # noqa: E712
+        .group_by(EntryItem.entry_id, StockEntry.entry_date)
+        .order_by(StockEntry.entry_date, EntryItem.entry_id)
+    )).all()
+    out: List[tuple] = []
+    for eid, rec in recs:
+        rec = int(rec or 0)
+        printed = min(_printed_by_entry(jobs, eid).get(variant_id, 0), rec)
+        queued = sum(r.quantity for r in rows if r.variant_id == variant_id and r.entry_id == eid and r.is_active)
+        miss = max(0, rec - printed - queued)
+        if miss > 0:
+            out.append((eid, miss))
+    return out
 
 
 def _printed_by_entry(jobs: List[LabelPrintJob], entry_id: int) -> Dict[int, int]:
@@ -280,10 +302,11 @@ async def confirm_print(db: AsyncSession, tenant_id: int, user: Any, layout: str
                     r.is_active = False
                 left -= take
     else:
-        job_items = [{"variant_id": vid, "quantity": q, "entry_id": entry_id} for vid, q in wanted]
         # Imprimiu pela entrada ou pelo produto (não pela fila): o que saiu deixa de estar pendente. Tira da fila as MESMAS peças,
-        # na quantidade impressa (das mais antigas), senão elas ficavam na fila como se não tivessem saído.
+        # na quantidade impressa (das mais antigas), e GRAVA DE QUAL ENTRADA cada etiqueta saiu. Antes a impressão ficava sem entrada:
+        # a entrada continuava achando que a etiqueta "faltava" e "pôr a entrada toda" na fila repunha a peça (a fila só crescia).
         rows = await _pending(db, tenant_id, lock=True)
+        jobs = await _jobs(db, tenant_id)
         for vid, qty in wanted:
             left = qty
             for r in rows:
@@ -292,10 +315,23 @@ async def confirm_print(db: AsyncSession, tenant_id: int, user: Any, layout: str
                 if r.variant_id != vid or not r.is_active:
                     continue
                 take = min(left, r.quantity)
+                job_items.append({"variant_id": vid, "quantity": take, "entry_id": r.entry_id})
                 r.quantity -= take
                 if r.quantity == 0:
                     r.is_active = False
                 left -= take
+            if left > 0:
+                # saiu de peça que não estava na fila: conta na entrada informada ou, sem entrada, nas que ainda têm etiqueta
+                # faltando dessa peça (a mais antiga primeiro)
+                targets = [(entry_id, left)] if entry_id else await _entries_missing(db, tenant_id, vid, rows, jobs)
+                for eid, miss in targets:
+                    if left == 0:
+                        break
+                    put = min(left, miss)
+                    job_items.append({"variant_id": vid, "quantity": put, "entry_id": eid})
+                    left -= put
+                if left > 0:
+                    job_items.append({"variant_id": vid, "quantity": left, "entry_id": entry_id})   # reimpressão
     used = (start_position - 1 + total) % n
     next_position = 1 if (layout == "roll" or used == 0) else used + 1
     job = LabelPrintJob(tenant_id=tenant_id, layout=layout, width_mm=width_mm, height_mm=height_mm, start_position=start_position,
