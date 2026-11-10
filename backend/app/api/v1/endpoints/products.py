@@ -810,8 +810,23 @@ async def get_product(
             """),
             {"pid": product_id, "tid": tenant_id}
         )
-        entry_items_list = [
-            {
+        entry_rows = entry_items_result.fetchall()
+        # "Vendido" é venda de verdade (camadas FIFO das vendas válidas, menos devolvidas), NÃO recebido - restante: peça que saiu por baixa
+        # da conferência, variação excluída ou brinde é "saiu sem venda". Mesma conta do rastreio da entrada (stock_flow_service).
+        from app.models.entry_item import EntryItem as _EntryItem
+        from app.services.stock_flow_service import item_flows as _item_flows
+        _orm_items = []
+        if entry_rows:
+            _orm_items = list((await db.execute(
+                select(_EntryItem).where(_EntryItem.id.in_([r[0] for r in entry_rows]), _EntryItem.tenant_id == tenant_id)
+            )).scalars().all())
+        _flows = await _item_flows(db, tenant_id, _orm_items) if _orm_items else {}
+        entry_items_list = []
+        for r in entry_rows:
+            f = _flows.get(r[0])
+            sold = (f["sold"] + f["with_customer"]) if f else r[7]
+            removed = (f["removed"] + f["gifted"]) if f else 0
+            entry_items_list.append({
                 "entry_item_id": r[0],
                 "entry_id": r[1],
                 "entry_code": r[2],
@@ -819,12 +834,11 @@ async def get_product(
                 "entry_type": r[4],
                 "quantity_received": r[5],
                 "quantity_remaining": r[6],
-                "quantity_sold": r[7],
+                "quantity_sold": sold,
+                "quantity_removed": removed,
                 "unit_cost": float(r[8]) if r[8] else 0.0,
                 "supplier_name": r[9],
-            }
-            for r in entry_items_result.fetchall()
-        ]
+            })
 
         return {
             "id": row[0],

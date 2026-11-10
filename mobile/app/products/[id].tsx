@@ -897,7 +897,9 @@ export default function ProductDetailsScreen() {
 
           const totalReceived = entryItems.reduce((s: number, e: any) => s + e.quantity_received, 0);
           const totalRemaining = entryItems.reduce((s: number, e: any) => s + e.quantity_remaining, 0);
-          const totalSold = totalReceived - totalRemaining;
+          // Vendido é venda de verdade (o servidor separa): peça que saiu por baixa da conferência, variação excluída ou ajuste não é venda
+          const totalSold = entryItems.reduce((s: number, e: any) => s + (e.quantity_sold ?? 0), 0);
+          const totalRemoved = entryItems.reduce((s: number, e: any) => s + (e.quantity_removed ?? 0), 0);
 
           return (
             <View style={styles.card}>
@@ -930,6 +932,11 @@ export default function ProductDetailsScreen() {
                     <Text style={styles.entrySummaryLabel}>em estoque</Text>
                   </View>
                 </View>
+                {totalRemoved > 0 && (
+                  <Text style={styles.entrySummaryNote}>
+                    {totalRemoved === 1 ? '1 peça saiu sem venda' : `${totalRemoved} peças saíram sem venda`} (baixa da conferência, variação excluída ou ajuste).
+                  </Text>
+                )}
 
                 {/* Cards de entrada */}
                 <View style={styles.entryList}>
@@ -1723,6 +1730,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
 
   // ── Entradas de Estoque ──
+  entrySummaryNote: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 8 },
   entrySummaryRow: {
     flexDirection: 'row',
     backgroundColor: Colors.light.backgroundSecondary,

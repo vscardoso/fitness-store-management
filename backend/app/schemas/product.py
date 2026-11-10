@@ -101,6 +101,8 @@ class ProductEntryItem(BaseModel):
     quantity_received: int
     quantity_remaining: int
     quantity_sold: int
+    # peças que saíram SEM venda (baixa da conferência, variação excluída, ajuste, brinde): não são venda
+    quantity_removed: int = 0
     unit_cost: Decimal
     supplier_name: Optional[str] = None
 
