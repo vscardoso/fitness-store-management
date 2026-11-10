@@ -60,7 +60,7 @@ export default function PrintBar({ p, summary }: Props) {
 
       {p.step === 'generated' ? (
         <>
-          <Text style={styles.title}>PDF gerado</Text>
+          <Text style={styles.title}>PDF gerado{p.pendingTotal > 0 ? `: ${p.pendingTotal} etiqueta${p.pendingTotal !== 1 ? 's' : ''}` : ''}</Text>
           <Text style={styles.sub}>Imprima o arquivo. Depois de imprimir, toque em “Já imprimi” para marcar. Se não imprimiu, nada é marcado.</Text>
           <View style={styles.row}>
             <TouchableOpacity style={[styles.secondary]} onPress={p.backToEdit} disabled={busy} accessibilityRole="button">

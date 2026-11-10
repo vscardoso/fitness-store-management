@@ -46,6 +46,22 @@ export type Busy = 'generate' | 'confirm' | 'undo' | 'queue' | null;
 export const MAX_PER_ITEM = 200;
 const SIZE_KEY = '@provador:etiqueta_medida';   // última medida usada neste aparelho
 const PAPER_KEY = '@provador:etiqueta_papel';    // último papel usado neste aparelho
+// PDF gerado e ainda não confirmado. No iPhone o PDF abre em outra aba e o app pode ser suspenso ou recarregado ao voltar:
+// guardar no aparelho faz o aviso "Já imprimi?" voltar em vez de sumir (e a fila nunca esvaziar).
+const PENDING_KEY = '@provador:etiqueta_pendente';
+const PENDING_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+interface Snapshot {
+  layout: TagLabelLayout;
+  start: number;
+  widthMm: number;
+  heightMm: number;
+  items: { variantId: number; quantity: number }[];
+  fromQueue: boolean;
+  entryId: number | null;
+  total: number;
+  at: number;
+}
 
 export function sizeFrom(w: number, h: number): StickerSize {
   return STICKER_SIZES.find((s) => s.widthMm === w && s.heightMm === h) ?? customSticker(w, h);
@@ -64,7 +80,28 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
-  const [snapshot, setSnapshot] = useState<{ layout: TagLabelLayout; start: number; items: { variantId: number; quantity: number }[] } | null>(null);
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const savePending = useCallback((snap: Snapshot | null) => {
+    setSnapshot(snap);
+    if (snap) AsyncStorage.setItem(PENDING_KEY, JSON.stringify(snap)).catch(() => {});
+    else AsyncStorage.removeItem(PENDING_KEY).catch(() => {});
+  }, []);
+
+  // voltou para a tela (ou o app recarregou) com um PDF gerado e não confirmado: o aviso reaparece
+  useEffect(() => {
+    AsyncStorage.getItem(PENDING_KEY)
+      .then((raw) => {
+        const snap: Snapshot | null = raw ? JSON.parse(raw) : null;
+        if (!snap || Date.now() - snap.at > PENDING_MAX_AGE_MS) { if (snap) AsyncStorage.removeItem(PENDING_KEY).catch(() => {}); return; }
+        if (snap.fromQueue !== !!fromQueue || (snap.entryId ?? null) !== (entryId ?? null)) return;   // é de outra tela
+        setSnapshot(snap);
+        setStep('generated');
+        setNotice('Você gerou um PDF e ainda não confirmou se imprimiu.');
+      })
+      .catch(() => {});
+    // só ao abrir a tela
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── peças: as novas entram com a quantidade inicial; as que já tinham número mantêm o que foi digitado
   useEffect(() => {
@@ -123,10 +160,6 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const lastJob = stateQ.data?.last_job ?? null;
   useEffect(() => { setStart(serverNext); }, [serverNext, paper, size.widthMm, size.heightMm]);
 
-  // ── mudou algo depois de gerar: o PDF que a pessoa tem já não vale
-  const signature = `${paper}|${size.widthMm}x${size.heightMm}|${start}|${chosen.map((x) => `${x.it.variantId}:${x.q}`).join(',')}`;
-  useEffect(() => { setStep((s) => (s === 'generated' ? 'edit' : s)); }, [signature]);
-
   const refresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['label-print-state'] });
     await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
@@ -154,29 +187,29 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
       const layout = paper;
       const from = layout === 'roll' ? 1 : start;
       await printTagLabels(lines(), { layout, startPosition: from, widthMm: size.widthMm, heightMm: size.heightMm });
-      setSnapshot({ layout, start: from, items: lines() });
+      savePending({ layout, start: from, widthMm: size.widthMm, heightMm: size.heightMm, items: lines(), fromQueue: !!fromQueue, entryId: entryId ?? null, total, at: Date.now() });
       setNotice(null);
       setStep('generated');
       onGenerated?.();
     });
-  }, [total, run, paper, start, lines, size, onGenerated]);
+  }, [total, run, paper, start, lines, size, fromQueue, entryId, savePending, onGenerated]);
 
   const confirm = useCallback(() => {
     if (!snapshot) return;
     return run('confirm', 'Não foi possível marcar como impresso. Tente de novo.', async () => {
       const r = await confirmPrint({
-        layout: snapshot.layout, widthMm: size.widthMm, heightMm: size.heightMm, startPosition: snapshot.start,
-        items: snapshot.items, fromQueue: !!fromQueue, entryId,
+        layout: snapshot.layout, widthMm: snapshot.widthMm, heightMm: snapshot.heightMm, startPosition: snapshot.start,
+        items: snapshot.items, fromQueue: snapshot.fromQueue, entryId: snapshot.entryId,
       });
       setNotice(r.next_position > 1 && snapshot.layout !== 'roll'
         ? `Marcado como impresso. A próxima impressão começa na posição ${r.next_position} da folha.`
         : 'Marcado como impresso.');
-      setSnapshot(null);
+      savePending(null);
       setStep('done');
       await refresh();
       onPrinted?.();
     });
-  }, [snapshot, run, size, fromQueue, entryId, refresh, onPrinted]);
+  }, [snapshot, run, savePending, refresh, onPrinted]);
 
   const undo = useCallback(() => {
     if (!lastJob) return;
@@ -199,7 +232,7 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
     });
   }, [total, run, lines, queryClient]);
 
-  const backToEdit = useCallback(() => { setStep('edit'); setSnapshot(null); setNotice(null); }, []);
+  const backToEdit = useCallback(() => { setStep('edit'); savePending(null); setNotice(null); }, [savePending]);
   const newSheet = useCallback(() => setStart(1), []);
 
   return {
@@ -210,7 +243,7 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
     // peças escolhidas
     chosen, total,
     // fluxo
-    step, busy, error, notice, queuedCount, canQueue: !fromQueue && !entryId,
+    step, busy, error, notice, queuedCount, canQueue: !fromQueue && !entryId, pendingTotal: snapshot?.total ?? 0,
     generate, confirm, undo, sendToQueue, backToEdit,
   };
 }
