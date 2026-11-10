@@ -11,12 +11,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
 import StickerStudio, { type StickerItem } from '@/components/labels/StickerStudio';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import AppButton from '@/components/ui/AppButton';
 import { Colors, theme } from '@/constants/Colors';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getEntryLabelProgress } from '@/services/labelQueueService';
 import { getStockEntryById } from '@/services/stockEntryService';
 import { parseApiError } from '@/utils/apiError';
+import { decodeLaunched } from '@/utils/labelFocus';
 
 /** "Preto · M" ou "Preto / M" vira cor e tamanho para a prévia (o PDF vem do servidor com os dados reais). */
 function splitLabel(label?: string | null): { color: string | null; size: string | null } {
@@ -30,13 +32,14 @@ export default function EntryLabelsScreen() {
   const desktopColumn = useDesktopContentStyle();
   const brand = useBrandingColors();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, only } = useLocalSearchParams<{ id: string; only?: string }>();
   const entryId = Number(id);
+  const focus = useMemo(() => decodeLaunched(only), [only]);
   const queryClient = useQueryClient();
   const { data: entry, isLoading, error } = useQuery({ queryKey: ['stock-entry', entryId], queryFn: () => getStockEntryById(entryId), enabled: !!entryId });
   const { data: progress, isLoading: progressLoading } = useQuery({ queryKey: ['label-progress', entryId], queryFn: () => getEntryLabelProgress(entryId), enabled: !!entryId });
   // soma por variação o que foi RECEBIDO nesta entrada; a quantidade já vem só com o que ainda falta imprimir
-  const { items, initialQty } = useMemo(() => {
+  const { items, initialQty, focused } = useMemo(() => {
     const byVariant = new Map<number, StickerItem>();
     const received: Record<number, number> = {};
     for (const it of entry?.entry_items ?? []) {
@@ -61,14 +64,22 @@ export default function EntryLabelsScreen() {
     const qty: Record<number, number> = {};
     for (const [vid, rec] of Object.entries(received)) qty[Number(vid)] = progress ? (missing.get(Number(vid)) ?? rec) : rec;
     const list = [...byVariant.values()].sort((a, b) => String(a.code ?? 'zzz').localeCompare(String(b.code ?? 'zzz'), 'pt-BR', { numeric: true }));
-    return { items: list, initialQty: qty };
-  }, [entry, progress]);
+    // Veio de "lançar peça já cadastrada": só as peças que acabaram de entrar, na quantidade lançada (o resto da entrada fica de fora)
+    const wanted = new Map(focus.map((f) => [f.variantId, f.quantity]));
+    const picked = list.filter((i) => wanted.has(i.variantId));
+    if (picked.length > 0) {
+      const onlyQty: Record<number, number> = {};
+      for (const i of picked) onlyQty[i.variantId] = wanted.get(i.variantId) ?? 0;
+      return { items: picked, initialQty: onlyQty, focused: true };
+    }
+    return { items: list, initialQty: qty, focused: false };
+  }, [entry, progress, focus]);
 
-  const total = progress?.received ?? Object.values(initialQty).reduce((n, q) => n + q, 0);
+  const total = focused ? Object.values(initialQty).reduce((n, q) => n + q, 0) : progress?.received ?? Object.values(initialQty).reduce((n, q) => n + q, 0);
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Etiquetas da entrada" subtitle={entry ? `${entry.entry_code} · ${total} peças` : ''}
+      <PageHeader title="Etiquetas da entrada" subtitle={entry ? (focused ? `${entry.entry_code} · ${total} peça${total !== 1 ? 's' : ''} lançada${total !== 1 ? 's' : ''}` : `${entry.entry_code} · ${total} peças`) : ''}
         showBackButton backFallback={`/entries/${entryId}`} />
       <View style={[{ flex: 1 }, desktopColumn]}>
         {/* Só monta a lista depois de saber o que já foi impresso: antes ela abria com TODAS as peças e imprimia de novo as que já tinham saído */}
@@ -76,7 +87,18 @@ export default function EntryLabelsScreen() {
           error ? <View style={styles.center}><Text style={styles.muted}>{parseApiError(error) || 'Não foi possível carregar a entrada.'}</Text></View> : <ScreenLoader message="Carregando a entrada..." />
         ) : (
           <>
-            {progress ? (
+            {focused ? (
+              <View style={styles.progress}>
+                <Text style={styles.progressTitle}>Etiquetas das peças que você acabou de lançar</Text>
+                <Text style={styles.progressHint}>
+                  Só estas {total} etiqueta{total !== 1 ? 's' : ''} estão marcadas. Gere o PDF agora ou toque em "Colocar na fila de impressão" para imprimir depois.
+                </Text>
+                {(progress?.queued ?? 0) > 0 ? (
+                  <AppButton label={`Abrir a fila (${progress?.queued})`} variant="outlined" onPress={() => router.push('/etiquetas/fila' as any)} />
+                ) : null}
+                <AppButton label="Ver todas as etiquetas da entrada" variant="text" onPress={() => router.replace({ pathname: '/entries/labels/[id]', params: { id: String(entryId) } } as any)} />
+              </View>
+            ) : progress ? (
               <View style={styles.progress}>
                 <Text style={styles.progressTitle}>Etiquetas desta entrada</Text>
                 <View style={styles.track} accessibilityLabel={`${progress.printed} de ${progress.received} impressas`}>

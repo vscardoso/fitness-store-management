@@ -46,6 +46,7 @@ import { useIsDesktop, DESKTOP_CONTENT_MAX } from '@/hooks/useLayout';
 import LoadedImage from '@/components/ui/LoadedImage';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 import { goBackOr } from '@/utils/navBack';
+import { encodeLaunched } from '@/utils/labelFocus';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -1294,6 +1295,7 @@ export default function ProductDetailsScreen() {
             name: product?.name,
             variants: (variants ?? []).map((v: any) => ({ id: v.id, color: v.color, size: v.size, price: v.price, cost_price: v.cost_price })),
           } as any}
+          onLaunched={(lines) => router.push({ pathname: '/entries/labels/[id]', params: { id: String(lastEntry.entry_id), only: encodeLaunched(lines) } } as any)}
           onClose={() => {
             setNewVariantOpen(false);
             refetchVariants();
