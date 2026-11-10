@@ -39,9 +39,8 @@ import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
-import { parseApiError } from '@/utils/apiError';
 import AppButton from '@/components/ui/AppButton';
-import { addToQueue as addLabelsToQueue, getEntryLabelProgress, getLabelQueue } from '@/services/labelQueueService';
+import { getLabelQueue } from '@/services/labelQueueService';
 import HScroll from '@/components/ui/HScroll';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
@@ -147,31 +146,6 @@ export default function StockEntryDetailsScreen() {
   const [editPrice, setEditPrice] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const { data: labelQueue } = useQuery({ queryKey: ['label-queue'], queryFn: getLabelQueue, refetchOnWindowFocus: true });   // atalho da fila de impressão
-  // etiquetas que faltam por peça desta entrada (as que ainda não foram impressas nem estão na fila)
-  const { data: labelProgress } = useQuery({ queryKey: ['label-progress', entryId], queryFn: () => getEntryLabelProgress(entryId), enabled: !!entryId });
-  const [queueingItemId, setQueueingItemId] = useState<number | null>(null);
-  const queueItemLabels = async (item: EntryItemResponse) => {
-    if (!item.variant_id || queueingItemId) return;
-    const line = labelProgress?.lines.find((l) => l.variant_id === item.variant_id);
-    const missing = line ? line.missing : item.quantity_received;
-    if (missing <= 0) {
-      setSuccessDialog({ visible: true, message: 'As etiquetas desta peça já foram impressas ou já estão na fila de impressão.' });
-      return;
-    }
-    setQueueingItemId(item.id);
-    try {
-      await addLabelsToQueue([{ variantId: item.variant_id, quantity: missing }], entryId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['label-queue'] }),
-        queryClient.invalidateQueries({ queryKey: ['label-progress', entryId] }),
-      ]);
-      setSuccessDialog({ visible: true, message: `${missing} etiqueta${missing !== 1 ? 's' : ''} desta peça ${missing !== 1 ? 'foram colocadas' : 'foi colocada'} na fila de impressão.` });
-    } catch (e: any) {
-      setErrorDialog({ visible: true, message: parseApiError(e) || 'Não foi possível pôr na fila.' });
-    } finally {
-      setQueueingItemId(null);
-    }
-  };
   const [editSupplier, setEditSupplier] = useState<{ id: number; name: string } | null>(null);   // fornecedor escolhido na edição
   const [pickingSupplier, setPickingSupplier] = useState(false);
 
@@ -634,18 +608,15 @@ export default function StockEntryDetailsScreen() {
               <Text style={[styles.itemToolText, { color: brandingColors.primary }]} numberOfLines={1}>Variação</Text>
             </TouchableOpacity>
           )}
-          {!!item.variant_id && (
-            <TouchableOpacity
-              onPress={() => queueItemLabels(item)}
-              style={[styles.itemTool, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12', opacity: queueingItemId === item.id ? 0.5 : 1 }]}
-              activeOpacity={0.7}
-              disabled={queueingItemId != null}
-              accessibilityLabel="Colocar as etiquetas desta peça na fila de impressão"
-            >
-              <Ionicons name="pricetag-outline" size={16} color={brandingColors.primary} />
-              <Text style={[styles.itemToolText, { color: brandingColors.primary }]} numberOfLines={1}>Etiqueta</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            onPress={() => router.push('/etiquetas/fila' as any)}
+            style={[styles.itemTool, styles.itemToolWide, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
+            activeOpacity={0.7}
+            accessibilityLabel="Abrir a fila de impressão de etiquetas"
+          >
+            <Ionicons name="list-outline" size={16} color={brandingColors.primary} />
+            <Text style={[styles.itemToolText, { color: brandingColors.primary }]} numberOfLines={1}>Fila de impressão</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Custo com frete, preço, lucro e markup desta peça */}
@@ -1607,8 +1578,13 @@ const styles = StyleSheet.create({
   },
   itemToolbar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing.xs,
     marginBottom: theme.spacing.md,
+  },
+  itemToolWide: {
+    flexBasis: '100%',
+    flexDirection: 'row',
   },
   itemTool: {
     flex: 1,
