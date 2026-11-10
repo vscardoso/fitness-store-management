@@ -215,12 +215,17 @@ async def test_reabrir_ultimo_pdf_sem_salvar_nada_e_expira_em_24h(test_client, a
     r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 2, "from_queue": True,
                                                           "items": [{"variant_id": va, "quantity": 5}, {"variant_id": vb, "quantity": 4}]}, headers=h)
     assert r.status_code == 200
+    original = r.content
     rec = (await test_client.get(f"{API}/prints/recent", headers=h)).json()
     assert len(rec) == 1 and rec[0]["total"] == 9 and rec[0]["start_position"] == 2 and rec[0]["expires_at"]
 
     antes = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()
     again = await test_client.get(f"{API}/prints/{rec[0]['id']}/pdf", headers=h)
     assert again.status_code == 200 and again.content[:4] == b"%PDF"                   # mesmo PDF, na mesma posição da folha
+    from tests.test_short_codes import _pages, _pdf_text
+    texto = _pdf_text(again.content)
+    assert texto.strip() and "SKU" not in texto                                         # tem as etiquetas (e nada interno)
+    assert texto == _pdf_text(original) and _pages(again.content) == _pages(original)  # o mesmo conteúdo do PDF de quando imprimiu
     depois = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()
     assert antes == depois                                                              # reabrir não salva nem anda a folha
     assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 0
