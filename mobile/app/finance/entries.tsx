@@ -19,10 +19,10 @@ import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
-import { dateToIso } from '@/utils/dateBr';
+import { dateToIso, isoToDate } from '@/utils/dateBr';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 import {
-  createEntry, deleteEntry, getFinanceOverview, getLoans, listEntries, type AccountEntry, type EntryKind,
+  createEntry, deleteEntry, getFinanceOverview, getLoans, listEntries, updateEntry, type AccountEntry, type EntryKind,
 } from '@/services/financeService';
 
 type Option = { kind: EntryKind; label: string; hint: string; person?: 'required'; needsText?: boolean };
@@ -54,6 +54,9 @@ export default function EntriesScreen() {
   const [form, setForm] = useState<Form | null>(null);
   const [formError, setFormError] = useState('');
   const [removing, setRemoving] = useState<AccountEntry | null>(null);
+  // Corrigir um lançamento (valor, dia, conta, observação; sócio também troca o nome). Empréstimo não troca a pessoa.
+  const [editing, setEditing] = useState<{ e: AccountEntry; account: number; amount: string; person: string; text: string; day: Date } | null>(null);
+  const [editError, setEditError] = useState('');
 
   // maquininha a receber não é de onde sai nem para onde vai dinheiro de sócio ou empréstimo
   const accounts = (overview?.accounts ?? []).filter((a) => a.kind !== 'card');
@@ -70,6 +73,30 @@ export default function EntriesScreen() {
     onSuccess: async () => { setForm(null); await queryClient.invalidateQueries(); },
     onError: (e) => setFormError(parseApiError(e) || 'Não foi possível lançar.'),
   });
+  const editOption = useMemo(() => ALL.find((o) => o.kind === editing?.e.kind), [editing?.e.kind]);
+  const editAmount = parseMoneyBr(editing?.amount ?? '') ?? 0;
+  const editOwner = !!editing?.e.kind.startsWith('owner');
+  const editChanged = !!editing && (
+    Math.round(editAmount * 100) !== Math.round(editing.e.amount * 100)
+    || dateToIso(editing.day) !== editing.e.occurred_on.slice(0, 10)
+    || editing.account !== editing.e.account_id
+    || editing.text.trim() !== (editing.e.description ?? '').trim()
+    || (editOwner && editing.person.trim() !== (editing.e.person ?? '').trim()));
+  const canSaveEdit = !!editing && editAmount > 0 && editChanged
+    && (!editOwner || !!editing.person.trim()) && (!editOption?.needsText || !!editing.text.trim());
+  const saveEdit = useMutation({
+    mutationFn: () => updateEntry(editing!.e.id, {
+      amount: editAmount.toFixed(2), occurred_on: dateToIso(editing!.day), account_id: editing!.account,
+      description: editing!.text.trim(), ...(editOwner ? { person: editing!.person.trim() } : {}),
+    }),
+    onSuccess: async () => { setEditing(null); await queryClient.invalidateQueries(); },
+    onError: (e) => setEditError(parseApiError(e) || 'Não foi possível corrigir.'),
+  });
+  const openEdit = (e: AccountEntry) => {
+    setEditError('');
+    setEditing({ e, account: e.account_id, amount: moneyInput(Math.round(e.amount * 100).toString()), person: e.person ?? '',
+      text: e.description ?? '', day: isoToDate(e.occurred_on) });
+  };
   const remove = useMutation({
     mutationFn: (id: number) => deleteEntry(id),
     onSuccess: async () => { setRemoving(null); await queryClient.invalidateQueries(); },
@@ -145,6 +172,9 @@ export default function EntriesScreen() {
                   <Text style={[styles.entryValue, { color: e.direction === 'in' ? Colors.light.success : Colors.light.error }]}>
                     {e.direction === 'in' ? '+' : '-'}{formatCurrency(e.amount)}
                   </Text>
+                  <TouchableOpacity onPress={() => openEdit(e)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Corrigir ${e.kind_label}`}>
+                    <Ionicons name="pencil-outline" size={18} color={brand.primary} />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => setRemoving(e)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Apagar ${e.kind_label}`}>
                     <Ionicons name="trash-outline" size={18} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
@@ -158,6 +188,42 @@ export default function EntriesScreen() {
       <ConfirmDialog visible={!!removing} title="Apagar este lançamento?" type="warning" confirmText="Apagar" cancelText="Voltar"
         message={removing ? `${removing.kind_label} de ${formatCurrency(removing.amount)}. A conta ${removing.account_name} volta ao saldo de antes.` : ''}
         loading={remove.isPending} onConfirm={() => removing && remove.mutate(removing.id)} onCancel={() => setRemoving(null)} />
+
+      <BottomSheet
+        visible={!!editing}
+        onDismiss={() => setEditing(null)}
+        title="Corrigir lançamento"
+        subtitle={editing ? `${editing.e.kind_label}${editing.e.person ? ` · ${editing.e.person}` : ''}` : undefined}
+        icon="pencil"
+        actions={[{ label: 'Salvar correção', variant: 'primary', loading: saveEdit.isPending, disabled: !canSaveEdit,
+          onPress: () => { setEditError(''); saveEdit.mutate(); } }]}
+      >
+        {!!editing && (
+          <View style={{ gap: 10 }}>
+            {!!editError && <Text style={styles.error}>{editError}</Text>}
+            <Text style={styles.label}>{editing.e.direction === 'in' ? 'Entrou em' : 'Saiu de'}</Text>
+            <View style={styles.chips}>
+              {accounts.map((a) => (
+                <Chip key={a.id} text={a.name} on={editing.account === a.id} color={brand.primary} onPress={() => setEditing({ ...editing, account: a.id })} />
+              ))}
+            </View>
+            <TextInput mode="outlined" label="Valor" value={editing.amount} keyboardType="decimal-pad" left={<TextInput.Affix text="R$" />}
+              onChangeText={(t) => setEditing({ ...editing, amount: moneyInput(t) })} activeOutlineColor={brand.primary} />
+            {editOwner && (
+              <TextInput mode="outlined" label="Qual sócio" value={editing.person} onChangeText={(t) => setEditing({ ...editing, person: t })}
+                activeOutlineColor={brand.primary} />
+            )}
+            <TextInput mode="outlined" label={editOption?.needsText ? 'O que foi' : 'Observação (opcional)'} value={editing.text}
+              onChangeText={(t) => setEditing({ ...editing, text: t })} activeOutlineColor={brand.primary} />
+            <DateTimeInput label="Dia" value={editing.day} onChange={(d) => d && setEditing({ ...editing, day: d })} mode="date" maximumDate={new Date()} />
+            {!!editing.e.kind.startsWith('loan') && (
+              <Text style={styles.note}>
+                Para trocar a pessoa de um empréstimo, apague o lançamento e lance de novo. O valor não pode ficar abaixo do que já foi devolvido.
+              </Text>
+            )}
+          </View>
+        )}
+      </BottomSheet>
 
       <BottomSheet
         visible={!!form}

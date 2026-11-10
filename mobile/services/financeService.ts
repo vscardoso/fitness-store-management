@@ -249,3 +249,19 @@ export const adjustAccountBalance = async (
 export const updateAccount = async (
   accountId: number, body: { opening_balance?: string; name?: string },
 ): Promise<FinanceOverview> => (await api.patch<FinanceOverview>(`/finance/accounts/${accountId}`, body)).data;
+
+// ── Corrigir o que já foi lançado (o saldo é calculado na hora, então corrigir o valor acerta o saldo) ─────────────
+/** Corrige valor, dia ou descrição de uma transferência. 400 se a conta ficaria negativa; 409 se é do caixa ou repasse com taxa. */
+export const updateTransfer = async (
+  id: number, body: { amount?: string; occurred_on?: string; description?: string },
+): Promise<AccountTransfer> => (await api.patch<AccountTransfer>(`/finance/transfers/${id}`, body)).data;
+
+/** Corrige o que é, valor, vencimento ou observação. Conta já paga: o valor também acerta a despesa e a conta de onde saiu. */
+export const updatePayable = async (
+  id: number, body: { description?: string; amount?: string; due_date?: string; notes?: string },
+): Promise<Payable> => (await api.patch<Payable>(`/finance/payables/${id}`, body)).data;
+
+/** Corrige valor, dia, conta, pessoa ou descrição de uma retirada ou empréstimo. */
+export const updateEntry = async (
+  id: number, body: { amount?: string; occurred_on?: string; account_id?: number; person?: string; description?: string },
+): Promise<AccountEntry> => (await api.patch<AccountEntry>(`/finance/entries/${id}`, body)).data;

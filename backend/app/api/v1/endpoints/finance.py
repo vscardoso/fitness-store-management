@@ -123,6 +123,15 @@ async def transfer(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(
         raise _http(e)
 
 
+@router.patch("/transfers/{transfer_id}", summary="Corrigir valor, data ou descrição de uma transferência")
+async def update_transfer(transfer_id: int, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).update_transfer(tenant_id, current_user, transfer_id, data)
+    except FinanceError as e:
+        raise _http(e)
+
+
 @router.delete("/transfers/{transfer_id}", summary="Apagar transferência lançada errado")
 async def delete_transfer(transfer_id: int, db: AsyncSession = Depends(get_db),
                           tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
@@ -143,6 +152,15 @@ async def create_payable(data: Dict[str, Any] = Body(...), db: AsyncSession = De
                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
         return await FinanceService(db).create_payable(tenant_id, data)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.patch("/payables/{payable_id}", summary="Corrigir o que é, o valor, o vencimento ou a observação")
+async def update_payable(payable_id: int, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                         tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).update_payable(tenant_id, current_user, payable_id, data)
     except FinanceError as e:
         raise _http(e)
 
@@ -186,6 +204,15 @@ async def create_entry(data: Dict[str, Any] = Body(...), db: AsyncSession = Depe
                        tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
         return await FinanceService(db).create_entry(tenant_id, current_user, data)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.patch("/entries/{entry_id}", summary="Corrigir valor, data, conta, pessoa ou descrição de um lançamento")
+async def update_entry(entry_id: int, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                       tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).update_entry(tenant_id, current_user, entry_id, data)
     except FinanceError as e:
         raise _http(e)
 

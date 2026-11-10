@@ -1,6 +1,6 @@
 // Testes de data DD/MM/AAAA e data sem hora. Rodar: node scripts/test-date-br.mts
 import assert from 'node:assert/strict';
-import { brToIso, dateToIso, maskDate, todayBr } from '../utils/dateBr.ts';
+import { brToIso, dateToIso, isoToDate, maskDate, todayBr } from '../utils/dateBr.ts';
 import { formatDateOnly } from '../utils/dateOnly.ts';
 
 let n = 0;
@@ -35,5 +35,12 @@ t('data sem hora não volta um dia (bug do 01/11)', () => {
 t('dia local não pula para amanhã à noite (despesa das 23h)', () => {
   assert.equal(dateToIso(new Date(2026, 10, 4, 23, 30)), '2026-11-04');
   assert.equal(dateToIso(new Date(2026, 0, 1, 0, 5)), '2026-01-01');
+});
+t('AAAA-MM-DD volta como o mesmo dia local (sem virar o dia por fuso)', () => {
+  const d = isoToDate('2026-11-05');
+  assert.equal(d.getDate(), 5);
+  assert.equal(d.getMonth(), 10);
+  assert.equal(dateToIso(isoToDate('2026-01-01')), '2026-01-01');
+  assert.equal(dateToIso(isoToDate('2026-11-05T00:00:00')), '2026-11-05');
 });
 console.log(`${n} testes ok`);

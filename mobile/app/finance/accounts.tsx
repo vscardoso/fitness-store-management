@@ -25,10 +25,12 @@ import { isAdminRole } from '@/utils/roles';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
+import { dateToIso, isoToDate } from '@/utils/dateBr';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import DateTimeInput from '@/components/ui/DateTimeInput';
 import {
-  addBankAccount, adjustAccountBalance, updateAccount, deleteTransfer, getFinanceOverview, listTransfers, setPixAccount, transferBetweenAccounts,
-  type AccountTransfer, type FinanceAccount,
+  addBankAccount, adjustAccountBalance, updateAccount, updateTransfer, deleteTransfer, getFinanceOverview, listTransfers, setPixAccount,
+  transferBetweenAccounts, type AccountTransfer, type FinanceAccount,
 } from '@/services/financeService';
 
 const ICON: Record<string, keyof typeof Ionicons.glyphMap> = { cash: 'cash-outline', bank: 'business-outline', card: 'card-outline' };
@@ -47,6 +49,8 @@ export default function AccountsScreen() {
   const { data, isLoading, refetch, isRefetching, error } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
   const { data: transfers } = useQuery({ queryKey: ['finance-transfers'], queryFn: listTransfers, enabled: !!data?.started });
   const [removing, setRemoving] = useState<AccountTransfer | null>(null);
+  // Corrigir uma transferência já lançada (valor, dia ou observação; as contas não mudam: para isso apague e lance de novo)
+  const [editing, setEditing] = useState<{ t: AccountTransfer; amount: string; day: Date; note: string } | null>(null);
   const [transfer, setTransfer] = useState<{ from: number | null; to: number | null; amount: string; note: string } | null>(null);
   const [newBank, setNewBank] = useState<{ name: string; amount: string } | null>(null);
   const [sheetError, setSheetError] = useState('');
@@ -63,6 +67,14 @@ export default function AccountsScreen() {
     }),
     onSuccess: async (res) => { setTransfer(null); setTransferWarning(res?.warning || ''); await refresh(); },
     onError: (e) => setSheetError(parseApiError(e) || 'Não foi possível transferir.'),
+  });
+  const doEditTransfer = useMutation({
+    mutationFn: () => updateTransfer(editing!.t.id, {
+      amount: (parseMoneyBr(editing!.amount) ?? 0).toFixed(2), occurred_on: dateToIso(editing!.day),
+      description: editing!.note.trim() || undefined,
+    }),
+    onSuccess: async () => { setEditing(null); await refresh(); },
+    onError: (e) => setSheetError(parseApiError(e) || 'Não foi possível corrigir a transferência.'),
   });
   const doFix = useMutation({
     mutationFn: () => {
@@ -136,6 +148,10 @@ export default function AccountsScreen() {
     setFix({ acc, mode: 'adjust', amount: moneyInput(Math.round(acc.balance * 100).toString()), reason: '' });
   };
   const openTransfer = (from: number | null, to: number | null) => { setSheetError(''); setTransfer({ from, to, amount: '', note: '' }); };
+  const openEditTransfer = (t: AccountTransfer) => {
+    setSheetError('');
+    setEditing({ t, amount: moneyInput(Math.round(t.amount * 100).toString()), day: isoToDate(t.occurred_on), note: t.description ?? '' });
+  };
 
   return (
     <View style={styles.container}>
@@ -194,6 +210,10 @@ export default function AccountsScreen() {
                   </Text>
                 </View>
                 <Text style={styles.transferText}>{formatCurrency(t.amount)}</Text>
+                <TouchableOpacity onPress={() => openEditTransfer(t)} hitSlop={8} accessibilityRole="button"
+                  accessibilityLabel={`Corrigir transferência de ${formatCurrency(t.amount)}`}>
+                  <Ionicons name="pencil-outline" size={18} color={brand.primary} />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => setRemoving(t)} hitSlop={8} accessibilityRole="button"
                   accessibilityLabel={`Apagar transferência de ${formatCurrency(t.amount)}`}>
                   <Ionicons name="trash-outline" size={18} color={Colors.light.textTertiary} />
@@ -207,6 +227,40 @@ export default function AccountsScreen() {
       <ConfirmDialog visible={!!removing} title="Apagar esta transferência?" type="warning" confirmText="Apagar" cancelText="Voltar"
         message={removing ? `${formatCurrency(removing.amount)} de ${name(removing.from_account_id)} para ${name(removing.to_account_id)}. As duas contas voltam ao saldo de antes.${removing.is_auto ? ' Foi um repasse automático: se você apagar, o sistema não o lança de novo (o dia volta para a lista da maquininha e você faz o repasse à mão).' : ''}` : ''}
         loading={doRemove.isPending} onConfirm={() => removing && doRemove.mutate(removing.id)} onCancel={() => setRemoving(null)} />
+
+      {(() => {
+        if (!editing) return null;
+        const newAmount = parseMoneyBr(editing.amount) ?? 0;
+        const unchanged = Math.round(newAmount * 100) === Math.round(editing.t.amount * 100)
+          && dateToIso(editing.day) === editing.t.occurred_on.slice(0, 10)
+          && (editing.note.trim() || '') === (editing.t.description ?? '').trim();
+        return (
+          <BottomSheet
+            visible
+            onDismiss={() => setEditing(null)}
+            title="Corrigir transferência"
+            subtitle={`${name(editing.t.from_account_id)} → ${name(editing.t.to_account_id)}`}
+            icon="pencil"
+            actions={[{
+              label: 'Salvar correção', variant: 'primary', loading: doEditTransfer.isPending,
+              disabled: !newAmount || unchanged, onPress: () => { setSheetError(''); doEditTransfer.mutate(); },
+            }]}
+          >
+            <View style={{ gap: 10 }}>
+              {!!sheetError && <Text style={styles.error}>{sheetError}</Text>}
+              <TextInput mode="outlined" label="Valor" value={editing.amount} keyboardType="decimal-pad" left={<TextInput.Affix text="R$" />}
+                onChangeText={(t) => setEditing({ ...editing, amount: moneyInput(t) })} activeOutlineColor={brand.primary} />
+              <DateTimeInput label="Dia" value={editing.day} onChange={(d) => d && setEditing({ ...editing, day: d })} mode="date"
+                minimumDate={data.start_date ? isoToDate(data.start_date) : undefined} maximumDate={new Date()} />
+              <TextInput mode="outlined" label="Observação" value={editing.note} onChangeText={(t) => setEditing({ ...editing, note: t })}
+                activeOutlineColor={brand.primary} />
+              <Text style={styles.note}>
+                Os saldos das duas contas acompanham o novo valor. Para trocar de conta, apague a transferência e lance de novo.
+              </Text>
+            </View>
+          </BottomSheet>
+        );
+      })()}
 
       <BottomSheet
         visible={!!transfer}

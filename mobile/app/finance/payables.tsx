@@ -18,8 +18,9 @@ import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
+import { isoToDate } from '@/utils/dateBr';
 import {
-  cancelPayable, createPayable, getFinanceOverview, isoDay, listPayables, payPayable, unpayPayable, type Payable,
+  cancelPayable, createPayable, getFinanceOverview, isoDay, listPayables, payPayable, unpayPayable, updatePayable, type Payable,
 } from '@/services/financeService';
 import { getExpenseCategories } from '@/services/expenseService';
 import ScreenLoader from '@/components/ui/ScreenLoader';
@@ -45,6 +46,8 @@ export default function PayablesScreen() {
   const [paying, setPaying] = useState<{ p: Payable; account: number | null; day: Date | undefined } | null>(null);
   const [canceling, setCanceling] = useState<Payable | null>(null);
   const [unpaying, setUnpaying] = useState<Payable | null>(null);
+  // Corrigir uma despesa já lançada (o que é, valor, vencimento, observação); paga também acerta a conta de onde saiu
+  const [editing, setEditing] = useState<{ p: Payable; description: string; amount: string; due: Date | undefined; notes: string } | null>(null);
   const [sheetError, setSheetError] = useState('');
 
   const refresh = () => queryClient.invalidateQueries();
@@ -66,6 +69,19 @@ export default function PayablesScreen() {
     onSuccess: async () => { setCanceling(null); await refresh(); },
     onError: (e) => { setCanceling(null); showApiError(e, 'Não foi possível cancelar'); },
   });
+
+  const doEdit = useMutation({
+    mutationFn: () => updatePayable(editing!.p.id, {
+      description: editing!.description.trim(), amount: (parseMoneyBr(editing!.amount) ?? 0).toFixed(2),
+      due_date: isoDay(editing!.due!), notes: editing!.notes.trim(),
+    }),
+    onSuccess: async () => { setEditing(null); await refresh(); },
+    onError: (e) => setSheetError(parseApiError(e) || 'Não foi possível corrigir.'),
+  });
+  const openEdit = (p: Payable) => {
+    setSheetError('');
+    setEditing({ p, description: p.description, amount: moneyInput(Math.round(p.amount * 100).toString()), due: isoToDate(p.due_date), notes: p.notes ?? '' });
+  };
 
   const doUnpay = useMutation({
     mutationFn: (id: number) => unpayPayable(id),
@@ -129,6 +145,9 @@ export default function PayablesScreen() {
               <Text style={styles.amount}>{formatCurrency(p.amount)}</Text>
               {p.status === 'open' && (
                 <View style={styles.itemActions}>
+                  <TouchableOpacity onPress={() => openEdit(p)} accessibilityLabel={`Corrigir ${p.description}`} hitSlop={6}>
+                    <Ionicons name="pencil-outline" size={19} color={brand.primary} />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => setCanceling(p)} accessibilityLabel={`Cancelar ${p.description}`} hitSlop={6}>
                     <Ionicons name="close-circle-outline" size={20} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
@@ -139,10 +158,15 @@ export default function PayablesScreen() {
                 </View>
               )}
               {p.status === 'paid' && (
-                <Button mode="text" compact textColor={Colors.light.textSecondary} onPress={() => setUnpaying(p)}
-                  accessibilityLabel={`Desfazer pagamento de ${p.description}`}>
-                  Desfazer pagamento
-                </Button>
+                <View style={styles.itemActions}>
+                  <TouchableOpacity onPress={() => openEdit(p)} accessibilityLabel={`Corrigir ${p.description}`} hitSlop={6}>
+                    <Ionicons name="pencil-outline" size={19} color={brand.primary} />
+                  </TouchableOpacity>
+                  <Button mode="text" compact textColor={Colors.light.textSecondary} onPress={() => setUnpaying(p)}
+                    accessibilityLabel={`Desfazer pagamento de ${p.description}`}>
+                    Desfazer pagamento
+                  </Button>
+                </View>
               )}
             </View>
           </View>
@@ -208,6 +232,30 @@ export default function PayablesScreen() {
               ))}
             </View>
             <DateTimeInput label="Dia do pagamento" value={paying.day} onChange={(d) => setPaying({ ...paying, day: d })} mode="date" maximumDate={today} />
+          </View>
+        )}
+      </BottomSheet>
+
+      <BottomSheet visible={!!editing} onDismiss={() => setEditing(null)} title="Corrigir despesa" icon="pencil"
+        subtitle={editing ? (editing.p.status === 'paid' ? 'Já paga: o saldo da conta acompanha' : 'Ainda em aberto') : undefined}
+        actions={[{ label: 'Salvar correção', variant: 'primary', loading: doEdit.isPending,
+          disabled: !editing?.description.trim() || !(parseMoneyBr(editing?.amount ?? '') ?? 0) || !editing?.due,
+          onPress: () => { setSheetError(''); doEdit.mutate(); } }]}>
+        {!!editing && (
+          <View style={{ gap: 10 }}>
+            {!!sheetError && <Text style={styles.error}>{sheetError}</Text>}
+            <TextInput mode="outlined" label="O que é" value={editing.description} onChangeText={(t) => setEditing({ ...editing, description: t })}
+              activeOutlineColor={brand.primary} />
+            <TextInput mode="outlined" label="Valor" value={editing.amount} keyboardType="decimal-pad" left={<TextInput.Affix text="R$" />}
+              onChangeText={(t) => setEditing({ ...editing, amount: moneyInput(t) })} activeOutlineColor={brand.primary} />
+            <DateTimeInput label="Vencimento" value={editing.due} onChange={(d) => setEditing({ ...editing, due: d })} mode="date" />
+            <TextInput mode="outlined" label="Observação (opcional)" value={editing.notes} onChangeText={(t) => setEditing({ ...editing, notes: t })}
+              activeOutlineColor={brand.primary} />
+            {editing.p.status === 'paid' && (
+              <Text style={styles.itemSub}>
+                Pago em {formatDate(editing.p.paid_on!)}. Se mudar o valor, o dinheiro da conta e a despesa do mês acompanham. Para trocar a conta ou o dia do pagamento, desfaça o pagamento e pague de novo.
+              </Text>
+            )}
           </View>
         )}
       </BottomSheet>

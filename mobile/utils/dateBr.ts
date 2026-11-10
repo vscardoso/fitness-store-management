@@ -27,3 +27,10 @@ export function maskDate(raw: string): string {
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
+
+/** AAAA-MM-DD (ou AAAA-MM-DDTHH...) -> Date no dia local, sem virar o dia por fuso (new Date("2026-11-05") é meia-noite UTC). */
+export function isoToDate(value: string): Date {
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return new Date();
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
