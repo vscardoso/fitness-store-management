@@ -42,6 +42,9 @@ export default function ConsultScreen() {
       const found = await lookupCode(code);
       if (mine !== lastSearch.current) return;   // veio outra busca depois desta
       if (!found) {
+        // não achou: some o cartão da leitura anterior (ficava na tela com estoque e "Adicionar à venda" de uma peça que já não existe)
+        setResult(null);
+        setSelectedId(null);
         playScan('error');
         setStatus({ kind: 'error', text: 'Código ' + code + ' não encontrado nesta loja.' });
         return;
@@ -54,7 +57,7 @@ export default function ConsultScreen() {
         : { kind: found.variant.current_stock > 0 ? 'ok' : 'warn', text: found.product.name + ' · ' + variantLabel(found.variant) });
     } catch (e: any) {
       if (mine !== lastSearch.current) return;
-      playScan('error');
+      playScan('error');   // falha de rede ou do servidor: mantém o cartão anterior (não é "não achou")
       setStatus({ kind: 'error', text: e?.message || 'Não foi possível consultar o código. Tente de novo.' });
     } finally {
       if (mine === lastSearch.current) setSearching(false);
