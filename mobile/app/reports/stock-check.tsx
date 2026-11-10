@@ -101,6 +101,7 @@ export default function StockCheckScreen() {
   // Sem motivo marcado: a pessoa escolhe sempre (antes vinha "Perda" marcado e dava baixa sem perguntar)
   const [woReason, setWoReason] = useState<WriteoffReason | null>(null);
   const [woNote, setWoNote] = useState('');
+  const [woDelete, setWoDelete] = useState(false);   // cadastro errado: exclui também a variação (só quando a baixa zera e ela nunca vendeu)
   const [woError, setWoError] = useState('');
   const [woSaving, setWoSaving] = useState(false);
   useEffect(() => {
@@ -125,11 +126,19 @@ export default function StockCheckScreen() {
     setWoSaving(true);
     setWoError('');
     try {
-      await writeoffStock({ reason: woReason, note: woNote.trim() || undefined, items: [{ variant_id: wo.row.variant_id, quantity: wo.qty }] });
+      const canDelete = wo.qty >= wo.row.system_quantity && !wo.row.ever_sold;
+      const res = await writeoffStock({
+        reason: woReason, note: woNote.trim() || undefined,
+        items: [{ variant_id: wo.row.variant_id, quantity: wo.qty, ...(woDelete && canDelete ? { delete_variation: true } : {}) }],
+      });
+      const deleted = !!res.items?.some((i) => i.variation_deleted);
       setWo(null);
       setWoNote('');
+      setWoDelete(false);
       await queryClient.invalidateQueries({ queryKey: ['stock-check'] });
-      setMessage('Baixa registrada.');
+      queryClient.invalidateQueries({ queryKey: ['product'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      setMessage(deleted ? 'Baixa registrada e variação excluída.' : 'Baixa registrada.');
     } catch (e: any) {
       setWoError(parseApiError(e) || 'Não foi possível dar baixa.');
     } finally {
@@ -1009,7 +1018,7 @@ export default function StockCheckScreen() {
                             <TouchableOpacity
                               accessibilityRole="button"
                               accessibilityLabel={`Dar baixa de ${-d} peças`}
-                              onPress={() => { setWo({ row: r, qty: Math.min(-d, r.system_quantity) }); setWoReason(null); setWoNote(''); setWoError(''); }}
+                              onPress={() => { setWo({ row: r, qty: Math.min(-d, r.system_quantity) }); setWoReason(null); setWoNote(''); setWoDelete(false); setWoError(''); }}
                               hitSlop={8}
                             >
                               <Text style={[styles.woBtnText, { color: brand.primary }]}>Dar baixa</Text>
@@ -1152,6 +1161,17 @@ export default function StockCheckScreen() {
           placeholderTextColor={Colors.light.textTertiary}
           maxLength={300}
         />
+        {wo && wo.qty >= wo.row.system_quantity && !wo.row.ever_sold ? (
+          <View style={styles.woDeleteRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.woQuestion}>Foi cadastro errado?</Text>
+              <Text style={styles.woNote}>
+                O estoque desta variação vai a zero e ela nunca foi vendida. Ligue para excluir também a variação; desligado, ela fica na tela com 0 un.
+              </Text>
+            </View>
+            <Switch value={woDelete} onValueChange={setWoDelete} color={brand.primary} disabled={woSaving} />
+          </View>
+        ) : null}
         {!!woError && <Text style={styles.error}>{woError}</Text>}
       </BottomSheet>
 
@@ -1437,6 +1457,7 @@ const styles = StyleSheet.create({
   woCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
   woTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   woNote: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 2 },
+  woDeleteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
   woBtnText: { fontSize: 12, fontWeight: '800' },
   woQuestion: { fontSize: 15, fontWeight: '800', color: Colors.light.text, marginTop: 12 },
   woReasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },

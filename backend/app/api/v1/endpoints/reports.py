@@ -57,6 +57,7 @@ async def get_stock_check_report(
 class StockWriteoffLine(BaseModel):
     variant_id: int
     quantity: int = Field(..., gt=0, le=100000)
+    delete_variation: bool = Field(False, description="Cadastro errado: exclui também a variação. Só se a baixa zera o estoque e ela nunca vendeu.")
 
 
 class StockWriteoffRequest(BaseModel):

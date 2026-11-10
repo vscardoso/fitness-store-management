@@ -15,6 +15,8 @@ export interface StockCheckRow {
   /** Código da etiqueta (#101-1), quando a variação já foi numerada. */
   display_code?: string | null;
   system_quantity: number;
+  /** A variação já teve venda: a baixa não oferece excluí-la. */
+  ever_sold?: boolean;
 }
 
 export interface StockCheckReport {
@@ -49,8 +51,9 @@ export async function setStockWriteoffEnabled(enabled: boolean): Promise<boolean
 export async function writeoffStock(payload: {
   reason: WriteoffReason;
   note?: string;
-  items: { variant_id: number; quantity: number }[];
-}): Promise<{ ok: boolean; total_pecas: number }> {
+  /** delete_variation: cadastro errado, exclui também a variação (só vale se a baixa zera o estoque e ela nunca vendeu). */
+  items: { variant_id: number; quantity: number; delete_variation?: boolean }[];
+}): Promise<{ ok: boolean; total_pecas: number; items?: { variant_id: number; quantity: number; variation_deleted?: boolean }[] }> {
   const { data } = await api.post('/reports/stock-check/writeoff', payload);
   return data;
 }

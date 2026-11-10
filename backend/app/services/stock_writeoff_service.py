@@ -44,20 +44,44 @@ class StockWriteoffService:
         if not lines:
             raise WriteoffError("Nenhuma peça informada.")
         merged: Dict[int, int] = {}
+        to_delete: set = set()
         for ln in lines:
             q = int(ln["quantity"])
             if q <= 0:
                 raise WriteoffError("A quantidade da baixa deve ser maior que zero.")
             merged[int(ln["variant_id"])] = merged.get(int(ln["variant_id"]), 0) + q
+            if ln.get("delete_variation"):
+                to_delete.add(int(ln["variant_id"]))
 
         try:
             done = await self.write_off(tenant_id=tenant_id, user_id=user_id, reason=reason, note=note, merged=merged,
                                         label="Baixa pela conferência")
+            if to_delete:
+                await self._delete_zeroed_variations(tenant_id, to_delete, done)
             await self.db.commit()
         except Exception:
             await self.db.rollback()
             raise
         return {"ok": True, "items": done, "total_pecas": sum(d["quantity"] for d in done)}
+
+    async def _delete_zeroed_variations(self, tenant_id: int, variant_ids: set, done: List[Dict[str, Any]]) -> None:
+        """Cadastro errado: exclui a variação junto com a baixa, mas SÓ se o estoque dela zerou e ela nunca vendeu.
+        Se sobrou peça (baixa parcial) ou ela já vendeu, recusa e a baixa inteira é desfeita (tudo ou nada)."""
+        from app.repositories.product_variant_repository import ProductVariantRepository
+        from app.services.stock_rules import sold_variant_ids
+        await self.db.flush()
+        sold = await sold_variant_ids(self.db, tenant_id, variant_ids)
+        repo = ProductVariantRepository()
+        for vid in variant_ids:
+            left = sum(i.quantity_remaining for i in await self.items.get_available_for_variant(self.db, vid, tenant_id=tenant_id))
+            if left > 0:
+                raise WriteoffError("Só dá para excluir a variação quando a baixa zera o estoque dela. Ainda sobram peças.")
+            if vid in sold:
+                raise WriteoffError("Esta variação já foi vendida: não dá para excluir, só dar baixa.")
+            await repo.deactivate_variant(self.db, vid, tenant_id)
+            for d in done:
+                if d["variant_id"] == vid:
+                    d["variation_deleted"] = True
 
     async def write_off(self, *, tenant_id: int, user_id: int | None, reason: str, note: str | None,
                         merged: Dict[int, int], label: str, ledger_reason: str = "baixa_conferencia") -> List[Dict[str, Any]]:

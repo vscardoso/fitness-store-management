@@ -71,6 +71,8 @@ class StockCheckService:
             if pid not in first_variant or vid < first_variant[pid]:
                 first_variant[pid] = vid
 
+        from app.services.stock_rules import sold_variant_ids
+        sold = await sold_variant_ids(self.db, tenant_id)   # variação que já vendeu: a baixa não oferece excluir
         out: List[Dict[str, Any]] = []
         for vid, pid, color, size, sku, short_code, product_code, variant_number, pname, pcat, cname in rows:
             qty = by_variant.get(vid, 0)
@@ -90,6 +92,7 @@ class StockCheckService:
                 "short_code": short_code,   # número antigo por variação (#0123)
                 "display_code": format_variant_code(product_code, variant_number),   # código da etiqueta (#101-1), quando já numerada
                 "system_quantity": qty,
+                "ever_sold": vid in sold,
             })
         out.sort(key=lambda r: (
             r["category_name"].casefold(), r["product_name"].casefold(), (r["color"] or "").casefold(), size_sort_key(r["size"]),
