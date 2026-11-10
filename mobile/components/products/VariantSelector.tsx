@@ -262,7 +262,7 @@ export function VariantPriceEditor({
 
 const createStyles = (brand: string) => StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 12,
     padding: theme.spacing.md,
   },
@@ -329,7 +329,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   
   chipTextSelected: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '600',
   },
   

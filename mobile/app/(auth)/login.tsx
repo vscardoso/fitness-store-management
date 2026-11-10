@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   storeName: {
     fontSize: theme.fontSize.xxl,
     fontWeight: theme.fontWeight.bold,
-    color: '#fff',
+    color: Colors.light.white,
     textAlign: 'center',
   },
   tagline: {
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: theme.borderRadius.xxl,
     padding: theme.spacing.lg,
     ...theme.shadows.lg,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
 
   // Form
   form: { gap: 2 },
-  input: { backgroundColor: '#fff', marginBottom: 4 },
+  input: { backgroundColor: Colors.light.white, marginBottom: 4 },
   forgotBtn: { alignSelf: 'flex-end', marginTop: 4 },
   loginPrimaryButton: { marginTop: theme.spacing.sm },
   signupRow: {

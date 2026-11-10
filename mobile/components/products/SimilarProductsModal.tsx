@@ -221,7 +221,7 @@ export default function SimilarProductsModal({
                       end={{ x: 1, y: 0 }}
                       style={styles.useBtnGradient}
                     >
-                      <Ionicons name="add-circle-outline" size={16} color="#fff" />
+                      <Ionicons name="add-circle-outline" size={16} color={Colors.light.white} />
                       <Text style={styles.useBtnText}>Repor estoque</Text>
                     </LinearGradient>
                   </TouchableOpacity>
@@ -287,12 +287,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     maxHeight: SCREEN_HEIGHT * 0.82,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: 32,
     elevation: 24,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.18,
     shadowRadius: 16,
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   useBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.white,
   },
   variantBtn: {
     flexDirection: 'row',

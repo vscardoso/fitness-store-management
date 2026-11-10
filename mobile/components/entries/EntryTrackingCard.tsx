@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: '700', color: Colors.light.text },
   sub: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
   sum: { fontSize: 13, color: Colors.light.text },
-  warn: { fontSize: 12, color: '#B45309' },
+  warn: { fontSize: 12, color: Colors.light.warningDark },
   filter: { alignSelf: 'flex-start' },
   filterTxt: { fontSize: 12, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },

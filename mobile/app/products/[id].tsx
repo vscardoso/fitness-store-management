@@ -574,7 +574,7 @@ export default function ProductDetailsScreen() {
                   : 'O produto já está cadastrado. Dê entrada para ele aparecer com estoque e poder ser vendido.'}
               </Text>
               <TouchableOpacity style={[styles.emptyStockBtn, { backgroundColor: brandingColors.primary }]} onPress={goToEntry} activeOpacity={0.85}>
-                <Ionicons name="add-circle-outline" size={18} color="#fff" />
+                <Ionicons name="add-circle-outline" size={18} color={Colors.light.white} />
                 <Text style={styles.emptyStockBtnText}>Dar entrada neste produto</Text>
               </TouchableOpacity>
               {hasMultipleVariants && (
@@ -1287,7 +1287,7 @@ export default function ProductDetailsScreen() {
             style={styles.photoModalClose}
             onPress={() => setShowPhotoModal(false)}
           >
-            <Ionicons name="close" size={24} color="#fff" />
+            <Ionicons name="close" size={24} color={Colors.light.white} />
           </Pressable>
         </Pressable>
       </Modal>
@@ -1320,7 +1320,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   emptyStockLink: { alignItems: 'center', paddingVertical: 10 },
   emptyStockLinkText: { fontSize: 13, fontWeight: '700' },
-  emptyStockBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  emptyStockBtnText: { color: Colors.light.white, fontSize: 13, fontWeight: '700' },
   // ── Layout ──
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },

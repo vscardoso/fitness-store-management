@@ -236,7 +236,7 @@ export default function CreateExpenseScreen() {
                         accessibilityRole="radio"
                         accessibilityState={{ selected: on }}
                       >
-                        <Text style={[styles.categoryChipText, { color: on ? '#fff' : Colors.light.text }]}>{a.name}</Text>
+                        <Text style={[styles.categoryChipText, { color: on ? Colors.light.white : Colors.light.text }]}>{a.name}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -273,8 +273,8 @@ export default function CreateExpenseScreen() {
                       onPress={() => setScope(key)}
                       activeOpacity={0.75}
                     >
-                      <Ionicons name={icon} size={16} color={on ? '#fff' : brandingColors.primary} />
-                      <Text style={[styles.categoryChipText, { color: on ? '#fff' : Colors.light.text }]}>{label}</Text>
+                      <Ionicons name={icon} size={16} color={on ? Colors.light.white : brandingColors.primary} />
+                      <Text style={[styles.categoryChipText, { color: on ? Colors.light.white : Colors.light.text }]}>{label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -332,9 +332,9 @@ export default function CreateExpenseScreen() {
                       <Ionicons
                         name={cat.icon as any}
                         size={16}
-                        color={selected ? '#fff' : cat.color}
+                        color={selected ? Colors.light.white : cat.color}
                       />
-                      <Text style={[styles.categoryChipText, { color: selected ? '#fff' : Colors.light.text }]}>
+                      <Text style={[styles.categoryChipText, { color: selected ? Colors.light.white : Colors.light.text }]}>
                         {cat.name}
                       </Text>
                     </TouchableOpacity>
@@ -437,11 +437,11 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     marginBottom: theme.spacing.md,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: theme.spacing.sm,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   categoryGrid: {
     flexDirection: 'row',
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 99,
     borderWidth: 1.5,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   categoryChipText: {
     fontSize: 13,

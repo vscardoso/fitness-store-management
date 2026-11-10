@@ -1204,9 +1204,9 @@ export default function ConditionalShipmentDetailsScreen() {
                     style={styles.primaryActionButtonGradient}
                   >
                     {markAsSentMutation.isPending ? (
-                      <ActivityIndicator size={18} color="#fff" />
+                      <ActivityIndicator size={18} color={Colors.light.white} />
                     ) : (
-                      <Ionicons name="send-outline" size={18} color="#fff" />
+                      <Ionicons name="send-outline" size={18} color={Colors.light.white} />
                     )}
                     <Text style={styles.primaryActionButtonText}>Marcar como Enviado</Text>
                   </LinearGradient>
@@ -1402,9 +1402,9 @@ export default function ConditionalShipmentDetailsScreen() {
                       style={styles.primaryActionButtonGradient}
                     >
                       {processReturnMutation.isPending ? (
-                        <ActivityIndicator size={18} color="#fff" />
+                        <ActivityIndicator size={18} color={Colors.light.white} />
                       ) : (
-                        <Ionicons name={isFullyProcessed ? 'checkmark-circle-outline' : 'lock-closed-outline'} size={18} color="#fff" />
+                        <Ionicons name={isFullyProcessed ? 'checkmark-circle-outline' : 'lock-closed-outline'} size={18} color={Colors.light.white} />
                       )}
                       <Text style={styles.primaryActionButtonText}>
                         {!isFullyProcessed
@@ -2145,7 +2145,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   primaryActionButtonText: {
     fontSize: theme.fontSize.base,
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
   },
   dangerActionButton: {

@@ -156,6 +156,6 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11, color: Colors.light.textSecondary },
   progressHint: { fontSize: 12, color: Colors.light.textSecondary },
   btn: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, alignItems: 'center', alignSelf: 'stretch' },
-  btnTextOn: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  btnTextOn: { color: Colors.light.white, fontWeight: '800', fontSize: 14 },
   btnText: { fontWeight: '700', fontSize: 14 },
 });

@@ -91,7 +91,7 @@ export default function GlobalConfirmModalHost() {
                 key={`${action.text ?? 'btn'}-${index}`}
                 mode={action.style === 'cancel' ? 'outlined' : 'contained'}
                 buttonColor={action.style === 'cancel' ? Colors.light.card : buttonColor(brandingColors.primary, action.style)}
-                textColor={action.style === 'cancel' ? Colors.light.text : '#fff'}
+                textColor={action.style === 'cancel' ? Colors.light.text : Colors.light.white}
                 style={styles.button}
                 onPress={() => {
                   close();

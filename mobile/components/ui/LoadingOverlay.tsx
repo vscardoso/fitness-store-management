@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * LoadingOverlay: carregamento global do app.
  *
@@ -91,7 +92,7 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
           ) : null}
           {showTimeout && (
             <View style={styles.timeoutRow}>
-              <Ionicons name="time-outline" size={13} color="#6B7280" />
+              <Ionicons name="time-outline" size={13} color={Colors.light.textSecondary} />
               <Text style={styles.timeoutText}>Demorando mais que o esperado</Text>
             </View>
           )}
@@ -133,7 +134,7 @@ const styles = StyleSheet.create({
   },
   timeoutText: {
     fontSize: 11,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     fontWeight: '500',
   },
 });

@@ -295,7 +295,7 @@ export default function HistoryScreen() {
                   onPress={() => setSelectedPeriod(option.value)}
                   activeOpacity={0.75}
                 >
-                  <Text style={[styles.periodChipText, selected && { color: '#fff' }]}>{option.label}</Text>
+                  <Text style={[styles.periodChipText, selected && { color: Colors.light.white }]}>{option.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
   },
   retryText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     fontSize: theme.fontSize.sm,
   },

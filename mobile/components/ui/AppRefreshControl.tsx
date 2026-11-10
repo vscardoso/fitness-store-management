@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOpacity: 0.15,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },

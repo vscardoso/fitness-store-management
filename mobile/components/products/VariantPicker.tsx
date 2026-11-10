@@ -285,7 +285,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   
   optionChipTextSelected: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '600',
   },
   

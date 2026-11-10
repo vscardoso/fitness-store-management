@@ -94,7 +94,7 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
             />
           ) : (!WEB && !permission) ? null : (
             <View style={styles.perm}>
-              <Ionicons name="camera-outline" size={48} color="#fff" />
+              <Ionicons name="camera-outline" size={48} color={Colors.light.white} />
               <Text style={styles.permTitle}>
                 {WEB ? 'A câmera não abriu. Confira se o navegador tem permissão de usar a câmera.' : 'Precisamos da câmera para ler as etiquetas'}
               </Text>
@@ -113,7 +113,7 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
           )}
           {!closeOnScan && (
             <TouchableOpacity style={[styles.done, { bottom: Math.max(insets.bottom, 16) + 20 }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar câmera">
-              <Ionicons name="checkmark" size={22} color="#fff" />
+              <Ionicons name="checkmark" size={22} color={Colors.light.white} />
               <Text style={styles.doneText}>Pronto</Text>
             </TouchableOpacity>
           )}
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   // o cabeçalho tem a borda de baixo arredondada: a câmera começa um pouco por baixo dele
   header: { zIndex: 2 },
-  cameraArea: { flex: 1, backgroundColor: '#000', overflow: 'hidden', marginTop: -24 },
+  cameraArea: { flex: 1, backgroundColor: Colors.light.black, overflow: 'hidden', marginTop: -24 },
   frame: {
     // no meio da câmera: é o quadrado que o leitor do app web analisa (WebQrCamera lê o centro)
     position: 'absolute', top: '50%', alignSelf: 'center', width: 240, height: 240, marginTop: -120,
@@ -135,14 +135,14 @@ const styles = StyleSheet.create({
   },
   banner: { position: 'absolute', left: 16, right: 16 },
   bannerInner: { borderRadius: 16, padding: 14 },
-  bannerText: { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  bannerText: { color: Colors.light.white, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   done: {
     position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.light.primary, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999,
   },
-  doneText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  doneText: { color: Colors.light.white, fontSize: 16, fontWeight: '800' },
   perm: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 },
-  permTitle: { color: '#fff', fontSize: 16, textAlign: 'center' },
-  permBtn: { backgroundColor: '#fff', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12 },
+  permTitle: { color: Colors.light.white, fontSize: 16, textAlign: 'center' },
+  permBtn: { backgroundColor: Colors.light.white, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12 },
   permBtnText: { fontWeight: '800', color: '#111' },
 });

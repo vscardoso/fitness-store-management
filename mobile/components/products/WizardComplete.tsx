@@ -405,7 +405,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
             end={{ x: 1, y: 0 }}
             style={styles.primaryButtonGradient}
           >
-            <Ionicons name="add-circle-outline" size={20} color="#fff" />
+            <Ionicons name="add-circle-outline" size={20} color={Colors.light.white} />
             <Text style={styles.primaryButtonText}>Criar Outro Produto</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -839,7 +839,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 8,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     fontSize: 16,
   },

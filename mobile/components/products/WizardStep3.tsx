@@ -261,7 +261,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         end={{ x: 1, y: 0 }}
         style={styles.modalConfirmGradient}
       >
-        <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+        <Ionicons name="checkmark-circle-outline" size={18} color={Colors.light.white} />
         <Text style={styles.modalConfirmText}>{label}</Text>
       </LinearGradient>
     </TouchableOpacity>
@@ -1054,7 +1054,7 @@ const createStyles = (brand: string, brand2: string) => StyleSheet.create({
   modalConfirmText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
 
   // Variant qty modal

@@ -41,7 +41,7 @@ export default function ActionButtons({
           <Ionicons
             name={action.icon}
             size={24}
-            color="#fff"
+            color={Colors.light.white}
             style={styles.icon}
           />
           <Text style={styles.label}>{action.label}</Text>
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 80,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   label: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 12,
     fontWeight: '600',
   },

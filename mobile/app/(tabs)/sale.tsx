@@ -599,7 +599,7 @@ function MobileSaleScreen() {
                           onPress={() => handleUpdateQuantity(item.cart_key, item.quantity - 1)}
                           activeOpacity={0.75}
                         >
-                          <Ionicons name="remove" size={14} color="#fff" />
+                          <Ionicons name="remove" size={14} color={Colors.light.white} />
                         </TouchableOpacity>
                         <Text style={styles.quantity}>{item.quantity}</Text>
                         <TouchableOpacity
@@ -607,7 +607,7 @@ function MobileSaleScreen() {
                           onPress={() => handleUpdateQuantity(item.cart_key, item.quantity + 1)}
                           activeOpacity={0.75}
                         >
-                          <Ionicons name="add" size={14} color="#fff" />
+                          <Ionicons name="add" size={14} color={Colors.light.white} />
                         </TouchableOpacity>
                       </View>
                       <Text style={styles.itemTotal}>
@@ -688,7 +688,7 @@ function MobileSaleScreen() {
                     onPress={handleApplyDiscount}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="checkmark" size={18} color="#fff" />
+                    <Ionicons name="checkmark" size={18} color={Colors.light.white} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.discountCancelBtn}
@@ -867,7 +867,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     minWidth: 76,
   },
   scanQRButtonText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: theme.fontSize.xxs,
     fontWeight: '700',
     marginTop: 3,
@@ -1001,7 +1001,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     elevation: 8,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.06,
     shadowRadius: 6,
@@ -1133,7 +1133,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: brand,
   },
   discountTypeBtnTextActive: {
-    color: '#fff',
+    color: Colors.light.white,
   },
   discountInputField: {
     flex: 1,

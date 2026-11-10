@@ -70,12 +70,12 @@ function LooksScreen() {
             )}
             <View style={styles.badgeRow}>
               <View style={styles.badge}>
-                <Ionicons name="layers" size={10} color="#fff" />
+                <Ionicons name="layers" size={10} color={Colors.light.white} />
                 <RNText style={styles.badgeText}>{item.items_count} peças</RNText>
               </View>
               {item.discount_percentage > 0 && (
                 <View style={[styles.badge, styles.badgeDiscount]}>
-                  <Ionicons name="pricetag" size={10} color="#fff" />
+                  <Ionicons name="pricetag" size={10} color={Colors.light.white} />
                   <RNText style={styles.badgeText}>{item.discount_percentage}% off</RNText>
                 </View>
               )}
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.success,
   },
   badgeText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 10,
     fontWeight: '600',
   },

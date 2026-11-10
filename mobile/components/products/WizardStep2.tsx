@@ -560,7 +560,7 @@ export default function WizardStep2({
             <Ionicons
               name={state.isCreating ? 'sync-outline' : state.createdProduct?.id ? 'arrow-forward-outline' : 'checkmark-circle-outline'}
               size={18}
-              color="#fff"
+              color={Colors.light.white}
             />
             <Text style={styles.createButtonText}>
               {state.isCreating
@@ -733,7 +733,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: Colors.light.border,
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   categoryButtonContent: {
     padding: theme.spacing.md,
@@ -849,6 +849,6 @@ const createStyles = (brand: string) => StyleSheet.create({
   createButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
 });

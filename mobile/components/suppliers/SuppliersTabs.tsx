@@ -46,8 +46,8 @@ export default function SuppliersTabs({ active }: { active: SuppliersTab }) {
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
           >
-            <Ionicons name={tab.icon} size={15} color={isActive ? '#fff' : Colors.light.textSecondary} />
-            <Text style={[styles.label, { color: isActive ? '#fff' : Colors.light.textSecondary }]}>{tab.label}</Text>
+            <Ionicons name={tab.icon} size={15} color={isActive ? Colors.light.white : Colors.light.textSecondary} />
+            <Text style={[styles.label, { color: isActive ? Colors.light.white : Colors.light.textSecondary }]}>{tab.label}</Text>
           </TouchableOpacity>
         );
       })}

@@ -30,7 +30,7 @@ const PROVIDER_LABELS: Record<string, { label: string; color: string; bg: string
   getnet:      { label: 'GetNet',       color: '#E4851A', bg: '#FEF0E0' },
   pagseguro:   { label: 'PagSeguro',    color: '#009B02', bg: '#E0F5E0' },
   sumup:       { label: 'SumUp',        color: '#1A1A2E', bg: '#EBEBF5' },
-  manual:      { label: 'Manual',       color: '#6B7280', bg: '#F3F4F6' },
+  manual:      { label: 'Manual',       color: Colors.light.textSecondary, bg: Colors.light.surfaceMuted },
 };
 
 const PROVIDER_ORDER: PaymentProvider[] = [

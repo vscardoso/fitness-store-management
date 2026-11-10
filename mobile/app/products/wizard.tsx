@@ -417,7 +417,7 @@ export default function ProductWizardScreen() {
                 onPress={handleBack}
                 style={styles.backButton}
               >
-                <Ionicons name="arrow-back" size={24} color="#fff" />
+                <Ionicons name="arrow-back" size={24} color={Colors.light.white} />
               </TouchableOpacity>
             )}
 
@@ -561,19 +561,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: theme.fontSize.xl,
     fontWeight: 'bold',
-    color: '#fff',
+    color: Colors.light.white,
   },
   headerPlaceholder: {
     width: 40,
   },
   headerSubtitle: {
     fontSize: theme.fontSize.md,
-    color: '#fff',
+    color: Colors.light.white,
     opacity: 0.9,
     textAlign: 'center',
   },
   content: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
 });

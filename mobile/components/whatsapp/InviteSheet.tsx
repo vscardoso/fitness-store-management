@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * "Convidar para o WhatsApp da loja": a cliente escreve primeiro para o número oficial (abre a janela de 24 h em que a
  * loja responde com texto livre). Monta o link wa.me com um texto pronto, copia, compartilha e mostra o QR para imprimir.
@@ -117,5 +118,5 @@ const styles = StyleSheet.create({
   link: { fontSize: 13, color: '#160F28' },
   qr: { alignItems: 'center', gap: 6, paddingVertical: 8 },
   muted: { fontSize: 12, color: '#5B5670' },
-  error: { fontSize: 13, color: '#B91C1C' },
+  error: { fontSize: 13, color: Colors.light.errorDark },
 });

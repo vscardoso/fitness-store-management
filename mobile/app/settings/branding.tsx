@@ -132,7 +132,7 @@ export default function BrandingScreen() {
             )}
             {!uploadingLogo && (
               <View style={styles.logoEditBadge}>
-                <Ionicons name="camera" size={14} color="#fff" />
+                <Ionicons name="camera" size={14} color={Colors.light.white} />
               </View>
             )}
           </TouchableOpacity>
@@ -193,7 +193,7 @@ export default function BrandingScreen() {
           <View style={[styles.preview, { backgroundColor: branding.primaryColor }]}>
             {logoUri
               ? <LoadedImage source={{ uri: logoUri }} style={styles.previewLogo} resizeMode="contain" />
-              : <Ionicons name="storefront-outline" size={28} color="#fff" />
+              : <Ionicons name="storefront-outline" size={28} color={Colors.light.white} />
             }
             <Text style={styles.previewName}>{name || 'Nome da loja'}</Text>
             <Text style={styles.previewTagline}>{tagline || 'Slogan aqui'}</Text>
@@ -261,9 +261,9 @@ const createStyles = (brand: string) => StyleSheet.create({
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: brand,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#fff',
+    borderWidth: 2, borderColor: Colors.light.white,
   },
-  input: { backgroundColor: '#fff' },
+  input: { backgroundColor: Colors.light.white },
   presets: { gap: theme.spacing.sm },
   preset: {
     flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm,
@@ -279,7 +279,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     alignItems: 'center', gap: theme.spacing.xs,
   },
   previewLogo: { width: 48, height: 48, borderRadius: theme.borderRadius.md },
-  previewName: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: '#fff' },
+  previewName: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: Colors.light.white },
   previewTagline: { fontSize: theme.fontSize.sm, color: 'rgba(255,255,255,0.85)' },
   actions: { gap: theme.spacing.sm },
   saveBtn: { borderRadius: theme.borderRadius.lg },

@@ -259,7 +259,7 @@ const createStyles = (brand: string, brand2: string) => StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     shadowColor: brand,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,

@@ -66,10 +66,10 @@ export default function ProductQRCode({
           value={qrData}
           size={size}
           color={Colors.light.text}
-          backgroundColor="#fff"
+          backgroundColor={Colors.light.white}
           logo={branding.logoUri ? { uri: branding.logoUri } : undefined}
           logoSize={size * 0.18}
-          logoBackgroundColor="#fff"
+          logoBackgroundColor={Colors.light.white}
           logoBorderRadius={4}
           quietZone={8}
         />
@@ -96,7 +96,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   qrWrapper: {
     padding: theme.spacing.md,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: theme.borderRadius.lg,
     ...theme.shadows.md,
   },

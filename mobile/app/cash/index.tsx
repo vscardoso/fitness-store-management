@@ -314,7 +314,7 @@ export default function CashScreen() {
               onPress={() => setMoveReason(r.id)}
               style={[styles.chip, moveReason === r.id && { backgroundColor: brand.primary, borderColor: brand.primary }]}
             >
-              <Text style={[styles.chipText, moveReason === r.id && { color: '#fff' }]}>{r.label}</Text>
+              <Text style={[styles.chipText, moveReason === r.id && { color: Colors.light.white }]}>{r.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -329,7 +329,7 @@ export default function CashScreen() {
                   onPress={() => setMoveAccount(o.id)}
                   style={[styles.chip, moveAccount === o.id && { backgroundColor: brand.primary, borderColor: brand.primary }]}
                 >
-                  <Text style={[styles.chipText, moveAccount === o.id && { color: '#fff' }]}>{o.name}</Text>
+                  <Text style={[styles.chipText, moveAccount === o.id && { color: Colors.light.white }]}>{o.name}</Text>
                 </TouchableOpacity>
               ))}
             </View>

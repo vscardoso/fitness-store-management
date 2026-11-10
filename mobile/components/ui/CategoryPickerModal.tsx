@@ -54,8 +54,8 @@ function getCategoryIcon(category: Category): keyof typeof Ionicons.glyphMap {
 
 // Cores neutras para os ícones de categoria (não branding — categorias são entidades neutras)
 const CATEGORY_ICON_COLORS = [
-  '#6366F1', '#8B5CF6', '#EC4899', '#F59E0B',
-  '#10B981', '#3B82F6', '#EF4444', '#06B6D4',
+  '#6366F1', '#8B5CF6', '#EC4899', Colors.light.warning,
+  Colors.light.success, Colors.light.info, Colors.light.error, '#06B6D4',
 ];
 
 function getCategoryColor(id: number): string {
@@ -356,7 +356,7 @@ export default function CategoryPickerModal({
                 activeOpacity={0.85}
               >
                 {createMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={Colors.light.white} />
                 ) : (
                   <Text style={styles.createSubmitText}>Criar e selecionar</Text>
                 )}
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  createSubmitText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  createSubmitText: { fontSize: 14, fontWeight: '700', color: Colors.light.white },
 
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     overflow: 'hidden',
     elevation: 24,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.18,
     shadowRadius: 16,

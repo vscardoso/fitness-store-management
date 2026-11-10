@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -44,7 +45,7 @@ export function LegalDocument({ title, sections }: LegalDocumentProps) {
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#FFFFFF' },
+  fill: { flex: 1, backgroundColor: Colors.light.white },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

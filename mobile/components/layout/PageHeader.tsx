@@ -131,7 +131,7 @@ export default function PageHeader({
             {/* Botão voltar à esquerda */}
             {showBackButton && !(hideBackOnDesktop && isDesktop) ? (
               <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Voltar">
-                <Ionicons name="arrow-back" size={24} color="#fff" />
+                <Ionicons name="arrow-back" size={24} color={Colors.light.white} />
               </TouchableOpacity>
             ) : leftVisual && !isDesktop ? (
               <View style={styles.leftVisualWrap}>{leftVisual}</View>
@@ -163,7 +163,7 @@ export default function PageHeader({
                     <Ionicons
                       name={action.icon}
                       size={20}
-                      color="#fff"
+                      color={Colors.light.white}
                     />
                   </TouchableOpacity>
                 ))}
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.fontSize.xl,      // 20 (era 24 - reduzir para detalhes cabem melhor)
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
     textAlign: 'center',
     lineHeight: 24,                   // Proporção melhor
     paddingHorizontal: 4,             // Margem interna para não grudar nas bordas

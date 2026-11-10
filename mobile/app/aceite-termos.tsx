@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Aceite dos termos depois do login: aparece para quem ainda não aceitou a versão atual
  * (contas criadas antes dos termos, ou quando a versão muda). Só continua depois do aceite.
@@ -92,7 +93,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 480,
     alignSelf: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.white,
     borderRadius: 24,
     padding: 24,
     gap: 16,

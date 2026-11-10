@@ -189,14 +189,14 @@ export default function TeamScreen() {
                   style={styles.activateButton}
                   onPress={() => handleActivate(item)}
                 >
-                  <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.light.success} />
                 </TouchableOpacity>
               ) : !isCurrentUser ? (
                 <TouchableOpacity
                   style={styles.menuButton}
                   onPress={() => router.push(`/team/${item.id}`)}
                 >
-                  <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+                  <Ionicons name="chevron-forward" size={24} color={Colors.light.textTertiary} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -324,7 +324,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: theme.borderRadius.lg,
     elevation: 2,
     backgroundColor: Colors.light.card,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,

@@ -672,7 +672,7 @@ export default function StockEntriesScreen() {
               ]}>
                 <Text style={[
                   styles.filterBadgeText,
-                  isActive && { color: '#fff' },
+                  isActive && { color: Colors.light.white },
                 ]}>
                   {counts[f]}
                 </Text>
@@ -849,7 +849,7 @@ export default function StockEntriesScreen() {
         {isSelectMode && (
           <View style={[styles.selectModeBanner, { backgroundColor: brandingColors.primary }]}>
             <View style={styles.selectModeBannerContent}>
-              <Ionicons name="link" size={20} color="#fff" />
+              <Ionicons name="link" size={20} color={Colors.light.white} />
               <View style={styles.selectModeBannerText}>
                 <Text style={styles.selectModeBannerTitle}>Vincular Produto</Text>
                 <Text style={styles.selectModeBannerSubtitle}>
@@ -860,7 +860,7 @@ export default function StockEntriesScreen() {
                 onPress={goBack}
                 style={styles.selectModeBannerClose}
               >
-                <Ionicons name="close" size={20} color="#fff" />
+                <Ionicons name="close" size={20} color={Colors.light.white} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   filterBadgeTextActive: {
-    color: '#fff',
+    color: Colors.light.white,
   },
   divider: {
     height: 1,
@@ -1328,7 +1328,7 @@ const styles = StyleSheet.create({
   selectModeBannerTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   selectModeBannerSubtitle: {
     fontSize: 12,

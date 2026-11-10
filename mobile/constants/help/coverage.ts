@@ -20,6 +20,7 @@ export const HELP_EXCLUDED: Record<string, string> = {
   '/products/incomplete': 'redireciona para Produtos',
   '/products/qrcode/[id]': 'redireciona para Etiquetas',
   '/loading-demo': 'desenvolvimento',
+  '/ui-kit': 'desenvolvimento',
   '/test-notification': 'desenvolvimento',
 };
 

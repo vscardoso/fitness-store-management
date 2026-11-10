@@ -201,6 +201,6 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginLeft: 4,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
 });

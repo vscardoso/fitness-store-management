@@ -210,7 +210,7 @@ SaleReceipt.displayName = 'SaleReceipt';
 
 const styles = StyleSheet.create({
   receiptContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     padding: 16,
   },
   detailsCard: {

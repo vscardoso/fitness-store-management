@@ -148,7 +148,7 @@ export default function AddTeamMemberScreen() {
                 onPress={() => router.back()}
                 style={styles.backButton}
               >
-                <Ionicons name="arrow-back" size={24} color="#fff" />
+                <Ionicons name="arrow-back" size={24} color={Colors.light.white} />
               </TouchableOpacity>
 
               <Text style={styles.headerTitle}>
@@ -254,7 +254,7 @@ export default function AddTeamMemberScreen() {
           />
 
           <View style={styles.roleDescription}>
-            <Ionicons name="information-circle" size={18} color="#6B7280" />
+            <Ionicons name="information-circle" size={18} color={Colors.light.textSecondary} />
             <Text style={styles.roleDescriptionText}>
               {formData.role === UserRole.ADMIN && 'Acesso total: gerenciar equipe, produtos, vendas e configurações.'}
               {formData.role === UserRole.MANAGER && 'Pode gerenciar produtos, vendas e ver relatórios.'}
@@ -399,7 +399,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: 'bold' as const,
     textAlign: 'center',
     flex: 1,
@@ -415,14 +415,14 @@ const createStyles = (brand: string) => StyleSheet.create({
     alignSelf: 'center',
   },
   headerSubtitle: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: theme.fontSize.sm,
     opacity: 0.9,
     textAlign: 'center',
   },
   content: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   scrollView: {
     flex: 1,
@@ -438,7 +438,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     backgroundColor: Colors.light.background,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -474,7 +474,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   roleDescription: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.surfaceMuted,
     padding: 12,
     borderRadius: 12,
     gap: 8,
@@ -483,12 +483,12 @@ const createStyles = (brand: string) => StyleSheet.create({
   roleDescriptionText: {
     flex: 1,
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     lineHeight: 18,
   },
   passwordHint: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginTop: -4,
     marginBottom: 0,
   },

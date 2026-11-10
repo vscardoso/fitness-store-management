@@ -239,15 +239,15 @@ export default function AddCategoryScreen() {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={createMutation.isPending ? ['#9CA3AF', '#9CA3AF'] : brandingColors.gradient}
+              colors={createMutation.isPending ? [Colors.light.textTertiary, Colors.light.textTertiary] : brandingColors.gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.saveBtnGradient}
             >
               {createMutation.isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={Colors.light.white} />
               ) : (
-                <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                <Ionicons name="checkmark-circle-outline" size={20} color={Colors.light.white} />
               )}
               <Text style={styles.saveBtnText}>
                 {createMutation.isPending ? 'Criando...' : 'Criar Categoria'}
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   saveBtnText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     fontSize: theme.fontSize.base,
   },

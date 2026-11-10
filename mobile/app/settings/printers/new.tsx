@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: theme.fontSize.xs,
-    color: '#3B82F6',
+    color: Colors.light.info,
     lineHeight: 18,
   },
   switchRow: {
@@ -404,5 +404,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: theme.borderRadius.xxl,
   },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: theme.fontSize.base },
+  saveBtnText: { color: Colors.light.white, fontWeight: '700', fontSize: theme.fontSize.base },
 });

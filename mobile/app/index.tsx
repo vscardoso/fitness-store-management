@@ -57,14 +57,14 @@ export default function Index() {
 
   if (isLoading || checking) {
     return (
-      <ScreenLoader style={{ backgroundColor: '#fff' }} />
+      <ScreenLoader style={{ backgroundColor: Colors.light.white }} />
     );
   }
 
   // Só espera o que está guardado no aparelho; o servidor atualiza as cores por trás (esperar a rede deixava a abertura lenta)
   if (user && brandingHydrating) {
     return (
-      <ScreenLoader style={{ backgroundColor: '#fff' }} />
+      <ScreenLoader style={{ backgroundColor: Colors.light.white }} />
     );
   }
 

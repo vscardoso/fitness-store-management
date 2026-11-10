@@ -280,7 +280,7 @@ function PixCheckoutScreen() {
           <View style={styles.stepsCard}>
             <View style={styles.stepRow}>
               <View style={[styles.stepDot, styles.stepDotDone]}>
-                <Ionicons name="checkmark" size={10} color="#fff" />
+                <Ionicons name="checkmark" size={10} color={Colors.light.white} />
               </View>
               <Text style={[styles.stepText, styles.stepTextDone]}>QR Code gerado</Text>
             </View>
@@ -332,7 +332,7 @@ function PixCheckoutScreen() {
 
               {isExpired ? (
                 <View style={styles.expiredBadge}>
-                  <Ionicons name="time-outline" size={14} color="#fff" />
+                  <Ionicons name="time-outline" size={14} color={Colors.light.white} />
                   <Text style={styles.expiredText}>QR Code expirado — gere novamente</Text>
                 </View>
               ) : isGeneric ? (
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
   },
   expiredText: {
     fontSize: 13,
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '500',
   },
   copySection: {

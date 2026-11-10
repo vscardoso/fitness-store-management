@@ -146,7 +146,7 @@ export default function PeriodFilter({
               </View>
               {isSelected && (
                 <View style={[styles.checkIcon, { backgroundColor: brandingColors.primary }]}>
-                  <Ionicons name="checkmark" size={18} color="#fff" />
+                  <Ionicons name="checkmark" size={18} color={Colors.light.white} />
                 </View>
               )}
             </TouchableOpacity>

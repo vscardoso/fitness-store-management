@@ -98,7 +98,7 @@ export default function FinanceHomeScreen() {
             {!!p && <FiadoProjectionCard projection={p} />}
 
             <Text style={styles.question}>2. O que vai entrar e sair?</Text>
-            <Shortcut icon="book-outline" color="#B45309" title="Fiado: quem me deve" onPress={() => go('/finance/receivables')}
+            <Shortcut icon="book-outline" color={Colors.light.warningDark} title="Fiado: quem me deve" onPress={() => go('/finance/receivables')}
               value={p ? formatCurrency(p.fiado_open) : undefined}
               note={p && p.fiado_overdue > 0 ? `${formatCurrency(p.fiado_overdue)} já venceu` : 'Receber e lançar fiado antigo'}
               warn={!!p && p.fiado_overdue > 0} />
@@ -108,7 +108,7 @@ export default function FinanceHomeScreen() {
               warn={!!payables && payables.overdue_count > 0} />
             <Shortcut icon="swap-vertical-outline" color="#0E7490" title="Retiradas e empréstimos"
               note="Retirada de sócia, empréstimo, fatura do cartão (não é despesa)" onPress={() => go('/finance/entries')} />
-            <Shortcut icon="warning-outline" color="#B91C1C" title="Prejuízos"
+            <Shortcut icon="warning-outline" color={Colors.light.errorDark} title="Prejuízos"
               note="Perdas de estoque lançadas à parte" onPress={() => go('/(tabs)/stock-losses')} />
           </>
         )}
@@ -125,7 +125,7 @@ export default function FinanceHomeScreen() {
         {!data?.started && (
           <>
             <Text style={styles.question}>Fiado e relatórios</Text>
-            <Shortcut icon="book-outline" color="#B45309" title="Fiado: quem me deve" note="Receber e lançar fiado antigo" onPress={() => go('/finance/receivables')} />
+            <Shortcut icon="book-outline" color={Colors.light.warningDark} title="Fiado: quem me deve" note="Receber e lançar fiado antigo" onPress={() => go('/finance/receivables')} />
             <Shortcut icon="reader-outline" color="#7C3AED" title="Relatório mensal" note="Vendas, lucro e estoque do mês, com PDF" onPress={() => go('/reports/monthly')} />
           </>
         )}

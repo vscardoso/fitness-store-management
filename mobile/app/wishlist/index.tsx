@@ -75,7 +75,7 @@ function WishlistDemandScreen() {
 
         {/* Badge de espera */}
         <View style={styles.waitingBadge}>
-          <Ionicons name="people" size={12} color="#fff" />
+          <Ionicons name="people" size={12} color={Colors.light.white} />
           <RNText style={styles.waitingText}>{item.waiting_count}</RNText>
         </View>
       </Card.Content>
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   waitingText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     fontSize: 14,
   },

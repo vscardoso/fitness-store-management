@@ -884,7 +884,7 @@ export default function StockCheckScreen() {
         {/* Conferência em andamento */}
         {!!draft && (
           <View style={styles.draftBanner}>
-            <Ionicons name="people-outline" size={16} color="#92400E" />
+            <Ionicons name="people-outline" size={16} color={Colors.light.warningDarker} />
             <Text style={styles.draftText} numberOfLines={3}>
               Conferência compartilhada{draft.name ? ': ' + draft.name : ''}
               {draft.createdBy ? ' · começada por ' + draft.createdBy : ''}
@@ -904,7 +904,7 @@ export default function StockCheckScreen() {
         )}
         <View style={styles.actions}>
           {/* sem botão de salvar: cada bipada já vai para o servidor na hora (pedido do Victor, 05/11/2026) */}
-          <View style={[styles.saveMain, { backgroundColor: syncError ? '#FEE2E2' : '#ECFDF5' }]} accessibilityRole="text">
+          <View style={[styles.saveMain, { backgroundColor: syncError ? Colors.light.errorLight : Colors.light.successSoft }]} accessibilityRole="text">
             <Ionicons name={syncError ? 'cloud-offline-outline' : 'cloud-done-outline'} size={17} color={syncError ? '#991B1B' : VALUE_COLORS.positive} />
             <Text style={[styles.saveMainText, { color: syncError ? '#991B1B' : VALUE_COLORS.positive }]} numberOfLines={1}>
               {syncError ? 'Sem conexão: enviando depois'
@@ -1077,7 +1077,7 @@ export default function StockCheckScreen() {
           accessibilityLabel="Voltar ao topo"
           activeOpacity={0.85}
         >
-          <Ionicons name="arrow-up" size={22} color="#fff" />
+          <Ionicons name="arrow-up" size={22} color={Colors.light.white} />
         </TouchableOpacity>
       )}
 
@@ -1356,10 +1356,10 @@ const styles = StyleSheet.create({
   toTop: {
     position: 'absolute', right: 16, bottom: 24, width: 48, height: 48, borderRadius: 24,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6,
+    shadowColor: Colors.light.black, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6,
   },
   saveMain: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 14 },
-  saveMainText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  saveMainText: { color: Colors.light.white, fontSize: 15, fontWeight: '800' },
   finishBtn: { height: 46, paddingHorizontal: 18, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   finishText: { fontSize: 15, fontWeight: '800' },
   moreBtn: { width: 46, height: 46, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card, alignItems: 'center', justifyContent: 'center' },
@@ -1378,12 +1378,12 @@ const styles = StyleSheet.create({
   meta: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 1 },
   undoBtn: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
   rowHighlight: { backgroundColor: '#FEF9C3' },
-  draftBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: '#FEF3C7', marginBottom: 8 },
-  draftText: { flex: 1, fontSize: 12, lineHeight: 16, fontWeight: '600', color: '#92400E' },
-  conflictBanner: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#FEE2E2', marginTop: 8 },
+  draftBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: Colors.light.warningLight, marginBottom: 8 },
+  draftText: { flex: 1, fontSize: 12, lineHeight: 16, fontWeight: '600', color: Colors.light.warningDarker },
+  conflictBanner: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: Colors.light.errorLight, marginTop: 8 },
   conflictText: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#991B1B' },
   conflictBtn: { alignSelf: 'flex-start', backgroundColor: '#991B1B', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  conflictBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  conflictBtnText: { color: Colors.light.white, fontWeight: '800', fontSize: 13 },
   savedBanner: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Produtos no modo notebook (app web com 1024 px ou mais): tabela com busca, filtros, ordenação e páginas.
  * O celular continua com a lista de cartões (app/(tabs)/products.tsx).
@@ -108,8 +109,8 @@ export default function DesktopProductsTable() {
         const none = p.total_stock <= 0;
         const catalogOnly = none && !p.has_sales;
         const low = isLow(p);
-        const fg = catalogOnly ? '#6B7280' : none ? '#B4235C' : low ? '#B45309' : '#047857';
-        const bg = catalogOnly ? '#F3F4F6' : none ? '#FDECF3' : low ? '#FEF3C7' : '#ECFDF5';
+        const fg = catalogOnly ? Colors.light.textSecondary : none ? '#B4235C' : low ? Colors.light.warningDark : Colors.light.successDark;
+        const bg = catalogOnly ? Colors.light.surfaceMuted : none ? '#FDECF3' : low ? Colors.light.warningLight : Colors.light.successSoft;
         return (
           <View style={[styles.badge, { backgroundColor: bg }]}>
             <Text style={[styles.badgeText, { color: fg }]}>{catalogOnly ? 'Cadastro guardado' : none ? 'Sem estoque' : `${p.total_stock} un.`}</Text>
@@ -194,7 +195,7 @@ export default function DesktopProductsTable() {
             ) : null}
           </View>
           <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={() => router.push('/products/wizard')}>
-            <Ionicons name="add" size={18} color="#FFFFFF" />
+            <Ionicons name="add" size={18} color={Colors.light.white} />
             <Text style={styles.primaryBtnText}>Novo produto</Text>
           </TouchableOpacity>
         </View>
@@ -239,15 +240,15 @@ const styles = StyleSheet.create({
   body: { flexGrow: 1, padding: 20, gap: 12, width: '100%', maxWidth: 1200, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: '#FFFFFF' },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: Colors.light.white },
   searchInput: { flex: 1, minWidth: 0, fontSize: 14, color: INK, outlineStyle: 'none' } as any,
   primaryBtn: { height: 44, paddingHorizontal: 16, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  primaryBtnText: { color: Colors.light.white, fontSize: 14, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: '#FFFFFF', justifyContent: 'center' },
+  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: Colors.light.white, justifyContent: 'center' },
   chipOn: { backgroundColor: INK, borderColor: INK },
   chipText: { fontSize: 13, fontWeight: '600', color: INK },
-  chipTextOn: { color: '#FFFFFF' },
+  chipTextOn: { color: Colors.light.white },
   chipGap: { width: 12 },
   code: { fontSize: 13, color: MUTED, fontWeight: '600' },
   name: { fontSize: 14, fontWeight: '600', color: INK },

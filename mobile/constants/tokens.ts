@@ -48,6 +48,7 @@ export const HIT_SLOP = {
  *   ghost          → sem borda, fundo muito sutil ao pressionar
  *   danger         → vermelho sólido
  *   danger-outline → borda vermelha, fundo transparente
+ *   warning        → laranja claro com borda (ação que pede atenção, sem ser destrutiva)
  *   text           → sem fundo/borda, apenas texto colorido
  *
  * USO:
@@ -71,7 +72,7 @@ export const BUTTON = {
 } as const;
 
 export type ButtonSize    = keyof typeof BUTTON.size;
-export type ButtonVariant = 'primary' | 'secondary' | 'outlined' | 'ghost' | 'danger' | 'danger-outline' | 'text';
+export type ButtonVariant = 'primary' | 'secondary' | 'outlined' | 'ghost' | 'danger' | 'danger-outline' | 'warning' | 'text';
 
 
 /**

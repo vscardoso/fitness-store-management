@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -34,7 +35,7 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     elevation: 12,
   },
-  text: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
-  button: { backgroundColor: '#fff', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
+  text: { flex: 1, color: Colors.light.white, fontSize: 13, fontWeight: '600' },
+  button: { backgroundColor: Colors.light.white, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   buttonText: { fontSize: 13, fontWeight: '700' },
 });

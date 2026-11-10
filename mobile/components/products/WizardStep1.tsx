@@ -98,7 +98,7 @@ export default function WizardStep1({
         end={{ x: 1, y: 0 }}
         style={styles.gradientActionButtonContent}
       >
-        {options?.icon ? <Ionicons name={options.icon} size={18} color="#fff" /> : null}
+        {options?.icon ? <Ionicons name={options.icon} size={18} color={Colors.light.white} /> : null}
         <Text style={styles.gradientActionButtonText}>{label}</Text>
       </LinearGradient>
     </TouchableOpacity>
@@ -196,13 +196,13 @@ export default function WizardStep1({
           <LinearGradient
             colors={state.identifyMethod === 'scanner'
               ? [brandingColors.primary, brandingColors.secondary]
-              : ['#F3F4F6', '#F3F4F6']}
+              : [Colors.light.surfaceMuted, Colors.light.surfaceMuted]}
             style={styles.methodButtonGradient}
           >
             <Ionicons
               name="scan"
               size={32}
-              color={state.identifyMethod === 'scanner' ? '#fff' : brandingColors.primary}
+              color={state.identifyMethod === 'scanner' ? Colors.light.white : brandingColors.primary}
             />
             <Text style={[
               styles.methodButtonText,
@@ -340,9 +340,9 @@ export default function WizardStep1({
             />
           )}
           <View style={styles.analyzingOverlay}>
-            <ActivityIndicator size={56} color="#fff" />
+            <ActivityIndicator size={56} color={Colors.light.white} />
             <Text style={styles.analyzingText}>Analisando...</Text>
-            <ProgressBar indeterminate color="#fff" style={styles.progressBar} />
+            <ProgressBar indeterminate color={Colors.light.white} style={styles.progressBar} />
           </View>
         </View>
       );
@@ -368,14 +368,14 @@ export default function WizardStep1({
                   <Ionicons
                     name={isSavingToGallery ? "hourglass" : "download-outline"}
                     size={20}
-                    color="#fff"
+                    color={Colors.light.white}
                   />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.imageActionButton}
                   onPress={wizard.retakePhoto}
                 >
-                  <Ionicons name="camera-reverse" size={20} color="#fff" />
+                  <Ionicons name="camera-reverse" size={20} color={Colors.light.white} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -600,7 +600,7 @@ export default function WizardStep1({
 const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   scrollView: {
     flex: 1,
@@ -644,7 +644,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.surfaceMuted,
     borderRadius: 14,
   },
   methodButtonContentActive: {
@@ -656,7 +656,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.text,
   },
   methodButtonTextActive: {
-    color: '#fff',
+    color: Colors.light.white,
   },
   methodButtonTextManual: {
     color: brand,
@@ -748,7 +748,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   analyzingText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.white,
   },
   progressBar: {
     width: 200,
@@ -860,7 +860,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   duplicateItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     padding: theme.spacing.sm,
     borderRadius: 12,
     marginBottom: 8,
@@ -958,7 +958,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   inlineConfirmBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   inlineCancelBtn: {
     paddingHorizontal: 14,
@@ -1010,7 +1010,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   gradientActionButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
 
   // Error
@@ -1042,13 +1042,13 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   input: {
     marginBottom: theme.spacing.md,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   categoryButton: {
     borderWidth: 1.5,
     borderColor: Colors.light.border,
     borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     marginBottom: theme.spacing.md,
   },
   categoryButtonContent: {

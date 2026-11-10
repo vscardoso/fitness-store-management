@@ -103,7 +103,7 @@ export default function ScanProductScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.captureButtonGradient}
           >
-            <Ionicons name="camera" size={32} color="#fff" />
+            <Ionicons name="camera" size={32} color={Colors.light.white} />
             <Text style={styles.captureButtonText}>Tirar Foto</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -149,7 +149,7 @@ export default function ScanProductScreen() {
             resizeMode="cover"
           />
           <View style={styles.imageOverlay}>
-            <ActivityIndicator size={56} color="#fff" />
+            <ActivityIndicator size={56} color={Colors.light.white} />
           </View>
         </View>
       )}
@@ -212,7 +212,7 @@ export default function ScanProductScreen() {
               resizeMode="cover"
             />
             <TouchableOpacity style={styles.retakeButton} onPress={retake}>
-              <Ionicons name="camera-reverse" size={20} color="#fff" />
+              <Ionicons name="camera-reverse" size={20} color={Colors.light.white} />
             </TouchableOpacity>
           </View>
         )}
@@ -423,7 +423,7 @@ export default function ScanProductScreen() {
                     onPress={() => addToDuplicate(dup.product_id)}
                     activeOpacity={0.75}
                   >
-                    <Ionicons name="add-circle-outline" size={14} color="#fff" />
+                    <Ionicons name="add-circle-outline" size={14} color={Colors.light.white} />
                     <Text style={styles.dupActionBtnPrimaryText}>Repor estoque</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -515,7 +515,7 @@ export default function ScanProductScreen() {
                 onPress={goBack}
                 style={styles.backButton}
               >
-                <Ionicons name="arrow-back" size={24} color="#fff" />
+                <Ionicons name="arrow-back" size={24} color={Colors.light.white} />
               </TouchableOpacity>
 
               <Text style={styles.headerTitle}>Scanner IA</Text>
@@ -620,7 +620,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     textAlign: 'center',
     fontSize: theme.fontSize.xl,
     fontWeight: 'bold',
-    color: '#fff',
+    color: Colors.light.white,
   },
   headerPlaceholder: {
     width: 40,
@@ -631,14 +631,14 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: theme.fontSize.md,
-    color: '#fff',
+    color: Colors.light.white,
     opacity: 0.95,
     textAlign: 'center',
   },
 
   content: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
 
   // Initial State
@@ -690,7 +690,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   captureButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.white,
   },
   captureButtonOutline: {
     borderWidth: 2,
@@ -1031,7 +1031,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   dupActionBtnPrimaryText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.white,
   },
   dupActionBtnSecondary: {
     flexDirection: 'row',

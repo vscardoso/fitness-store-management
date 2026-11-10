@@ -100,25 +100,25 @@ export default function ErrorSnackbar({
         return {
           backgroundColor: '#d32f2f',
           icon: 'alert-circle' as const,
-          iconColor: '#fff',
+          iconColor: Colors.light.white,
         };
       case 'warning':
         return {
           backgroundColor: '#f57c00',
           icon: 'warning' as const,
-          iconColor: '#fff',
+          iconColor: Colors.light.white,
         };
       case 'info':
         return {
           backgroundColor: brandingColors.primary,
           icon: 'information-circle' as const,
-          iconColor: '#fff',
+          iconColor: Colors.light.white,
         };
       case 'success':
         return {
           backgroundColor: '#388e3c',
           icon: 'checkmark-circle' as const,
-          iconColor: '#fff',
+          iconColor: Colors.light.white,
         };
     }
   };
@@ -158,7 +158,7 @@ export default function ErrorSnackbar({
         <IconButton
           icon="close"
           size={20}
-          iconColor="#fff"
+          iconColor={Colors.light.white}
           onPress={handleDismiss}
           style={styles.closeButton}
         />
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingBottom: 24, // Safe area
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   message: {
-    color: '#fff',
+    color: Colors.light.white,
     flex: 1,
     fontWeight: '500',
   },
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   actionText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '600',
   },
   closeButton: {

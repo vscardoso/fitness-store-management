@@ -123,7 +123,7 @@ export default function ShipmentTimeline({ shipment }: ShipmentTimelineProps) {
               ]}
             >
               {event.isCompleted && (
-                <Ionicons name={event.icon as any} size={12} color="#fff" />
+                <Ionicons name={event.icon as any} size={12} color={Colors.light.white} />
               )}
             </View>
             {index < events.length - 1 && (

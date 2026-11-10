@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Prévia do adesivo do verso da tag, em escala real (mm), com o mesmo desenho do PDF do servidor
  * (`label_pdf_service.py`): nome | cor e tamanho | preço | QR e código. Só o que a cliente pode ver.
@@ -79,7 +80,7 @@ export default function StickerPreview({
 
       <View style={[styles.zone, styles.rule, { height: zone[3], marginHorizontal: pad, flexDirection: 'row', alignItems: 'center' }]}>
         <View style={{ width: qrSize, height: qrSize }}>
-          {data.qr ? <QRCode value={data.qr} size={qrSize} color={INK} backgroundColor="#fff" ecl="M" quietZone={0} /> : null}
+          {data.qr ? <QRCode value={data.qr} size={qrSize} color={INK} backgroundColor={Colors.light.white} ecl="M" quietZone={0} /> : null}
         </View>
         <View style={{ flex: 1, alignItems: 'flex-end' }}>
           <Text style={[styles.bold, { fontSize: fs(5.4) }]}>CÓDIGO</Text>
@@ -94,7 +95,7 @@ export default function StickerPreview({
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderWidth: 1,
     borderColor: '#d4d4d8',
     borderRadius: 3,

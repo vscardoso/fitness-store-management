@@ -180,7 +180,7 @@ export default function ProdutoVitrine({ store, id }: { store?: string | null; i
         <View style={styles.bar}>
           <View style={styles.page}>
             <TouchableOpacity style={styles.cta} onPress={pedir} activeOpacity={0.85} accessibilityRole="button">
-              <Ionicons name="logo-whatsapp" size={20} color="#fff" />
+              <Ionicons name="logo-whatsapp" size={20} color={Colors.light.white} />
               <Text style={styles.ctaText}>{data.in_stock ? 'Pedir pelo WhatsApp' : 'Avise-me pelo WhatsApp'}</Text>
             </TouchableOpacity>
           </View>
@@ -229,5 +229,5 @@ const makeStyles = (accent: string) =>
       borderTopWidth: 1, borderTopColor: Colors.light.border },
     cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, paddingVertical: 15,
       backgroundColor: Colors.light.success },
-    ctaText: { color: '#fff', fontSize: theme.fontSize.base, fontWeight: '800' },
+    ctaText: { color: Colors.light.white, fontSize: theme.fontSize.base, fontWeight: '800' },
   });

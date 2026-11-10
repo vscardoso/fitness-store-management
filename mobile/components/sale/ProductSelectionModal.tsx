@@ -191,7 +191,7 @@ export default function ProductSelectionModal({
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIconWrap}>
-                <Ionicons name="search-outline" size={20} color="#fff" />
+                <Ionicons name="search-outline" size={20} color={Colors.light.white} />
               </View>
               <View>
                 <Text style={styles.headerTitle}>Buscar Produto</Text>
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: '88%',
     minHeight: '50%',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   headerSub: {
     fontSize: theme.fontSize.xs,

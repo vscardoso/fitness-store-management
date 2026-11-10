@@ -105,7 +105,7 @@ export default function ConsultScreen() {
 
               <View style={styles.priceRow}>
                 <Money value={selected.price} size={34} color={Colors.light.text} />
-                <View style={[styles.stockPill, { backgroundColor: selected.current_stock > 0 ? '#DCFCE7' : '#FEE2E2' }]}>
+                <View style={[styles.stockPill, { backgroundColor: selected.current_stock > 0 ? '#DCFCE7' : Colors.light.errorLight }]}>
                   <Text style={[styles.stockText, { color: selected.current_stock > 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
                     {selected.current_stock > 0 ? formatInt(selected.current_stock) + ' em estoque' : 'Sem estoque'}
                   </Text>

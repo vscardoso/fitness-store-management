@@ -40,10 +40,10 @@ import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
-  pending:            { label: 'Pendente',     color: '#F59E0B', icon: 'time-outline' },
+  pending:            { label: 'Pendente',     color: Colors.light.warning, icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, solid: true, icon: 'checkmark-circle' },
   cancelled:          { label: 'Cancelada',    color: VALUE_COLORS.negative, icon: 'close-circle' },
-  partially_refunded: { label: 'Dev. Parcial', color: '#F59E0B', icon: 'refresh-circle' },
+  partially_refunded: { label: 'Dev. Parcial', color: Colors.light.warning, icon: 'refresh-circle' },
   refunded:           { label: 'Devolvida',    color: '#7B1FA2', solid: true, icon: 'arrow-undo-circle' },
 };
 
@@ -284,9 +284,9 @@ export default function SaleDetailsScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.heroCard}
         >
-          <View style={[styles.statusBadge, styles.heroStatus, { backgroundColor: statusStyle.solid ? statusStyle.color : '#FFFFFF' }]}>
-            <Ionicons name={statusStyle.icon} size={13} color={statusStyle.solid ? '#fff' : statusStyle.color} />
-            <Text style={[styles.statusText, { color: statusStyle.solid ? '#fff' : statusStyle.color }]}>{statusStyle.label}</Text>
+          <View style={[styles.statusBadge, styles.heroStatus, { backgroundColor: statusStyle.solid ? statusStyle.color : Colors.light.white }]}>
+            <Ionicons name={statusStyle.icon} size={13} color={statusStyle.solid ? Colors.light.white : statusStyle.color} />
+            <Text style={[styles.statusText, { color: statusStyle.solid ? Colors.light.white : statusStyle.color }]}>{statusStyle.label}</Text>
           </View>
           <Text style={styles.heroLabel}>TOTAL DA VENDA</Text>
           <Money style={styles.heroAmount} value={Number(sale.total_amount)} />
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.xxl, padding: theme.spacing.lg, marginBottom: theme.spacing.sm,
     alignItems: 'center',
     elevation: 6,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.65)',
     letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4,
   },
-  heroAmount: { fontSize: 40, fontWeight: '800', color: '#fff', letterSpacing: -1 },
+  heroAmount: { fontSize: 40, fontWeight: '800', color: Colors.light.white, letterSpacing: -1 },
   heroItems: { fontSize: theme.fontSize.xs, color: 'rgba(255,255,255,0.65)', marginTop: 4 },
 
   // ── Rentabilidade ─────────────────────────────────────────

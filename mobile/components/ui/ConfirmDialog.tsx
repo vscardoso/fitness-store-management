@@ -155,7 +155,7 @@ export default function ConfirmDialog({
                 cancelText && cancelText.trim() !== '' ? styles.confirmButton : styles.confirmButtonFull,
                 { backgroundColor: config.confirmButtonColor }
               ]}
-              textColor="#fff"
+              textColor={Colors.light.white}
               loading={loading && !isWeb}
               disabled={loading}
             >
@@ -197,12 +197,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dialog: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: theme.borderRadius.xxl,
     paddingVertical: theme.spacing.xl,
     paddingHorizontal: theme.spacing.lg,
     position: 'relative',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   detailsSurface: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,

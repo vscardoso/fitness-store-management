@@ -73,7 +73,7 @@ export default function TabsLayout() {
 
   if (isAuthenticated && (brandingHydrating || (!brandingSynced && !initialSyncAttempted))) {
     return (
-      <ScreenLoader style={{ backgroundColor: '#fff' }} />
+      <ScreenLoader style={{ backgroundColor: Colors.light.white }} />
     );
   }
 
@@ -95,7 +95,7 @@ export default function TabsLayout() {
           borderTopWidth: 1,
           borderTopColor: Colors.light.border,
           elevation: 8,
-          shadowColor: '#000',
+          shadowColor: Colors.light.black,
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
           shadowRadius: 8,
@@ -148,7 +148,7 @@ export default function TabsLayout() {
               <Ionicons
                 name={focused ? 'cart' : 'cart-outline'}
                 size={size + 6}
-                color={focused ? '#fff' : color}
+                color={focused ? Colors.light.white : color}
               />
             </View>
           ),

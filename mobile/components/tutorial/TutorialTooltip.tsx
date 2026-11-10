@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * TutorialTooltip
  * Balão de dica animado com seta apontando para o elemento alvo
@@ -196,7 +197,7 @@ export function TutorialTooltip({
             </Text>
           </View>
           <TouchableOpacity onPress={onSkip} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="close" size={22} color="#9CA3AF" />
+            <Ionicons name="close" size={22} color={Colors.light.textTertiary} />
           </TouchableOpacity>
         </View>
 
@@ -240,7 +241,7 @@ export function TutorialTooltip({
             <Ionicons
               name={isLastStep ? 'checkmark' : 'arrow-forward'}
               size={18}
-              color="#fff"
+              color={Colors.light.white}
             />
           </TouchableOpacity>
         </View>
@@ -258,7 +259,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     backgroundColor: TUTORIAL_COLORS.tooltip,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
@@ -323,7 +324,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.light.border,
   },
   dotActive: {
     backgroundColor: brand,
@@ -347,7 +348,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 6,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -368,7 +369,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingVertical: 10,
   },
   skipButtonText: {
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     fontWeight: '500',
     fontSize: 14,
   },

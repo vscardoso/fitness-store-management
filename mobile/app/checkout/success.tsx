@@ -295,12 +295,12 @@ export default function CheckoutSuccessScreen() {
             ]}
           >
             <View style={styles.saleNumberPill}>
-              <Ionicons name="receipt-outline" size={16} color="#fff" />
+              <Ionicons name="receipt-outline" size={16} color={Colors.light.white} />
               <Text style={styles.saleNumberPillText}>Venda registrada com sucesso</Text>
             </View>
             {change > 0 && (
               <View style={styles.changeBadge}>
-                <Ionicons name="cash-outline" size={18} color="#fff" />
+                <Ionicons name="cash-outline" size={18} color={Colors.light.white} />
                 <Text style={styles.changeLabel}>Troco: </Text>
                 <Text style={styles.changeAmount}>{formatCurrency(change)}</Text>
               </View>
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.22)',
   },
   saleNumberPillText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   changeAmount: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 18,
     fontWeight: '800',
   },

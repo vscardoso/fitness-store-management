@@ -105,7 +105,7 @@ const makeStyles = (primary: string) => StyleSheet.create({
   inputLabel: { fontSize: theme.fontSize.xs, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 4 },
   input: { borderWidth: 1, borderColor: Colors.light.border, borderRadius: theme.borderRadius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: Colors.light.text, backgroundColor: Colors.light.background },
   times: { fontSize: theme.fontSize.lg, fontWeight: '800', color: Colors.light.textSecondary, paddingBottom: 10 },
-  error: { color: '#b91c1c', fontSize: theme.fontSize.sm },
+  error: { color: Colors.light.errorDark, fontSize: theme.fontSize.sm },
   useBtn: { borderRadius: theme.borderRadius.xl, borderWidth: 1.5, borderColor: primary, paddingVertical: 13, alignItems: 'center' },
   useText: { color: primary, fontWeight: '800', fontSize: theme.fontSize.sm },
 });

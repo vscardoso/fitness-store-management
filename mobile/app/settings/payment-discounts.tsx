@@ -516,10 +516,10 @@ export default function PaymentDiscountsScreen() {
                     style={styles.saveButton}
                   >
                     {(createMutation.isPending || updateMutation.isPending) ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={Colors.light.white} />
                     ) : (
                       <>
-                        <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                        <Ionicons name="checkmark-circle-outline" size={20} color={Colors.light.white} />
                         <Text style={styles.saveButtonText}>{editingId ? 'Atualizar' : 'Criar'}</Text>
                       </>
                     )}
@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border,
     padding: theme.spacing.sm,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 2,
@@ -677,7 +677,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border,
     padding: theme.spacing.sm + 4,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: theme.borderRadius.xxl,
     maxHeight: '92%',
     elevation: 24,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   saveButtonText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: theme.fontSize.base,
     fontWeight: '700',
   },

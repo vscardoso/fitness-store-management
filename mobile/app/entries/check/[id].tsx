@@ -173,11 +173,11 @@ export default function EntryReceiveCheckScreen() {
               </View>
               <View style={styles.card}>
                 <Text style={styles.cardLabel}>Vieram a mais</Text>
-                <Text style={[styles.cardValue, { color: totals.over > 0 ? '#B45309' : Colors.light.text }]}>{formatInt(totals.over)}</Text>
+                <Text style={[styles.cardValue, { color: totals.over > 0 ? Colors.light.warningDark : Colors.light.text }]}>{formatInt(totals.over)}</Text>
               </View>
               <View style={styles.card}>
                 <Text style={styles.cardLabel}>Fora da entrada</Text>
-                <Text style={[styles.cardValue, { color: extraTotal > 0 ? '#B45309' : Colors.light.text }]}>{formatInt(extraTotal)}</Text>
+                <Text style={[styles.cardValue, { color: extraTotal > 0 ? Colors.light.warningDark : Colors.light.text }]}>{formatInt(extraTotal)}</Text>
               </View>
             </View>
 
@@ -235,7 +235,7 @@ export default function EntryReceiveCheckScreen() {
                       {diff === 0 ? (
                         <Ionicons name="checkmark-circle" size={22} color={VALUE_COLORS.positive} accessibilityLabel="Completo" />
                       ) : (
-                        <Text style={[styles.diffText, { color: diff < 0 ? VALUE_COLORS.negative : '#B45309' }]}>
+                        <Text style={[styles.diffText, { color: diff < 0 ? VALUE_COLORS.negative : Colors.light.warningDark }]}>
                           {diff < 0 ? 'falta ' + formatInt(-diff) : 'a mais ' + formatInt(diff)}
                         </Text>
                       )}
@@ -277,9 +277,9 @@ const styles = StyleSheet.create({
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: Colors.light.card },
   chipText: { fontSize: 13, fontWeight: '600', color: Colors.light.textSecondary },
-  extraBox: { backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12, gap: 4 },
-  extraTitle: { fontSize: 13, fontWeight: '800', color: '#92400E' },
-  extraRow: { fontSize: 13, color: '#92400E' },
+  extraBox: { backgroundColor: Colors.light.warningLight, borderRadius: 12, padding: 12, gap: 4 },
+  extraTitle: { fontSize: 13, fontWeight: '800', color: Colors.light.warningDarker },
+  extraRow: { fontSize: 13, color: Colors.light.warningDarker },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.light.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: Colors.light.border },
   name: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   sub: { fontSize: 12, color: Colors.light.textSecondary },

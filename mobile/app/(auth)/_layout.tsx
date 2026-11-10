@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Layout para telas de autenticação
  * Redireciona para tabs se já autenticado
@@ -25,7 +26,7 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#fff' },
+        contentStyle: { backgroundColor: Colors.light.white },
       }}
     >
       <Stack.Screen name="onboarding" />

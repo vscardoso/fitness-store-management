@@ -51,7 +51,7 @@ export default function PrintBar({ p, summary }: Props) {
               <Text style={styles.sub} numberOfLines={2}>{summary}</Text>
             </View>
             <TouchableOpacity style={[styles.primary, (p.total === 0 || busy) && styles.disabled]} onPress={p.generate} disabled={p.total === 0 || busy} accessibilityRole="button">
-              <Ionicons name="download-outline" size={18} color="#fff" />
+              <Ionicons name="download-outline" size={18} color={Colors.light.white} />
               <Text style={styles.primaryText}>{p.busy === 'generate' ? 'Gerando...' : 'Gerar PDF'}</Text>
             </TouchableOpacity>
           </View>
@@ -67,7 +67,7 @@ export default function PrintBar({ p, summary }: Props) {
               <Text style={styles.secondaryText}>Não imprimi</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.primary, { flex: 1, justifyContent: 'center' }, busy && styles.disabled]} onPress={p.confirm} disabled={busy} accessibilityRole="button">
-              <Ionicons name="checkmark" size={18} color="#fff" />
+              <Ionicons name="checkmark" size={18} color={Colors.light.white} />
               <Text style={styles.primaryText}>{p.busy === 'confirm' ? 'Marcando...' : 'Já imprimi'}</Text>
             </TouchableOpacity>
           </View>
@@ -103,9 +103,9 @@ const makeStyles = (primary: string) => StyleSheet.create({
   total: { fontSize: theme.fontSize.lg, fontWeight: '800', color: Colors.light.text },
   sub: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary },
   notice: { color: Colors.light.success, fontWeight: '700', fontSize: 13 },
-  error: { color: '#b91c1c', fontSize: theme.fontSize.sm },
+  error: { color: Colors.light.errorDark, fontSize: theme.fontSize.sm },
   primary: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: primary, borderRadius: theme.borderRadius.xxl, paddingHorizontal: 20, paddingVertical: 14 },
-  primaryText: { color: '#fff', fontWeight: '800', fontSize: theme.fontSize.base },
+  primaryText: { color: Colors.light.white, fontWeight: '800', fontSize: theme.fontSize.base },
   secondary: { alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 14, borderRadius: theme.borderRadius.xl, borderWidth: 1.5, borderColor: Colors.light.border },
   secondaryText: { color: Colors.light.text, fontWeight: '700', fontSize: theme.fontSize.sm },
   disabled: { opacity: 0.45 },

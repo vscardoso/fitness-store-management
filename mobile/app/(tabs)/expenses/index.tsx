@@ -91,7 +91,7 @@ export default function ExpenseListScreen() {
           <Ionicons
             name={(cat?.icon ?? 'ellipsis-horizontal-outline') as any}
             size={20}
-            color="#fff"
+            color={Colors.light.white}
           />
         </View>
         <View style={styles.cardContent}>
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
     borderRadius: 16,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,

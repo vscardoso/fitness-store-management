@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.md,
   },
   title: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: theme.fontWeight.bold,
     marginBottom: theme.spacing.xs,
   },

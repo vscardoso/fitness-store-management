@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: theme.fontSize.xs,
-    color: '#EF4444',
+    color: Colors.light.error,
   },
   empty: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 48, marginBottom: theme.spacing.md },

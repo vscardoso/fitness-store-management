@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -313,5 +314,5 @@ function DebugViewport({ inset }: { inset: number }) {
     };
   }, [inset]);
   if (!t) return null;
-  return <Text style={{ fontSize: 11, backgroundColor: '#FEF08A', color: '#000', padding: 2 }}>{t}</Text>;
+  return <Text style={{ fontSize: 11, backgroundColor: '#FEF08A', color: Colors.light.black, padding: 2 }}>{t}</Text>;
 }

@@ -414,10 +414,10 @@ export default function AddCustomerScreen() {
             >
               <LinearGradient colors={brandingColors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.btnGradient}>
                 {createMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={Colors.light.white} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                    <Ionicons name="checkmark-circle-outline" size={18} color={Colors.light.white} />
                     <Text style={styles.btnPrimaryText}>Salvar Cliente</Text>
                   </>
                 )}
@@ -606,6 +606,6 @@ const styles = StyleSheet.create({
   btnPrimaryText: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
 });

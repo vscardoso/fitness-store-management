@@ -11,6 +11,7 @@
  *   ghost          → sem borda/fundo, pressionar mostra ripple (ações discretas)
  *   danger         → vermelho sólido (ações destrutivas)
  *   danger-outline → borda vermelha, fundo transparente
+ *   warning        → laranja claro com borda (pede atenção, não é destrutivo)
  *   text           → apenas texto colorido (links, ações inline)
  *
  * TAMANHOS:
@@ -202,7 +203,7 @@ function resolveVariant(
     case 'primary':
       return {
         bg: brandingColors.primary,
-        color: '#fff',
+        color: Colors.light.onPrimary,
       };
     case 'secondary':
       return {
@@ -224,13 +225,19 @@ function resolveVariant(
     case 'danger':
       return {
         bg: Colors.light.error,
-        color: '#fff',
+        color: Colors.light.onPrimary,
       };
     case 'danger-outline':
       return {
         bg: Colors.light.errorLight,
         color: Colors.light.error,
         border: Colors.light.error,
+      };
+    case 'warning':
+      return {
+        bg: Colors.light.warningLight,
+        color: Colors.light.warningDarker,
+        border: Colors.light.warning,
       };
     case 'text':
       return {

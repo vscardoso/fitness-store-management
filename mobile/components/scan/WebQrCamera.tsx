@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Leitor de QR do app web, mais rápido que o do expo-camera (que analisava a foto inteira da câmera, testava cada
  * quadro também com as cores invertidas e só a cada 300 ms: no iPhone demorava, 05/11/2026).
@@ -115,6 +116,6 @@ export default function WebQrCamera({ onCode, onError }: { onCode: (text: string
     playsInline: true,
     muted: true,
     autoPlay: true,
-    style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#000' },
+    style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', background: Colors.light.black },
   });
 }

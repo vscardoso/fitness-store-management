@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   pillTextCurrent: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
   },
   lockIcon: {

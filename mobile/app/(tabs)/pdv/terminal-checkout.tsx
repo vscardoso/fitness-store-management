@@ -275,7 +275,7 @@ function TerminalCheckoutScreen() {
             <View style={styles.stepsContainer}>
               <View style={styles.stepRow}>
                 <View style={[styles.stepDot, styles.stepDotDone]}>
-                  <Ionicons name="checkmark" size={10} color="#fff" />
+                  <Ionicons name="checkmark" size={10} color={Colors.light.white} />
                 </View>
                 <Text style={[styles.stepLabel, styles.stepLabelDone]}>Cobrança enviada ao terminal</Text>
               </View>

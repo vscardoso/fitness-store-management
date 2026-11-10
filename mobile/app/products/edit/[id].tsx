@@ -692,7 +692,7 @@ export default function EditProductScreen() {
                 end={{ x: 1, y: 0 }}
                 style={styles.productPhotoButtonGradient}
               >
-                <Ionicons name="images-outline" size={18} color="#fff" />
+                <Ionicons name="images-outline" size={18} color={Colors.light.white} />
                 <Text style={styles.productPhotoButtonText}>
                   Gerenciar Galeria
                 </Text>
@@ -1008,7 +1008,7 @@ export default function EditProductScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.photosButtonGradient}
             >
-              <Ionicons name="images" size={20} color="#fff" />
+              <Ionicons name="images" size={20} color={Colors.light.white} />
               <Text style={styles.photosButtonTitle}>Fotos das variações</Text>
               <View style={{ flex: 1 }} />
               <Text style={styles.photosButtonSub}>
@@ -1044,9 +1044,9 @@ export default function EditProductScreen() {
               style={styles.saveActionButtonGradient}
             >
               {updateMutation.isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={Colors.light.white} />
               ) : (
-                <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                <Ionicons name="checkmark-circle-outline" size={20} color={Colors.light.white} />
               )}
               <Text style={styles.saveActionButtonText}>
                 {updateMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
@@ -1438,7 +1438,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   saveActionButtonText: {
     fontSize: theme.fontSize.base,
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
   },
   errorTitle: {
@@ -2194,7 +2194,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   productPhotoButtonText: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   productPhotoHint: {
     marginTop: theme.spacing.sm,
@@ -2220,7 +2220,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   photosButtonTitle: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   photosButtonSub: {
     fontSize: theme.fontSize.xs,

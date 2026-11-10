@@ -258,6 +258,6 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 12,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
 });

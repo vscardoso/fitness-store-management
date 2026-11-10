@@ -145,7 +145,7 @@ export default function CustomerDetailsScreen() {
           onPress={goBack}
           style={{ backgroundColor: brandingColors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
         >
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Voltar</Text>
+          <Text style={{ color: Colors.light.white, fontSize: 16, fontWeight: '600' }}>Voltar</Text>
         </TouchableOpacity>
       </View>
     );
@@ -171,7 +171,7 @@ export default function CustomerDetailsScreen() {
           onPress={goBack}
           style={{ backgroundColor: brandingColors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
         >
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Voltar</Text>
+          <Text style={{ color: Colors.light.white, fontSize: 16, fontWeight: '600' }}>Voltar</Text>
         </TouchableOpacity>
       </View>
     );
@@ -497,7 +497,7 @@ export default function CustomerDetailsScreen() {
             <Text style={styles.inviteText}>{openingChat ? 'Abrindo…' : 'Abrir conversa no WhatsApp'}</Text>
           </TouchableOpacity>
         )}
-        {chatError && <Text style={{ marginHorizontal: 16, marginTop: 6, fontSize: 12, color: '#B91C1C' }}>{chatError}</Text>}
+        {chatError && <Text style={{ marginHorizontal: 16, marginTop: 6, fontSize: 12, color: Colors.light.errorDark }}>{chatError}</Text>}
         {normalizeRole(user?.role) !== 'cashier' && (
           <TouchableOpacity style={styles.inviteBtn} onPress={() => setShowInvite(true)} accessibilityRole="button">
             <Ionicons name="logo-whatsapp" size={20} color="#16A34A" />

@@ -478,7 +478,7 @@ A devolução já está registrada.`,
                       size={20}
                       mode="contained"
                       containerColor={Colors.light.error}
-                      iconColor="#fff"
+                      iconColor={Colors.light.white}
                       onPress={() => handleQuantityChange(item.sale_item_id, selectedQuantity - 1, item.quantity_available_for_return)}
                       disabled={selectedQuantity === 0}
                     />
@@ -488,7 +488,7 @@ A devolução já está registrada.`,
                       size={20}
                       mode="contained"
                       containerColor={brandingColors.primary}
-                      iconColor="#fff"
+                      iconColor={Colors.light.white}
                       onPress={() => handleQuantityChange(item.sale_item_id, selectedQuantity + 1, item.quantity_available_for_return)}
                       disabled={selectedQuantity >= item.quantity_available_for_return}
                     />

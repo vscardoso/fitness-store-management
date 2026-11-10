@@ -292,7 +292,7 @@ export default function CreateStoreScreen() {
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <View style={styles.header}>
               <View style={styles.headerIconWrap}>
-                <Ionicons name="business-outline" size={24} color="#fff" />
+                <Ionicons name="business-outline" size={24} color={Colors.light.white} />
               </View>
               <Text variant="headlineMedium" style={styles.headerTitle}>
                 Configure Sua Loja
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   headerTitle: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   formCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     marginHorizontal: 16,
     marginTop: 0,
     padding: 16,
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.55)',
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOpacity: 0.12,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 8,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   row: {
     flexDirection: 'row',

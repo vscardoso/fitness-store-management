@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Apresentação do Provador (primeiro acesso).
  *
@@ -136,7 +137,7 @@ export default function OnboardingScreen() {
       <StatusBar barStyle="light-content" />
       <SafeAreaView style={styles.fill} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
-          <ProvadorLogo size={40} variant="mark" color="#FFFFFF" withName nameColor="#FFFFFF" />
+          <ProvadorLogo size={40} variant="mark" color={Colors.light.white} withName nameColor={Colors.light.white} />
           {!isLast && (
             <TouchableOpacity onPress={() => finish('/(auth)/login')} hitSlop={12} accessibilityRole="button">
               <Text style={styles.skip}>Pular</Text>
@@ -148,7 +149,7 @@ export default function OnboardingScreen() {
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <Animated.View style={[styles.content, { opacity: enter, transform: [{ translateX }] }]}>
             <View style={styles.iconWrap}>
-              <Ionicons name={step.icon} size={34} color="#FFFFFF" />
+              <Ionicons name={step.icon} size={34} color={Colors.light.white} />
             </View>
             <Text style={styles.kicker}>{step.kicker}</Text>
             <Text style={styles.title} accessibilityRole="header">{step.title}</Text>
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     elevation: 16,
   },
-  introName: { color: '#FFFFFF', fontSize: 46, fontWeight: '800', letterSpacing: -1.2 },
+  introName: { color: Colors.light.white, fontSize: 46, fontWeight: '800', letterSpacing: -1.2 },
   introTagline: { color: 'rgba(255,255,255,0.88)', fontSize: 17, marginTop: 6, textAlign: 'center' },
   fill: { flex: 1 },
   // No navegador, o gesto horizontal é do app: sem isso, deslizar para a direita volta a página
@@ -261,7 +262,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 12,
   },
-  skip: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', opacity: 0.9 },
+  skip: { color: Colors.light.white, fontSize: 15, fontWeight: '600', opacity: 0.9 },
   scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
   content: { width: '100%', maxWidth: 440, alignSelf: 'center' },
   iconWrap: {
@@ -276,15 +277,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   kicker: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '800', letterSpacing: 1.2, marginBottom: 8 },
-  title: { color: '#FFFFFF', fontSize: 32, lineHeight: 38, fontWeight: '800', letterSpacing: -0.5, marginBottom: 12 },
+  title: { color: Colors.light.white, fontSize: 32, lineHeight: 38, fontWeight: '800', letterSpacing: -0.5, marginBottom: 12 },
   description: { color: 'rgba(255,255,255,0.92)', fontSize: 16, lineHeight: 24, marginBottom: 24 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, gap: 14 },
+  card: { backgroundColor: Colors.light.white, borderRadius: 20, padding: 18, gap: 14 },
   highlight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   check: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: Colors.light.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -292,11 +293,11 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: 24, paddingBottom: 16, gap: 12, width: '100%', maxWidth: 488, alignSelf: 'center' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 4 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.4)' },
-  dotActive: { width: 24, backgroundColor: '#FFFFFF' },
+  dotActive: { width: 24, backgroundColor: Colors.light.white },
   primaryBtn: {
     height: 54,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.white,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -304,5 +305,5 @@ const styles = StyleSheet.create({
   },
   primaryText: { color: BRAND.violet, fontSize: 17, fontWeight: '800' },
   secondaryBtn: { height: 48, alignItems: 'center', justifyContent: 'center' },
-  secondaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  secondaryText: { color: Colors.light.white, fontSize: 15, fontWeight: '700' },
 });

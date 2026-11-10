@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
   retryText: {
     fontSize: theme.fontSize.md,
     fontWeight: theme.fontWeight.semibold,
-    color: '#fff',
+    color: Colors.light.white,
   },
   emptyContainer: {
     alignItems: 'center',

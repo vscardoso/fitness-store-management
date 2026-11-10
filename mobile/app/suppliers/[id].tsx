@@ -279,7 +279,7 @@ export default function SupplierDetailScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.primaryActionButtonGradient}
             >
-              <Ionicons name="pencil-outline" size={18} color="#fff" />
+              <Ionicons name="pencil-outline" size={18} color={Colors.light.white} />
               <Text style={styles.primaryActionButtonText}>Editar</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -476,7 +476,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   primaryActionButtonText: {
     fontSize: theme.fontSize.base,
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
   },
   dangerActionButton: {

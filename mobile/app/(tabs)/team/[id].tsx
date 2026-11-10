@@ -357,19 +357,19 @@ export default function TeamMemberDetailScreen() {
           ) : (
             <>
               <View style={styles.infoRow}>
-                <Ionicons name="mail" size={20} color="#6B7280" />
+                <Ionicons name="mail" size={20} color={Colors.light.textSecondary} />
                 <Text style={styles.infoLabel}>Email:</Text>
                 <Text style={styles.infoValue}>{member.email}</Text>
               </View>
               <View style={styles.infoRow}>
-                <Ionicons name="call" size={20} color="#6B7280" />
+                <Ionicons name="call" size={20} color={Colors.light.textSecondary} />
                 <Text style={styles.infoLabel}>Telefone:</Text>
                 <Text style={styles.infoValue}>
                   {member.phone ? phoneMask(member.phone) : 'Não informado'}
                 </Text>
               </View>
               <View style={styles.infoRow}>
-                <Ionicons name="calendar" size={20} color="#6B7280" />
+                <Ionicons name="calendar" size={20} color={Colors.light.textSecondary} />
                 <Text style={styles.infoLabel}>Cadastro:</Text>
                 <Text style={styles.infoValue}>
                   {new Date(member.created_at).toLocaleDateString('pt-BR')}
@@ -397,7 +397,7 @@ export default function TeamMemberDetailScreen() {
                 />
 
                 <View style={styles.roleDescription}>
-                  <Ionicons name="information-circle" size={18} color="#6B7280" />
+                  <Ionicons name="information-circle" size={18} color={Colors.light.textSecondary} />
                   <Text style={styles.roleDescriptionText}>
                     {selectedRole === UserRole.ADMIN && 'Acesso total: gerenciar equipe, produtos, vendas e configurações.'}
                     {selectedRole === UserRole.MANAGER && 'Pode gerenciar produtos, vendas e ver relatórios.'}
@@ -410,7 +410,7 @@ export default function TeamMemberDetailScreen() {
               <View style={styles.roleReadOnlyCard}>
                 <View style={styles.roleReadOnlyHeader}>
                   <View style={[styles.roleBadge, { backgroundColor: getRoleColor(member.role as UserRole) }]}>
-                    <Text style={[styles.roleBadgeText, { color: '#fff' }]}>
+                    <Text style={[styles.roleBadgeText, { color: Colors.light.white }]}>
                       {getRoleLabel(member.role as UserRole)}
                     </Text>
                   </View>
@@ -438,13 +438,13 @@ export default function TeamMemberDetailScreen() {
                 onPress={() => setShowPasswordDialog(true)}
               >
                 <View style={[styles.actionIcon, { backgroundColor: '#3B82F620' }]}>
-                  <Ionicons name="key" size={24} color="#3B82F6" />
+                  <Ionicons name="key" size={24} color={Colors.light.info} />
                 </View>
                 <View style={styles.actionTextContainer}>
                   <Text style={styles.actionTitle}>Resetar Senha</Text>
                   <Text style={styles.actionDescription}>Definir uma nova senha</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
               </TouchableOpacity>
 
               {member.is_active ? (
@@ -453,17 +453,17 @@ export default function TeamMemberDetailScreen() {
                   onPress={handleDeactivate}
                 >
                   <View style={[styles.actionIcon, { backgroundColor: '#EF444420' }]}>
-                    <Ionicons name="person-remove" size={24} color="#EF4444" />
+                    <Ionicons name="person-remove" size={24} color={Colors.light.error} />
                   </View>
                   <View style={styles.actionTextContainer}>
-                    <Text style={[styles.actionTitle, { color: '#EF4444' }]}>
+                    <Text style={[styles.actionTitle, { color: Colors.light.error }]}>
                       Desativar Membro
                     </Text>
                     <Text style={styles.actionDescription}>
                       Remove acesso ao sistema
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                  <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
@@ -471,17 +471,17 @@ export default function TeamMemberDetailScreen() {
                   onPress={handleActivate}
                 >
                   <View style={[styles.actionIcon, { backgroundColor: '#10B98120' }]}>
-                    <Ionicons name="person-add" size={24} color="#10B981" />
+                    <Ionicons name="person-add" size={24} color={Colors.light.success} />
                   </View>
                   <View style={styles.actionTextContainer}>
-                    <Text style={[styles.actionTitle, { color: '#10B981' }]}>
+                    <Text style={[styles.actionTitle, { color: Colors.light.success }]}>
                       Reativar Membro
                     </Text>
                     <Text style={styles.actionDescription}>
                       Restaura acesso ao sistema
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                  <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -642,7 +642,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   statusBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.white,
   },
   scrollView: {
     flex: 1,
@@ -668,12 +668,12 @@ const createStyles = (brand: string) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.light.surfaceMuted,
     gap: 12,
   },
   infoLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     width: 80,
   },
   infoValue: {
@@ -683,7 +683,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   input: {
     marginBottom: 12,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   saveButton: {
     marginTop: 8,
@@ -693,7 +693,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   roleDescription: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.surfaceMuted,
     padding: 12,
     borderRadius: 12,
     gap: 8,
@@ -702,7 +702,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   roleDescriptionText: {
     flex: 1,
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     lineHeight: 18,
   },
   roleReadOnlyCard: {
@@ -710,7 +710,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
   },
   roleReadOnlyHeader: {
     flexDirection: 'row',
@@ -734,7 +734,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   roleReadOnlyDescription: {
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     lineHeight: 18,
   },
   actionsContainer: {
@@ -747,7 +747,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.light.surfaceMuted,
   },
   actionIcon: {
     width: 44,
@@ -767,12 +767,12 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   actionDescription: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginTop: 2,
   },
   passwordHint: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginBottom: 8,
   },
   roleBadge: {

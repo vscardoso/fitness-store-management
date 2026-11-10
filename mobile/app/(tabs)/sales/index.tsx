@@ -34,10 +34,10 @@ import { saleCodesText } from '@/utils/saleCodes';
 import { Money } from '@/components/ui/PriceDisplay';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 const statusMap: Record<string, { label: string; color: string; icon: string }> = {
-  pending:            { label: 'Pendente',     color: '#F59E0B',             icon: 'time-outline' },
+  pending:            { label: 'Pendente',     color: Colors.light.warning,             icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, icon: 'checkmark-circle-outline' },
   cancelled:          { label: 'Cancelada',    color: VALUE_COLORS.negative, icon: 'close-circle-outline' },
-  partially_refunded: { label: 'Dev. Parcial', color: '#F59E0B',             icon: 'return-down-back-outline' },
+  partially_refunded: { label: 'Dev. Parcial', color: Colors.light.warning,             icon: 'return-down-back-outline' },
   refunded:           { label: 'Devolvida',    color: '#7B1FA2',             icon: 'refresh-outline' },
 };
 

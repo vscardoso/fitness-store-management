@@ -96,7 +96,7 @@ export default function ForgotPasswordScreen() {
               onPress={() => router.back()}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={Colors.light.white} />
             </TouchableOpacity>
             <View style={styles.headerTextContainer}>
               <Text variant="headlineMedium" style={styles.headerTitle}>
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -261,11 +261,11 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
   },
   formCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     padding: 24,
     borderRadius: 12,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   passwordBox: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',

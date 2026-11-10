@@ -90,8 +90,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', color: Colors.light.text, textAlign: 'center', marginTop: 8 },
   text: { fontSize: 14, lineHeight: 20, color: Colors.light.textSecondary, textAlign: 'center' },
   button: { marginTop: 8, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12 },
-  buttonText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  buttonText: { color: Colors.light.white, fontWeight: '800', fontSize: 14 },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 96, alignItems: 'center', zIndex: 20000 },
   toast: { backgroundColor: '#166534', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999 },
-  toastText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  toastText: { color: Colors.light.white, fontWeight: '700', fontSize: 13 },
 });

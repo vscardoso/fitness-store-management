@@ -142,7 +142,7 @@ export default function SupplierRestockScreen() {
                     activeOpacity={0.8}
                     onPress={() => sendToSupplier(g)}
                   >
-                    <Ionicons name={g.phone ? 'logo-whatsapp' : 'share-outline'} size={16} color="#fff" />
+                    <Ionicons name={g.phone ? 'logo-whatsapp' : 'share-outline'} size={16} color={Colors.light.white} />
                     <Text style={styles.sendText}>{g.phone ? 'WhatsApp' : 'Compartilhar'}</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   name: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
   meta: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 2 },
   send: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 36, borderRadius: 18 },
-  sendText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  sendText: { color: Colors.light.white, fontSize: 13, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   item: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
   qtyBox: { alignItems: 'center', minWidth: 56, backgroundColor: Colors.light.backgroundSecondary, borderRadius: 10, paddingVertical: 6 },

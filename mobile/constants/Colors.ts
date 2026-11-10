@@ -35,6 +35,19 @@ export const Colors = {
     divider: '#E5E7EB',
     overlay: 'rgba(0, 0, 0, 0.5)',
     ripple: 'rgba(102, 126, 234, 0.12)',
+    // Tons de apoio (padrão visual, 2026-11-09): usar estes nomes, nunca o hexadecimal solto
+    white: '#fff',
+    black: '#000',
+    onPrimary: '#fff',        // texto e ícone sobre a cor da loja
+    surfaceMuted: '#F3F4F6',  // fundo cinza claro (chip, campo desligado)
+    surfaceSoft: '#F9FAFB',
+    textStrong: '#1F2937',
+    successSoft: '#ECFDF5',
+    successDark: '#047857',
+    warningDark: '#B45309',
+    warningDarker: '#92400E',
+    errorSoft: '#FEF2F2',
+    errorDark: '#B91C1C',
   },
   dark: {
     text: '#F9FAFB',
@@ -64,6 +77,18 @@ export const Colors = {
     divider: '#374151',
     overlay: 'rgba(0, 0, 0, 0.7)',
     ripple: 'rgba(129, 140, 248, 0.12)',
+    white: '#fff',
+    black: '#000',
+    onPrimary: '#fff',
+    surfaceMuted: '#374151',
+    surfaceSoft: '#1F2937',
+    textStrong: '#F9FAFB',
+    successSoft: '#064E3B',
+    successDark: '#6EE7B7',
+    warningDark: '#FCD34D',
+    warningDarker: '#FDE68A',
+    errorSoft: '#7F1D1D',
+    errorDark: '#FCA5A5',
   },
 };
 

@@ -35,8 +35,8 @@ interface Props {
   searchAsYouType?: boolean;
 }
 
-const COLORS = { ok: '#16A34A', warn: '#B45309', error: '#DC2626' } as const;
-const BG = { ok: '#DCFCE7', warn: '#FEF3C7', error: '#FEE2E2' } as const;
+const COLORS = { ok: '#16A34A', warn: Colors.light.warningDark, error: '#DC2626' } as const;
+const BG = { ok: '#DCFCE7', warn: Colors.light.warningLight, error: Colors.light.errorLight } as const;
 
 export default function ScanBar({ onCode, status, placeholder, paused, right, closeOnScan, field, searchAsYouType }: Props) {
   const brand = useBrandingColors();
@@ -109,7 +109,7 @@ export default function ScanBar({ onCode, status, placeholder, paused, right, cl
           accessibilityLabel="Abrir câmera para bipar"
           activeOpacity={0.85}
         >
-          <Ionicons name="qr-code-outline" size={20} color="#fff" />
+          <Ionicons name="qr-code-outline" size={20} color={Colors.light.white} />
           <Text style={styles.camText}>Bipar</Text>
         </TouchableOpacity>
         {field ?? <TextInput
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   wrap: { gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   camBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 42, borderRadius: 12 },
-  camText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  camText: { color: Colors.light.white, fontWeight: '800', fontSize: 14 },
   input: {
     flex: 1,
     minWidth: 0,

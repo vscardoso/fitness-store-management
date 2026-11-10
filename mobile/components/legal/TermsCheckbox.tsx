@@ -23,7 +23,7 @@ export function TermsCheckbox({ checked, onChange, color, error }: TermsCheckbox
           hitSlop={8}
           style={[styles.box, { borderColor: error ? Colors.light.error : color }, checked && { backgroundColor: color }]}
         >
-          {checked && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+          {checked && <Ionicons name="checkmark" size={16} color={Colors.light.white} />}
         </TouchableOpacity>
         <Text style={styles.text}>
           <Text onPress={() => onChange(!checked)}>Li e aceito os </Text>

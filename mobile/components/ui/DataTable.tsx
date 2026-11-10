@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Tabela do modo notebook (app web com 1024 px ou mais; docs/PLANO_WEB_NOTEBOOK.md, fase 3).
  * Colunas com largura proporcional, ordenar clicando no título, linha clicável com realce do mouse e páginas de 25.
@@ -150,7 +151,7 @@ export default function DataTable<T>({
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
+  card: { backgroundColor: Colors.light.white, borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
   headRow: { flexDirection: 'row', backgroundColor: '#FBFAFD', borderBottomWidth: 1, borderBottomColor: LINE },
   headInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   headText: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.4 },
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FBFAFD' },
   footerText: { fontSize: 13, color: MUTED },
   pager: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pageBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: LINE, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
+  pageBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: LINE, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.light.white },
   pageBtnOff: { opacity: 0.4 },
   pageText: { fontSize: 13, color: INK, fontWeight: '500' },
 });

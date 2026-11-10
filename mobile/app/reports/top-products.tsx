@@ -47,9 +47,9 @@ const periodOptions: { value: TopProductsPeriod; label: string; icon: React.Comp
 ];
 
 const rankingColors = {
-  1: { bg: '#FCD34D', text: '#11181C', icon: 'trophy-outline' as const },
-  2: { bg: '#D1D5DB', text: '#11181C', icon: 'medal-outline' as const },
-  3: { bg: '#D97706', text: '#fff', icon: 'ribbon-outline' as const },
+  1: { bg: '#FCD34D', text: Colors.light.text, icon: 'trophy-outline' as const },
+  2: { bg: '#D1D5DB', text: Colors.light.text, icon: 'medal-outline' as const },
+  3: { bg: '#D97706', text: Colors.light.white, icon: 'ribbon-outline' as const },
 };
 
 function ProductCard({ product, onPress }: { product: TopProductDetail; onPress: () => void }) {
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
   },
   retryText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     fontSize: theme.fontSize.sm,
   },

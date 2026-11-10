@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Vendas no modo notebook (app web com 1024 px ou mais): tabela com período, situação, busca, ordenação e páginas.
  * O celular continua com a lista de cartões (app/(tabs)/sales/index.tsx).
@@ -26,10 +27,10 @@ const BATCH = 100;
 const MAX_SALES = 3000;
 
 const STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Pendente', color: '#B45309' },
-  completed: { label: 'Concluída', color: '#047857' },
+  pending: { label: 'Pendente', color: Colors.light.warningDark },
+  completed: { label: 'Concluída', color: Colors.light.successDark },
   cancelled: { label: 'Cancelada', color: VALUE_COLORS.negative },
-  partially_refunded: { label: 'Dev. parcial', color: '#B45309' },
+  partially_refunded: { label: 'Dev. parcial', color: Colors.light.warningDark },
   refunded: { label: 'Devolvida', color: '#7B1FA2' },
 };
 
@@ -252,7 +253,7 @@ export default function DesktopSalesTable() {
           </View>
           <PeriodFilter value={period} onChange={setPeriod} />
           <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={() => router.push('/(tabs)/sale')}>
-            <Ionicons name="add" size={18} color="#FFFFFF" />
+            <Ionicons name="add" size={18} color={Colors.light.white} />
             <Text style={styles.primaryBtnText}>Nova venda</Text>
           </TouchableOpacity>
         </View>
@@ -287,19 +288,19 @@ const styles = StyleSheet.create({
   body: { flexGrow: 1, padding: 20, gap: 12, width: '100%', maxWidth: 1200, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   summaryRow: { flexDirection: 'row', gap: 12 },
-  summaryCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: LINE, padding: 14, gap: 4 },
+  summaryCard: { flex: 1, backgroundColor: Colors.light.white, borderRadius: 12, borderWidth: 1, borderColor: LINE, padding: 14, gap: 4 },
   summaryLabel: { fontSize: 12, color: MUTED, fontWeight: '600' },
   summaryValue: { fontSize: 22, fontWeight: '800', color: INK },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: '#FFFFFF' },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: Colors.light.white },
   searchInput: { flex: 1, minWidth: 0, fontSize: 14, color: INK, outlineStyle: 'none' } as any,
   primaryBtn: { height: 44, paddingHorizontal: 16, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  primaryBtnText: { color: Colors.light.white, fontSize: 14, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: '#FFFFFF', justifyContent: 'center' },
+  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: Colors.light.white, justifyContent: 'center' },
   chipOn: { backgroundColor: INK, borderColor: INK },
   chipText: { fontSize: 13, fontWeight: '600', color: INK },
-  chipTextOn: { color: '#FFFFFF' },
+  chipTextOn: { color: Colors.light.white },
   number: { fontSize: 13, fontWeight: '700', color: INK },
   cellText: { fontSize: 14, color: INK },
   muted: { color: MUTED },

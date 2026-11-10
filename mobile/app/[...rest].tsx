@@ -31,5 +31,5 @@ const styles = StyleSheet.create({
   title: { fontSize: theme.fontSize.lg, fontWeight: '800', color: Colors.light.text },
   text: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary, textAlign: 'center', maxWidth: 320 },
   btn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 999, backgroundColor: Colors.light.primary },
-  btnText: { color: '#fff', fontWeight: '800' },
+  btnText: { color: Colors.light.white, fontWeight: '800' },
 });

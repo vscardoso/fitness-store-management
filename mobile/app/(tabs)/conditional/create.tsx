@@ -581,7 +581,7 @@ export default function CreateConditionalShipmentScreen() {
                 </Text>
                 <TouchableOpacity onPress={handleAddCustomer} style={[styles.addProductButton, styles.emptyStateAction]} activeOpacity={0.8}>
                   <LinearGradient colors={brandingColors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryActionButtonGradient}>
-                    <Ionicons name="person-add-outline" size={18} color="#fff" />
+                    <Ionicons name="person-add-outline" size={18} color={Colors.light.white} />
                     <Text style={styles.primaryActionButtonText}>Cadastrar cliente</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -733,7 +733,7 @@ export default function CreateConditionalShipmentScreen() {
                           onPress={() => handleQuantityChange(product.product_id, product.variant_id, -1)}
                           activeOpacity={0.75}
                         >
-                          <Ionicons name="remove" size={14} color="#fff" />
+                          <Ionicons name="remove" size={14} color={Colors.light.white} />
                         </TouchableOpacity>
                         <Text style={styles.quantityText}>{product.quantity_sent}</Text>
                         <TouchableOpacity
@@ -741,7 +741,7 @@ export default function CreateConditionalShipmentScreen() {
                           onPress={() => handleQuantityChange(product.product_id, product.variant_id, 1)}
                           activeOpacity={0.75}
                         >
-                          <Ionicons name="add" size={14} color="#fff" />
+                          <Ionicons name="add" size={14} color={Colors.light.white} />
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.qtyBtnDelete}
@@ -770,7 +770,7 @@ export default function CreateConditionalShipmentScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.primaryActionButtonGradient}
             >
-              <Ionicons name="add" size={18} color="#fff" />
+              <Ionicons name="add" size={18} color={Colors.light.white} />
               <Text style={styles.primaryActionButtonText}>Adicionar Produto</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -1080,7 +1080,7 @@ export default function CreateConditionalShipmentScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.primaryActionButtonGradient}
             >
-              <Ionicons name="arrow-forward-outline" size={18} color="#fff" />
+              <Ionicons name="arrow-forward-outline" size={18} color={Colors.light.white} />
               <Text style={styles.primaryActionButtonText}>Próximo</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -1098,9 +1098,9 @@ export default function CreateConditionalShipmentScreen() {
               style={styles.primaryActionButtonGradient}
             >
               {createMutation.isPending ? (
-                <ActivityIndicator size={18} color="#fff" />
+                <ActivityIndicator size={18} color={Colors.light.white} />
               ) : (
-                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                <Ionicons name="checkmark-circle-outline" size={18} color={Colors.light.white} />
               )}
               <Text style={styles.primaryActionButtonText}>Criar Envio</Text>
             </LinearGradient>
@@ -1228,7 +1228,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   progressPillTextCurrent: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
   },
   content: {
@@ -1424,7 +1424,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   catalogCard: {
     width: '48%',
     marginBottom: 10,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   catalogCardHeader: {
     flexDirection: 'row',
@@ -1750,7 +1750,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   primaryActionButtonText: {
     fontSize: theme.fontSize.base,
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
   },
   secondaryActionButton: {

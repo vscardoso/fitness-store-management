@@ -359,9 +359,9 @@ function PIXKeyScreen() {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.saveBtnGradient}
             >
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : (
+              {saving ? <ActivityIndicator color={Colors.light.white} size="small" /> : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                  <Ionicons name="checkmark-circle-outline" size={20} color={Colors.light.white} />
                   <Text style={styles.saveBtnText}>Salvar Chave PIX</Text>
                 </>
               )}
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: theme.spacing.sm, paddingVertical: 16,
   },
-  saveBtnText: { color: '#fff', fontSize: theme.fontSize.base, fontWeight: '700' },
+  saveBtnText: { color: Colors.light.white, fontSize: theme.fontSize.base, fontWeight: '700' },
   webhookBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: 14,

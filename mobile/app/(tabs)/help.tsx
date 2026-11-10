@@ -121,5 +121,5 @@ const styles = StyleSheet.create({
   empty: { color: Colors.light.textSecondary, textAlign: 'center', marginTop: 12 },
   tip: { fontSize: 13, color: Colors.light.textTertiary, lineHeight: 19 },
   openBtn: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
-  openText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  openText: { color: Colors.light.white, fontWeight: '700', fontSize: 14 },
 });

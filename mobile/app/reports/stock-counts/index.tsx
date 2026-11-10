@@ -46,7 +46,7 @@ export default function StockCountsScreen() {
               style={[styles.continueBtn, { backgroundColor: brand.primary }]}
               activeOpacity={0.85}
             >
-              <Ionicons name="play" size={14} color="#fff" />
+              <Ionicons name="play" size={14} color={Colors.light.white} />
               <Text style={styles.continueText}>Continuar</Text>
             </TouchableOpacity>
           </View>
@@ -138,11 +138,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   openRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  openBadge: { fontSize: 12, fontWeight: '800', color: '#92400E', backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
+  openBadge: { fontSize: 12, fontWeight: '800', color: Colors.light.warningDarker, backgroundColor: Colors.light.warningLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
   continueBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  continueText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  pillBad: { color: VALUE_COLORS.negative, backgroundColor: '#FEE2E2' },
-  pillWarn: { color: '#B45309', backgroundColor: '#FEF3C7' },
+  continueText: { color: Colors.light.white, fontWeight: '800', fontSize: 13 },
+  pillBad: { color: VALUE_COLORS.negative, backgroundColor: Colors.light.errorLight },
+  pillWarn: { color: Colors.light.warningDark, backgroundColor: Colors.light.warningLight },
   pillGood: { color: VALUE_COLORS.positive, backgroundColor: '#DCFCE7' },
   empty: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24, gap: 8 },
   emptyText: { fontSize: 15, color: Colors.light.textSecondary, textAlign: 'center' },

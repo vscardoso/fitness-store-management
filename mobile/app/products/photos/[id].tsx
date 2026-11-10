@@ -55,7 +55,7 @@ import ScreenLoader from '@/components/ui/ScreenLoader';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function colorHex(name?: string | null): string {
-  return colorNameToHex(name) ?? '#9ca3af';
+  return colorNameToHex(name) ?? Colors.light.textTertiary;
 }
 
 function groupByColor(variants: ProductVariant[]): Map<string, ProductVariant[]> {
@@ -606,18 +606,18 @@ export default function VariantPhotosScreen() {
                     <LoadedImage source={{ uri: photo }} style={styles.photo} />
                     {isBusy && (
                       <View style={styles.uploadingOverlay}>
-                        <ActivityIndicator color="#fff" size="small" />
+                        <ActivityIndicator color={Colors.light.white} size="small" />
                       </View>
                     )}
                     {!isBusy && isVariantCover && (
                       <View style={[styles.coverBadge, { backgroundColor: brandingColors.primary }]}>
-                        <Ionicons name="star" size={8} color="#fff" />
+                        <Ionicons name="star" size={8} color={Colors.light.white} />
                         <Text style={styles.coverBadgeText}>CAPA</Text>
                       </View>
                     )}
                     {!isBusy && !isVariantCover && (
                       <View style={styles.changeBadge}>
-                        <Ionicons name="camera" size={12} color="#fff" />
+                        <Ionicons name="camera" size={12} color={Colors.light.white} />
                       </View>
                     )}
                   </View>
@@ -672,12 +672,12 @@ export default function VariantPhotosScreen() {
                 <LoadedImage source={{ uri: productImageUrl }} style={styles.photo} />
                 {(openingPicker === 'product' || uploadingProduct || deletingMedia === -1) && (
                   <View style={styles.uploadingOverlay}>
-                    <ActivityIndicator color="#fff" size="small" />
+                    <ActivityIndicator color={Colors.light.white} size="small" />
                   </View>
                 )}
                 {openingPicker !== 'product' && !uploadingProduct && deletingMedia !== -1 && (
                   <View style={styles.changeBadge}>
-                    <Ionicons name="camera" size={12} color="#fff" />
+                    <Ionicons name="camera" size={12} color={Colors.light.white} />
                   </View>
                 )}
               </View>
@@ -720,7 +720,7 @@ export default function VariantPhotosScreen() {
             end={{ x: 1, y: 0 }}
             style={styles.doneBtnGradient}
           >
-            <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+            <Ionicons name="checkmark-circle-outline" size={20} color={Colors.light.white} />
             <Text style={styles.doneBtnText}>
               {!hasVariants
                 ? (productImageUrl ? 'Concluído' : 'Concluir sem foto')
@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   coverBadgeText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 8,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -1176,7 +1176,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   doneBtnText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     fontSize: theme.fontSize.base,
   },
@@ -1221,7 +1221,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   inheritBannerBtnText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: theme.fontSize.xs,
     fontWeight: '700',
   },
@@ -1236,7 +1236,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inheritedBadgeText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.3,

@@ -397,10 +397,10 @@ export default function EditCustomerScreen() {
                 style={styles.btnGradient}
               >
                 {updateMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={Colors.light.white} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                    <Ionicons name="checkmark-circle-outline" size={18} color={Colors.light.white} />
                     <Text style={styles.btnPrimaryText}>Salvar</Text>
                   </>
                 )}
@@ -615,6 +615,6 @@ const styles = StyleSheet.create({
   btnPrimaryText: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
 });

@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  defaultText: { fontSize: theme.fontSize.xxs, fontWeight: '700', color: '#10B981' },
+  defaultText: { fontSize: theme.fontSize.xxs, fontWeight: '700', color: Colors.light.success },
   model: {
     fontSize: theme.fontSize.sm,
     color: Colors.light.textSecondary,
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   deleteBtnText: {
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
-    color: '#EF4444',
+    color: Colors.light.error,
   },
   empty: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 48, marginBottom: theme.spacing.md },
@@ -322,5 +322,5 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm + 4,
     borderRadius: theme.borderRadius.xxl,
   },
-  fabText: { color: '#fff', fontWeight: '700', fontSize: theme.fontSize.base },
+  fabText: { color: Colors.light.white, fontWeight: '700', fontSize: theme.fontSize.base },
 });

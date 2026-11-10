@@ -236,9 +236,9 @@ export default function EditExpenseScreen() {
                       <Ionicons
                         name={cat.icon as any}
                         size={16}
-                        color={selected ? '#fff' : cat.color}
+                        color={selected ? Colors.light.white : cat.color}
                       />
-                      <Text style={[styles.categoryChipText, { color: selected ? '#fff' : Colors.light.text }]}>
+                      <Text style={[styles.categoryChipText, { color: selected ? Colors.light.white : Colors.light.text }]}>
                         {cat.name}
                       </Text>
                     </TouchableOpacity>
@@ -370,11 +370,11 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     marginBottom: theme.spacing.md,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: theme.spacing.sm,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   categoryGrid: {
     flexDirection: 'row',
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 99,
     borderWidth: 1.5,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   categoryChipText: {
     fontSize: 13,

@@ -941,8 +941,8 @@ export default function StockEntryDetailsScreen() {
               activeOpacity={0.8}
               accessibilityLabel="Imprimir as etiquetas de todas as peças desta entrada"
             >
-              <Ionicons name="print-outline" size={14} color="#fff" />
-              <Text style={[styles.editItemButtonText, { color: '#fff', fontWeight: '700' }]}>Imprimir etiquetas</Text>
+              <Ionicons name="print-outline" size={14} color={Colors.light.white} />
+              <Text style={[styles.editItemButtonText, { color: Colors.light.white, fontWeight: '700' }]}>Imprimir etiquetas</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push({ pathname: '/entries/check/[id]', params: { id: String(entryId) } } as any)}
@@ -1378,7 +1378,7 @@ const styles = StyleSheet.create({
   errorButtonText: {
     fontSize: theme.fontSize.md,
     fontWeight: theme.fontWeight.bold,
-    color: '#fff',
+    color: Colors.light.white,
   },
   typeBadgeInHeader: {
     marginBottom: theme.spacing.xs,

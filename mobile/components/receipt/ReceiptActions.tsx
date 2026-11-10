@@ -125,7 +125,7 @@ export default function ReceiptActions({ saleId, saleNumber, change }: Props) {
               key={s.key} onPress={() => pick(s.key)} accessibilityRole="button" accessibilityLabel={`Papel ${s.label}`}
               style={[styles.chip, on && { backgroundColor: brand.primary, borderColor: brand.primary }]}
             >
-              <Text style={[styles.chipText, on && { color: '#fff' }]}>{s.label}</Text>
+              <Text style={[styles.chipText, on && { color: Colors.light.white }]}>{s.label}</Text>
             </Pressable>
           );
         })}

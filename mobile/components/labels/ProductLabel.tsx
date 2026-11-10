@@ -81,7 +81,7 @@ export default function ProductLabel({
             color={Colors.light.text}
             logo={showLogo && branding.logoUri ? { uri: branding.logoUri } : undefined}
             logoSize={logoSize}
-            logoBackgroundColor="#fff"
+            logoBackgroundColor={Colors.light.white}
             logoBorderRadius={Math.round(logoSize / 4)}
           />
         </View>
@@ -114,7 +114,7 @@ export default function ProductLabel({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     overflow: 'hidden',
   },
   label: {
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   qrWrapper: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     padding: 1,
   },
   info: {

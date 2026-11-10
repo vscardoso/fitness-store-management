@@ -190,7 +190,7 @@ export default function FAB({ bottom = 20, directRoute, onPress, label }: FABPro
             end={{ x: 1, y: 1 }}
             style={styles.fabDesktopGradient}
           >
-            <Ionicons name="add" size={20} color="#fff" />
+            <Ionicons name="add" size={20} color={Colors.light.white} />
             <Text style={styles.fabDesktopText}>
               {label || (directRoute && ROUTE_LABELS[directRoute]) || 'Cadastrar'}
             </Text>
@@ -211,7 +211,7 @@ export default function FAB({ bottom = 20, directRoute, onPress, label }: FABPro
           style={styles.fabGradient}
         >
           <Animated.View style={{ transform: [{ rotate: rotation }] }}>
-            <Ionicons name="add" size={32} color="#fff" />
+            <Ionicons name="add" size={32} color={Colors.light.white} />
           </Animated.View>
         </LinearGradient>
       </TouchableOpacity>
@@ -263,7 +263,7 @@ export default function FAB({ bottom = 20, directRoute, onPress, label }: FABPro
                       style={styles.actionGradient}
                     >
                       <View style={styles.actionIconContainer}>
-                        <Ionicons name={action.icon} size={32} color="#fff" />
+                        <Ionicons name={action.icon} size={32} color={Colors.light.white} />
                       </View>
                       <Text style={styles.actionTitle}>{action.title}</Text>
                       <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   fabDesktopText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -338,13 +338,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: theme.borderRadius.xxl,
     width: '100%',
     maxWidth: 400,
     padding: theme.spacing.xl,
     elevation: 24,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -406,12 +406,12 @@ const styles = StyleSheet.create({
   actionTitle: {
     fontSize: theme.fontSize.md,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
     marginBottom: 2,
   },
   actionSubtitle: {
     fontSize: theme.fontSize.xs,
-    color: '#fff',
+    color: Colors.light.white,
     opacity: 0.9,
   },
 

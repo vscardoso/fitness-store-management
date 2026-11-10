@@ -2,7 +2,9 @@
 // Conta, em cada .tsx de app/ e components/:
 //   paperButton    <Button ...> do react-native-paper (o `contained` vira pílula de outro formato; usar AppButton)
 //   staticPrimary  Colors.light.primary (cor FIXA do Provador: depois do login vale a cor da loja, useBrandingColors)
-//   hexColors      cores hexadecimais soltas entre aspas (usar Colors.light.* / theme)
+//   hexColors      cores hexadecimais soltas, entre aspas simples ou em atributo ="#..." (usar Colors.light.* / theme)
+//   handButton     TouchableOpacity/Pressable com estilo chamado button/btn (botão feito à mão; usar AppButton)
+//   oddWeight      fontWeight '800', '900', 'bold' ou 'normal' (usar theme.fontWeight)
 // Regra: nenhum arquivo pode ter MAIS ocorrências do que está em scripts/ui-standard-baseline.json (arquivo novo parte de zero).
 // Quando um arquivo for corrigido, rode `node scripts/test-ui-standard.mts --update` para baixar o teto dele.
 // Sem argumento: valida. Com --report: lista os 25 arquivos mais fora do padrão.
@@ -15,8 +17,9 @@ const BASELINE = path.join(MOBILE, 'scripts', 'ui-standard-baseline.json');
 // Telas que existem ANTES de conhecer a loja (login, cadastro) usam a cor do Provador de propósito.
 const STATIC_PRIMARY_OK = /^app\/\(auth\)\//;
 
-type Counts = { paperButton: number; staticPrimary: number; hexColors: number };
-const KEYS: (keyof Counts)[] = ['paperButton', 'staticPrimary', 'hexColors'];
+type Counts = { paperButton: number; staticPrimary: number; hexColors: number; handButton: number; oddWeight: number };
+const KEYS: (keyof Counts)[] = ['paperButton', 'staticPrimary', 'hexColors', 'handButton', 'oddWeight'];
+const LABEL: Record<keyof Counts, string> = { paperButton: 'Button do Paper', staticPrimary: 'cor fixa', hexColors: 'hex soltos', handButton: 'botão à mão', oddWeight: 'peso de letra fora' };
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const n of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -32,7 +35,9 @@ function count(rel: string, src: string): Counts {
   return {
     paperButton: importsPaperButton ? (src.match(/<Button\b/g) ?? []).length : 0,
     staticPrimary: STATIC_PRIMARY_OK.test(rel) ? 0 : (src.match(/Colors\.light\.primary\b/g) ?? []).length,
-    hexColors: (src.match(/'#[0-9a-fA-F]{3,8}'/g) ?? []).length,
+    hexColors: (src.match(/'#[0-9a-fA-F]{3,8}'|="#[0-9a-fA-F]{3,8}"/g) ?? []).length,
+    handButton: (src.match(/<(?:TouchableOpacity|Pressable)\b[^<]{0,400}?style=\{[^<}]*?styles\.\w*(?:[bB]utton|[bB]tn)\w*/g) ?? []).length,
+    oddWeight: (src.match(/fontWeight:\s*'(?:800|900|bold|normal)'/g) ?? []).length,
   };
 }
 
@@ -45,18 +50,19 @@ for (const root of ['app', 'components']) {
   }
 }
 const sum = (k: keyof Counts) => Object.values(current).reduce((n, c) => n + c[k], 0);
+const totals = () => KEYS.map((k) => `${LABEL[k]} ${sum(k)}`).join(' | ');
 
 if (process.argv.includes('--update')) {
   fs.writeFileSync(BASELINE, JSON.stringify(current, null, 1) + '\n');
-  console.log(`baseline gravada: ${Object.keys(current).length} arquivos | Button do Paper ${sum('paperButton')} | cor fixa ${sum('staticPrimary')} | hex soltos ${sum('hexColors')}`);
+  console.log(`baseline gravada: ${Object.keys(current).length} arquivos | ${totals()}`);
   process.exit(0);
 }
 
 if (process.argv.includes('--report')) {
-  const score = (c: Counts) => c.paperButton * 5 + c.staticPrimary * 3 + c.hexColors;
+  const score = (c: Counts) => c.paperButton * 5 + c.staticPrimary * 3 + c.hexColors + c.handButton * 3 + c.oddWeight;
   const top = Object.entries(current).sort((a, b) => score(b[1]) - score(a[1])).slice(0, 25);
-  console.log(`Button do Paper ${sum('paperButton')} | cor fixa ${sum('staticPrimary')} | hex soltos ${sum('hexColors')}\n`);
-  for (const [f, c] of top) console.log(`${String(score(c)).padStart(4)}  paper ${String(c.paperButton).padStart(2)}  fixa ${String(c.staticPrimary).padStart(2)}  hex ${String(c.hexColors).padStart(3)}  ${f}`);
+  console.log(`${totals()}\n`);
+  for (const [f, c] of top) console.log(`${String(score(c)).padStart(4)}  paper ${String(c.paperButton).padStart(2)}  fixa ${String(c.staticPrimary).padStart(2)}  hex ${String(c.hexColors).padStart(3)}  mão ${String(c.handButton).padStart(2)}  peso ${String(c.oddWeight).padStart(2)}  ${f}`);
   process.exit(0);
 }
 
@@ -72,6 +78,6 @@ if (worse.length) {
   console.error('Padrão visual: arquivo(s) piorou(aram). Use AppButton, useBrandingColors e tokens do theme.\n  ' + worse.join('\n  '));
   process.exit(1);
 }
-const gone = Object.entries(base).filter(([f, b]) => KEYS.some((k) => (current[f]?.[k] ?? 0) < b[k])).length;
-console.log(`ok padrão visual: Button do Paper ${sum('paperButton')} | cor fixa ${sum('staticPrimary')} | hex soltos ${sum('hexColors')}` +
+const gone = Object.entries(base).filter(([f, b]) => KEYS.some((k) => (current[f]?.[k] ?? 0) < (b[k] ?? 0))).length;
+console.log(`ok padrão visual: ${totals()}` +
   (gone ? ` (${gone} arquivo(s) melhoraram: rode --update para baixar o teto)` : ''));

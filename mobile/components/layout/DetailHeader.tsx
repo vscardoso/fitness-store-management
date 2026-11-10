@@ -85,7 +85,7 @@ export default function DetailHeader({
               onPress={() => router.push(backRoute as any)}
               style={styles.navButton}
             >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={Colors.light.white} />
             </TouchableOpacity>
 
             <View style={styles.navSpacer} />
@@ -97,12 +97,12 @@ export default function DetailHeader({
                     onPress={() => router.push(editRoute as any)}
                     style={styles.actionButton}
                   >
-                    <Ionicons name="pencil" size={20} color="#fff" />
+                    <Ionicons name="pencil" size={20} color={Colors.light.white} />
                   </TouchableOpacity>
                 )}
                 {onDelete && (
                   <TouchableOpacity onPress={onDelete} style={styles.actionButton}>
-                    <Ionicons name="trash" size={20} color="#fff" />
+                    <Ionicons name="trash" size={20} color={Colors.light.white} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -132,7 +132,7 @@ export default function DetailHeader({
                   <Ionicons
                     name={badge.icon}
                     size={14}
-                    color="#fff"
+                    color={Colors.light.white}
                     style={styles.badgeIcon}
                   />
                   <Text style={styles.badgeText}>{badge.label}</Text>
@@ -149,7 +149,7 @@ export default function DetailHeader({
                   <Ionicons
                     name={metric.icon}
                     size={20}
-                    color="#fff"
+                    color={Colors.light.white}
                     style={styles.metricIcon}
                   />
                   <Text style={styles.metricLabel}>{metric.label}</Text>
@@ -219,21 +219,21 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: theme.fontSize.xxl,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
     marginBottom: theme.spacing.xs,
     textAlign: 'center',
   },
   titleMain: {
     fontSize: theme.fontSize.xl,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
     textAlign: 'center',
     marginBottom: theme.spacing.xs,
   },
   entityNameSmall: {
     fontSize: theme.fontSize.lg,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.white,
     textAlign: 'center',
     marginBottom: theme.spacing.sm,
   },
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   badgeText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 11,
     fontWeight: 'bold',
   },
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   metricValue: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 18,
     fontWeight: 'bold',
   },

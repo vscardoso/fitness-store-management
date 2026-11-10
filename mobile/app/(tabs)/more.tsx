@@ -194,24 +194,24 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Ações Rápidas</Text>
           <View style={styles.quickActionsGrid}>
             <TouchableOpacity
-              style={[styles.quickActionCard, { backgroundColor: '#10B981' }]}
+              style={[styles.quickActionCard, { backgroundColor: Colors.light.success }]}
               onPress={() => router.push('/(tabs)/sale')}
               activeOpacity={0.8}
             >
               <View style={styles.quickActionIcon}>
-                <Ionicons name="cart" size={26} color="#fff" />
+                <Ionicons name="cart" size={26} color={Colors.light.white} />
               </View>
               <Text style={styles.quickActionTitle}>Nova Venda</Text>
               <Text style={styles.quickActionSubtitle}>Registrar no PDV</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.quickActionCard, { backgroundColor: '#3B82F6' }]}
+              style={[styles.quickActionCard, { backgroundColor: Colors.light.info }]}
               onPress={() => router.push('/customers/add')}
               activeOpacity={0.8}
             >
               <View style={styles.quickActionIcon}>
-                <Ionicons name="person-add" size={26} color="#fff" />
+                <Ionicons name="person-add" size={26} color={Colors.light.white} />
               </View>
               <Text style={styles.quickActionTitle}>Novo Cliente</Text>
               <Text style={styles.quickActionSubtitle}>Cadastrar</Text>
@@ -223,7 +223,7 @@ export default function MoreScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.quickActionIcon}>
-                <Ionicons name="cube" size={26} color="#fff" />
+                <Ionicons name="cube" size={26} color={Colors.light.white} />
               </View>
               <Text style={styles.quickActionTitle}>Novo Produto</Text>
               <Text style={styles.quickActionSubtitle}>Adicionar ao catálogo</Text>
@@ -235,7 +235,7 @@ export default function MoreScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.quickActionIcon}>
-                <Ionicons name="download" size={26} color="#fff" />
+                <Ionicons name="download" size={26} color={Colors.light.white} />
               </View>
               <Text style={styles.quickActionTitle}>Nova Entrada</Text>
               <Text style={styles.quickActionSubtitle}>Registrar compra</Text>
@@ -255,9 +255,9 @@ export default function MoreScreen() {
             {isManager && <MenuItem icon="print-outline" title="Fila de impressão" subtitle="Etiquetas das peças que chegaram, prontas para imprimir" onPress={() => router.push('/etiquetas/fila' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />}
             {isManager && <MenuItem icon="cloud-upload-outline" title="Importar estoque" subtitle="Traga as peças que a loja já tem, por planilha" onPress={() => router.push('/entries/import' as any)} iconColor="#9333EA" iconBg="#F3E8FF" />}
             {isManager && <MenuItem icon="business-outline" title="Fornecedores" subtitle="Catálogo de fornecedores" onPress={() => router.push('/suppliers' as any)} iconColor="#F97316" iconBg="#FFEDD5" />}
-            <MenuItem icon="print-outline" title="Estúdio de etiquetas" subtitle="Monte e imprima os adesivos das peças" onPress={() => router.push('/products/label' as any)} iconColor="#DB2777" iconBg="#FCE7F3" />
+            <MenuItem icon="print-outline" title="Estúdio de etiquetas" subtitle="Monte e imprima os adesivos das peças" onPress={() => router.push('/products/label' as any)} iconColor="#DB2777" iconBg={Colors.light.secondaryLight} />
             <MenuItem icon="pricetags-outline" title="Categorias" subtitle="Organizar produtos por categoria" onPress={() => router.push('/(tabs)/categories')} iconColor="#9333EA" iconBg="#F3E8FF" />
-            {isAdminRole(user?.role) && <MenuItem icon="gift-outline" title="Brindes" subtitle="Peças dadas sem cobrança e o custo para a loja" onPress={() => router.push('/gifts' as any)} iconColor="#DB2777" iconBg="#FCE7F3" />}
+            {isAdminRole(user?.role) && <MenuItem icon="gift-outline" title="Brindes" subtitle="Peças dadas sem cobrança e o custo para a loja" onPress={() => router.push('/gifts' as any)} iconColor="#DB2777" iconBg={Colors.light.secondaryLight} />}
             <MenuItem icon="layers-outline" title="Inventário" subtitle="Dashboard de estoque e alertas" onPress={() => router.push('/(tabs)/inventory')} iconColor={Colors.light.warning} iconBg={Colors.light.warningLight} />
           </View>
         </View>
@@ -272,11 +272,11 @@ export default function MoreScreen() {
                 <>
                   <MenuItem icon="link-outline" title="Conectar o WhatsApp" subtitle="Usar o número do celular da loja também no Provador" onPress={() => router.push('/settings/whatsapp-connect' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
                   <MenuItem icon="business-outline" title="Perfil do WhatsApp" subtitle="Recado, descrição, endereço e sites que a cliente vê" onPress={() => router.push('/settings/whatsapp-profile' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
-                  <MenuItem icon="time-outline" title="Horário e ausência" subtitle="Quando a loja atende e o aviso fora do horário" onPress={() => router.push('/settings/whatsapp-hours' as any)} iconColor="#F59E0B" iconBg="#FEF3C7" />
+                  <MenuItem icon="time-outline" title="Horário e ausência" subtitle="Quando a loja atende e o aviso fora do horário" onPress={() => router.push('/settings/whatsapp-hours' as any)} iconColor={Colors.light.warning} iconBg={Colors.light.warningLight} />
                   <MenuItem icon="chatbubble-ellipses-outline" title="Saudação automática" subtitle="Mensagem quando a cliente escreve para a loja" onPress={() => router.push('/settings/whatsapp-greeting' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
                   <MenuItem icon="storefront-outline" title="Catálogo do WhatsApp" subtitle="Link para a Meta mostrar seus produtos publicados" onPress={() => router.push('/settings/whatsapp-catalog' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
-                  <MenuItem icon="flash-outline" title="Respostas rápidas" subtitle="Textos prontos que se chamam com /" onPress={() => router.push('/settings/whatsapp-quick-replies' as any)} iconColor="#8B5CF6" iconBg="#EDE9FE" />
-                  <MenuItem icon="pricetags-outline" title="Etiquetas" subtitle="Organize e filtre as conversas" onPress={() => router.push('/settings/whatsapp-labels' as any)} iconColor="#EC4899" iconBg="#FCE7F3" />
+                  <MenuItem icon="flash-outline" title="Respostas rápidas" subtitle="Textos prontos que se chamam com /" onPress={() => router.push('/settings/whatsapp-quick-replies' as any)} iconColor="#8B5CF6" iconBg={Colors.light.primaryLight} />
+                  <MenuItem icon="pricetags-outline" title="Etiquetas" subtitle="Organize e filtre as conversas" onPress={() => router.push('/settings/whatsapp-labels' as any)} iconColor="#EC4899" iconBg={Colors.light.secondaryLight} />
                 </>
               )}
             </View>
@@ -291,7 +291,7 @@ export default function MoreScreen() {
             {isManager
               ? <MenuItem icon="wallet-outline" title="Financeiro" subtitle="Quanto tenho, o que entra e sai, como foi o mês" onPress={() => router.push('/finance' as any)} iconColor="#0E7490" iconBg="#CFFAFE" />
               : <MenuItem icon="cash-outline" title="Caixa da gaveta" subtitle="Abrir, colocar e retirar dinheiro, fechar" onPress={() => router.push('/cash' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />}
-            {!isManager && <MenuItem icon="book-outline" title="Fiado" subtitle="Quem deve, quanto e quando vence; receber" onPress={() => router.push('/finance/receivables' as any)} iconColor="#B45309" iconBg="#FEF3C7" />}
+            {!isManager && <MenuItem icon="book-outline" title="Fiado" subtitle="Quem deve, quanto e quando vence; receber" onPress={() => router.push('/finance/receivables' as any)} iconColor={Colors.light.warningDark} iconBg={Colors.light.warningLight} />}
           </View>
         </View>
 
@@ -302,11 +302,11 @@ export default function MoreScreen() {
           <View style={styles.menuCard}>
             <MenuItem icon="bar-chart-outline" title="Vendas" subtitle="Relatório de vendas e faturamento" onPress={() => router.push('/reports/sales')} iconColor={Colors.light.success} iconBg={Colors.light.successLight} />
             <MenuItem icon="checkbox-outline" title="Conferência de Estoque" subtitle="Compare o sistema com a contagem das prateleiras" onPress={() => router.push('/reports/stock-check' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
-            <MenuItem icon="document-text-outline" title="Estoque atual em PDF" subtitle="Peças em estoque com entrada, fornecedor e produto" onPress={() => router.push('/reports/stock-chain' as any)} iconColor="#7C3AED" iconBg="#EDE9FE" />
+            <MenuItem icon="document-text-outline" title="Estoque atual em PDF" subtitle="Peças em estoque com entrada, fornecedor e produto" onPress={() => router.push('/reports/stock-chain' as any)} iconColor="#7C3AED" iconBg={Colors.light.primaryLight} />
             <MenuItem icon="time-outline" title="Conferências Salvas" subtitle="Histórico das contagens do estoque, com data" onPress={() => router.push('/reports/stock-counts' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
-            <MenuItem icon="layers-outline" title="Lucro por Lote" subtitle="Quanto gastou, vendeu e sobrou em cada compra" onPress={() => router.push('/reports/lots' as any)} iconColor="#10B981" iconBg="#D1FAE5" />
-            <MenuItem icon="trending-up" title="Produtos Mais Vendidos" subtitle="Ranking e análise de performance" onPress={() => router.push('/reports/top-products')} iconColor="#EC4899" iconBg="#FCE7F3" />
-            <MenuItem icon="calendar-outline" title="Histórico" subtitle="Vendas, entradas e movimentações" onPress={() => router.push('/reports/history')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
+            <MenuItem icon="layers-outline" title="Lucro por Lote" subtitle="Quanto gastou, vendeu e sobrou em cada compra" onPress={() => router.push('/reports/lots' as any)} iconColor={Colors.light.success} iconBg={Colors.light.successLight} />
+            <MenuItem icon="trending-up" title="Produtos Mais Vendidos" subtitle="Ranking e análise de performance" onPress={() => router.push('/reports/top-products')} iconColor="#EC4899" iconBg={Colors.light.secondaryLight} />
+            <MenuItem icon="calendar-outline" title="Histórico" subtitle="Vendas, entradas e movimentações" onPress={() => router.push('/reports/history')} iconColor="#8B5CF6" iconBg={Colors.light.primaryLight} />
           </View>
         </View>
         )}
@@ -316,8 +316,8 @@ export default function MoreScreen() {
 <View style={styles.section}>
           <Text style={styles.sectionTitle}>Looks & Wishlist</Text>
           <View style={styles.menuCard}>
-            {FEATURES.lookbook && <MenuItem icon="shirt-outline" title="Lookbook" subtitle="Montar e gerenciar looks" onPress={() => router.push('/looks')} iconColor="#EC4899" iconBg="#FCE7F3" />}
-            {FEATURES.wishlist && <MenuItem icon="heart-outline" title="Demanda Wishlist" subtitle="Produtos mais desejados por clientes" onPress={() => router.push('/(tabs)/demand')} iconColor="#8B5CF6" iconBg="#EDE9FE" />}
+            {FEATURES.lookbook && <MenuItem icon="shirt-outline" title="Lookbook" subtitle="Montar e gerenciar looks" onPress={() => router.push('/looks')} iconColor="#EC4899" iconBg={Colors.light.secondaryLight} />}
+            {FEATURES.wishlist && <MenuItem icon="heart-outline" title="Demanda Wishlist" subtitle="Produtos mais desejados por clientes" onPress={() => router.push('/(tabs)/demand')} iconColor="#8B5CF6" iconBg={Colors.light.primaryLight} />}
           </View>
         </View>
         )}
@@ -352,8 +352,8 @@ export default function MoreScreen() {
                 title="Chave PIX"
                 subtitle="QR Code PIX sem integração externa"
                 onPress={() => router.push('/settings/pix-key' as any)}
-                iconColor="#10B981"
-                iconBg="#D1FAE5"
+                iconColor={Colors.light.success}
+                iconBg={Colors.light.successLight}
               />
             )}
             {isAdminRole(user?.role) && (
@@ -373,7 +373,7 @@ export default function MoreScreen() {
                 subtitle="Pontos que viram desconto, validade e quanto vale cada ponto"
                 onPress={() => router.push('/settings/loyalty' as any)}
                 iconColor="#D97706"
-                iconBg="#FEF3C7"
+                iconBg={Colors.light.warningLight}
               />
             )}
             {isAdminRole(user?.role) && (
@@ -382,8 +382,8 @@ export default function MoreScreen() {
                 title="Prazo de troca e devolução"
                 subtitle="Dias que o cliente tem e se a loja devolve dinheiro"
                 onPress={() => router.push('/settings/returns' as any)}
-                iconColor="#F59E0B"
-                iconBg="#FEF3C7"
+                iconColor={Colors.light.warning}
+                iconBg={Colors.light.warningLight}
               />
             )}
           </View>
@@ -397,10 +397,10 @@ export default function MoreScreen() {
               <MenuItem icon="color-palette-outline" title="Identidade da Loja" subtitle="Cores, logo e personalização" onPress={() => router.push('/settings/branding')} iconColor={brandingColors.primary} iconBg="#E0E7FF" />
             )}
             {isAdminRole(user?.role) && (
-              <MenuItem icon="people-outline" title="Gerenciar Equipe" subtitle="Usuários e permissões da loja" onPress={() => router.push('/team')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
+              <MenuItem icon="people-outline" title="Gerenciar Equipe" subtitle="Usuários e permissões da loja" onPress={() => router.push('/team')} iconColor="#8B5CF6" iconBg={Colors.light.primaryLight} />
             )}
             {isAdminRole(user?.role) && (
-              <MenuItem icon="cash-outline" title="Descontos de Pagamento" subtitle="Configure descontos por forma de pagamento" onPress={() => router.push('/settings/payment-discounts')} iconColor="#10B981" iconBg="#D1FAE5" />
+              <MenuItem icon="cash-outline" title="Descontos de Pagamento" subtitle="Configure descontos por forma de pagamento" onPress={() => router.push('/settings/payment-discounts')} iconColor={Colors.light.success} iconBg={Colors.light.successLight} />
             )}
             {FEATURES.meuPerfil && <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />}
             <MenuItem icon="notifications-outline" title="Notificações" subtitle="Alertas e lembretes" onPress={() => router.push('/notifications' as any)} badge={unreadAlerts > 0 ? String(unreadAlerts) : undefined} iconColor="#F97316" iconBg="#FFEDD5" />
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
     marginRight: theme.spacing.sm,
   },
   menuBadgeText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: theme.fontSize.xxs,
     fontWeight: '700',
   },
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
   quickActionTitle: {
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
     marginBottom: 2,
     textAlign: 'center',
   },

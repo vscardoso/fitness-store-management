@@ -379,7 +379,7 @@ export default function VariantBuilderInline({
               <Ionicons
                 name="layers"
                 size={18}
-                color={hasVariants ? '#fff' : Colors.light.textSecondary}
+                color={hasVariants ? Colors.light.white : Colors.light.textSecondary}
               />
             </View>
             <View style={styles.toggleTextBlock}>
@@ -452,7 +452,7 @@ export default function VariantBuilderInline({
                     </Text>
                     {isSelected && (
                       <View style={styles.sizeChipCheck}>
-                        <Ionicons name="checkmark" size={9} color="#fff" />
+                        <Ionicons name="checkmark" size={9} color={Colors.light.white} />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -465,7 +465,7 @@ export default function VariantBuilderInline({
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionLabelRow}>
-                <View style={[styles.sectionAccent, { backgroundColor: '#F59E0B' }]} />
+                <View style={[styles.sectionAccent, { backgroundColor: Colors.light.warning }]} />
                 <Text style={styles.sectionLabel}>CORES</Text>
                 {selectedColors.length > 0 && (
                   <View style={[styles.countBadge, { backgroundColor: brandingColors.primary }]}>
@@ -502,10 +502,10 @@ export default function VariantBuilderInline({
                     >
                       <View style={[
                         styles.selectedColorPillDot,
-                        { backgroundColor: colorDef?.hex || colorNameToHex(colorValue) || '#9CA3AF' },
+                        { backgroundColor: colorDef?.hex || colorNameToHex(colorValue) || Colors.light.textTertiary },
                       ]} />
                       <Text style={styles.selectedColorPillText}>{colorValue}</Text>
-                      <Ionicons name="close-circle" size={13} color="#9CA3AF" />
+                      <Ionicons name="close-circle" size={13} color={Colors.light.textTertiary} />
                     </TouchableOpacity>
                   );
                 })}
@@ -537,14 +537,14 @@ export default function VariantBuilderInline({
                           ]}>
                             <View style={[
                               styles.colorSwatch,
-                              { backgroundColor: c.hex || '#E5E7EB' },
+                              { backgroundColor: c.hex || Colors.light.border },
                               !c.hex && styles.colorSwatchFallback,
                             ]}>
                               {isSelected && (
                                 <Ionicons
                                   name="checkmark"
                                   size={14}
-                                  color={useDarkIcon ? '#111' : '#fff'}
+                                  color={useDarkIcon ? '#111' : Colors.light.white}
                                 />
                               )}
                             </View>
@@ -750,7 +750,7 @@ export default function VariantBuilderInline({
                             {/* Indicador de preço personalizado */}
                             {isCustom && (
                               <View style={styles.variantCardCustomBadge}>
-                                <Ionicons name="star" size={8} color="#F59E0B" />
+                                <Ionicons name="star" size={8} color={Colors.light.warning} />
                               </View>
                             )}
                           </TouchableOpacity>
@@ -785,7 +785,7 @@ export default function VariantBuilderInline({
               <View style={styles.tapHintRow}>
                 <Ionicons name="hand-left-outline" size={11} color={Colors.light.textTertiary} />
                 <Text style={styles.tapHintText}>
-                  Toque em um card ou em "Editar preços" para ajustar valores · <Ionicons name="star" size={10} color="#F59E0B" /> preço customizado
+                  Toque em um card ou em "Editar preços" para ajustar valores · <Ionicons name="star" size={10} color={Colors.light.warning} /> preço customizado
                 </Text>
               </View>
             </View>
@@ -1089,7 +1089,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   countBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#fff',
+    color: Colors.light.white,
   },
   sectionActions: {
     flexDirection: 'row',
@@ -1114,7 +1114,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingHorizontal: 16,
     overflow: 'hidden',
     backgroundColor: Colors.light.card,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -1133,7 +1133,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   sizeChipTextSelected: {
-    color: '#fff',
+    color: Colors.light.white,
   },
   sizeChipCheck: {
     position: 'absolute',
@@ -1179,7 +1179,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  customColorButtonText: { color: '#fff', fontWeight: '700' },
+  customColorButtonText: { color: Colors.light.white, fontWeight: '700' },
   colorSwatchRing: {
     width: 42,
     height: 42,
@@ -1369,7 +1369,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   colorGroupSizeTextSelected: {
-    color: '#fff',
+    color: Colors.light.white,
   },
 
   // ── Variant cards grid ────────────────────────────────
@@ -1388,7 +1388,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: Colors.light.border,
     minWidth: 72,
     position: 'relative',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 3,
@@ -1691,7 +1691,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: '#065F46',
   },
   batchMarginTextOk: {
-    color: '#92400E',
+    color: Colors.light.warningDarker,
   },
   batchMarginTextLow: {
     color: '#991B1B',

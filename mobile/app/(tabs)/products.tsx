@@ -517,7 +517,7 @@ function MobileProductsScreen() {
                     style={[styles.onboardingBtn, { backgroundColor: brandingColors.primary }]}
                     onPress={() => router.push('/products/wizard?method=scanner')}
                   >
-                    <Ionicons name="scan-outline" size={18} color="#fff" />
+                    <Ionicons name="scan-outline" size={18} color={Colors.light.white} />
                     <Text style={styles.onboardingBtnLabel}>Escanear código de barras</Text>
                   </TouchableOpacity>
 
@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
   onboardingBtnLabel: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   onboardingBtnSecondary: {
     flexDirection: 'row',
@@ -835,7 +835,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: 10,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.light.warningLight,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
     borderColor: '#FCD34D',
@@ -853,6 +853,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: theme.fontSize.xs,
     fontWeight: '700',
-    color: '#92400E',
+    color: Colors.light.warningDarker,
   },
 });

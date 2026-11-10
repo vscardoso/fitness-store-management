@@ -240,7 +240,7 @@ export default function LabelProductPickerModal({
             allChecked && { backgroundColor: brandingColors.primary, borderColor: brandingColors.primary },
             someChecked && !allChecked && { borderColor: brandingColors.primary },
           ]}>
-            {allChecked && <Ionicons name="checkmark" size={13} color="#fff" />}
+            {allChecked && <Ionicons name="checkmark" size={13} color={Colors.light.white} />}
             {someChecked && !allChecked && <View style={[styles.checkboxDash, { backgroundColor: brandingColors.primary }]} />}
           </View>
 
@@ -295,7 +295,7 @@ export default function LabelProductPickerModal({
                       borderColor: brandingColors.primary,
                     },
                   ]}>
-                    {checked && <Ionicons name="checkmark" size={11} color="#fff" />}
+                    {checked && <Ionicons name="checkmark" size={11} color={Colors.light.white} />}
                   </View>
                   <Text style={[styles.variantLabel, checked && styles.variantLabelChecked]} numberOfLines={1}>
                     {label}
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
   },
-  selectedBadgeText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  selectedBadgeText: { color: Colors.light.white, fontSize: 14, fontWeight: '800' },
 
   // Search
   searchContainer: { padding: 12, backgroundColor: Colors.light.card, gap: 8 },

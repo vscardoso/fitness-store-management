@@ -541,5 +541,5 @@ const styles = StyleSheet.create({
   },
   cancelText: { color: Colors.light.text, fontWeight: '600' },
   saveButton: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12 },
-  saveText: { color: '#fff', fontWeight: '700' },
+  saveText: { color: Colors.light.white, fontWeight: '700' },
 });

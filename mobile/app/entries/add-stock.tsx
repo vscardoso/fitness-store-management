@@ -308,7 +308,7 @@ export default function AddStockScreen() {
                   <Ionicons
                     name={icon}
                     size={18}
-                    color={active ? '#fff' : Colors.light.textSecondary}
+                    color={active ? Colors.light.white : Colors.light.textSecondary}
                   />
                   <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>
                     {label}
@@ -422,10 +422,10 @@ export default function AddStockScreen() {
             style={styles.submitGradient}
           >
             {isSubmitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={Colors.light.white} />
             ) : (
               <>
-                <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                <Ionicons name="checkmark-circle-outline" size={20} color={Colors.light.white} />
                 <Text style={styles.submitText}>
                   Registrar {quantity} {quantity === 1 ? 'unidade' : 'unidades'}
                 </Text>
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   typeChipTextActive: {
-    color: '#fff',
+    color: Colors.light.white,
   },
 
   // ── Quantidade ──
@@ -704,7 +704,7 @@ const styles = StyleSheet.create({
   submitText: {
     fontSize: theme.fontSize.lg,
     fontWeight: theme.fontWeight.bold,
-    color: '#fff',
+    color: Colors.light.white,
     letterSpacing: 0.2,
   },
 });

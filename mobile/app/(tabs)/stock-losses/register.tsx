@@ -502,9 +502,9 @@ export default function StockLossRegisterScreen() {
               >
                 <LinearGradient colors={brandingColors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryGradient}>
                   {createStandaloneLossMutation.isPending ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={Colors.light.white} />
                   ) : (
-                    <Ionicons name="save-outline" size={18} color="#fff" />
+                    <Ionicons name="save-outline" size={18} color={Colors.light.white} />
                   )}
                   <Text style={styles.primaryButtonText}>{isStandaloneMode ? 'Confirmar Prejuízo' : 'Salvar Registro'}</Text>
                 </LinearGradient>
@@ -735,7 +735,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   primaryButtonText: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   searchLoadingRow: {
     marginTop: theme.spacing.xs,

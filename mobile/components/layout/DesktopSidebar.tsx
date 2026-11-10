@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Barra lateral do modo notebook (app web com 1024 px ou mais; ver hooks/useLayout.ts).
  * Substitui as abas de baixo e o menu "Mais": mesmos destinos e mesmas regras de papel do app/(tabs)/more.tsx
@@ -207,7 +208,7 @@ export default function DesktopSidebar() {
                     accessibilityRole="link"
                     accessibilityState={{ selected: active }}
                   >
-                    <Ionicons name={it.icon} size={18} color={active ? '#FFFFFF' : '#D9D4E8'} />
+                    <Ionicons name={it.icon} size={18} color={active ? Colors.light.white : '#D9D4E8'} />
                     <Text style={[styles.itemText, active && styles.itemTextActive]} numberOfLines={1}>{it.label}</Text>
                     {it.shortcut ? <Text style={styles.shortcut}>{it.shortcut}</Text> : null}
                     {it.badge ? <View style={styles.itemBadge}><Text style={styles.badgeText}>{it.badge > 99 ? '99+' : it.badge}</Text></View> : null}
@@ -270,7 +271,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 6, paddingBottom: 14 },
-  brandName: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
+  brandName: { color: Colors.light.white, fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
   storeName: { color: '#C9C2DD', fontSize: 12 },
   scroll: { paddingBottom: 12, gap: 6 },
   group: { gap: 1 },
@@ -278,15 +279,15 @@ const styles = StyleSheet.create({
   groupTitle: { color: '#A79FC0', fontSize: 11, fontWeight: '700', letterSpacing: 0.8 },
   item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
   itemText: { flex: 1, color: '#E7E3F1', fontSize: 14 },
-  itemTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  itemTextActive: { color: Colors.light.white, fontWeight: '600' },
   shortcut: { color: '#C9C2DD', fontSize: 11 },
   footer: {
     flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.06)', marginTop: 8,
   },
   avatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
-  userName: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  avatarText: { color: Colors.light.white, fontWeight: '700', fontSize: 13 },
+  userName: { color: Colors.light.white, fontSize: 13, fontWeight: '600' },
   userRole: { color: '#C9C2DD', fontSize: 12 },
   iconBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   badge: {
@@ -294,5 +295,5 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND.magenta, alignItems: 'center', justifyContent: 'center',
   },
   itemBadge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, marginLeft: 'auto', backgroundColor: BRAND.magenta, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  badgeText: { color: Colors.light.white, fontSize: 10, fontWeight: '700' },
 });

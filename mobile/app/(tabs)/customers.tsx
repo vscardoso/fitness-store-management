@@ -257,7 +257,7 @@ export default function CustomersScreen() {
                       {label}
                     </Text>
                     <View style={[styles.filterBadge, isActive && { backgroundColor: brandingColors.primary }]}>
-                      <Text style={[styles.filterBadgeText, isActive && { color: '#fff' }]}>{count}</Text>
+                      <Text style={[styles.filterBadgeText, isActive && { color: Colors.light.white }]}>{count}</Text>
                     </View>
                   </TouchableOpacity>
                 );

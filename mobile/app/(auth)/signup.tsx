@@ -211,7 +211,7 @@ export default function SignupScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerIconWrap}>
-              <Ionicons name="person-add" size={24} color="#fff" />
+              <Ionicons name="person-add" size={24} color={Colors.light.white} />
             </View>
             <Text variant="headlineMedium" style={styles.headerTitle}>
               Criar Conta
@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   headerTitle: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '800',
     fontSize: 30,
     letterSpacing: -0.6,
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.base,
   },
   formContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     marginHorizontal: theme.spacing.md,
     marginTop: 0,
     padding: theme.spacing.md,
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.55)',
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOpacity: 0.12,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 4,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   successText: {
     color: '#4caf50',

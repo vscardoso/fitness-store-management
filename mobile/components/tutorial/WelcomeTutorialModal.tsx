@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * WelcomeTutorialModal
  * Modal de boas-vindas que aparece no primeiro acesso
@@ -120,7 +121,7 @@ export function WelcomeTutorialModal({
             style={styles.header}
           >
             <View style={styles.iconContainer}>
-              <Ionicons name="rocket" size={48} color="#fff" />
+              <Ionicons name="rocket" size={48} color={Colors.light.white} />
             </View>
             <Text style={styles.welcomeText}>
               Bem-vindo{userName ? `, ${userName}` : ''}!
@@ -138,7 +139,7 @@ export function WelcomeTutorialModal({
             <View style={styles.features}>
               <FeatureItem
                 icon="cart"
-                color="#10B981"
+                color={Colors.light.success}
                 text="Vendas rápidas e intuitivas"
               />
               <FeatureItem
@@ -148,12 +149,12 @@ export function WelcomeTutorialModal({
               />
               <FeatureItem
                 icon="people"
-                color="#3B82F6"
+                color={Colors.light.info}
                 text="Gestão de clientes"
               />
               <FeatureItem
                 icon="bar-chart"
-                color="#F59E0B"
+                color={Colors.light.warning}
                 text="Relatórios e insights"
               />
             </View>
@@ -166,7 +167,7 @@ export function WelcomeTutorialModal({
                 activeOpacity={0.8}
               >
                 <Text style={styles.primaryButtonText}>Sim, me mostre!</Text>
-                <Ionicons name="arrow-forward" size={18} color="#fff" />
+                <Ionicons name="arrow-forward" size={18} color={Colors.light.white} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -180,7 +181,7 @@ export function WelcomeTutorialModal({
 
             {/* Dica */}
             <View style={styles.hint}>
-              <Ionicons name="information-circle" size={16} color="#9CA3AF" />
+              <Ionicons name="information-circle" size={16} color={Colors.light.textTertiary} />
               <Text style={styles.hintText}>
                 Você pode acessar o tutorial a qualquer momento pelo botão ? no topo das telas
               </Text>
@@ -225,10 +226,10 @@ const createStyles = (brand: string) => StyleSheet.create({
   container: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 24,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 20,
@@ -251,7 +252,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   welcomeText: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   content: {
     padding: 24,
@@ -306,7 +307,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 8,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -315,14 +316,14 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingVertical: 12,
   },
   secondaryButtonText: {
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     fontSize: 14,
     fontWeight: '500',
   },
   hint: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.surfaceSoft,
     padding: 12,
     borderRadius: 10,
     gap: 8,
@@ -330,7 +331,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   hintText: {
     flex: 1,
     fontSize: 12,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     lineHeight: 16,
   },
 });

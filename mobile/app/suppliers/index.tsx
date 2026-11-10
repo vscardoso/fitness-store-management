@@ -225,7 +225,7 @@ export default function SuppliersIndexScreen() {
             end={{ x: 1, y: 0 }}
             style={styles.fabGradient}
           >
-            <Ionicons name="add" size={28} color="#fff" />
+            <Ionicons name="add" size={28} color={Colors.light.white} />
           </LinearGradient>
         </TouchableOpacity>
         )}

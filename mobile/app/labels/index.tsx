@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   },
   jobError: {
     fontSize: theme.fontSize.xs,
-    color: '#EF4444',
+    color: Colors.light.error,
     marginTop: 4,
   },
   statusBadge: {

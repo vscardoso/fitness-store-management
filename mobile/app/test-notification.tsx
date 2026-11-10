@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Tela de teste do sistema de notificações
  * Acesse: /test-notification
@@ -283,7 +284,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 60,
     paddingBottom: 16,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   badgeText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -342,11 +343,11 @@ const styles = StyleSheet.create({
   testButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -376,7 +377,7 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 24,
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 12,
     alignItems: 'center',
   },

@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { useId } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Path, G } from 'react-native-svg';
@@ -29,7 +30,7 @@ export function ProvadorLogo({
 }: ProvadorLogoProps) {
   const uid = useId().replace(/:/g, '');
   const bold = size < 56;
-  const stroke = variant === 'icon' ? '#FFFFFF' : color ?? BRAND.violet;
+  const stroke = variant === 'icon' ? Colors.light.white : color ?? BRAND.violet;
   const hook = bold ? 'M256 152 V124 A28 28 0 1 0 228 96' : 'M256 152 V126 A26 26 0 1 0 230 100';
 
   const logo = (
@@ -40,8 +41,8 @@ export function ProvadorLogo({
           <Stop offset="1" stopColor={BRAND.magenta} />
         </LinearGradient>
         <RadialGradient id={`s${uid}`} cx="0.25" cy="0.12" r="0.75">
-          <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.28} />
-          <Stop offset="0.6" stopColor="#FFFFFF" stopOpacity={0} />
+          <Stop offset="0" stopColor={Colors.light.white} stopOpacity={0.28} />
+          <Stop offset="0.6" stopColor={Colors.light.white} stopOpacity={0} />
         </RadialGradient>
       </Defs>
       {variant === 'icon' && (

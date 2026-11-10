@@ -1921,7 +1921,7 @@ export default function AddStockEntryScreen() {
               <Ionicons
                 name={(createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending) ? 'sync-outline' : 'checkmark-circle-outline'}
                 size={20}
-                color="#fff"
+                color={Colors.light.white}
               />
               <Text style={styles.submitButtonText}>
                 {(createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending)
@@ -2523,7 +2523,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   submitButtonText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     fontSize: theme.fontSize.base,
   },
@@ -2554,7 +2554,7 @@ const styles = StyleSheet.create({
   variantCountText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   variantRowHeader: {
     flexDirection: 'row',

@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * Error Boundary para capturar erros React não tratados
  * Envia erros para o Sentry e mostra tela de erro amigável
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   title: {
     marginTop: 16,

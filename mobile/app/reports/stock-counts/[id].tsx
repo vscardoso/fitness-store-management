@@ -81,7 +81,7 @@ export default function StockCountDetailScreen() {
                   style={[styles.openBtn, { backgroundColor: brand.primary }]}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="play" size={14} color="#fff" />
+                  <Ionicons name="play" size={14} color={Colors.light.white} />
                   <Text style={styles.openBtnText}>Continuar de onde parou</Text>
                 </TouchableOpacity>
               </View>
@@ -104,7 +104,7 @@ export default function StockCountDetailScreen() {
               </View>
               <View style={styles.card}>
                 <Text style={styles.cardLabel}>Sobram</Text>
-                <Text style={[styles.cardValue, { color: count.over_pieces > 0 ? '#B45309' : Colors.light.text }]}>
+                <Text style={[styles.cardValue, { color: count.over_pieces > 0 ? Colors.light.warningDark : Colors.light.text }]}>
                   {formatInt(count.over_pieces)}
                 </Text>
               </View>
@@ -149,7 +149,7 @@ export default function StockCountDetailScreen() {
                         {r.difference === 0 ? (
                           <Ionicons name="checkmark-circle" size={22} color={VALUE_COLORS.positive} accessibilityLabel="Confere" />
                         ) : (
-                          <Text style={[styles.diffText, { color: r.difference < 0 ? VALUE_COLORS.negative : '#B45309' }]}>
+                          <Text style={[styles.diffText, { color: r.difference < 0 ? VALUE_COLORS.negative : Colors.light.warningDark }]}>
                             {r.difference < 0 ? `falta ${formatInt(-r.difference)}` : `sobra ${formatInt(r.difference)}`}
                           </Text>
                         )}
@@ -179,10 +179,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: 16, gap: 12, paddingBottom: 40 },
   meta: { fontSize: 13, color: Colors.light.textSecondary },
-  openBox: { gap: 10, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12 },
-  openText: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#92400E' },
+  openBox: { gap: 10, backgroundColor: Colors.light.warningLight, borderRadius: 12, padding: 12 },
+  openText: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: Colors.light.warningDarker },
   openBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
-  openBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  openBtnText: { color: Colors.light.white, fontWeight: '800', fontSize: 13 },
   note: { fontSize: 14, color: Colors.light.text, backgroundColor: Colors.light.card, borderRadius: 12, padding: 12 },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   card: {

@@ -84,16 +84,16 @@ function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: Sta
           {trend !== undefined && (
             <View style={[
               styles.trendBadge,
-              { backgroundColor: trend >= 0 ? '#ECFDF5' : '#FEF2F2' }
+              { backgroundColor: trend >= 0 ? Colors.light.successSoft : Colors.light.errorSoft }
             ]}>
               <Ionicons
                 name={trend >= 0 ? 'arrow-up' : 'arrow-down'}
                 size={10}
-                color={trend >= 0 ? '#10B981' : '#EF4444'}
+                color={trend >= 0 ? Colors.light.success : Colors.light.error}
               />
               <Text style={[
                 styles.trendBadgeText,
-                { color: trend >= 0 ? '#10B981' : '#EF4444' }
+                { color: trend >= 0 ? Colors.light.success : Colors.light.error }
               ]}>
                 {formatPercent(Math.abs(trend), 0)} vs anterior
               </Text>
@@ -516,8 +516,8 @@ export default function InventoryDashboard() {
                     icon="warning-outline"
                     label="Perdas de Estoque"
                     value={formatCurrency(Number(periodResult.stock_losses_total))}
-                    iconColor="#B91C1C"
-                    iconBg="#FEE2E2"
+                    iconColor={Colors.light.errorDark}
+                    iconBg={Colors.light.errorLight}
                     onPress={() => router.push('/(tabs)/stock-losses')}
                   />
                 </View>
@@ -819,7 +819,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   periodFilterChipTextActive: {
-    color: '#fff',
+    color: Colors.light.white,
   },
   statsRow: {
     flexDirection: 'row',
@@ -953,7 +953,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingHorizontal: 20,
   },
   addEntryButtonText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
   },

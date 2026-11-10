@@ -143,12 +143,12 @@ const styles = StyleSheet.create({
     paddingTop: 50,  // Space for status bar
   },
   banner: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.white,
     borderRadius: 12,
     borderLeftWidth: 4,
     flexDirection: 'row',
     padding: 12,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
@@ -193,10 +193,10 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.light.white,
   },
   actionTextDestructive: {
-    color: '#FFFFFF',
+    color: Colors.light.white,
   },
   closeButton: {
     padding: 4,

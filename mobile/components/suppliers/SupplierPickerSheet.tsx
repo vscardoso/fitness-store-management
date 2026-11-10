@@ -313,7 +313,7 @@ export default function SupplierPickerSheet({
                     style={styles.miniSaveGradient}
                   >
                     {createMutation.isPending ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={Colors.light.white} />
                     ) : (
                       <Text style={styles.miniSaveText}>Salvar fornecedor</Text>
                     )}
@@ -488,6 +488,6 @@ const styles = StyleSheet.create({
   miniSaveText: {
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
 });

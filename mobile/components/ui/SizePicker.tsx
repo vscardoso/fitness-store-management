@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   section: { marginTop: 16, marginBottom: 8, fontSize: 13, color: Colors.light.textSecondary },
   customRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   apply: { paddingHorizontal: 18, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  applyText: { color: '#fff', fontWeight: '700' },
+  applyText: { color: Colors.light.white, fontWeight: '700' },
   clear: { marginTop: 16, alignSelf: 'flex-start', paddingVertical: 6 },
   clearText: { color: Colors.light.error, fontSize: 14 },
 });

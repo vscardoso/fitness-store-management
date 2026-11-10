@@ -145,5 +145,5 @@ const styles = StyleSheet.create({
   cancel: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center' },
   cancelText: { color: Colors.light.text, fontWeight: '600' },
   save: { paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 4 },
-  saveText: { color: '#fff', fontWeight: '700' },
+  saveText: { color: Colors.light.white, fontWeight: '700' },
 });

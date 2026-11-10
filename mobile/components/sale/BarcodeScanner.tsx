@@ -194,7 +194,7 @@ export default function BarcodeScanner({
             {isLoading && (
               <ActivityIndicator
                 size="large"
-                color="#fff"
+                color={Colors.light.white}
                 style={styles.loader}
               />
             )}
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 40,
     height: 40,
-    borderColor: '#fff',
+    borderColor: Colors.light.white,
   },
   cornerTopLeft: {
     top: 0,
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   instructionText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,

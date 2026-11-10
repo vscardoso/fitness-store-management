@@ -130,7 +130,7 @@ function PendingCard({
           disabled={confirming || cancelling}
           activeOpacity={0.8}
         >
-          <Ionicons name="checkmark-circle-outline" size={15} color="#fff" />
+          <Ionicons name="checkmark-circle-outline" size={15} color={Colors.light.white} />
           <Text style={styles.btnPrimaryText}>
             {confirming ? 'Confirmando…' : 'Confirmar Recebimento'}
           </Text>
@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   btnPrimaryText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 13,
     fontWeight: '600',
   },

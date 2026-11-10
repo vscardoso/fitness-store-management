@@ -389,8 +389,8 @@ export default function DesktopPDV() {
               accessibilityRole="alert"
               style={[styles.notice, notice.ok ? styles.noticeOk : styles.noticeWarn]}
             >
-              <Ionicons name={notice.ok ? 'checkmark-circle' : 'alert-circle'} size={16} color={notice.ok ? '#047857' : '#B45309'} />
-              <Text style={[styles.noticeText, { color: notice.ok ? '#065F46' : '#92400E' }]}>{notice.text}</Text>
+              <Ionicons name={notice.ok ? 'checkmark-circle' : 'alert-circle'} size={16} color={notice.ok ? Colors.light.successDark : Colors.light.warningDark} />
+              <Text style={[styles.noticeText, { color: notice.ok ? '#065F46' : Colors.light.warningDarker }]}>{notice.text}</Text>
             </View>
           )}
 
@@ -439,7 +439,7 @@ export default function DesktopPDV() {
                             >
                               {hex ? <View style={[styles.swatch, { backgroundColor: hex }]} /> : null}
                               <Text style={[styles.vchipText, off && styles.vchipTextOff]}>{variantLabel(v)}</Text>
-                              <Text style={[styles.vchipStock, { color: off ? '#9A93AD' : left <= 2 ? '#B45309' : '#047857' }]}>
+                              <Text style={[styles.vchipStock, { color: off ? '#9A93AD' : left <= 2 ? Colors.light.warningDark : Colors.light.successDark }]}>
                                 {off ? 'esgotado' : `${left} un.`}
                               </Text>
                               {code ? <Text style={styles.vchipCode}>{code}</Text> : null}
@@ -622,33 +622,33 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F6F5FA' },
   header: {
     flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-    paddingHorizontal: 24, paddingVertical: 14, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: LINE,
+    paddingHorizontal: 24, paddingVertical: 14, backgroundColor: Colors.light.white, borderBottomWidth: 1, borderBottomColor: LINE,
   },
   title: { fontSize: 20, fontWeight: '700', color: INK },
   subtitle: { fontSize: 13, color: MUTED, marginTop: 2 },
-  ghostBtn: { height: 38, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: LINE, justifyContent: 'center', backgroundColor: '#FFFFFF' },
+  ghostBtn: { height: 38, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: LINE, justifyContent: 'center', backgroundColor: Colors.light.white },
   ghostBtnText: { fontSize: 14, color: INK, fontWeight: '500' },
   darkBtn: { height: 38, paddingHorizontal: 14, borderRadius: 9, backgroundColor: INK, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  darkBtnText: { fontSize: 14, color: '#FFFFFF', fontWeight: '600' },
-  kbdDark: { fontSize: 11, color: '#FFFFFF', backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  darkBtnText: { fontSize: 14, color: Colors.light.white, fontWeight: '600' },
+  kbdDark: { fontSize: 11, color: Colors.light.white, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   kbd: { fontSize: 12, color: MUTED, borderWidth: 1, borderColor: LINE, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1 },
   body: { flex: 1, flexDirection: 'row', gap: 20, padding: 20, minHeight: 0 },
   left: { flex: 1, minWidth: 0, gap: 12 },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, paddingHorizontal: 14, borderRadius: 12, borderWidth: 2,
-    backgroundColor: '#FFFFFF', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
+    backgroundColor: Colors.light.white, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
   },
   searchInput: { flex: 1, minWidth: 0, fontSize: 16, color: INK, outlineStyle: 'none' } as any,
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: '#FFFFFF', justifyContent: 'center' },
+  chip: { height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: Colors.light.white, justifyContent: 'center' },
   chipOn: { backgroundColor: INK, borderColor: INK },
   chipText: { fontSize: 13, fontWeight: '600', color: INK },
-  chipTextOn: { color: '#FFFFFF' },
+  chipTextOn: { color: Colors.light.white },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
-  noticeOk: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
+  noticeOk: { backgroundColor: Colors.light.successSoft, borderColor: '#A7F3D0' },
   noticeWarn: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
   noticeText: { fontSize: 13, flex: 1 },
-  list: { flex: 1, minHeight: 0, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
+  list: { flex: 1, minHeight: 0, backgroundColor: Colors.light.white, borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
   listHead: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: LINE, backgroundColor: '#FBFAFD' },
   listHeadText: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.3 },
   empty: { padding: 32, alignItems: 'center' },
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
   rowMeta: { fontSize: 13, color: MUTED },
   rowPrice: { fontSize: 15, fontWeight: '700', marginTop: 2 },
   variants: { flexGrow: 2, flexShrink: 1, flexBasis: 320, flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', alignContent: 'flex-start' },
-  vchip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: '#FFFFFF' },
+  vchip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#E0DBEA', backgroundColor: Colors.light.white },
   vchipOff: { borderColor: '#ECEAF2', backgroundColor: '#F7F6FA' },
   vchipText: { fontSize: 13, fontWeight: '600', color: INK },
   vchipTextOff: { color: '#9A93AD' },
@@ -667,7 +667,7 @@ const styles = StyleSheet.create({
   vchipCode: { fontSize: 11, color: '#8A839E' },
   swatch: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(22,15,40,0.2)' },
   hint: { fontSize: 12, color: MUTED },
-  right: { width: 380, flexShrink: 0, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
+  right: { width: 380, flexShrink: 0, backgroundColor: Colors.light.white, borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
   block: { padding: 14, borderBottomWidth: 1, borderBottomColor: SOFT_LINE },
   customer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   customerPick: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: '#CFC8DE' },
@@ -693,14 +693,14 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 15, fontWeight: '700', color: INK },
   totalValue: { fontSize: 28, fontWeight: '800', color: INK },
   discountRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dtype: { height: 32, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: '#E0DBEA', justifyContent: 'center', backgroundColor: '#FFFFFF' },
+  dtype: { height: 32, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: '#E0DBEA', justifyContent: 'center', backgroundColor: Colors.light.white },
   dtypeOn: { borderColor: INK, backgroundColor: INK },
   dtypeText: { fontSize: 13, fontWeight: '700', color: INK },
-  dtypeTextOn: { color: '#FFFFFF' },
-  discountInput: { flex: 1, minWidth: 0, height: 32, borderWidth: 1, borderColor: '#CFC8DE', borderRadius: 7, paddingHorizontal: 8, fontSize: 14, color: INK, backgroundColor: '#FFFFFF' },
+  dtypeTextOn: { color: Colors.light.white },
+  discountInput: { flex: 1, minWidth: 0, height: 32, borderWidth: 1, borderColor: '#CFC8DE', borderRadius: 7, paddingHorizontal: 8, fontSize: 14, color: INK, backgroundColor: Colors.light.white },
   smallBtn: { height: 32, paddingHorizontal: 10, borderRadius: 7, justifyContent: 'center' },
-  smallBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  smallBtnText: { color: Colors.light.white, fontSize: 13, fontWeight: '600' },
   finish: { height: 50, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4 },
-  finishText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  finishText: { color: Colors.light.white, fontSize: 16, fontWeight: '700' },
   payHint: { fontSize: 12, color: MUTED, textAlign: 'center' },
 });

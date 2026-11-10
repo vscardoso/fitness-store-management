@@ -107,13 +107,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     width: '90%',
     maxWidth: 500,
     maxHeight: '80%',
     elevation: 5,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -130,14 +130,14 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
   },
   headerText: {
     flex: 1,
   },
   title: {
     fontWeight: 'bold',
-    color: '#000',
+    color: Colors.light.black,
   },
   subtitle: {
     marginTop: 4,

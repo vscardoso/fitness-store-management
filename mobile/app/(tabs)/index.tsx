@@ -330,7 +330,7 @@ export default function DashboardScreen() {
       id: 'customers',
       title: 'Clientes',
       icon: 'people',
-      color: '#3B82F6',
+      color: Colors.light.info,
       onPress: () => router.push('/(tabs)/customers'),
     },
     {
@@ -427,7 +427,7 @@ export default function DashboardScreen() {
           >
             <View style={styles.mainCardHeader}>
               <View style={styles.mainCardIcon}>
-                <Ionicons name="trending-up" size={24} color="#fff" />
+                <Ionicons name="trending-up" size={24} color={Colors.light.white} />
               </View>
               {salesTrendPercent !== 0 && (
                 <View style={[
@@ -437,7 +437,7 @@ export default function DashboardScreen() {
                   <Ionicons
                     name={salesTrendPercent >= 0 ? 'arrow-up' : 'arrow-down'}
                     size={14}
-                    color="#fff"
+                    color={Colors.light.white}
                   />
                   <Text style={styles.trendText}>
                     {formatSignedPercent(salesTrendPercent)} vs ontem
@@ -513,7 +513,7 @@ export default function DashboardScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.monthCardLabel}>Faturamento</Text>
               <TouchableOpacity onPress={() => setActiveTooltip('faturamento')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
+                <Ionicons name="information-circle-outline" size={11} color={Colors.light.textTertiary} />
               </TouchableOpacity>
             </View>
             <Money style={styles.monthCardValue} value={Number(periodTotal)} />
@@ -522,7 +522,7 @@ export default function DashboardScreen() {
               {totalChangePercent !== 0 && (
                 <View style={[
                   styles.changeBadge,
-                  { backgroundColor: totalChangePercent >= 0 ? '#ECFDF5' : '#FEF2F2' }
+                  { backgroundColor: totalChangePercent >= 0 ? Colors.light.successSoft : Colors.light.errorSoft }
                 ]}>
                   <Ionicons
                     name={totalChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
@@ -546,13 +546,13 @@ export default function DashboardScreen() {
             activeOpacity={0.7}
             onPress={() => router.push('/reports/sales-period' as any)}
           >
-            <View style={[styles.monthCardIcon, { backgroundColor: '#ECFDF5' }]}>
+            <View style={[styles.monthCardIcon, { backgroundColor: Colors.light.successSoft }]}>
               <Ionicons name="cash-outline" size={22} color={VALUE_COLORS.positive} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.monthCardLabel}>Lucro das vendas</Text>
               <TouchableOpacity onPress={() => setActiveTooltip('lucro-periodo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
+                <Ionicons name="information-circle-outline" size={11} color={Colors.light.textTertiary} />
               </TouchableOpacity>
             </View>
             <Money style={[styles.monthCardValue, { color: VALUE_COLORS.positive }]} value={Number(periodProfit)} />
@@ -561,7 +561,7 @@ export default function DashboardScreen() {
               {profitChangePercent !== 0 && (
                 <View style={[
                   styles.changeBadge,
-                  { backgroundColor: profitChangePercent >= 0 ? '#ECFDF5' : '#FEF2F2' }
+                  { backgroundColor: profitChangePercent >= 0 ? Colors.light.successSoft : Colors.light.errorSoft }
                 ]}>
                   <Ionicons
                     name={profitChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
@@ -648,7 +648,7 @@ export default function DashboardScreen() {
               </View>
               {dailySales.best_day && dailySales.best_day.total > 0 && (
                 <View style={styles.bestDayBadge}>
-                  <Ionicons name="trophy" size={14} color="#F59E0B" />
+                  <Ionicons name="trophy" size={14} color={Colors.light.warning} />
                   <Text style={styles.bestDayText}>{dailySales.best_day.day_short}</Text>
                 </View>
               )}
@@ -669,7 +669,7 @@ export default function DashboardScreen() {
                           styles.bar, 
                           { 
                             height: `${barHeight}%`,
-                            backgroundColor: isToday ? VALUE_COLORS.positive : day.total > 0 ? brandingColors.primary : '#E5E7EB'
+                            backgroundColor: isToday ? VALUE_COLORS.positive : day.total > 0 ? brandingColors.primary : Colors.light.border
                           }
                         ]} 
                       />
@@ -697,7 +697,7 @@ export default function DashboardScreen() {
                 <View style={styles.chartSummaryLabelRow}>
                   <Text style={styles.chartSummaryLabel} numberOfLines={1}>Lucro das vendas</Text>
                   <TouchableOpacity onPress={() => setActiveTooltip('lucro-periodo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <Ionicons name="information-circle-outline" size={12} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={12} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
                 </View>
                 <FitText style={[styles.chartSummaryValue, { color: VALUE_COLORS.positive }]}>
@@ -709,7 +709,7 @@ export default function DashboardScreen() {
                 <View style={styles.chartSummaryLabelRow}>
                   <Text style={styles.chartSummaryLabel} numberOfLines={1}>Custo das peças</Text>
                   <TouchableOpacity onPress={() => setActiveTooltip('cmv')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <Ionicons name="information-circle-outline" size={12} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={12} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
                 </View>
                 <FitText style={[styles.chartSummaryValue, { color: VALUE_COLORS.negative }]}>
@@ -785,8 +785,8 @@ export default function DashboardScreen() {
                 </View>
                 <View style={[
                   styles.fifoSellThroughBadge,
-                  { backgroundColor: fifoPerf.sell_through.rate >= 70 ? '#ECFDF5' :
-                    fifoPerf.sell_through.rate >= 40 ? '#FEF3C7' : '#FEF2F2' }
+                  { backgroundColor: fifoPerf.sell_through.rate >= 70 ? Colors.light.successSoft :
+                    fifoPerf.sell_through.rate >= 40 ? Colors.light.warningLight : Colors.light.errorSoft }
                 ]}>
                   <Text style={[
                     styles.fifoSellThroughBadgeText,
@@ -852,7 +852,7 @@ export default function DashboardScreen() {
               >
                 <View style={[
                   styles.fifoMetricIconContainer,
-                  { backgroundColor: fifoMargin >= 0 ? '#ECFDF5' : '#FEF2F2' }
+                  { backgroundColor: fifoMargin >= 0 ? Colors.light.successSoft : Colors.light.errorSoft }
                 ]}>
                   <Ionicons
                     name={fifoMargin >= 0 ? 'trending-up' : 'trending-down'}
@@ -863,7 +863,7 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                   <Text style={styles.fifoMetricLabel}>Lucro Médio</Text>
                   <TouchableOpacity onPress={() => setActiveTooltip('lucro-medio')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={10} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
                 </View>
                 <Text style={[
@@ -892,7 +892,7 @@ export default function DashboardScreen() {
               >
                 <View style={[
                   styles.fifoMetricIconContainer,
-                  { backgroundColor: fifoPerf.roi.negative_count === 0 ? '#ECFDF5' : '#FEF2F2' }
+                  { backgroundColor: fifoPerf.roi.negative_count === 0 ? Colors.light.successSoft : Colors.light.errorSoft }
                 ]}>
                   <Ionicons
                     name={fifoPerf.roi.negative_count === 0 ? 'checkmark-circle' : 'alert-circle'}
@@ -903,7 +903,7 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                   <Text style={styles.fifoMetricLabel}>Prejuízo</Text>
                   <TouchableOpacity onPress={() => setActiveTooltip('prejuizo-fifo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={10} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
                 </View>
                 <Text style={[
@@ -932,7 +932,7 @@ export default function DashboardScreen() {
               >
                 <View style={[
                   styles.fifoMetricIconContainer,
-                  { backgroundColor: stagnantUnits === 0 ? '#ECFDF5' : '#FEF3C7' }
+                  { backgroundColor: stagnantUnits === 0 ? Colors.light.successSoft : Colors.light.warningLight }
                 ]}>
                   <Ionicons
                     name={stagnantUnits === 0 ? 'cube' : 'archive'}
@@ -943,7 +943,7 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                   <Text style={styles.fifoMetricLabel}>Itens Parados</Text>
                   <TouchableOpacity onPress={() => setActiveTooltip('itens-parados')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={10} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
                 </View>
                 <Text style={[
@@ -967,7 +967,7 @@ export default function DashboardScreen() {
             {fifoPerf.roi.negative_count > 0 && (
               <TouchableOpacity style={styles.fifoAlert} activeOpacity={0.8}>
                 <View style={styles.fifoAlertIcon}>
-                  <Ionicons name="warning" size={20} color="#EF4444" />
+                  <Ionicons name="warning" size={20} color={Colors.light.error} />
                 </View>
                 <View style={styles.fifoAlertContent}>
                   <Text style={styles.fifoAlertTitle}>Ação Necessária</Text>
@@ -981,7 +981,7 @@ export default function DashboardScreen() {
 
             {/* Insight contextual */}
             <View style={styles.fifoInsight}>
-              <Ionicons name="bulb" size={14} color="#F59E0B" />
+              <Ionicons name="bulb" size={14} color={Colors.light.warning} />
               <Text style={styles.fifoInsightText}>
                 {fifoPerf.sell_through.rate >= 70
                   ? 'Excelente! Seu estoque está girando bem. Continue monitorando.'
@@ -1012,7 +1012,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 {hasPrev && (
-                  <View style={[styles.yoyChangeBadge, { backgroundColor: isPositive ? '#ECFDF5' : '#FEF2F2' }]}>
+                  <View style={[styles.yoyChangeBadge, { backgroundColor: isPositive ? Colors.light.successSoft : Colors.light.errorSoft }]}>
                     <Ionicons name={isPositive ? 'trending-up' : 'trending-down'} size={14}
                       color={isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative} />
                     <Text style={[styles.yoyChangePct, { color: isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
@@ -1062,7 +1062,7 @@ export default function DashboardScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Text style={styles.purchasesLabel}>Compras do Período</Text>
                 <TouchableOpacity onPress={() => setActiveTooltip('compras')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                  <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
+                  <Ionicons name="information-circle-outline" size={11} color={Colors.light.textTertiary} />
                 </TouchableOpacity>
               </View>
               <Money style={styles.purchasesValue} value={Number(purchasesTotal)} />
@@ -1071,7 +1071,7 @@ export default function DashboardScreen() {
             {purchasesChangePercent !== 0 && (
               <View style={[
                 styles.changeBadge,
-                { backgroundColor: purchasesChangePercent >= 0 ? '#FEF3C7' : '#ECFDF5' }
+                { backgroundColor: purchasesChangePercent >= 0 ? Colors.light.warningLight : Colors.light.successSoft }
               ]}>
                 <Ionicons
                   name={purchasesChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
@@ -1134,13 +1134,13 @@ export default function DashboardScreen() {
             <View style={styles.stockRow}>
               <View style={styles.stockItem}>
                 <View style={styles.stockItemHeader}>
-                  <Ionicons name="cube-outline" size={18} color="#6B7280" />
+                  <Ionicons name="cube-outline" size={18} color={Colors.light.textSecondary} />
                   <Text style={styles.stockItemLabel}>Capital Investido</Text>
                   <TouchableOpacity
                     onPress={() => setActiveTooltip('capital')}
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                   >
-                    <Ionicons name="information-circle-outline" size={13} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={13} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.stockItemValue}>{formatCurrency(stockCost)}</Text>
@@ -1153,13 +1153,13 @@ export default function DashboardScreen() {
               <View style={styles.stockDivider} />
               <View style={styles.stockItem}>
                 <View style={styles.stockItemHeader}>
-                  <Ionicons name="pricetag-outline" size={18} color="#6B7280" />
+                  <Ionicons name="pricetag-outline" size={18} color={Colors.light.textSecondary} />
                   <Text style={styles.stockItemLabel}>Se Vender Tudo</Text>
                   <TouchableOpacity
                     onPress={() => setActiveTooltip('venda')}
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                   >
-                    <Ionicons name="information-circle-outline" size={13} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={13} color={Colors.light.textTertiary} />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.stockItemValue}>{formatCurrency(stockRetail)}</Text>
@@ -1231,8 +1231,8 @@ export default function DashboardScreen() {
               {activeTooltip === 'venda' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                      <Ionicons name="pricetag-outline" size={20} color="#F59E0B" />
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.warningLight }]}>
+                      <Ionicons name="pricetag-outline" size={20} color={Colors.light.warning} />
                     </View>
                     <Text style={styles.tooltipTitle}>Se Vender Tudo</Text>
                   </View>
@@ -1245,7 +1245,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'lucro' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#ECFDF5' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.successSoft }]}>
                       <Ionicons name="trending-up" size={20} color={VALUE_COLORS.positive} />
                     </View>
                     <Text style={styles.tooltipTitle}>Lucro Estimado</Text>
@@ -1271,7 +1271,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'lucro-periodo' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#ECFDF5' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.successSoft }]}>
                       <Ionicons name="cash-outline" size={20} color={VALUE_COLORS.positive} />
                     </View>
                     <Text style={styles.tooltipTitle}>Lucro das vendas</Text>
@@ -1283,7 +1283,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'cmv' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF2F2' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.errorSoft }]}>
                       <Ionicons name="calculator-outline" size={20} color={VALUE_COLORS.negative} />
                     </View>
                     <Text style={styles.tooltipTitle}>Custo das peças</Text>
@@ -1307,7 +1307,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'lucro-medio' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#ECFDF5' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.successSoft }]}>
                       <Ionicons name="trending-up" size={20} color={VALUE_COLORS.positive} />
                     </View>
                     <Text style={styles.tooltipTitle}>Lucro Médio</Text>
@@ -1319,7 +1319,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'prejuizo-fifo' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF2F2' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.errorSoft }]}>
                       <Ionicons name="alert-circle" size={20} color={VALUE_COLORS.negative} />
                     </View>
                     <Text style={styles.tooltipTitle}>Compras com Prejuízo</Text>
@@ -1331,7 +1331,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'itens-parados' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.warningLight }]}>
                       <Ionicons name="archive" size={20} color={VALUE_COLORS.warning} />
                     </View>
                     <Text style={styles.tooltipTitle}>Itens Parados</Text>
@@ -1343,7 +1343,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'compras' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.warningLight }]}>
                       <Ionicons name="cart-outline" size={20} color={VALUE_COLORS.warning} />
                     </View>
                     <Text style={styles.tooltipTitle}>Compras do Período</Text>
@@ -1378,7 +1378,7 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(tabs)/products')}
           >
             <View style={styles.alertIcon}>
-              <Ionicons name="warning" size={24} color="#F59E0B" />
+              <Ionicons name="warning" size={24} color={Colors.light.warning} />
             </View>
             <View style={styles.alertContent}>
               <Text style={styles.alertTitle}>Estoque Baixo</Text>
@@ -1386,7 +1386,7 @@ export default function DashboardScreen() {
                 {formatInt(lowStockCount)} {lowStockCount === 1 ? 'produto precisa' : 'produtos precisam'} de reposição
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
           </TouchableOpacity>
         )}
 
@@ -1410,7 +1410,7 @@ export default function DashboardScreen() {
             style={styles.quickStatCard}
             onPress={() => router.push('/(tabs)/customers')}
           >
-            <Ionicons name="people" size={20} color="#3B82F6" />
+            <Ionicons name="people" size={20} color={Colors.light.info} />
             <Text style={styles.quickStatValue}>{formatInt(totalCustomers)}</Text>
             <Text style={styles.quickStatLabel}>Clientes</Text>
           </TouchableOpacity>
@@ -1418,7 +1418,7 @@ export default function DashboardScreen() {
             style={styles.quickStatCard}
             onPress={() => router.push('/(tabs)/sales')}
           >
-            <Ionicons name="receipt" size={20} color="#10B981" />
+            <Ionicons name="receipt" size={20} color={Colors.light.success} />
             <Text style={styles.quickStatValue}>{formatInt(periodCount)}</Text>
             <Text style={styles.quickStatLabel}>Vendas</Text>
           </TouchableOpacity>
@@ -1512,7 +1512,7 @@ export default function DashboardScreen() {
 const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.surfaceMuted,
   },
   scrollView: {
     flex: 1,
@@ -1531,7 +1531,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.75)',
     backgroundColor: 'rgba(255,255,255,0.2)',
     marginLeft: 45,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.18,
     shadowRadius: 5,
@@ -1547,7 +1547,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.55)',
     backgroundColor: 'rgba(255,255,255,0.22)',
     marginLeft: 15,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.18,
     shadowRadius: 5,
@@ -1605,7 +1605,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 4,
   },
   trendText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1617,7 +1617,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   mainCardValue: {
     fontSize: 36,
     fontWeight: '800',
-    color: '#fff',
+    color: Colors.light.white,
     marginVertical: 4,
   },
   mainCardSubtitle: {
@@ -1647,14 +1647,14 @@ const createStyles = (brand: string) => StyleSheet.create({
   todayMarginText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
 
   // Seções
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
     marginBottom: 12,
     marginTop: 8,
   },
@@ -1676,10 +1676,10 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   monthCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -1696,20 +1696,20 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   monthCardLabel: {
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     fontWeight: '500',
     textAlign: 'center',
   },
   monthCardValue: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
     marginVertical: 4,
     textAlign: 'center',
   },
   monthCardSubtitle: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     textAlign: 'center',
   },
   monthCardFooter: {
@@ -1800,11 +1800,11 @@ const createStyles = (brand: string) => StyleSheet.create({
 
   // Card de Compras do Período
   purchasesCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -1821,7 +1821,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.light.warningLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1831,22 +1831,22 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   purchasesLabel: {
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     fontWeight: '500',
   },
   purchasesValue: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
   },
   purchasesPeriodNote: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginTop: 1,
   },
   purchasesStats: {
     flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.surfaceSoft,
     borderRadius: 10,
     padding: 12,
   },
@@ -1861,18 +1861,18 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   purchasesStatLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   purchasesStatDivider: {
     width: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.light.border,
     marginHorizontal: 8,
   },
 
   // Card de Estoque
   catFilter: { gap: 6, marginBottom: 12 },
-  catFilterHint: { fontSize: 12, color: '#6B7280' },
+  catFilterHint: { fontSize: 12, color: Colors.light.textSecondary },
   catFilterRow: { gap: 6, paddingRight: 8 },
   catChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6,
@@ -1909,25 +1909,25 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   stockItemLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     textAlign: 'center',
   },
   stockItemValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
     textAlign: 'center',
   },
   stockDivider: {
     width: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.light.border,
     marginHorizontal: 16,
   },
   stockProfitRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: Colors.light.successSoft,
     padding: 14,
     borderRadius: 12,
     marginBottom: 12,
@@ -1961,14 +1961,14 @@ const createStyles = (brand: string) => StyleSheet.create({
   stockProfitPercent: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   stockInfo: {
     alignItems: 'center',
   },
   stockInfoText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     fontWeight: '500',
   },
   stockItemPeriodHint: {
@@ -1985,12 +1985,12 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingHorizontal: 24,
   },
   tooltipBox: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 20,
     padding: 0,
     width: '100%',
     maxWidth: 400,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.25,
     shadowRadius: 32,
@@ -2020,12 +2020,12 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   tooltipDivider: {
     height: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.surfaceMuted,
     marginHorizontal: 20,
   },
   tooltipText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     lineHeight: 22,
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -2044,14 +2044,14 @@ const createStyles = (brand: string) => StyleSheet.create({
   tooltipCloseText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
 
   // Alerta
   alertCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.light.warningLight,
     borderRadius: 12,
     padding: 14,
     marginBottom: 20,
@@ -2073,7 +2073,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   alertTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#92400E',
+    color: Colors.light.warningDarker,
   },
   alertText: {
     fontSize: 12,
@@ -2114,11 +2114,11 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   quickStatCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 12,
     padding: 14,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -2127,17 +2127,17 @@ const createStyles = (brand: string) => StyleSheet.create({
   quickStatValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
     marginTop: 6,
   },
   quickStatLabel: {
     fontSize: 11,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   quickStatSub: {
     fontSize: 10,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginTop: 1,
   },
 
@@ -2169,7 +2169,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   recentItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.light.surfaceMuted,
   },
   recentItemLeft: {
     flexDirection: 'row',
@@ -2190,11 +2190,11 @@ const createStyles = (brand: string) => StyleSheet.create({
   recentItemTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
   },
   recentItemDate: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginTop: 1,
   },
   recentItemValue: {
@@ -2217,7 +2217,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     marginTop: 12,
     marginBottom: 16,
   },
@@ -2228,18 +2228,18 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 8,
   },
   emptyButtonText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '600',
     fontSize: 14,
   },
 
   // Gráfico de Vendas 7 Dias
   chartCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -2254,18 +2254,18 @@ const createStyles = (brand: string) => StyleSheet.create({
   chartTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
   },
   chartSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   bestDayBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.light.warningLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -2299,7 +2299,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   barLabel: {
     fontSize: 10,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginTop: 4,
   },
   barLabelToday: {
@@ -2308,12 +2308,12 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   barValue: {
     fontSize: 9,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   chartSummary: {
     flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.surfaceSoft,
     borderRadius: 10,
     padding: 12,
     marginTop: 8,
@@ -2334,29 +2334,29 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   chartSummaryLabel: {
     fontSize: 11,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     flexShrink: 1,
   },
   chartSummaryValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
     textAlign: 'center',
     alignSelf: 'stretch',
   },
   chartSummaryDivider: {
     width: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.light.border,
     marginHorizontal: 8,
   },
 
   // Top 5 Produtos
   topProductsCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -2394,18 +2394,18 @@ const createStyles = (brand: string) => StyleSheet.create({
   topProductName: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
     flex: 1,
     marginRight: 8,
   },
   topProductRevenue: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
   },
   topProductBarBg: {
     height: 6,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.surfaceMuted,
     borderRadius: 3,
     marginBottom: 4,
     overflow: 'hidden',
@@ -2420,16 +2420,16 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   topProductStatText: {
     fontSize: 11,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
   },
 
   // FIFO Performance
   fifoCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -2444,18 +2444,18 @@ const createStyles = (brand: string) => StyleSheet.create({
   fifoTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
   },
   fifoSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   fifoInfoButton: {
     padding: 4,
   },
   fifoSellThrough: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.surfaceSoft,
     borderRadius: 12,
     padding: 14,
     marginBottom: 14,
@@ -2473,7 +2473,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   fifoSellThroughLabel: {
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     fontWeight: '600',
   },
   fifoSellThroughBadge: {
@@ -2487,26 +2487,26 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   fifoMetricLabel: {
     fontSize: 11,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     fontWeight: '500',
     marginBottom: 4,
   },
   fifoMetricSub: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginTop: 2,
   },
   fifoSellThroughValue: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
   },
   fifoGaugeContainer: {
     marginTop: 4,
   },
   fifoGaugeBg: {
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.light.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -2521,23 +2521,23 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   fifoMetricCard: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.surfaceSoft,
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
   },
   fifoMetricCardPositive: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: Colors.light.successSoft,
     borderWidth: 1,
     borderColor: VALUE_COLORS.positive,
   },
   fifoMetricCardNegative: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.light.errorSoft,
     borderWidth: 1,
     borderColor: VALUE_COLORS.negative,
   },
   fifoMetricCardNeutral: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.light.warningLight,
     borderWidth: 1,
     borderColor: VALUE_COLORS.warning,
   },
@@ -2562,11 +2562,11 @@ const createStyles = (brand: string) => StyleSheet.create({
   fifoMetricBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   fifoAlert: {
     flexDirection: 'row',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.light.errorSoft,
     borderRadius: 12,
     padding: 12,
     marginTop: 12,
@@ -2577,7 +2577,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: Colors.light.errorSoft,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -2605,7 +2605,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.light.warningLight,
     borderRadius: 8,
     padding: 10,
     marginTop: 12,
@@ -2613,7 +2613,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   fifoInsightText: {
     flex: 1,
     fontSize: 12,
-    color: '#92400E',
+    color: Colors.light.warningDarker,
     lineHeight: 16,
   },
 
@@ -2621,16 +2621,16 @@ const createStyles = (brand: string) => StyleSheet.create({
   monthLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
   monthName: { width: 34, fontSize: 13, fontWeight: '700', color: '#374151' },
   monthBars: { flex: 1, gap: 3 },
-  monthTrack: { width: '100%', height: 8, backgroundColor: '#F3F4F6', borderRadius: 4, overflow: 'hidden' },
+  monthTrack: { width: '100%', height: 8, backgroundColor: Colors.light.surfaceMuted, borderRadius: 4, overflow: 'hidden' },
   monthValues: { minWidth: 96, alignItems: 'flex-end' },
-  monthValue: { fontSize: 13, fontWeight: '700', color: '#1F2937' },
+  monthValue: { fontSize: 13, fontWeight: '700', color: Colors.light.textStrong },
   monthPrev: { fontSize: 10, fontWeight: '600' },
   yoyCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.white,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -2645,11 +2645,11 @@ const createStyles = (brand: string) => StyleSheet.create({
   yoyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.textStrong,
   },
   yoySubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     marginTop: 2,
   },
   yoyChangeBadge: {
@@ -2672,11 +2672,11 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   yoyTotalCard: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.surfaceSoft,
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
   },
   yoyTotalCardCurrent: {
     backgroundColor: '#F0F0FF',
@@ -2684,14 +2684,14 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   yoyTotalYear: {
     fontSize: 11,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     fontWeight: '600',
     marginBottom: 3,
   },
   yoyTotalValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
   },
   yoyTotalArrow: {
     width: 28,
@@ -2728,7 +2728,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   yoyMonthRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.light.surfaceMuted,
   },
   yoyMonthName: {
     width: 36,
@@ -2748,7 +2748,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   yoyBarHTrack: {
     flex: 1,
     height: 6,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.surfaceMuted,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -2765,7 +2765,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   yoyBarHValue: {
     width: 64,
     fontSize: 10,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     textAlign: 'right',
   },
   yoyMonthBadge: {

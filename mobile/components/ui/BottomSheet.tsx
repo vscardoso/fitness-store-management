@@ -191,7 +191,7 @@ export default function BottomSheet({
               <View style={styles.headerLeft}>
                 {icon && (
                   <View style={styles.headerIconWrap}>
-                    <Ionicons name={icon} size={20} color="#fff" />
+                    <Ionicons name={icon} size={20} color={Colors.light.white} />
                   </View>
                 )}
                 <View style={styles.headerText}>
@@ -249,7 +249,7 @@ export default function BottomSheet({
                         end={{ x: 1, y: 0 }}
                         style={styles.loadingGradientSurface}
                       >
-                        <ActionLoading color="#fff" />
+                        <ActionLoading color={Colors.light.white} />
                       </LinearGradient>
                     )
                   ) : (
@@ -258,14 +258,14 @@ export default function BottomSheet({
                         <Ionicons
                           name={action.icon}
                           size={16}
-                          color={action.variant === 'secondary' ? brandingColors.primary : '#fff'}
+                          color={action.variant === 'secondary' ? brandingColors.primary : Colors.light.white}
                         />
                       )}
                       <Text
                         style={[
                           styles.actionText,
                           getActionTextStyle(action.variant),
-                          { color: action.variant === 'secondary' ? brandingColors.primary : '#fff' },
+                          { color: action.variant === 'secondary' ? brandingColors.primary : Colors.light.white },
                         ]}
                       >
                         {action.label}
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     overflow: 'hidden',
     maxHeight: '90%',
-    shadowColor: '#000',
+    shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.light.white,
   },
   headerSubtitle: {
     fontSize: theme.fontSize.sm,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border,
   },
   actionDanger: {
-    backgroundColor: Colors.light.error ?? '#EF4444',
+    backgroundColor: Colors.light.error ?? Colors.light.error,
   },
   actionDisabled: {
     opacity: 0.45,
@@ -423,13 +423,13 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: theme.fontSize.md,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.white,
   },
   actionTextSecondary: {
     color: Colors.light.text,
   },
   actionTextDanger: {
-    color: '#fff',
+    color: Colors.light.white,
   },
   loadingWrap: {
     flexDirection: 'row',

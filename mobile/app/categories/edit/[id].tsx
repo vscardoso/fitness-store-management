@@ -274,15 +274,15 @@ export default function EditCategoryScreen() {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={updateMutation.isPending ? ['#9CA3AF', '#9CA3AF'] : brandingColors.gradient}
+              colors={updateMutation.isPending ? [Colors.light.textTertiary, Colors.light.textTertiary] : brandingColors.gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.saveBtnGradient}
             >
               {updateMutation.isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={Colors.light.white} />
               ) : (
-                <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                <Ionicons name="checkmark-circle-outline" size={20} color={Colors.light.white} />
               )}
               <Text style={styles.saveBtnText}>
                 {updateMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   saveBtnText: {
-    color: '#fff',
+    color: Colors.light.white,
     fontWeight: '700',
     fontSize: theme.fontSize.base,
   },

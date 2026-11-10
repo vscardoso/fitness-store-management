@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * SheetHeader: cabeçalho padrão das janelas de baixo (mesmo visual do BottomSheet: degradê na cor da loja,
  * ícone, título, subtítulo e botão fechar). Para janelas com layout próprio (lista com busca, formulário
@@ -36,7 +37,7 @@ export default function SheetHeader({ title, subtitle, icon, onClose, handle = t
         <View style={styles.left}>
           {icon && (
             <View style={styles.iconWrap}>
-              <Ionicons name={icon} size={20} color="#fff" />
+              <Ionicons name={icon} size={20} color={Colors.light.white} />
             </View>
           )}
           <View style={{ flex: 1 }}>
@@ -59,7 +60,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
   left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: theme.fontSize.base, fontWeight: '700', color: '#fff' },
+  title: { fontSize: theme.fontSize.base, fontWeight: '700', color: Colors.light.white },
   subtitle: { fontSize: theme.fontSize.sm, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
   close: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
 });

@@ -41,7 +41,7 @@ export function HelpIconButton({ onColor = false, keepSpace = false }: { onColor
     return (
       <TouchableOpacity onPress={() => toggle(help.id)} accessibilityRole="button" accessibilityLabel="Ajuda desta tela"
         style={[styles.iconBtnOnColor, on && { backgroundColor: 'rgba(255, 255, 255, 0.4)' }]}>
-        <Ionicons name="help-circle-outline" size={20} color="#fff" />
+        <Ionicons name="help-circle-outline" size={20} color={Colors.light.white} />
       </TouchableOpacity>
     );
   }
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: '800', color: Colors.light.text },
   body: { padding: 18, gap: 16, paddingBottom: 40 },
   openBtn: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
-  openText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  openText: { color: Colors.light.white, fontWeight: '700', fontSize: 14 },
   hint: { fontSize: 12, color: Colors.light.textTertiary },
   iconBtnOnColor: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 255, 255, 0.25)', alignItems: 'center',
     justifyContent: 'center' },

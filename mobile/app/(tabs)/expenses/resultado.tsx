@@ -153,7 +153,7 @@ function ExpenseBreakdown({ items, total }: { items: ExpenseByCategoryItem[]; to
           return (
             <View key={item.category_id} style={styles.catRow}>
               <View style={[styles.catDot, { backgroundColor: item.color }]}>
-                <Ionicons name={item.icon as any} size={14} color="#fff" />
+                <Ionicons name={item.icon as any} size={14} color={Colors.light.white} />
               </View>
               <Text style={styles.catName}>{item.category}</Text>
               <View style={styles.catRight}>

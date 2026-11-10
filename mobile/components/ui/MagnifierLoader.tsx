@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 /**
  * MagnifierLoader: o logo do Provador (P pendurado no gancho de cabide) balançando como numa arara.
  *
@@ -167,7 +168,7 @@ export function MagnifierLoader({
               d={LETTER}
               animatedProps={glintProps}
               fill="none"
-              stroke="#fff"
+              stroke={Colors.light.white}
               strokeOpacity={0.75}
               strokeWidth={14}
               strokeLinecap="round"
