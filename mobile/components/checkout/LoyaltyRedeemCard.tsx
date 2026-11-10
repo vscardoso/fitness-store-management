@@ -4,7 +4,8 @@
  */
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { TextInput } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 
@@ -71,16 +72,14 @@ export default function LoyaltyRedeemCard({ customerId, customerName, payable, v
                 if (Number.isFinite(n) && n >= 0) onChange(cents(Math.min(n, max)));
               }}
             />
-            <Button mode="outlined" onPress={() => { setTyped(''); onChange(0); }}>Remover</Button>
+            <AppButton label="Remover" variant="outlined" onPress={() => { setTyped(''); onChange(0); }} />
           </View>
           {s.min_redeem > 0 && pointsOf(value) < s.min_redeem && (
             <Text style={styles.warn}>Pontos abaixo do mínimo da loja ({s.min_redeem.toFixed(0)}): a venda será recusada.</Text>
           )}
         </View>
       ) : (
-        <Button mode="contained" buttonColor={brand.primary} onPress={() => onChange(max)} disabled={max <= 0}>
-          Usar {formatCurrency(max)} em pontos
-        </Button>
+        <AppButton label={`Usar ${formatCurrency(max)} em pontos`} onPress={() => onChange(max)} disabled={max <= 0} fullWidth />
       )}
     </View>
   );

@@ -7,7 +7,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Linking, Alert } from 'react-native';
-import { Modal, Portal, Button, Text } from 'react-native-paper';
+import { Modal, Portal, Text } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
@@ -129,21 +130,20 @@ export default function BarcodeScanner({
               ? 'O acesso à câmera foi bloqueado. Habilite nas configurações do celular.'
               : 'Permita o acesso à câmera para usar o scanner de código de barras.'}
           </Text>
-          <Button
-            mode="contained"
+          <AppButton
+            label={bloqueada ? 'Abrir Configurações' : 'Permitir Câmera'}
+            icon="camera-outline"
             onPress={bloqueada ? () => setBlockedDialogVisible(true) : requestPermission}
+            fullWidth
             style={styles.button}
-            icon="camera"
-          >
-            {bloqueada ? 'Abrir Configurações' : 'Permitir Câmera'}
-          </Button>
-          <Button
-            mode="outlined"
+          />
+          <AppButton
+            label="Fechar"
+            variant="outlined"
             onPress={onDismiss}
-            style={[styles.button, { marginTop: 12 }]}
-          >
-            Fechar
-          </Button>
+            fullWidth
+            style={{ ...styles.button, marginTop: 12 }}
+          />
         </View>
       );
     }
@@ -199,15 +199,14 @@ export default function BarcodeScanner({
               />
             )}
 
-            <Button
-              mode="contained"
-              onPress={onDismiss}
-              style={styles.cancelButton}
-              buttonColor="rgba(255, 255, 255, 0.2)"
+            <AppButton
+              label="Cancelar"
               icon="close"
-            >
-              Cancelar
-            </Button>
+              onPress={onDismiss}
+              backgroundColor="rgba(255, 255, 255, 0.2)"
+              textColor={Colors.light.white}
+              style={styles.cancelButton}
+            />
           </View>
         </View>
       </View>

@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import {
   Text,
-  Button,
   TextInput,
   IconButton,
   Portal,
@@ -24,6 +23,7 @@ import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { haptics } from '@/utils/haptics';
 import BottomSheet from '@/components/ui/BottomSheet';
+import AppButton from '@/components/ui/AppButton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getReceipt, sendReceiptViaStoreWhatsapp } from '@/services/receiptService';
 
@@ -423,26 +423,24 @@ A devolução já está registrada.`,
 
             {/* Ações Rápidas */}
             <View style={styles.quickActions}>
-              <Button
-                mode="outlined"
+              <AppButton
+                label="Selecionar todos"
+                variant="outlined"
+                size="sm"
+                icon="checkmark-done"
                 onPress={handleSelectAll}
                 disabled={isAllSelected}
-                compact
-                icon="check-all"
                 style={styles.quickActionButton}
-              >
-                Selecionar todos
-              </Button>
-              <Button
-                mode="outlined"
+              />
+              <AppButton
+                label="Limpar"
+                variant="outlined"
+                size="sm"
+                icon="close"
                 onPress={handleClearSelection}
                 disabled={selectedCount === 0}
-                compact
-                icon="close"
                 style={styles.quickActionButton}
-              >
-                Limpar
-              </Button>
+              />
             </View>
 
             {/* Itens */}
@@ -508,14 +506,10 @@ A devolução já está registrada.`,
                           <Text style={{ flex: 1, color: Colors.light.text }}>
                             Leva: {replacements.get(item.sale_item_id)!.label} ({formatCurrency(replacements.get(item.sale_item_id)!.price)})
                           </Text>
-                          <Button compact onPress={() => setReplacements((prev) => { const m = new Map(prev); m.delete(item.sale_item_id); return m; })}>
-                            Tirar
-                          </Button>
+                          <AppButton label="Tirar" variant="text" size="sm" onPress={() => setReplacements((prev) => { const m = new Map(prev); m.delete(item.sale_item_id); return m; })} />
                         </View>
                       ) : (
-                        <Button mode="outlined" icon="swap-horizontal" compact onPress={() => setPickerItemId(item.sale_item_id)}>
-                          Trocar por outra peça
-                        </Button>
+                        <AppButton label="Trocar por outra peça" variant="outlined" size="sm" icon="swap-horizontal" onPress={() => setPickerItemId(item.sale_item_id)} />
                       )}
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
                         <Switch

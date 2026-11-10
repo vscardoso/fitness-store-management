@@ -238,7 +238,7 @@
   "oddWeight": 1
  },
  "app/cash/index.tsx": {
-  "paperButton": 4,
+  "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 0,
   "handButton": 0,
@@ -755,13 +755,6 @@
   "handButton": 0,
   "oddWeight": 1
  },
- "components/checkout/LoyaltyRedeemCard.tsx": {
-  "paperButton": 2,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 0
- },
  "components/customers/CustomerLoyaltyCard.tsx": {
   "paperButton": 3,
   "staticPrimary": 0,
@@ -993,13 +986,6 @@
   "handButton": 0,
   "oddWeight": 3
  },
- "components/sale/BarcodeScanner.tsx": {
-  "paperButton": 3,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 0
- },
  "components/sale/DesktopPDV.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
@@ -1019,13 +1005,6 @@
   "staticPrimary": 0,
   "hexColors": 0,
   "handButton": 1,
-  "oddWeight": 0
- },
- "components/sale/ReturnModal.tsx": {
-  "paperButton": 4,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
   "oddWeight": 0
  },
  "components/scan/CameraScanSheet.tsx": {

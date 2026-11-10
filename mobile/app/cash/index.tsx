@@ -5,7 +5,8 @@
  */
 import React, { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { TextInput } from 'react-native-paper';
+import AppButton from '@/components/ui/AppButton';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -188,16 +189,14 @@ export default function CashScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            <Button
-              mode="contained"
-              buttonColor={brand.primary}
+            <AppButton
+              label="Abrir caixa"
               onPress={() => open.mutate()}
               disabled={openValue === null || open.isPending}
               loading={open.isPending}
+              fullWidth
               style={styles.btn}
-            >
-              Abrir caixa
-            </Button>
+            />
           </View>
         )}
 
@@ -220,26 +219,20 @@ export default function CashScreen() {
               <Line label="Dinheiro retirado" value={session.withdrawals} minus />
 
               <View style={styles.actions}>
-                <Button mode="contained-tonal" icon="plus" onPress={() => startMove('supply')} style={styles.flex}>
-                  Colocar dinheiro
-                </Button>
-                <Button mode="contained-tonal" icon="minus" onPress={() => startMove('withdrawal')} style={styles.flex}>
-                  Retirar dinheiro
-                </Button>
+                <AppButton label="Colocar dinheiro" variant="secondary" icon="add" onPress={() => startMove('supply')} style={styles.flex} />
+                <AppButton label="Retirar dinheiro" variant="secondary" icon="remove" onPress={() => startMove('withdrawal')} style={styles.flex} />
               </View>
-              <Button
-                mode="contained"
-                buttonColor={brand.primary}
+              <AppButton
+                label="Fechar caixa"
                 onPress={() => {
                   setClosing(true);
                   setCounted('');
                   setCloseNote('');
                   setError('');
                 }}
+                fullWidth
                 style={styles.btn}
-              >
-                Fechar caixa
-              </Button>
+              />
             </View>
 
             {others.length > 0 && (
