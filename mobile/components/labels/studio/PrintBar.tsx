@@ -1,8 +1,7 @@
 /**
  * Barra fixa de baixo: UM botão principal que muda conforme a etapa.
- *   edit       "Gerar PDF"
- *   generated  "Já imprimi" (marca como impresso)   [Não imprimi]
- *   done       "Imprimir mais"                      [Desfazer]
+ *   edit       "Gerar PDF e imprimir" (gerar o PDF já salva a impressão: tira da fila e anda a folha)
+ *   done       "Abrir o PDF para imprimir" (de novo, sem salvar outra vez)   [Não saiu? Desfazer]   [Imprimir mais]
  */
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -52,39 +51,38 @@ export default function PrintBar({ p, summary }: Props) {
             </View>
             <TouchableOpacity style={[styles.primary, (p.total === 0 || busy) && styles.disabled]} onPress={p.generate} disabled={p.total === 0 || busy} accessibilityRole="button">
               <Ionicons name="download-outline" size={18} color={Colors.light.white} />
-              <Text style={styles.primaryText}>{p.busy === 'generate' ? 'Gerando...' : 'Gerar PDF'}</Text>
+              <Text style={styles.primaryText}>{p.busy === 'generate' ? 'Gerando...' : 'Gerar PDF e imprimir'}</Text>
             </TouchableOpacity>
           </View>
-        </>
-      ) : null}
-
-      {p.step === 'generated' ? (
-        <>
-          <Text style={styles.title}>PDF gerado{p.pendingTotal > 0 ? `: ${p.pendingTotal} etiqueta${p.pendingTotal !== 1 ? 's' : ''}` : ''}</Text>
-          <Text style={styles.sub}>Imprima o arquivo. Depois de imprimir, toque em “Já imprimi” para marcar. Se não imprimiu, nada é marcado.</Text>
-          <View style={styles.row}>
-            <TouchableOpacity style={[styles.secondary]} onPress={p.backToEdit} disabled={busy} accessibilityRole="button">
-              <Text style={styles.secondaryText}>Não imprimi</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.primary, { flex: 1, justifyContent: 'center' }, busy && styles.disabled]} onPress={p.confirm} disabled={busy} accessibilityRole="button">
-              <Ionicons name="checkmark" size={18} color={Colors.light.white} />
-              <Text style={styles.primaryText}>{p.busy === 'confirm' ? 'Marcando...' : 'Já imprimi'}</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.sub}>Ao gerar o PDF, as etiquetas já contam como impressas e saem da fila. Se não saírem, use “Não saiu? Desfazer”.</Text>
         </>
       ) : null}
 
       {p.step === 'done' ? (
-        <View style={styles.row}>
-          {p.lastJob ? (
-            <TouchableOpacity style={styles.secondary} onPress={p.undo} disabled={busy} accessibilityRole="button" accessibilityLabel="Não saiu, desfazer">
-              <Text style={styles.secondaryText}>{p.busy === 'undo' ? 'Desfazendo...' : 'Não saiu? Desfazer'}</Text>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity style={[styles.primary, { flex: 1, justifyContent: 'center' }]} onPress={p.backToEdit} accessibilityRole="button">
-            <Text style={styles.primaryText}>Imprimir mais</Text>
+        <>
+          <Text style={styles.title}>
+            PDF gerado e salvo{p.printedTotal > 0 ? `: ${p.printedTotal} etiqueta${p.printedTotal !== 1 ? 's' : ''}` : ''}
+          </Text>
+          <Text style={styles.sub}>
+            {p.delivery === 'blocked'
+              ? 'As etiquetas já estão marcadas como impressas. O iPhone pede um toque para abrir o PDF: toque em “Abrir o PDF para imprimir” e escolha Imprimir.'
+              : 'As etiquetas já estão marcadas como impressas. Se o compartilhar fechou, toque em “Abrir o PDF para imprimir”.'}
+          </Text>
+          <TouchableOpacity style={[styles.primary, { justifyContent: 'center' }, busy && styles.disabled]} onPress={p.reshare} disabled={busy || !p.hasPdf} accessibilityRole="button">
+            <Ionicons name="print-outline" size={18} color={Colors.light.white} />
+            <Text style={styles.primaryText}>{p.busy === 'share' ? 'Abrindo...' : 'Abrir o PDF para imprimir'}</Text>
           </TouchableOpacity>
-        </View>
+          <View style={styles.row}>
+            {p.lastJob ? (
+              <TouchableOpacity style={styles.secondary} onPress={p.undo} disabled={busy} accessibilityRole="button" accessibilityLabel="Não saiu, desfazer">
+                <Text style={styles.secondaryText}>{p.busy === 'undo' ? 'Desfazendo...' : 'Não saiu? Desfazer'}</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={[styles.secondary, { flex: 1 }]} onPress={p.backToEdit} disabled={busy} accessibilityRole="button">
+              <Text style={styles.secondaryText}>Imprimir mais</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       ) : null}
     </View>
   );

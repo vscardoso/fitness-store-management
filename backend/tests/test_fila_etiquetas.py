@@ -131,3 +131,120 @@ async def test_direto_da_entrada_conta_como_impresso_sem_passar_pela_fila(test_c
     assert prog["printed"] == 5 and prog["missing"] == 4
     r = await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)                    # só o que falta
     assert r.json()["added"] == 4
+
+
+# ── Gerar o PDF = imprimir (sem o passo "Já imprimi"), fila concorrente e seleção ─────────────────────────────────────
+
+async def test_gerar_pdf_ja_salva_a_impressao_e_tira_da_fila(test_client, async_session):
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": True,
+                                                          "items": [{"variant_id": va, "quantity": 5}, {"variant_id": vb, "quantity": 4}]}, headers=h)
+    assert r.status_code == 200 and r.content[:4] == b"%PDF"
+    assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 0           # tirou da fila na mesma hora
+    st = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()
+    assert st["next_position"] == 4 and st["last_job"]["total"] == 9                          # folha andou, "Não saiu" disponível
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["printed"] == 9 and prog["queued"] == 0
+
+
+async def test_pdf_que_falha_nao_grava_nada(test_client, async_session):
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 99, "from_queue": True,
+                                                          "items": [{"variant_id": va, "quantity": 5}]}, headers=h)
+    assert r.status_code == 400
+    assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 9           # fila intacta
+    assert (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()["last_job"] is None
+
+
+async def test_segunda_pessoa_imprimindo_a_mesma_fila_nao_duplica(test_client, async_session):
+    """A abriu a fila, B imprimiu tudo; quando A manda imprimir, a fila já não tem aquelas etiquetas: recusa e não grava nada."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    h_b = await _user(async_session, t, UserRole.SELLER)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
+    corpo = {**SHEET, "start_position": 1, "from_queue": True, "items": [{"variant_id": va, "quantity": 5}, {"variant_id": vb, "quantity": 4}]}
+    assert (await test_client.post(f"{API}/prints/pdf", json=corpo, headers=h_b)).status_code == 200      # B imprime primeiro
+    r = await test_client.post(f"{API}/prints/pdf", json=corpo, headers=h)                                # A, com a tela velha
+    assert r.status_code == 400 and "A fila mudou" in r.json()["detail"]
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["printed"] == 9                                                                           # impresso uma vez só
+    jobs = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h_b)).json()
+    assert jobs["last_job"]["total"] == 9
+
+
+async def test_so_quem_imprimiu_desfaz_e_so_a_ultima(test_client, async_session):
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    h_b = await _user(async_session, t, UserRole.SELLER)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
+    job = (await test_client.post(f"{API}/prints", json={**SHEET, "start_position": 1, "from_queue": True,
+                                                         "items": [{"variant_id": va, "quantity": 5}]}, headers=h)).json()
+    assert (await test_client.get(f"{API}/print-state", params=SHEET, headers=h_b)).json()["last_job"] is None   # B nem vê o botão
+    r = await test_client.post(f"{API}/prints/{job['id']}/undo", headers=h_b)
+    assert r.status_code == 400 and "outra pessoa" in r.json()["detail"]
+    assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 4                       # nada voltou
+    assert (await test_client.post(f"{API}/prints/{job['id']}/undo", headers=h)).status_code == 200      # quem imprimiu desfaz
+
+
+async def test_so_o_que_foi_escolhido_vai_para_a_fila(test_client, async_session):
+    """Entrada com várias variações: pôr 1 delas na fila não leva as outras (o botão antigo levava a entrada inteira)."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    r = await test_client.post(f"{API}/queue", json={"items": [{"variant_id": va, "quantity": 2}], "entry_id": entry_id}, headers=h)
+    assert r.status_code == 201 and r.json()["added"] == 2
+    q = (await test_client.get(f"{API}/queue", headers=h)).json()
+    assert {i["variant_id"]: i["quantity"] for i in q["items"]} == {va: 2}
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["queued"] == 2 and prog["missing"] == 7                                                   # o resto continua "faltando"
+
+
+# ── Últimos PDFs gerados: reabrir por 24 horas ────────────────────────────────────────────────────────────────────────
+
+async def test_reabrir_ultimo_pdf_sem_salvar_nada_e_expira_em_24h(test_client, async_session):
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import update
+    from app.models.label_queue import LabelPrintJob
+
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 2, "from_queue": True,
+                                                          "items": [{"variant_id": va, "quantity": 5}, {"variant_id": vb, "quantity": 4}]}, headers=h)
+    assert r.status_code == 200
+    rec = (await test_client.get(f"{API}/prints/recent", headers=h)).json()
+    assert len(rec) == 1 and rec[0]["total"] == 9 and rec[0]["start_position"] == 2 and rec[0]["expires_at"]
+
+    antes = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()
+    again = await test_client.get(f"{API}/prints/{rec[0]['id']}/pdf", headers=h)
+    assert again.status_code == 200 and again.content[:4] == b"%PDF"                   # mesmo PDF, na mesma posição da folha
+    depois = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()
+    assert antes == depois                                                              # reabrir não salva nem anda a folha
+    assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 0
+    assert len((await test_client.get(f"{API}/prints/recent", headers=h)).json()) == 1  # continua um só
+
+    # passou de 24 horas: some da lista e o PDF não abre mais
+    velho = datetime.now(timezone.utc) - timedelta(hours=25)
+    await async_session.execute(update(LabelPrintJob).where(LabelPrintJob.id == rec[0]["id"]).values(created_at=velho))
+    await async_session.commit()
+    assert (await test_client.get(f"{API}/prints/recent", headers=h)).json() == []
+    gone = await test_client.get(f"{API}/prints/{rec[0]['id']}/pdf", headers=h)
+    assert gone.status_code == 400 and "24 horas" in gone.json()["detail"]
+
+
+async def test_ultimos_pdfs_sao_da_loja_e_o_desfeito_some(test_client, async_session):
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    t2, h2, _, _ = await _cenario(async_session)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
+    await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": True,
+                                                      "items": [{"variant_id": va, "quantity": 5}]}, headers=h)
+    job_id = (await test_client.get(f"{API}/prints/recent", headers=h)).json()[0]["id"]
+    assert (await test_client.get(f"{API}/prints/recent", headers=h2)).json() == []                   # outra loja não vê
+    assert (await test_client.get(f"{API}/prints/{job_id}/pdf", headers=h2)).status_code == 400       # nem abre
+    await test_client.post(f"{API}/prints/{job_id}/undo", headers=h)                                   # "não saiu": desfeita
+    assert (await test_client.get(f"{API}/prints/recent", headers=h)).json() == []
+    assert (await test_client.get(f"{API}/prints/{job_id}/pdf", headers=h)).status_code == 400

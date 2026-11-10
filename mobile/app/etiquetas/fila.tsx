@@ -1,6 +1,6 @@
 /**
  * Fila de impressão de etiquetas: tudo que a loja quer etiquetar e ainda não imprimiu (de várias entradas juntas, aproveitando a mesma folha).
- * Gerar o PDF não tira nada da fila: só "Imprimi, tirar da fila" tira e anda a folha.
+ * Gerar o PDF já salva a impressão: tira da fila e anda a folha ("Não saiu? Desfazer" devolve).
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 
 import PageHeader from '@/components/layout/PageHeader';
 import StickerStudio, { type StickerItem } from '@/components/labels/StickerStudio';
+import RecentPrints from '@/components/labels/studio/RecentPrints';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 import { Colors } from '@/constants/Colors';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -21,7 +22,8 @@ export default function LabelQueueScreen() {
   const brand = useBrandingColors();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery({ queryKey: ['label-queue'], queryFn: getLabelQueue });
+  // outra pessoa pode pôr, tirar ou imprimir etiquetas: a tela acompanha a fila a cada 15 s e quando volta o foco
+  const { data, isLoading, error } = useQuery({ queryKey: ['label-queue'], queryFn: getLabelQueue, refetchInterval: 15_000, refetchOnWindowFocus: true });
 
   // uma linha por variação (a fila guarda uma por variação e entrada)
   const { items, initialQty } = useMemo(() => {
@@ -40,7 +42,7 @@ export default function LabelQueueScreen() {
     return { items: [...byVariant.values()].sort((a, b) => String(a.code ?? 'zzz').localeCompare(String(b.code ?? 'zzz'), 'pt-BR', { numeric: true })), initialQty: qty };
   }, [data]);
 
-  // depois de "Já imprimi" a fila esvazia, mas a tela continua (mensagem de sucesso e "Desfazer"): só mostra o vazio se nunca teve peça
+  // depois de gerar o PDF a fila esvazia, mas a tela continua (mensagem de sucesso e "Desfazer"): só mostra o vazio se nunca teve peça
   const [hadItems, setHadItems] = useState(false);
   useEffect(() => { if (items.length > 0) setHadItems(true); }, [items.length]);
 
@@ -67,6 +69,7 @@ export default function LabelQueueScreen() {
             <TouchableOpacity style={[styles.btn, { borderColor: brand.primary }]} onPress={() => router.push('/entries' as any)} accessibilityRole="button">
               <Text style={[styles.btnText, { color: brand.primary }]}>Ver entradas</Text>
             </TouchableOpacity>
+            <View style={{ alignSelf: 'stretch', marginTop: 12 }}><RecentPrints /></View>
           </View>
         ) : (
           <StickerStudio

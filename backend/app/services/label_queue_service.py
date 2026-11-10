@@ -7,9 +7,10 @@ Fila de etiquetas e histórico de impressão (ver `app/models/label_queue.py`).
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,6 +22,18 @@ from app.services.label_pdf_service import a4_grid, sheet_grid
 from app.services.short_code_service import format_short_code, format_variant_code
 
 MAX_QUEUE = 3000
+RECENT_HOURS = 24   # os últimos PDFs gerados ficam disponíveis por 24 horas
+
+
+async def lock_queue(db: AsyncSession, tenant_id: int) -> None:
+    """Serializa tudo que mexe na fila e no histórico de impressão da MESMA loja (duas pessoas ao mesmo tempo esperam uma à outra).
+
+    Liberada sozinha no commit/rollback. Sem ela, dois "colocar o que falta na fila" somavam em dobro e duas impressões da mesma fila
+    tiravam a mesma etiqueta duas vezes.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    await db.execute(text("SELECT pg_advisory_xact_lock(CAST(:k AS bigint))"), {"k": 7_400_000_000 + int(tenant_id)})
 
 
 class QueueError(ValueError):
@@ -94,6 +107,7 @@ async def list_queue(db: AsyncSession, tenant_id: int) -> Dict[str, Any]:
 
 async def add_items(db: AsyncSession, tenant_id: int, user: Any, items: List[Dict[str, int]], entry_id: Optional[int] = None) -> int:
     """Põe na fila (soma na linha da mesma variação e entrada). Devolve quantas etiquetas entraram."""
+    await lock_queue(db, tenant_id)
     wanted = [(int(i["variant_id"]), int(i["quantity"])) for i in items if int(i["quantity"]) > 0]
     if not wanted:
         raise QueueError("Nenhuma etiqueta para pôr na fila.")
@@ -156,6 +170,7 @@ async def entry_progress(db: AsyncSession, tenant_id: int, entry_id: int) -> Dic
 
 async def add_entry_missing(db: AsyncSession, tenant_id: int, user: Any, entry_id: int) -> Dict[str, Any]:
     """Põe na fila só o que a entrada ainda não imprimiu nem tem na fila (chamar duas vezes não dobra)."""
+    await lock_queue(db, tenant_id)
     prog = await entry_progress(db, tenant_id, entry_id)
     todo = [{"variant_id": ln["variant_id"], "quantity": ln["missing"]} for ln in prog["lines"] if ln["missing"] > 0]
     if not todo:
@@ -165,6 +180,7 @@ async def add_entry_missing(db: AsyncSession, tenant_id: int, user: Any, entry_i
 
 
 async def set_quantity(db: AsyncSession, tenant_id: int, item_id: int, quantity: int) -> None:
+    await lock_queue(db, tenant_id)
     row = (await db.execute(select(LabelQueueItem).where(
         LabelQueueItem.id == item_id, LabelQueueItem.tenant_id == tenant_id, LabelQueueItem.is_active == True))).scalar_one_or_none()  # noqa: E712
     if row is None:
@@ -176,7 +192,7 @@ async def set_quantity(db: AsyncSession, tenant_id: int, item_id: int, quantity:
     await db.flush()
 
 
-async def print_state(db: AsyncSession, tenant_id: int, layout: str, width_mm: float, height_mm: float) -> Dict[str, Any]:
+async def print_state(db: AsyncSession, tenant_id: int, layout: str, width_mm: float, height_mm: float, user: Any = None) -> Dict[str, Any]:
     """Onde a próxima impressão começa e o que já está na folha atual (para mostrar a folha inteira no app)."""
     n = per_sheet(layout, width_mm, height_mm)
     nxt, last = 1, None
@@ -209,8 +225,10 @@ async def print_state(db: AsyncSession, tenant_id: int, layout: str, width_mm: f
                 "name": v.product.name if v and v.product else None,
                 "color": v.color if v else None, "size": v.size if v else None,
             })
-    # a última impressão salva de qualquer papel é a única que dá para desfazer ("Não saiu")
+    # "Não saiu" só desfaz a ÚLTIMA impressão da loja e só se foi a SUA: ninguém desfaz a impressão de outra pessoa
     undo = all_jobs[-1] if all_jobs else None
+    if undo is not None and user is not None and getattr(user, "id", None) is not None and undo.printed_by_id != user.id:
+        undo = None
     return {"next_position": nxt, "per_sheet": n, "sheet": sheet,
             "last": {"id": last.id, "at": last.created_at.isoformat(), "by": last.printed_by_name, "total": last.total} if last else None,
             "last_job": {"id": undo.id, "at": undo.created_at.isoformat(), "by": undo.printed_by_name, "total": undo.total} if undo else None}
@@ -218,6 +236,7 @@ async def print_state(db: AsyncSession, tenant_id: int, layout: str, width_mm: f
 
 async def confirm_print(db: AsyncSession, tenant_id: int, user: Any, layout: str, width_mm: float, height_mm: float,
                         start_position: int, items: List[Dict[str, int]], from_queue: bool, entry_id: Optional[int]) -> Dict[str, Any]:
+    await lock_queue(db, tenant_id)
     wanted = [(int(i["variant_id"]), int(i["quantity"])) for i in items if int(i["quantity"]) > 0]
     if not wanted:
         raise QueueError("Nenhuma etiqueta para salvar.")
@@ -231,6 +250,15 @@ async def confirm_print(db: AsyncSession, tenant_id: int, user: Any, layout: str
     job_items: List[Dict[str, Any]] = []
     if from_queue:
         rows = await _pending(db, tenant_id, lock=True)
+        # a fila pode ter mudado desde que a tela abriu (outra pessoa imprimiu ou tirou a peça): nada é gravado e a pessoa atualiza
+        for vid, qty in wanted:
+            on_queue = sum(r.quantity for r in rows if r.variant_id == vid)
+            if qty > on_queue:
+                v = variants[vid]
+                nome = " ".join(x for x in [v.product.name if v.product else "", v.color or "", v.size or ""] if x)
+                if on_queue == 0:
+                    raise QueueError(f"A fila mudou: {nome} já não está nela (outra pessoa imprimiu ou tirou). Atualize a fila antes de imprimir.")
+                raise QueueError(f"A fila mudou: {nome} tem só {on_queue} na fila e você pediu {qty}. Atualize a fila antes de imprimir.")
         for vid, qty in wanted:
             left = qty
             for r in rows:
@@ -244,8 +272,6 @@ async def confirm_print(db: AsyncSession, tenant_id: int, user: Any, layout: str
                 if r.quantity == 0:
                     r.is_active = False
                 left -= take
-            if left:
-                job_items.append({"variant_id": vid, "quantity": left, "entry_id": None})   # passou do que estava na fila
     else:
         job_items = [{"variant_id": vid, "quantity": q, "entry_id": entry_id} for vid, q in wanted]
     used = (start_position - 1 + total) % n
@@ -260,10 +286,13 @@ async def confirm_print(db: AsyncSession, tenant_id: int, user: Any, layout: str
 
 async def undo_print(db: AsyncSession, tenant_id: int, user: Any, job_id: int) -> Dict[str, Any]:
     """Não saiu: desfaz a ÚLTIMA impressão salva; as etiquetas voltam para a fila e a folha volta onde estava."""
+    await lock_queue(db, tenant_id)
     jobs = await _jobs(db, tenant_id)
     if not jobs or jobs[-1].id != job_id:
-        raise QueueError("Só a última impressão salva pode ser desfeita.")
+        raise QueueError("Só a última impressão salva pode ser desfeita. Outra impressão foi salva depois desta.")
     job = jobs[-1]
+    if getattr(user, "id", None) is not None and job.printed_by_id is not None and job.printed_by_id != user.id:
+        raise QueueError("Esta impressão foi feita por outra pessoa. Só quem imprimiu pode desfazer.")
     job.is_active = False
     rows = await _pending(db, tenant_id)
     existing = {(r.variant_id, r.entry_id): r for r in rows}
@@ -278,3 +307,28 @@ async def undo_print(db: AsyncSession, tenant_id: int, user: Any, job_id: int) -
             existing[key] = row
     await db.flush()
     return {"returned": job.total}
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+async def recent_jobs(db: AsyncSession, tenant_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    """Impressões salvas nas últimas 24 horas (as desfeitas não entram), da mais nova para a mais antiga."""
+    since = datetime.now(timezone.utc) - timedelta(hours=RECENT_HOURS)
+    jobs = [j for j in reversed(await _jobs(db, tenant_id)) if _aware(j.created_at) >= since][:limit]
+    return [{
+        "id": j.id, "at": j.created_at.isoformat(), "by": j.printed_by_name, "total": j.total, "layout": j.layout,
+        "width_mm": j.width_mm, "height_mm": j.height_mm, "start_position": j.start_position,
+        "expires_at": (_aware(j.created_at) + timedelta(hours=RECENT_HOURS)).isoformat(),
+    } for j in jobs]
+
+
+async def get_recent_job(db: AsyncSession, tenant_id: int, job_id: int) -> LabelPrintJob:
+    job = (await db.execute(select(LabelPrintJob).where(
+        LabelPrintJob.id == job_id, LabelPrintJob.tenant_id == tenant_id, LabelPrintJob.is_active == True))).scalar_one_or_none()  # noqa: E712
+    if job is None:
+        raise QueueError("Impressão não encontrada (ela pode ter sido desfeita).")
+    if _aware(job.created_at) < datetime.now(timezone.utc) - timedelta(hours=RECENT_HOURS):
+        raise QueueError("Esse PDF passou de 24 horas e foi apagado. Gere as etiquetas de novo.")
+    return job

@@ -56,8 +56,12 @@ export async function addEntryToQueue(entryId: number): Promise<{ added: number;
   return (await api.post(`/labels/queue/entry/${entryId}`)).data;
 }
 
-export async function addToQueue(items: { variantId: number; quantity: number }[]): Promise<{ added: number }> {
-  return (await api.post('/labels/queue', { items: items.map((i) => ({ variant_id: i.variantId, quantity: i.quantity })) })).data;
+/** Põe na fila SÓ as peças e quantidades dadas (entryId liga as etiquetas à entrada de origem, para o progresso dela). */
+export async function addToQueue(items: { variantId: number; quantity: number }[], entryId?: number | null): Promise<{ added: number }> {
+  return (await api.post('/labels/queue', {
+    items: items.map((i) => ({ variant_id: i.variantId, quantity: i.quantity })),
+    entry_id: entryId ?? null,
+  })).data;
 }
 
 export async function setQueueQuantity(itemId: number, quantity: number): Promise<void> {
@@ -94,4 +98,21 @@ export async function confirmPrint(input: ConfirmPrintInput): Promise<{ id: numb
 /** "Não saiu": desfaz a última impressão salva; as etiquetas voltam para a fila. */
 export async function undoPrint(jobId: number): Promise<{ returned: number }> {
   return (await api.post(`/labels/prints/${jobId}/undo`)).data;
+}
+
+export interface RecentPrint {
+  id: number;
+  at: string;
+  by: string | null;
+  total: number;
+  layout: QueuePaper;
+  width_mm: number;
+  height_mm: number;
+  start_position: number;
+  expires_at: string;
+}
+
+/** PDFs gerados nas últimas 24 horas (depois disso somem). */
+export async function getRecentPrints(): Promise<RecentPrint[]> {
+  return (await api.get('/labels/prints/recent')).data;
 }

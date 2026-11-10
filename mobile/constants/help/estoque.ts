@@ -617,13 +617,13 @@ const ETIQUETAS_ENTRADA: HelpEntry[] = [
     purpose: 'Imprime de uma vez as etiquetas de todas as peças que chegaram numa entrada.',
     steps: [
       'Veja no topo quantas etiquetas já foram impressas e quantas faltam.',
-      'Toque em “Colocar na fila de impressão” para juntar o que falta com as outras entradas, ou imprima direto daqui.',
-      'Escolha o tamanho e o papel e toque em “Gerar PDF”. Abra o arquivo e imprima em tamanho real (100%).',
-      'Depois de imprimir, toque em “Já imprimi”. Só aí a etiqueta conta como impressa e a folha avança.',
+      'Escolha na lista só as peças e quantidades que quer. Toque em “Colocar na fila de impressão” para juntar com as outras entradas (só o que estiver marcado vai para a fila), ou imprima direto daqui.',
+      'Escolha o tamanho e o papel e toque em “Gerar PDF e imprimir”. No iPhone, escolha Imprimir no menu que abrir.',
+      'Ao gerar o PDF as etiquetas já contam como impressas e a folha avança. Se não saírem, toque em “Não saiu? Desfazer”.',
     ],
     goodToKnow: [
       'Só saem as cores e tamanhos que vieram nesta entrada: peça antiga do mesmo produto não é reimpressa.',
-      'A quantidade já vem só com o que falta imprimir. Se não tocar em “Já imprimi”, nada é marcado e dá para gerar de novo.',
+      'A quantidade já vem só com o que falta imprimir. Os últimos PDFs ficam na lista Últimos PDFs gerados, no fim da tela, por 24 horas: toque em “Abrir” para imprimir de novo sem marcar nada outra vez.',
       'Na impressora térmica use etiqueta térmica do tamanho escolhido e o papel Uma por página.',
     ],
     roles: ['manager'],
@@ -641,9 +641,9 @@ const FILA_ETIQUETAS: HelpEntry[] = [
     open: '/etiquetas/fila',
     purpose: 'Junta as etiquetas que ainda não foram impressas, de várias entradas, para imprimir na mesma folha sem desperdiçar.',
     steps: [
-      'Na entrada, abra as etiquetas e toque em “Colocar na fila de impressão”.',
-      'Aqui, confira as quantidades, escolha o tamanho e o papel e toque em “Gerar PDF”.',
-      'Imprima. Quando as etiquetas saírem, toque em “Já imprimi”: elas saem da fila e a folha avança.',
+      'Na entrada, abra as etiquetas, marque só as peças que quer e toque em “Colocar na fila de impressão”.',
+      'Aqui, confira as quantidades, escolha o tamanho e o papel e toque em “Gerar PDF e imprimir”: as etiquetas saem da fila na hora e a folha avança.',
+      'Se o PDF não abrir ou as etiquetas não saírem, use “Abrir o PDF para imprimir” ou “Não saiu? Desfazer”. Se outra pessoa imprimir a mesma fila, a tela avisa e atualiza.',
       'Peça avulsa: no Estúdio de etiquetas (ou no produto), escolha as peças e toque em “Colocar na fila de impressão”.',
     ],
     goodToKnow: [

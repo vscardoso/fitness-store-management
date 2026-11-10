@@ -1,22 +1,21 @@
 /**
  * Toda a lógica da tela de etiquetas num lugar só (a tela em si só desenha).
  *
- * Fluxo, sempre nesta ordem:
- *   edit       a pessoa escolhe peças, medida e papel
- *   generated  o PDF foi gerado; falta ela dizer se imprimiu ("Já imprimi")
- *   done       confirmou: o servidor gravou o que saiu, tirou da fila e andou a folha ("Desfazer" disponível)
- * Gerar o PDF sozinho não grava nada. Qualquer mudança em peça, medida ou papel depois de gerar volta para `edit`,
- * porque o PDF que a pessoa tem já não corresponde ao que está na tela.
+ * Fluxo:
+ *   edit   a pessoa escolhe peças, medida e papel e toca em "Gerar PDF"
+ *   done   o PDF foi gerado E a impressão já foi salva (tirou da fila e andou a folha) numa chamada só do servidor:
+ *          gerar = imprimir. Não existe passo "Já imprimi". "Não saiu? Desfazer" devolve as etiquetas para a fila.
+ * Se a fila mudou (outra pessoa imprimiu ou tirou a peça) o servidor não grava nada e a tela atualiza.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
-  cmText, customSticker, DEFAULT_STICKER, parseCm, printTagLabels, STICKER_SIZES, stickersPerSheet, stickersPerThermalSheet,
-  type StickerSize, type TagLabelLayout,
+  cmText, customSticker, DEFAULT_STICKER, parseCm, printLabelsSaved, STICKER_SIZES, stickersPerSheet, stickersPerThermalSheet,
+  type PdfDelivery, type PrintedPdf, type StickerSize, type TagLabelLayout,
 } from '@/services/labelService';
-import { addToQueue, confirmPrint, getPrintState, undoPrint } from '@/services/labelQueueService';
+import { addToQueue, getPrintState, undoPrint } from '@/services/labelQueueService';
 
 export interface StickerItem {
   variantId: number;
@@ -40,28 +39,13 @@ export interface UseLabelPrintOptions {
   onPrinted?: () => void;
 }
 
-export type Step = 'edit' | 'generated' | 'done';
-export type Busy = 'generate' | 'confirm' | 'undo' | 'queue' | null;
+export type Step = 'edit' | 'done';
+export type Busy = 'generate' | 'undo' | 'queue' | 'share' | null;
 
 export const MAX_PER_ITEM = 200;
 const SIZE_KEY = '@provador:etiqueta_medida';   // última medida usada neste aparelho
 const PAPER_KEY = '@provador:etiqueta_papel';    // último papel usado neste aparelho
-// PDF gerado e ainda não confirmado. No iPhone o PDF abre em outra aba e o app pode ser suspenso ou recarregado ao voltar:
-// guardar no aparelho faz o aviso "Já imprimi?" voltar em vez de sumir (e a fila nunca esvaziar).
-const PENDING_KEY = '@provador:etiqueta_pendente';
-const PENDING_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-interface Snapshot {
-  layout: TagLabelLayout;
-  start: number;
-  widthMm: number;
-  heightMm: number;
-  items: { variantId: number; quantity: number }[];
-  fromQueue: boolean;
-  entryId: number | null;
-  total: number;
-  at: number;
-}
+const LEGACY_PENDING_KEY = '@provador:etiqueta_pendente';   // do fluxo antigo (Já imprimi): só é apagado
 
 export function sizeFrom(w: number, h: number): StickerSize {
   return STICKER_SIZES.find((s) => s.widthMm === w && s.heightMm === h) ?? customSticker(w, h);
@@ -80,28 +64,12 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const savePending = useCallback((snap: Snapshot | null) => {
-    setSnapshot(snap);
-    if (snap) AsyncStorage.setItem(PENDING_KEY, JSON.stringify(snap)).catch(() => {});
-    else AsyncStorage.removeItem(PENDING_KEY).catch(() => {});
-  }, []);
+  const [pdf, setPdf] = useState<PrintedPdf | null>(null);
+  const [delivery, setDelivery] = useState<PdfDelivery | null>(null);
+  const [printedTotal, setPrintedTotal] = useState(0);
 
-  // voltou para a tela (ou o app recarregou) com um PDF gerado e não confirmado: o aviso reaparece
-  useEffect(() => {
-    AsyncStorage.getItem(PENDING_KEY)
-      .then((raw) => {
-        const snap: Snapshot | null = raw ? JSON.parse(raw) : null;
-        if (!snap || Date.now() - snap.at > PENDING_MAX_AGE_MS) { if (snap) AsyncStorage.removeItem(PENDING_KEY).catch(() => {}); return; }
-        if (snap.fromQueue !== !!fromQueue || (snap.entryId ?? null) !== (entryId ?? null)) return;   // é de outra tela
-        setSnapshot(snap);
-        setStep('generated');
-        setNotice('Você gerou um PDF e ainda não confirmou se imprimiu.');
-      })
-      .catch(() => {});
-    // só ao abrir a tela
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // sobra do fluxo antigo (Já imprimi): apaga para nunca mais aparecer aviso de PDF pendente
+  useEffect(() => { AsyncStorage.removeItem(LEGACY_PENDING_KEY).catch(() => {}); }, []);
 
   // ── peças: as novas entram com a quantidade inicial; as que já tinham número mantêm o que foi digitado
   useEffect(() => {
@@ -109,10 +77,12 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
       const next = { ...prev };
       for (const it of items) {
         if (next[it.variantId] == null) next[it.variantId] = initialQty?.[it.variantId] ?? (it.stock > 0 ? Math.min(MAX_PER_ITEM, it.stock) : 1);
+        // na fila a tela acompanha a fila (outra pessoa pode ter imprimido ou tirado): nunca pede mais do que ela tem
+        else if (fromQueue && initialQty?.[it.variantId] != null) next[it.variantId] = Math.min(next[it.variantId], initialQty[it.variantId]);
       }
       return next;
     });
-  }, [items, initialQty]);
+  }, [items, initialQty, fromQueue]);
 
   // ── medida e papel lembrados neste aparelho
   useEffect(() => {
@@ -164,6 +134,7 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
     await queryClient.invalidateQueries({ queryKey: ['label-print-state'] });
     await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
     await queryClient.invalidateQueries({ queryKey: ['label-progress'] });
+    await queryClient.invalidateQueries({ queryKey: ['label-recent-prints'] });
   }, [queryClient]);
 
   const run = useCallback(async (kind: Exclude<Busy, null>, failure: string, job: () => Promise<void>) => {
@@ -184,38 +155,49 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const generate = useCallback(() => {
     if (total === 0) return;
     return run('generate', 'Não foi possível gerar o PDF. Tente de novo.', async () => {
-      const layout = paper;
-      const from = layout === 'roll' ? 1 : start;
-      await printTagLabels(lines(), { layout, startPosition: from, widthMm: size.widthMm, heightMm: size.heightMm });
-      savePending({ layout, start: from, widthMm: size.widthMm, heightMm: size.heightMm, items: lines(), fromQueue: !!fromQueue, entryId: entryId ?? null, total, at: Date.now() });
+      let printed: PrintedPdf;
+      try {
+        printed = await printLabelsSaved({
+          items: lines(), layout: paper, startPosition: paper === 'roll' ? 1 : start, widthMm: size.widthMm, heightMm: size.heightMm,
+          fromQueue: !!fromQueue, entryId: entryId ?? null,
+        });
+      } catch (e) {
+        await refresh();   // a fila pode ter mudado: mostra o que há de verdade agora
+        throw e;
+      }
+      // a impressão já está salva no servidor (tirou da fila e andou a folha)
+      setPdf(printed);
+      setDelivery(null);
+      setPrintedTotal(total);
       setNotice(null);
-      setStep('generated');
-      onGenerated?.();
-    });
-  }, [total, run, paper, start, lines, size, fromQueue, entryId, savePending, onGenerated]);
-
-  const confirm = useCallback(() => {
-    if (!snapshot) return;
-    return run('confirm', 'Não foi possível marcar como impresso. Tente de novo.', async () => {
-      const r = await confirmPrint({
-        layout: snapshot.layout, widthMm: snapshot.widthMm, heightMm: snapshot.heightMm, startPosition: snapshot.start,
-        items: snapshot.items, fromQueue: snapshot.fromQueue, entryId: snapshot.entryId,
-      });
-      setNotice(r.next_position > 1 && snapshot.layout !== 'roll'
-        ? `Marcado como impresso. A próxima impressão começa na posição ${r.next_position} da folha.`
-        : 'Marcado como impresso.');
-      savePending(null);
       setStep('done');
       await refresh();
+      onGenerated?.();
       onPrinted?.();
+      setDelivery(await printed.deliver().catch(() => 'blocked' as PdfDelivery));
     });
-  }, [snapshot, run, savePending, refresh, onPrinted]);
+  }, [total, run, paper, start, lines, size, fromQueue, entryId, refresh, onGenerated, onPrinted]);
+
+  // abre o PDF de novo (compartilhar ou imprimir) sem salvar nada outra vez; chamado por um toque
+  const reshare = useCallback(async () => {
+    if (!pdf || busy) return;
+    setBusy('share');
+    setError(null);
+    try {
+      setDelivery(await pdf.deliver());
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível abrir o PDF. Tente de novo.');
+    } finally {
+      setBusy(null);
+    }
+  }, [pdf, busy]);
 
   const undo = useCallback(() => {
     if (!lastJob) return;
     return run('undo', 'Não foi possível desfazer.', async () => {
       const r = await undoPrint(lastJob.id);
       setNotice(`Desfeito. ${plural(r.returned, 'etiqueta voltou', 'etiquetas voltaram')} para a fila.`);
+      setPdf(null);
       setStep('edit');
       await refresh();
       onPrinted?.();
@@ -225,14 +207,14 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const sendToQueue = useCallback(() => {
     if (total === 0) return;
     return run('queue', 'Não foi possível pôr na fila.', async () => {
-      const r = await addToQueue(lines());
+      const r = await addToQueue(lines(), entryId ?? null);
       setQueuedCount(r.added);
       setNotice(`${plural(r.added, 'etiqueta colocada', 'etiquetas colocadas')} na fila de impressão.`);
       await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
     });
-  }, [total, run, lines, queryClient]);
+  }, [total, run, lines, entryId, queryClient]);
 
-  const backToEdit = useCallback(() => { setStep('edit'); savePending(null); setNotice(null); }, [savePending]);
+  const backToEdit = useCallback(() => { setStep('edit'); setPdf(null); setDelivery(null); setNotice(null); setError(null); }, []);
   const newSheet = useCallback(() => setStart(1), []);
 
   return {
@@ -243,8 +225,8 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
     // peças escolhidas
     chosen, total,
     // fluxo
-    step, busy, error, notice, queuedCount, canQueue: !fromQueue && !entryId, pendingTotal: snapshot?.total ?? 0,
-    generate, confirm, undo, sendToQueue, backToEdit,
+    step, busy, error, notice, queuedCount, canQueue: !fromQueue, printedTotal, delivery, hasPdf: !!pdf,
+    generate, reshare, undo, sendToQueue, backToEdit,
   };
 }
 

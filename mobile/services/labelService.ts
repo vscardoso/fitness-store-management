@@ -94,6 +94,99 @@ async function openPdf(url: string, body: object, filename: string): Promise<voi
   await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Etiquetas' });
 }
 
+/** O que aconteceu ao entregar o PDF: compartilhado, aberto/baixado, a pessoa fechou, ou o iPhone exigiu um toque novo. */
+export type PdfDelivery = 'shared' | 'opened' | 'cancelled' | 'blocked';
+
+export interface PrintedPdf {
+  filename: string;
+  /** Entrega o PDF (de novo). Chamar de dentro de um toque quando for pelo botão: o iPhone só abre o compartilhar assim. */
+  deliver: () => Promise<PdfDelivery>;
+}
+
+/**
+ * Gera o PDF E JÁ SALVA a impressão (tira da fila e anda a folha), tudo numa chamada do servidor: gerar = imprimir.
+ * Nada é gravado se o PDF falhar ou se a fila mudou (outra pessoa imprimiu): o servidor responde com a frase do motivo.
+ * No celular e no iPhone instalado o PDF vai como ARQUIVO no compartilhar do aparelho (aparece "Imprimir"): o endereço blob: da aba
+ * do navegador não serve (compartilhado, vira um link que só existe neste aparelho).
+ */
+export async function printLabelsSaved(input: {
+  items: { variantId: number; quantity: number }[];
+  layout: TagLabelLayout;
+  startPosition: number;
+  widthMm: number;
+  heightMm: number;
+  fromQueue: boolean;
+  entryId?: number | null;
+}): Promise<PrintedPdf> {
+  const body = {
+    items: input.items.filter((i) => i.quantity > 0).map((i) => ({ variant_id: i.variantId, quantity: i.quantity })),
+    layout: input.layout,
+    start_position: input.layout === 'roll' ? 1 : input.startPosition,
+    width_mm: input.widthMm,
+    height_mm: input.heightMm,
+    from_queue: input.fromQueue,
+    entry_id: input.entryId ?? null,
+  };
+  const total = body.items.reduce((sum, i) => sum + i.quantity, 0);
+  const filename = `etiquetas-${input.widthMm}x${input.heightMm}-${input.layout === 'roll' ? 'grafica' : 'folha'}-${total}un.pdf`;
+
+  const data = await fetchPdf<Blob | ArrayBuffer>('/labels/prints/pdf', body, Platform.OS === 'web' ? 'blob' : 'arraybuffer');
+  return buildPrintedPdf(data, filename);
+}
+
+/** Abre de novo o PDF de uma impressão das últimas 24 horas (o servidor refaz com as mesmas peças e posição; não salva nada). */
+export async function fetchRecentPrintPdf(jobId: number, filename: string): Promise<PrintedPdf> {
+  const res = await api.get(`/labels/prints/${jobId}/pdf`, {
+    responseType: Platform.OS === 'web' ? 'blob' : 'arraybuffer',
+    headers: { 'X-Loading-Message': 'Abrindo o PDF...' },
+    validateStatus: (status) => status !== 401,
+  });
+  if (res.status !== 200) throw new Error((await detailFromBinary(res.data)) || 'Não foi possível abrir o PDF.');
+  return buildPrintedPdf(res.data as Blob | ArrayBuffer, filename);
+}
+
+/** Guarda o PDF e devolve como entregá-lo (compartilhar do aparelho, abrir ou baixar), quantas vezes for preciso. */
+async function buildPrintedPdf(data: Blob | ArrayBuffer, filename: string): Promise<PrintedPdf> {
+  if (Platform.OS === 'web') {
+    const blob = new Blob([data as Blob], { type: 'application/pdf' });
+    const deliver = async (): Promise<PdfDelivery> => {
+      try {
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        const nav: any = navigator;
+        if (nav.canShare && nav.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(nav.userAgent || '')) {
+          await nav.share({ files: [file], title: 'Etiquetas' });
+          return 'shared';
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return 'cancelled';      // a pessoa fechou o compartilhar
+        if (e?.name === 'NotAllowedError') return 'blocked';   // passou o tempo do toque: precisa de um toque novo
+      }
+      const href = URL.createObjectURL(blob);
+      const win = window.open(href, '_blank');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(href), 60_000);
+      return 'opened';
+    };
+    return { filename, deliver };
+  }
+
+  const path = `${LegacyFileSystem.cacheDirectory}${filename}`;
+  await LegacyFileSystem.writeAsStringAsync(path, arrayBufferToBase64(data as ArrayBuffer), { encoding: 'base64' as any });
+  const deliver = async (): Promise<PdfDelivery> => {
+    if (!(await Sharing.isAvailableAsync())) throw new Error('Compartilhamento não disponível neste aparelho.');
+    await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Etiquetas' });
+    return 'shared';
+  };
+  return { filename, deliver };
+}
+
 /** PDF com as etiquetas das peças escolhidas (variante x quantidade). */
 export async function printTagLabels(
   items: { variantId: number; quantity: number }[],

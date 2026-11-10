@@ -18,6 +18,7 @@ import { useScrollBleed } from '@/hooks/useLayout';
 import LabelItems from './studio/LabelItems';
 import PrintBar from './studio/PrintBar';
 import PrintSettings from './studio/PrintSettings';
+import RecentPrints from './studio/RecentPrints';
 import SheetMap from './studio/SheetMap';
 import { useLabelPrint, type StickerItem } from './studio/useLabelPrint';
 
@@ -88,6 +89,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
             lastJob={p.step === 'done' ? null : p.lastJob} onUndo={p.undo} undoing={p.busy === 'undo'}
           />
         ) : null}
+        <RecentPrints />
         <View style={{ height: 200 }} />
       </ScrollView>
       <PrintBar p={p} summary={summary} />

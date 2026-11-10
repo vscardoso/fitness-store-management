@@ -1,8 +1,9 @@
 /**
  * Etiquetas da entrada: uma por peça recebida, só das variações que vieram nesta compra (peça antiga do mesmo produto não sai).
- * Mostra quantas já foram impressas e quantas faltam; "Colocar na fila de impressão" junta o que falta com as outras entradas.
+ * Mostra quantas já foram impressas e quantas faltam. O que vai para a fila ou para o PDF é SÓ o que está marcado na lista abaixo
+ * (antes um botão levava a entrada inteira e ignorava o que a pessoa tinha desmarcado).
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +14,7 @@ import ScreenLoader from '@/components/ui/ScreenLoader';
 import { Colors, theme } from '@/constants/Colors';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { useBrandingColors } from '@/store/brandingStore';
-import { addEntryToQueue, getEntryLabelProgress } from '@/services/labelQueueService';
+import { getEntryLabelProgress } from '@/services/labelQueueService';
 import { getStockEntryById } from '@/services/stockEntryService';
 import { parseApiError } from '@/utils/apiError';
 
@@ -34,9 +35,6 @@ export default function EntryLabelsScreen() {
   const queryClient = useQueryClient();
   const { data: entry, isLoading, error } = useQuery({ queryKey: ['stock-entry', entryId], queryFn: () => getStockEntryById(entryId), enabled: !!entryId });
   const { data: progress } = useQuery({ queryKey: ['label-progress', entryId], queryFn: () => getEntryLabelProgress(entryId), enabled: !!entryId });
-  const [adding, setAdding] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
   // soma por variação o que foi RECEBIDO nesta entrada; a quantidade já vem só com o que ainda falta imprimir
   const { items, initialQty } = useMemo(() => {
     const byVariant = new Map<number, StickerItem>();
@@ -68,24 +66,6 @@ export default function EntryLabelsScreen() {
 
   const total = progress?.received ?? Object.values(initialQty).reduce((n, q) => n + q, 0);
 
-  const addToQueue = async () => {
-    if (adding) return;
-    setAdding(true);
-    setMsg(null);
-    try {
-      const r = await addEntryToQueue(entryId);
-      await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
-      await queryClient.invalidateQueries({ queryKey: ['label-progress', entryId] });
-      setMsg(r.added === 0
-        ? 'Nada a pôr na fila: tudo desta entrada já foi impresso ou já está na fila.'
-        : `${r.added} etiqueta${r.added !== 1 ? 's' : ''} colocada${r.added !== 1 ? 's' : ''} na fila de impressão.`);
-    } catch (e: any) {
-      setMsg(parseApiError(e) || 'Não foi possível pôr na fila.');
-    } finally {
-      setAdding(false);
-    }
-  };
-
   return (
     <View style={styles.container}>
       <PageHeader title="Etiquetas da entrada" subtitle={entry ? `${entry.entry_code} · ${total} peças` : ''}
@@ -111,19 +91,13 @@ export default function EntryLabelsScreen() {
                     ? 'Todas as etiquetas desta entrada foram impressas.'
                     : progress.missing === 0
                       ? 'Tudo já está na fila de impressão. Falta imprimir.'
-                      : `Faltam ${progress.missing} para colocar na fila de impressão.`}
+                      : `Faltam ${progress.missing}. Escolha abaixo as peças e quantidades: só o que estiver marcado sai ou vai para a fila.`}
                 </Text>
-                {progress.missing > 0 ? (
-                  <TouchableOpacity style={[styles.btn, { backgroundColor: brand.primary }]} onPress={addToQueue} disabled={adding} accessibilityRole="button">
-                    <Text style={styles.btnTextOn}>{adding ? 'Colocando...' : 'Colocar na fila de impressão'}</Text>
-                  </TouchableOpacity>
-                ) : null}
                 {progress.queued > 0 ? (
                   <TouchableOpacity style={[styles.btn, { borderColor: brand.primary, borderWidth: 1.5 }]} onPress={() => router.push('/etiquetas/fila' as any)} accessibilityRole="button">
                     <Text style={[styles.btnText, { color: brand.primary }]}>Abrir a fila ({progress.queued})</Text>
                   </TouchableOpacity>
                 ) : null}
-                {msg ? <Text style={styles.okMsg} accessibilityLiveRegion="polite">{msg}</Text> : null}
               </View>
             ) : null}
             <StickerStudio

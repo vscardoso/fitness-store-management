@@ -148,7 +148,7 @@ async def entry_progress(entry_id: int, db: AsyncSession = Depends(get_db), user
 async def print_state(layout: Literal["a4", "roll", "sheet"] = "sheet", width_mm: float = DEFAULT_W_MM, height_mm: float = DEFAULT_H_MM,
                       db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
                       tenant_id: int = Depends(get_current_tenant_id)):
-    return await queue.print_state(db, tenant_id, layout, width_mm, height_mm)
+    return await queue.print_state(db, tenant_id, layout, width_mm, height_mm, user)
 
 
 @router.post("/prints", summary="Salvar impressão: o que saiu, tira da fila e anda a folha", status_code=status.HTTP_201_CREATED)
@@ -162,6 +162,53 @@ async def save_print(body: PrintConfirm, db: AsyncSession = Depends(get_db), use
                                    "da_fila": body.from_queue})
     await db.commit()
     return result
+
+
+@router.get("/prints/recent", summary="Últimos PDFs gerados (24 horas)")
+async def recent_prints(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                        tenant_id: int = Depends(get_current_tenant_id)):
+    return await queue.recent_jobs(db, tenant_id)
+
+
+@router.get("/prints/{job_id}/pdf", summary="Abre de novo o PDF de uma impressão das últimas 24 horas (não salva nada)")
+async def reopen_print_pdf(job_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                           tenant_id: int = Depends(get_current_tenant_id)):
+    """Refaz o PDF com as mesmas peças, quantidades, papel e posição da impressão salva. Só leitura: não mexe em fila nem em folha."""
+    try:
+        job = await queue.get_recent_job(db, tenant_id, job_id)
+        wanted: dict[int, int] = {}
+        for it in job.items or []:
+            wanted[int(it["variant_id"])] = wanted.get(int(it["variant_id"]), 0) + int(it["quantity"])
+        labels = await labels_for_variants(db, tenant_id, list(wanted.items()))
+        content = build_pdf(labels, job.layout, job.start_position, job.width_mm, job.height_mm)
+        fname = f"etiquetas-{job.width_mm:g}x{job.height_mm:g}-{job.total}un.pdf"
+        await db.rollback()   # leitura pura: nada a gravar
+    except (queue.QueueError, LabelRequestError, ValueError) as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _pdf(content, fname)
+
+
+@router.post("/prints/pdf", summary="Imprimir: gera o PDF e já salva a impressão (tira da fila e anda a folha) numa operação só")
+async def print_pdf(body: PrintConfirm, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_active_user),
+                    tenant_id: int = Depends(get_current_tenant_id)):
+    """Gerar o PDF = imprimir. Tudo ou nada: se o PDF não sai, nada é gravado; se a fila mudou, nada é gravado e a pessoa atualiza."""
+    try:
+        await queue.lock_queue(db, tenant_id)
+        items = [i.model_dump() for i in body.items]
+        labels = await labels_for_variants(db, tenant_id, [(i["variant_id"], i["quantity"]) for i in items])
+        content = build_pdf(labels, body.layout, body.start_position, body.width_mm, body.height_mm)
+        result = await queue.confirm_print(db, tenant_id, user, body.layout, body.width_mm, body.height_mm, body.start_position,
+                                           items, body.from_queue, body.entry_id)
+        await AuditService.log(db, "LABEL_PRINT_SAVED", tenant_id=tenant_id, user_id=getattr(user, "id", None),
+                               user_email=getattr(user, "email", None), entity="label_print", entity_id=result["id"],
+                               detail={"etiquetas": result["total"], "papel": body.layout, "medida": f"{body.width_mm:g}x{body.height_mm:g}",
+                                       "da_fila": body.from_queue})
+        await db.commit()
+    except (queue.QueueError, LabelRequestError, ValueError) as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _pdf(content, f"etiquetas-{body.width_mm:g}x{body.height_mm:g}-{result['total']}un.pdf")
 
 
 @router.post("/prints/{job_id}/undo", summary="Não saiu: desfaz a última impressão salva (volta para a fila)")

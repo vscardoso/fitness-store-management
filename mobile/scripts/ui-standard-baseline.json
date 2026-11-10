@@ -325,7 +325,7 @@
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 0,
-  "handButton": 2,
+  "handButton": 1,
   "oddWeight": 3
  },
  "app/entries/[id].tsx": {
