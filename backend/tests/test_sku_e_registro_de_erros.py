@@ -415,3 +415,143 @@ async def test_historico_de_preco_pago_de_um_produto_bate_com_o_da_loja_inteira(
         esperado = {k: v for k, v in toda.items() if k[1] == pid}
         assert so_um == esperado and so_um, (pid, so_um, esperado)
     assert list(await svc.paid_cost_history(t_id, ids[1]))
+
+
+async def test_nova_variacao_pode_ter_outro_fornecedor_e_preco_de_tabela(test_client, async_session, test_user):
+    """Mesmo produto comprado de OUTRO fornecedor desta vez: a peça nova entra com o fornecedor escolhido (não o da entrada)."""
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    from app.models.supplier import Supplier
+    from app.models.supplier_product import SupplierProduct
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await _criar(test_client, h, cat, f"Conjunto Forn {n}", f"CFO{n}", f"VARF-{n:04d}")
+    assert r.status_code in (200, 201), r.text
+    entry_id = r.json()["id"]
+    entry_supplier_id = r.json()["supplier_id"]
+    pid = (await async_session.execute(select(ProductVariant.product_id).where(ProductVariant.sku == f"CFO{n}-PRE-001"))).scalar_one()
+
+    # outro fornecedor, pelo nome (cria o cadastro) e com preço de tabela
+    r1 = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants", headers=h, json={
+        "product_id": pid, "color": "Rosa", "size": "G", "quantity": 1, "cost_price": 40, "list_unit_cost": 50,
+        "supplier_name": f"Fornecedor Rua {n}"})
+    assert r1.status_code == 201, r1.text
+    it = (await async_session.execute(select(EntryItem).where(EntryItem.id == r1.json()["item_id"]))).scalar_one()
+    novo = (await async_session.execute(select(Supplier).where(Supplier.name == f"Fornecedor Rua {n}", Supplier.tenant_id == t_id))).scalar_one()
+    assert it.supplier_id == novo.id and it.supplier_id != entry_supplier_id          # fornecedor desta compra, não o da entrada
+    assert float(it.unit_cost) == 40.0 and float(it.list_unit_cost) == 50.0
+    vinculo = (await async_session.execute(select(SupplierProduct).where(
+        SupplierProduct.supplier_id == novo.id, SupplierProduct.product_id == pid))).scalar_one_or_none()
+    assert vinculo is not None                                                          # o produto ficou ligado ao fornecedor novo
+
+    # sem informar fornecedor: continua valendo o da entrada
+    r2 = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants", headers=h, json={
+        "product_id": pid, "color": "Rosa", "size": "M", "quantity": 1, "cost_price": 40})
+    assert r2.status_code == 201
+    it2 = (await async_session.execute(select(EntryItem).where(EntryItem.id == r2.json()["item_id"]))).scalar_one()
+    assert it2.supplier_id == entry_supplier_id
+
+    # fornecedor de outra loja: recusa
+    r3 = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants", headers=h, json={
+        "product_id": pid, "color": "Rosa", "size": "P", "quantity": 1, "cost_price": 40, "supplier_id": 99999999})
+    assert r3.status_code in (400, 404)
+
+
+async def test_trocar_o_fornecedor_de_uma_peca_ja_lancada(test_client, async_session, test_user):
+    """As 2 peças entraram com o fornecedor da entrada; depois o dono acerta o fornecedor de cada uma pela edição do item."""
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    from app.models.supplier import Supplier
+    from app.models.supplier_product import SupplierProduct
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await _criar(test_client, h, cat, f"Conjunto Troca {n}", f"CTR{n}", f"VART-{n:04d}")
+    assert r.status_code in (200, 201), r.text
+    entry_id, entry_sup = r.json()["id"], r.json()["supplier_id"]
+    pid = (await async_session.execute(select(ProductVariant.product_id).where(ProductVariant.sku == f"CTR{n}-PRE-001"))).scalar_one()
+    itens = (await async_session.execute(select(EntryItem).where(EntryItem.entry_id == entry_id).order_by(EntryItem.id))).scalars().all()
+    assert len(itens) == 2 and all(i.supplier_id == entry_sup for i in itens)
+    ids = [i.id for i in itens]
+
+    # a 1ª peça passa a ser de outro fornecedor (pelo nome: cria o cadastro)
+    r1 = await test_client.put(f"/api/v1/stock-entries/entry-items/{ids[0]}", headers=h, json={"supplier_name": f"Fornecedor Rua {n}"})
+    assert r1.status_code == 200, r1.text
+    async_session.expire_all()
+    novo = (await async_session.execute(select(Supplier).where(Supplier.name == f"Fornecedor Rua {n}", Supplier.tenant_id == t_id))).scalar_one()
+    a = (await async_session.execute(select(EntryItem).where(EntryItem.id == ids[0]))).scalar_one()
+    b = (await async_session.execute(select(EntryItem).where(EntryItem.id == ids[1]))).scalar_one()
+    assert a.supplier_id == novo.id and b.supplier_id == entry_sup                       # só a peça escolhida mudou
+    assert a.quantity_received == 2 and float(a.unit_cost) == 10.0                        # quantidade e custo intactos
+    vinc = {s.supplier_id: s.is_active for s in (await async_session.execute(
+        select(SupplierProduct).where(SupplierProduct.product_id == pid, SupplierProduct.tenant_id == t_id))).scalars()}
+    assert vinc.get(novo.id) is True and vinc.get(entry_sup) is True                      # o antigo ainda tem a outra peça
+
+    # a 2ª também: agora o fornecedor antigo não tem mais peça desse produto e o vínculo dele é desligado
+    r2 = await test_client.put(f"/api/v1/stock-entries/entry-items/{ids[1]}", headers=h, json={"supplier_id": novo.id})
+    assert r2.status_code == 200, r2.text
+    async_session.expire_all()
+    vinc = {s.supplier_id: s.is_active for s in (await async_session.execute(
+        select(SupplierProduct).where(SupplierProduct.product_id == pid, SupplierProduct.tenant_id == t_id))).scalars()}
+    assert vinc.get(novo.id) is True and vinc.get(entry_sup) is False
+
+    # fornecedor que não existe na loja: recusa e nada muda
+    r3 = await test_client.put(f"/api/v1/stock-entries/entry-items/{ids[0]}", headers=h, json={"supplier_id": 99999999})
+    assert r3.status_code in (400, 404)
+
+
+async def test_lancar_varias_variacoes_de_uma_vez_novas_e_existentes(test_client, async_session, test_user):
+    """4 variações NOVAS e 2 que o produto JÁ TEM, de outro fornecedor, numa operação só (tudo ou nada)."""
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    from app.models.supplier import Supplier
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await _criar(test_client, h, cat, f"Conjunto Lote {n}", f"CLO{n}", f"VARL-{n:04d}")
+    assert r.status_code in (200, 201), r.text
+    entry_id, entry_sup = r.json()["id"], r.json()["supplier_id"]
+    existentes = (await async_session.execute(select(ProductVariant).where(ProductVariant.sku.like(f"CLO{n}-%")).order_by(ProductVariant.id))).scalars().all()
+    assert len(existentes) == 2
+    pid = existentes[0].product_id
+    ids_existentes = [v.id for v in existentes]
+    antes = len((await async_session.execute(select(ProductVariant).where(ProductVariant.product_id == pid))).scalars().all())
+
+    itens = [{"variant_id": ids_existentes[0], "quantity": 2, "cost_price": 12},                # já existe
+             {"variant_id": ids_existentes[1], "quantity": 1, "cost_price": 12},                # já existe
+             {"color": "Rosa", "size": "P", "quantity": 1, "cost_price": 12, "list_unit_cost": 15},
+             {"color": "Rosa", "size": "M", "quantity": 3, "cost_price": 12},
+             {"color": "Rosa", "size": "G", "quantity": 1, "cost_price": 12},
+             {"color": "Azul Tifany", "size": "M", "quantity": 2, "cost_price": 12}]
+    resp = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants/batch", headers=h,
+                                  json={"product_id": pid, "items": itens, "supplier_name": f"Forn Lote {n}"})
+    assert resp.status_code == 201, resp.text
+    out = resp.json()
+    assert out["total_quantity"] == 10 and out["created"] == 4                              # 4 novas; as 2 existentes não criaram nada
+    assert [i["variant_created"] for i in out["items"]] == [False, False, True, True, True, True]
+    assert [i["sku"] for i in out["items"][:2]] == [v.sku for v in existentes]            # as existentes mantêm o SKU
+    async_session.expire_all()
+    depois = (await async_session.execute(select(ProductVariant).where(ProductVariant.product_id == pid))).scalars().all()
+    assert len(depois) == antes + 4
+    assert len({v.sku for v in depois}) == len(depois)                                      # nenhum SKU repetido
+    forn = (await async_session.execute(select(Supplier).where(Supplier.name == f"Forn Lote {n}", Supplier.tenant_id == t_id))).scalar_one()
+    novos = (await async_session.execute(select(EntryItem).where(EntryItem.entry_id == entry_id, EntryItem.supplier_id == forn.id))).scalars().all()
+    assert len(novos) == 6 and sum(i.quantity_received for i in novos) == 10               # as 6 linhas são do fornecedor do lote
+    assert sum(1 for i in novos if i.list_unit_cost is not None) == 1
+
+    # tudo ou nada: uma linha ruim (quantidade 0 / variação de outro produto / repetida) não grava NADA das outras
+    qtd_itens = len((await async_session.execute(select(EntryItem).where(EntryItem.entry_id == entry_id))).scalars().all())
+    for ruim in ({"color": "Preta", "size": "G", "quantity": 1, "cost_price": 12}, {"variant_id": 99999999, "quantity": 1, "cost_price": 12}):
+        r_ruim = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants/batch", headers=h, json={
+            "product_id": pid, "items": [{"color": "Vermelha", "size": "P", "quantity": 1, "cost_price": 12}, ruim | {"quantity": 0} if "color" in ruim else ruim]})
+        assert r_ruim.status_code in (400, 404, 422), r_ruim.text
+    r_dup = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants/batch", headers=h, json={
+        "product_id": pid, "items": [{"color": "Verde", "size": "P", "quantity": 1, "cost_price": 12}, {"color": "Verde", "size": "P", "quantity": 2, "cost_price": 12}]})
+    assert r_dup.status_code == 400 and "mais de uma vez" in r_dup.json()["detail"]
+    r_sem_custo = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants/batch", headers=h, json={
+        "product_id": pid, "items": [{"color": "Verde", "size": "P", "quantity": 1, "cost_price": 0}]})
+    assert r_sem_custo.status_code == 400
+    async_session.expire_all()
+    assert len((await async_session.execute(select(EntryItem).where(EntryItem.entry_id == entry_id))).scalars().all()) == qtd_itens
+    assert len((await async_session.execute(select(ProductVariant).where(ProductVariant.product_id == pid))).scalars().all()) == antes + 4   # nenhuma variação "Vermelha/Verde" ficou

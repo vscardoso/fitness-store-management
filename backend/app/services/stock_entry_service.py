@@ -1483,6 +1483,19 @@ class StockEntryService:
         if 'notes' in item_data and item_data['notes'] is not None:
             update_data['notes'] = item_data['notes']
 
+        # Trocar o fornecedor da peça (comprou deste produto de OUTRO fornecedor): o vínculo fornecedor x produto acompanha
+        old_supplier_id = None
+        new_supplier_id = None
+        if item_data.get('supplier_id') or item_data.get('supplier_name'):
+            _sup = await self._resolve_supplier(item_data.get('supplier_id'), item_data.get('supplier_name'), None, None, tenant_id)
+            _current = item.supplier_id
+            if _current is None:
+                _entry_now = await self.entry_repo.get_by_id(self.db, item.entry_id, tenant_id=tenant_id)
+                _current = _entry_now.supplier_id if _entry_now else None
+            if _sup is not None and _sup.id != _current:
+                old_supplier_id, new_supplier_id = _current, _sup.id
+                update_data['supplier_id'] = _sup.id
+
         # Atualizar sell_price do produto se fornecido
         sell_price_updated = False
         if 'sell_price' in item_data and item_data['sell_price'] is not None:
@@ -1578,6 +1591,33 @@ class StockEntryService:
                     f"  [EntryItem Update] Entrada {entry.entry_code}: "
                     f"total_cost recalculado = R$ {new_total_cost:.2f}"
                 )
+
+        # Fornecedor trocado: liga o produto ao fornecedor novo e desliga do antigo se ele não tem mais nenhuma peça desse produto
+        if new_supplier_id is not None:
+            _entry_row = await self.entry_repo.get_by_id(self.db, item.entry_id, tenant_id=tenant_id)
+            _qty = item.quantity_received
+            _cost = Decimal(str(item.unit_cost))
+            await self._apply_supplier_links(
+                {(new_supplier_id, item.product_id): (_qty, Decimal(str(_qty)) * _cost)},
+                _entry_row.entry_date if _entry_row else None, tenant_id,
+            )
+            if old_supplier_id:
+                from sqlalchemy import func as _func, select as _select2
+                from app.models.supplier_product import SupplierProduct
+                _still = (await self.db.execute(
+                    _select2(_func.count()).select_from(EntryItem).where(
+                        EntryItem.tenant_id == tenant_id, EntryItem.product_id == item.product_id,
+                        EntryItem.supplier_id == old_supplier_id, EntryItem.is_active == True,  # noqa: E712
+                        EntryItem.id != item.id,
+                    )
+                )).scalar() or 0
+                if _still == 0:
+                    _old_link = (await self.db.execute(_select2(SupplierProduct).where(
+                        SupplierProduct.supplier_id == old_supplier_id, SupplierProduct.product_id == item.product_id,
+                        SupplierProduct.tenant_id == tenant_id))).scalar_one_or_none()
+                    if _old_link is not None:
+                        _old_link.is_active = False
+            await self.db.flush()
 
         # Quantidade/custo mudou: o rateio do lote muda junto
         await lot_cost_service.recompute_entries(self.db, [item.entry_id], tenant_id=tenant_id)
@@ -1810,6 +1850,9 @@ class StockEntryService:
                 {
                     "product_id": product.id, "variant_id": variant.id, "quantity_received": quantity,
                     "unit_cost": cost, "notes": f"Variação adicionada à entrada: {color or ''} {size or ''}".strip(),
+                    # o mesmo produto pode ter sido comprado de OUTRO fornecedor desta vez (padrão: o da entrada)
+                    "supplier_id": data.get("supplier_id"), "supplier_name": data.get("supplier_name"),
+                    "list_unit_cost": data.get("list_unit_cost"),
                 },
                 tenant_id=tenant_id,
             )
@@ -1818,6 +1861,116 @@ class StockEntryService:
                 "sku": variant.sku, "color": variant.color, "size": variant.size,
                 "quantity_received": quantity, "variant_created": created,
             }
+        except Exception:
+            await self.db.rollback()
+            raise
+
+    async def add_variants_to_entry(
+        self,
+        entry_id: int,
+        product_id: int,
+        items: List[Dict[str, Any]],
+        *,
+        tenant_id: int,
+        supplier_id: Optional[int] = None,
+        supplier_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Lança de uma vez VÁRIAS variações de um produto já cadastrado numa entrada existente, numa transação só:
+        - item com `variant_id`: peça que o produto já tem (usa o SKU e o código dela, nada é criado);
+        - item com `color`/`size`: combinação nova (cria a variação com SKU gerado e o próximo número do produto) ou a que já existe.
+        O fornecedor é um só para o lote (o informado ou, sem isso, o da entrada). Qualquer erro em qualquer linha: nada é gravado.
+        """
+        from decimal import Decimal
+        from sqlalchemy import select as _select
+        from app.models.product_variant import ProductVariant
+        from app.utils.variant_grid import normalize_color, normalize_size
+
+        await self._lock_catalog(tenant_id)
+        try:
+            entry = await self.entry_repo.get_by_id(self.db, entry_id, tenant_id=tenant_id)
+            if not entry:
+                raise ValueError(f"Entrada {entry_id} não encontrada")
+            product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
+            if not product:
+                raise ValueError(f"Produto {product_id} não encontrado")
+            if not items:
+                raise ValueError("Informe ao menos uma variação")
+            if len(items) > 100:
+                raise ValueError("No máximo 100 variações por vez")
+
+            batch_supplier_id = entry.supplier_id
+            if supplier_id or supplier_name:
+                chosen = await self._resolve_supplier(supplier_id, supplier_name, None, None, tenant_id)
+                batch_supplier_id = chosen.id if chosen else entry.supplier_id
+
+            seen: set = set()
+            acc: dict = {}
+            out: List[Dict[str, Any]] = []
+            for it in items:
+                qty = int(it.get('quantity') or 0)
+                if qty <= 0:
+                    raise ValueError("A quantidade de cada variação deve ser maior que zero")
+                if qty > 1_000_000:
+                    raise ValueError("Quantidade grande demais")
+                if it.get('variant_id'):
+                    variant = (await self.db.execute(_select(ProductVariant).where(
+                        ProductVariant.id == it['variant_id'], ProductVariant.product_id == product.id,
+                        ProductVariant.tenant_id == tenant_id, ProductVariant.is_active == True,  # noqa: E712
+                    ))).scalar_one_or_none()
+                    if variant is None:
+                        raise ValueError("Uma das variações não pertence a este produto")
+                    created = False
+                    color, size = variant.color, variant.size
+                else:
+                    color = normalize_color(it.get('color')) or None
+                    size = normalize_size(it.get('size')) or None
+                    if not color and not size:
+                        raise ValueError("Informe a cor ou o tamanho da nova variação")
+                    variant = None
+                label = f"{product.name} ({color or ''} {size or ''})".strip()
+                cost = self._require_cost(it.get('cost_price'), label, entry.entry_type)
+                list_cost = it.get('list_unit_cost')
+                self._check_list_price(list_cost, cost)
+                if list_cost is not None and Decimal(str(list_cost)) == Decimal(str(cost)):
+                    list_cost = None
+                if variant is None:
+                    variant, created = await self._get_or_create_variant(
+                        product, color, size, price=it.get('price'), cost=cost, sku=it.get('sku'), tenant_id=tenant_id)
+                    await self.db.flush()
+                if variant.id in seen:
+                    raise ValueError(f"A variação {label} aparece mais de uma vez")
+                seen.add(variant.id)
+                self.db.add(EntryItem(
+                    entry_id=entry.id, product_id=product.id, variant_id=variant.id, supplier_id=batch_supplier_id,
+                    list_unit_cost=Decimal(str(list_cost)) if list_cost is not None else None,
+                    quantity_received=qty, quantity_remaining=qty, unit_cost=cost,
+                    notes=f"Variação lançada na entrada: {color or ''} {size or ''}".strip(),
+                    tenant_id=tenant_id, is_active=True,
+                ))
+                await self.db.flush()
+                if batch_supplier_id:
+                    q0, t0 = acc.get((batch_supplier_id, product.id), (0, Decimal('0')))
+                    acc[(batch_supplier_id, product.id)] = (q0 + qty, t0 + Decimal(str(qty)) * Decimal(str(cost)))
+                out.append({
+                    "variant_id": variant.id, "sku": variant.sku, "color": variant.color, "size": variant.size,
+                    "quantity_received": qty, "variant_created": created,
+                })
+
+            await self._resync_entry_total(entry)
+            if acc:
+                await self._apply_supplier_links(acc, entry.entry_date, tenant_id)
+            try:
+                await InventoryService(self.db).rebuild_product_from_fifo(product.id, tenant_id=tenant_id)
+            except Exception as sync_err:
+                print(f"  [Inventory Sync ADD_VARIANTS] Falha sync produto {product.id}: {sync_err}")
+            await self.db.flush()
+            await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
+            result = {"entry_id": entry.id, "product_id": product.id, "items": out,
+                      "total_quantity": sum(o["quantity_received"] for o in out),
+                      "created": sum(1 for o in out if o["variant_created"])}
+            await self.db.commit()
+            return result
         except Exception:
             await self.db.rollback()
             raise

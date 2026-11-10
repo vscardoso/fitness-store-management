@@ -22,7 +22,9 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { ProductPickerList, groupedToProduct } from '@/components/products/ProductPicker';
-import { addItemToEntry, addVariantToEntry, updateEntryItem } from '@/services/stockEntryService';
+import { addItemToEntry, addVariantsBatchToEntry, updateEntryItem } from '@/services/stockEntryService';
+import EntryVariantGrid from '@/components/entries/EntryVariantGrid';
+import { buildCells, existingColors as gridExistingColors, gridSummary, toBatchLines, type GridVariant } from '@/utils/entryGrid';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
@@ -36,7 +38,7 @@ interface Props {
   entrySupplierName?: string;
   /** Linhas que a entrada já tem: serve para perguntar se soma ou cria linha separada quando a variação se repete */
   entryItems?: EntryItemResponse[];
-  /** Abre direto em "nova cor ou tamanho" deste produto (botão da página do produto) */
+  /** Abre direto na grade de lançamento (cores x tamanhos) deste produto (botão da página do produto) */
   newVariantOf?: ProductGrouped | null;
   onClose: () => void;
 }
@@ -52,8 +54,11 @@ interface Choice {
 export default function AddProductToEntryModal({ visible, entryId, entryCode, entrySupplierName, entryItems, newVariantOf, onClose }: Props) {
   const brand = useBrandingColors();
   const qc = useQueryClient();
-  const [step, setStep] = useState<'list' | 'form' | 'supplier' | 'duplicate' | 'newVariant'>('list');
-  const [newVar, setNewVar] = useState<{ product: ProductGrouped; color: string; size: string } | null>(null);
+  const [step, setStep] = useState<'list' | 'form' | 'supplier' | 'duplicate' | 'grade'>('list');
+  const [gridProduct, setGridProduct] = useState<ProductGrouped | null>(null);   // produto da grade (várias cores e tamanhos de uma vez)
+  const [gColors, setGColors] = useState<string[]>([]);
+  const [gSizes, setGSizes] = useState<string[]>([]);
+  const [gQty, setGQty] = useState<Record<string, string>>({});
   const [choice, setChoice] = useState<Choice | null>(null);
   const [qty, setQty] = useState('1');
   const [cost, setCost] = useState('');
@@ -62,11 +67,29 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
   const [error, setError] = useState('');
   const [group, setGroup] = useState<ProductGrouped | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
+  const [supplierBack, setSupplierBack] = useState<'form' | 'grade'>('form');   // de onde veio a escolha do fornecedor
+
+  // Abre a grade de um produto: produto de uma cor só já vem com a cor marcada (o caso comum é chegar outro tamanho da mesma peça)
+  const openGrid = (g: ProductGrouped) => {
+    const cores = gridExistingColors((g.variants ?? []) as unknown as GridVariant[]);
+    setGridProduct(g);
+    setGColors(cores.length === 1 ? cores : []);
+    setGSizes([]);
+    setGQty({});
+    const c = Number(g.variants?.[0]?.cost_price ?? 0);
+    setCost(c > 0 ? maskCurrencyBR(String(Math.round(c * 100))) : '');
+    setListPrice('');
+    setError('');
+    setStep('grade');
+  };
 
   useEffect(() => {
     if (!visible) return;
     setStep('list');
-    setNewVar(null);
+    setGridProduct(null);
+    setGColors([]);
+    setGSizes([]);
+    setGQty({});
     setChoice(null);
     setQty('1');
     setCost('');
@@ -75,14 +98,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     setError('');
     setGroup(null);
     setPhoto(null);
-    if (newVariantOf) {
-      // produto de uma cor só: a cor já vem preenchida (o caso comum é lançar outro tamanho da mesma peça)
-      const cores = [...new Set((newVariantOf.variants ?? []).map((v) => (v.color || '').trim()).filter(Boolean))];
-      setNewVar({ product: newVariantOf, color: cores.length === 1 ? cores[0] : '', size: '' });
-      const c = Number(newVariantOf.variants?.[0]?.cost_price ?? 0);
-      setCost(c > 0 ? maskCurrencyBR(String(Math.round(c * 100))) : '');
-      setStep('newVariant');
-    }
+    if (newVariantOf) openGrid(newVariantOf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
@@ -204,49 +220,30 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível somar. Tente de novo.'),
   });
 
-  const addNewVariant = useMutation({
+  const gridCells = useMemo(
+    () => (gridProduct ? buildCells((gridProduct.variants ?? []) as unknown as GridVariant[], gColors, gSizes, gQty) : []),
+    [gridProduct, gColors, gSizes, gQty],
+  );
+  const gridSum = useMemo(() => gridSummary(gridCells), [gridCells]);
+
+  const addBatch = useMutation({
     mutationFn: () =>
-      addVariantToEntry(entryId, {
-        product_id: newVar!.product.id,
-        color: newVar!.color.trim() || undefined,
-        size: newVar!.size.trim() || undefined,
-        quantity: parseInt(qty, 10),
-        cost_price: unmaskCurrency(cost),
-        price: Number(newVar!.product.variants?.[0]?.price ?? newVar!.product.min_price ?? 0) || undefined,
+      addVariantsBatchToEntry(entryId, {
+        product_id: gridProduct!.id,
+        items: toBatchLines(gridCells, unmaskCurrency(cost), unmaskCurrency(listPrice)),
+        supplier_id: supplier?.id ?? undefined,
       }),
-    onSuccess: async (res) => { await sendPhoto(res.variant_id, res.product_id); afterLaunch(); },
-    onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Tente de novo.'),
+    onSuccess: () => afterLaunch(),
+    onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Nada foi gravado. Tente de novo.'),
   });
 
-  // cores e tamanhos que o produto já tem: viram botões para tocar (lista intuitiva, sem digitar)
-  const existingColors = useMemo(
-    () => [...new Set((newVar?.product.variants ?? []).map((v) => (v.color || '').trim()).filter(Boolean))],
-    [newVar?.product],
-  );
-  const existingSizes = useMemo(() => {
-    const own = (newVar?.product.variants ?? []).map((v) => (v.size || '').trim().toUpperCase()).filter(Boolean);
-    const numeric = own.some((s) => /^\d+$/.test(s));
-    const base = numeric ? ['33', '34', '35', '36', '37', '38', '39', '40', '41', '42'] : ['PP', 'P', 'M', 'G', 'GG', 'XG'];
-    const ordem = ['ÚNICO', 'PP', 'P', 'P/M', 'M', 'M/G', 'G', 'G/GG', 'GG', 'XG', 'XGG'];
-    const rank = (s: string) => (/^\d+$/.test(s) ? Number(s) : 1000 + (ordem.indexOf(s) >= 0 ? ordem.indexOf(s) : 99));
-    return [...new Set([...own, ...base])].sort((a, b) => rank(a) - rank(b));
-  }, [newVar?.product]);
-
-  const submitNewVariant = () => {
-    if (!newVar) return;
-    if (!newVar.color.trim() && !newVar.size.trim()) return setError('Informe a cor ou o tamanho.');
-    // produto que tem cor: a peça nova precisa de cor (senão vira uma linha "Único" separada na grade)
-    if (existingColors.length && !newVar.color.trim()) return setError('Escolha a cor da peça.');
-    if ((newVar.product.variants ?? []).some((v) => (v.size || '').trim()) && !newVar.size.trim()) return setError('Escolha o tamanho da peça.');
-    const n = parseInt(qty, 10);
-    if (!n || n < 1) return setError('Informe a quantidade.');
+  const submitGrid = () => {
+    if (!gridProduct) return;
+    if (gridSum.pieces === 0) return setError('Digite a quantidade de ao menos uma combinação de cor e tamanho.');
     if (unmaskCurrency(cost) <= 0) return setError('Informe quanto você pagou em cada peça.');
-    const exists = (newVar.product.variants ?? []).some(
-      (v) => (v.color || '').trim().toLowerCase() === newVar.color.trim().toLowerCase() && (v.size || '').trim().toLowerCase() === newVar.size.trim().toLowerCase(),
-    );
-    if (exists) return setError('Esta cor e tamanho já existem: volte e escolha a peça na lista.');
+    if (unmaskCurrency(listPrice) > 0 && unmaskCurrency(listPrice) < unmaskCurrency(cost)) return setError('O preço de tabela não pode ser menor que o preço pago.');
     setError('');
-    addNewVariant.mutate();
+    addBatch.mutate();
   };
 
   const submit = () => {
@@ -270,21 +267,21 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
       <BottomSheet
         visible={visible && step !== 'supplier'}
         onDismiss={onClose}
-        title={step === 'newVariant' && newVar ? newVar.product.name : (step === 'form' || step === 'duplicate') && choice ? choice.label : 'Produto já cadastrado'}
+        title={step === 'grade' && gridProduct ? gridProduct.name : (step === 'form' || step === 'duplicate') && choice ? choice.label : 'Produto já cadastrado'}
         subtitle={step === 'form' ? (entryCode ? `Entrada ${entryCode}` : undefined) : entryCode ? `Lançar na entrada ${entryCode}` : undefined}
         icon="cube-outline"
         tall={step === 'list'}
-        dismissOnBackdrop={!add.isPending && !addNewVariant.isPending}
+        dismissOnBackdrop={!add.isPending && !addBatch.isPending}
         actions={
           step === 'form'
             ? [
                 { label: 'Voltar', onPress: () => setStep('list'), variant: 'secondary', disabled: add.isPending },
                 { label: 'Lançar na entrada', onPress: submit, variant: 'primary', loading: add.isPending, disabled: add.isPending },
               ]
-            : step === 'newVariant'
+            : step === 'grade'
               ? [
-                  { label: 'Voltar', onPress: () => setStep('list'), variant: 'secondary', disabled: addNewVariant.isPending },
-                  { label: 'Lançar na entrada', onPress: submitNewVariant, variant: 'primary', loading: addNewVariant.isPending, disabled: addNewVariant.isPending },
+                  { label: 'Voltar', onPress: () => setStep('list'), variant: 'secondary', disabled: addBatch.isPending },
+                  { label: gridSum.pieces > 0 ? `Lançar ${gridSum.pieces} peça${gridSum.pieces !== 1 ? 's' : ''}` : 'Lançar na entrada', onPress: submitGrid, variant: 'primary', loading: addBatch.isPending, disabled: addBatch.isPending },
                 ]
               : step === 'duplicate'
               ? [{ label: 'Voltar', onPress: () => setStep('form'), variant: 'secondary', disabled: add.isPending || sumLine.isPending }]
@@ -294,61 +291,26 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
         {step === 'list' ? (
           <ProductPickerList
             onPick={(g, v) => { setGroup(g); setPhoto(null); pick(groupedToProduct(g), v); }}
-            onNewVariant={(g) => {
-              setPhoto(null);
-              setNewVar({ product: g, color: '', size: '' });
-              setQty('1');
-              const c = Number(g.variants?.[0]?.cost_price ?? 0);
-              setCost(c > 0 ? maskCurrencyBR(String(Math.round(c * 100))) : '');
-              setError('');
-              setStep('newVariant');
-            }}
+            onNewVariant={(g) => { setPhoto(null); openGrid(g); }}
             markedVariantIds={(entryItems ?? []).filter((i) => i.is_active !== false && i.variant_id).map((i) => i.variant_id as number)}
           />
-        ) : step === 'newVariant' && newVar ? (
-          <View>
-            <Text style={styles.note}>
-              Nova cor ou tamanho de {newVar.product.name}: é o mesmo produto, a peça ganha o próximo código dele.
-            </Text>
-            {existingColors.length > 0 && (
-              <View style={styles.chipRow}>
-                {existingColors.map((c) => {
-                  const on = newVar.color.trim().toLowerCase() === c.toLowerCase();
-                  return (
-                    <TouchableOpacity key={c} onPress={() => setNewVar({ ...newVar, color: c })}
-                      style={[styles.chip, on && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}>
-                      <Text style={[styles.chipText, on && { color: brand.primary, fontWeight: '700' }]}>{c}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-            <TextInput mode="outlined" label={existingColors.length ? 'Cor (toque acima ou digite outra)' : 'Cor'} value={newVar.color}
-              onChangeText={(t) => setNewVar({ ...newVar, color: t })} style={styles.input} />
-            <View style={styles.chipRow}>
-              {existingSizes.map((s) => {
-                const on = newVar.size.trim().toUpperCase() === s;
-                return (
-                  <TouchableOpacity key={s} onPress={() => setNewVar({ ...newVar, size: s })}
-                    style={[styles.chip, on && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}>
-                    <Text style={[styles.chipText, on && { color: brand.primary, fontWeight: '700' }]}>{s}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <TextInput mode="outlined" label="Tamanho (toque acima ou digite outro)" value={newVar.size}
-              onChangeText={(t) => setNewVar({ ...newVar, size: t })} autoCapitalize="characters" style={styles.input} />
-            {(!!newVar.color.trim() || !!newVar.size.trim()) && (
-              <Text style={styles.note}>Vai entrar: {[newVar.color.trim(), newVar.size.trim().toUpperCase()].filter(Boolean).join(' · ')}</Text>
-            )}
-            <TextInput mode="outlined" label="Quantas peças" value={qty} onChangeText={(t) => setQty(t.replace(/[^0-9]/g, ''))} keyboardType="numeric" style={styles.input} />
-            <TextInput
-              mode="outlined" label="Quanto você pagou em cada peça" value={cost}
-              onChangeText={(t) => setCost(maskCurrencyBR(t))} keyboardType="numeric" left={<TextInput.Affix text="R$" />} style={styles.input}
-            />
-            {photoBlock}
-            {!!error && <Text style={styles.error}>{error}</Text>}
-          </View>
+        ) : step === 'grade' && gridProduct ? (
+          <EntryVariantGrid
+            product={gridProduct}
+            colors={gColors}
+            sizes={gSizes}
+            qty={gQty}
+            onColors={setGColors}
+            onSizes={setGSizes}
+            onQty={setGQty}
+            cost={cost}
+            onCost={setCost}
+            listPrice={listPrice}
+            onListPrice={setListPrice}
+            supplierName={supplier?.name ?? entrySupplierName ?? 'o da entrada'}
+            onPickSupplier={() => { setSupplierBack('grade'); setStep('supplier'); }}
+            error={error}
+          />
         ) : step === 'duplicate' && existingLine ? (
           <View>
             <Text style={styles.note}>
@@ -424,7 +386,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
             )}
             <TouchableOpacity
               style={[styles.row, { marginTop: theme.spacing.md }]}
-              onPress={() => setStep('supplier')}
+              onPress={() => { setSupplierBack('form'); setStep('supplier'); }}
               activeOpacity={0.75}
             >
               <View style={[styles.rowIcon, { backgroundColor: brand.primary + '20' }]}>
@@ -440,13 +402,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
             {!!group && (
               <TouchableOpacity
                 style={[styles.row, { marginTop: theme.spacing.sm }]}
-                onPress={() => {
-                  const cores = [...new Set((group.variants ?? []).map((v) => (v.color || '').trim()).filter(Boolean))];
-                  setNewVar({ product: group, color: cores.length === 1 ? cores[0] : '', size: '' });
-                  setPhoto(null);
-                  setError('');
-                  setStep('newVariant');
-                }}
+                onPress={() => { setPhoto(null); openGrid(group); }}
                 activeOpacity={0.75}
                 accessibilityLabel="Lançar outra cor ou tamanho deste produto"
               >
@@ -454,8 +410,8 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
                   <Ionicons name="color-palette-outline" size={18} color={brand.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>Lançar outra cor ou tamanho</Text>
-                  <Text style={styles.rowMeta}>Cada cor ou tamanho novo entra com a própria quantidade e foto.</Text>
+                  <Text style={styles.rowTitle}>Lançar várias cores e tamanhos</Text>
+                  <Text style={styles.rowMeta}>Escolha as cores e os tamanhos e digite a quantidade de cada um, de uma vez.</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={Colors.light.textSecondary} />
               </TouchableOpacity>
@@ -469,13 +425,13 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
       {/* Seletor de fornecedor: abre no lugar da folha (duas janelas ao mesmo tempo não funcionam bem no iPhone) */}
       <SupplierPickerSheet
         visible={visible && step === 'supplier'}
-        onClose={() => setStep('form')}
+        onClose={() => setStep(supplierBack)}
         onSelect={(s: Supplier | null) => {
           setSupplier(s);
-          setStep('form');
+          setStep(supplierBack);
         }}
-        productId={choice?.productId}
-        productName={choice?.label}
+        productId={supplierBack === 'grade' ? gridProduct?.id : choice?.productId}
+        productName={supplierBack === 'grade' ? gridProduct?.name : choice?.label}
         selectedSupplierId={supplier?.id ?? null}
         allowNone={entrySupplierName !== 'Vários fornecedores'}
         noneLabel={`Usar o fornecedor da entrada${entrySupplierName ? ` (${entrySupplierName})` : ''}`}

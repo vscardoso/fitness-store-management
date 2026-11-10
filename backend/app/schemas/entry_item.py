@@ -70,6 +70,8 @@ class EntryItemUpdate(BaseModel):
     list_unit_cost: Optional[Decimal] = Field(None, ge=0, description="Preço de tabela por peça (0 limpa)")
     notes: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
+    supplier_id: Optional[int] = Field(None, description="Troca o fornecedor desta peça (a loja inteira de itens da entrada pode ter vários)")
+    supplier_name: Optional[str] = Field(None, max_length=255, description="Ou o nome: acha pelo nome ou cria o cadastro")
 
     @field_validator('quantity_received')
     @classmethod

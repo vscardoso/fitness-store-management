@@ -212,9 +212,34 @@ export interface AddVariantToEntryResult {
 /** Lança numa entrada existente uma peça de OUTRA variação de um produto já cadastrado (cria a variação se não existir). */
 export async function addVariantToEntry(
   entryId: number,
-  payload: { product_id: number; color?: string; size?: string; quantity: number; cost_price: number; price?: number; sku?: string }
+  payload: {
+    product_id: number; color?: string; size?: string; quantity: number; cost_price: number; price?: number; sku?: string;
+    /** Fornecedor desta compra (padrão: o da entrada) e preço cheio dele (opcional). */
+    supplier_id?: number; list_unit_cost?: number;
+  }
 ): Promise<AddVariantToEntryResult> {
   const response = await api.post<AddVariantToEntryResult>(`${ENTRIES_ENDPOINT}${entryId}/variants`, payload);
+  return response.data;
+}
+
+export interface AddVariantsBatchResult {
+  entry_id: number;
+  product_id: number;
+  items: { variant_id: number; sku: string; color?: string | null; size?: string | null; quantity_received: number; variant_created: boolean }[];
+  total_quantity: number;
+  created: number;
+}
+
+/** Lança de uma vez VÁRIAS variações de um produto numa entrada existente (tudo ou nada): peças que já existem e combinações novas. */
+export async function addVariantsBatchToEntry(
+  entryId: number,
+  payload: {
+    product_id: number;
+    items: { variant_id?: number; color?: string; size?: string; quantity: number; cost_price: number; list_unit_cost?: number }[];
+    supplier_id?: number;
+  },
+): Promise<AddVariantsBatchResult> {
+  const response = await api.post<AddVariantsBatchResult>(`${ENTRIES_ENDPOINT}${entryId}/variants/batch`, payload);
   return response.data;
 }
 
@@ -448,6 +473,8 @@ export async function updateEntryItem(
     /** Preço de tabela por peça; 0 limpa. */
     list_unit_cost?: number;
     notes?: string;
+    /** Troca o fornecedor desta peça (o produto passa a ser dele no cadastro de fornecedores). */
+    supplier_id?: number;
   }
 ): Promise<{
   id: number;

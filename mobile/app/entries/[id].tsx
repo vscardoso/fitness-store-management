@@ -38,6 +38,7 @@ import StatCard from '@/components/ui/StatCard';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
+import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import HScroll from '@/components/ui/HScroll';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
@@ -142,6 +143,8 @@ export default function StockEntryDetailsScreen() {
   const [editCost, setEditCost] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editSupplier, setEditSupplier] = useState<{ id: number; name: string } | null>(null);   // fornecedor escolhido na edição
+  const [pickingSupplier, setPickingSupplier] = useState(false);
 
   // Correção auditada
   const [showCorrectionDialog, setShowCorrectionDialog] = useState(false);
@@ -207,8 +210,9 @@ export default function StockEntryDetailsScreen() {
    * Mutation: Atualizar item de entrada
    */
   const updateItemMutation = useMutation({
-    mutationFn: (data: { itemId: number; quantity_received?: number; unit_cost?: number; sell_price?: number; list_unit_cost?: number; notes?: string }) =>
+    mutationFn: (data: { itemId: number; quantity_received?: number; unit_cost?: number; sell_price?: number; list_unit_cost?: number; notes?: string; supplier_id?: number }) =>
       updateEntryItem(data.itemId, {
+        supplier_id: data.supplier_id,
         quantity_received: data.quantity_received,
         unit_cost: data.unit_cost,
         sell_price: data.sell_price,
@@ -363,6 +367,8 @@ export default function StockEntryDetailsScreen() {
     setEditListPrice(listNum > 0 ? listNum.toFixed(2).replace('.', ',') : '');
     setEditPrice(priceNum > 0 ? priceNum.toFixed(2).replace('.', ',') : '');
     setEditNotes(item.notes || '');
+    setEditSupplier(null);
+    setPickingSupplier(false);
     setEditItemDialog({ visible: true, item });
   };
 
@@ -416,6 +422,7 @@ export default function StockEntryDetailsScreen() {
       sell_price: price,
       list_unit_cost: listPrice,
       notes: editNotes.trim() || undefined,
+      supplier_id: editSupplier?.id,
     });
   };
 
@@ -1233,7 +1240,7 @@ export default function StockEntryDetailsScreen() {
 
         {/* Modal de Edição de Item */}
         <BottomSheet
-          visible={editItemDialog.visible}
+          visible={editItemDialog.visible && !pickingSupplier}
           onDismiss={cancelEditItem}
           title="Editar Item"
           subtitle={editItemDialog.item?.product_name}
@@ -1317,6 +1324,24 @@ export default function StockEntryDetailsScreen() {
             <Text style={styles.helperWarning}>⚠️ Preço menor que o custo</Text>
           )}
 
+          <Text style={styles.inputLabel}>Fornecedor</Text>
+          <TouchableOpacity
+            style={styles.supplierPickRow}
+            onPress={() => setPickingSupplier(true)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Escolher o fornecedor desta peça"
+          >
+            <Ionicons name="business" size={18} color={brandingColors.primary} />
+            <Text style={styles.supplierPickText} numberOfLines={1}>
+              {editSupplier?.name ?? editItemDialog.item?.supplier_name ?? entry?.supplier_name ?? 'o da entrada'}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.light.textSecondary} />
+          </TouchableOpacity>
+          {!!editSupplier && (
+            <Text style={styles.helperWarning}>Esta peça passa a ser comprada de {editSupplier.name}.</Text>
+          )}
+
           <Text style={styles.inputLabel}>Observações</Text>
           <RNTextInput
             value={editNotes}
@@ -1329,6 +1354,20 @@ export default function StockEntryDetailsScreen() {
             textAlignVertical="top"
           />
         </BottomSheet>
+
+        {/* Fornecedor da peça: abre no lugar da folha de edição (duas folhas ao mesmo tempo não funcionam bem no iPhone) */}
+        <SupplierPickerSheet
+          visible={editItemDialog.visible && pickingSupplier}
+          onClose={() => setPickingSupplier(false)}
+          onSelect={(sup) => {
+            setEditSupplier(sup ? { id: sup.id, name: sup.name } : null);
+            setPickingSupplier(false);
+          }}
+          productId={editItemDialog.item?.product_id}
+          productName={editItemDialog.item?.product_name}
+          selectedSupplierId={editSupplier?.id ?? editItemDialog.item?.supplier_id ?? null}
+          allowNone={false}
+        />
       </Animated.View>
     </View>
   );
@@ -1800,6 +1839,19 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 16,
   },
+  supplierPickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    height: 48,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  supplierPickText: { flex: 1, fontSize: 14, fontWeight: '600', color: Colors.light.text },
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',

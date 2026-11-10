@@ -1445,6 +1445,53 @@ class AddVariantToEntryRequest(BaseModel):
     cost_price: float = Field(..., ge=0)
     price: Optional[float] = Field(None, gt=0, description="Preço de venda (se vazio, usa o das outras variações)")
     sku: Optional[str] = Field(None, max_length=60, description="Opcional: o servidor gera e não repete")
+    supplier_id: Optional[int] = Field(None, description="Fornecedor desta compra (padrão: o da entrada)")
+    supplier_name: Optional[str] = Field(None, max_length=255, description="Ou o nome: acha pelo nome ou cria o cadastro")
+    list_unit_cost: Optional[float] = Field(None, ge=0, description="Preço de tabela por peça (opcional); o pago é cost_price")
+
+
+class EntryVariantLine(BaseModel):
+    """Uma linha do lote: peça que o produto já tem (`variant_id`) ou combinação nova (`color` e/ou `size`)."""
+    variant_id: Optional[int] = None
+    color: Optional[str] = Field(None, max_length=50)
+    size: Optional[str] = Field(None, max_length=20)
+    quantity: int = Field(..., gt=0, le=1_000_000)
+    cost_price: float = Field(..., ge=0)
+    list_unit_cost: Optional[float] = Field(None, ge=0)
+    price: Optional[float] = Field(None, gt=0)
+    sku: Optional[str] = Field(None, max_length=60)
+
+
+class AddVariantsBatchRequest(BaseModel):
+    """Várias variações do mesmo produto lançadas de uma vez numa entrada existente (tudo ou nada)."""
+    product_id: int
+    items: List[EntryVariantLine] = Field(..., min_length=1, max_length=100)
+    supplier_id: Optional[int] = Field(None, description="Fornecedor desta compra (padrão: o da entrada)")
+    supplier_name: Optional[str] = Field(None, max_length=255)
+
+
+@router.post(
+    "/{entry_id}/variants/batch",
+    summary="Lançar várias variações de um produto numa entrada existente, de uma vez",
+    description="Mistura peças que o produto já tem e combinações novas de cor e tamanho; tudo numa transação.",
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_variants_batch_to_entry(
+    entry_id: int,
+    data: AddVariantsBatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        return await StockEntryService(db).add_variants_to_entry(
+            entry_id, data.product_id, [i.model_dump() for i in data.items], tenant_id=tenant_id,
+            supplier_id=data.supplier_id, supplier_name=data.supplier_name,
+        )
+    except ValueError as e:
+        msg = str(e)
+        code = status.HTTP_404_NOT_FOUND if "não encontrad" in msg.lower() else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=code, detail=msg)
 
 
 @router.post(
