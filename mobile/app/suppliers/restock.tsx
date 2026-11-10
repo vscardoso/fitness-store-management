@@ -14,6 +14,7 @@ import { useRestockList } from '@/hooks/useSupplierInsights';
 import { formatCurrency } from '@/utils/format';
 import type { RestockGroup, RestockItem } from '@/services/supplierInsightsService';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { goBackOr } from '@/utils/navBack';
 
 const COVERS = [
   { days: 15, label: '15 dias' },
@@ -72,7 +73,7 @@ export default function SupplierRestockScreen() {
         title="Reposição"
         subtitle="O que comprar na próxima compra"
         showBackButton
-        onBack={() => router.replace('/suppliers' as any)}
+        onBack={() => goBackOr(router, '/suppliers')}
       />
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
       <View style={[{ flex: 1 }, desktopColumn]}>

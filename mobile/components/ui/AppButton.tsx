@@ -43,6 +43,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { BUTTON, type ButtonSize, type ButtonVariant } from '@/constants/tokens';
 import { useBrandingColors } from '@/store/brandingStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { FitText } from '@/components/ui/PriceDisplay';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,8 @@ interface AppButtonProps {
   disabled?: boolean;
   /** Ocupa 100% da largura do container */
   fullWidth?: boolean;
+  /** Texto sempre em uma linha: encolhe a fonte para caber (botões lado a lado, ex.: "Fila de impressão (1)") */
+  oneLine?: boolean;
   /** Estilo externo (margin, flex, etc.) */
   style?: ViewStyle;
   /** Sobrescrever cor do texto/ícone */
@@ -85,6 +88,7 @@ export default function AppButton({
   loading = false,
   disabled = false,
   fullWidth = false,
+  oneLine = false,
   style,
   textColor,
   backgroundColor,
@@ -136,11 +140,15 @@ export default function AppButton({
       {icon && (
         <Ionicons name={icon} size={tok.iconSize} color={resolvedColor} />
       )}
-      {!iconOnly && label && (
+      {!iconOnly && label && (oneLine ? (
+        <FitText size={tok.fontSize} minSize={10} style={[styles.label, { fontSize: tok.fontSize, color: resolvedColor }]}>
+          {label}
+        </FitText>
+      ) : (
         <Text style={[styles.label, { fontSize: tok.fontSize, color: resolvedColor }]}>
           {label}
         </Text>
-      )}
+      ))}
     </>
   );
 

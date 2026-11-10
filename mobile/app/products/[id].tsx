@@ -45,11 +45,12 @@ import VariantPricesSheet, { distinctPrices } from '@/components/products/Varian
 import { useIsDesktop, DESKTOP_CONTENT_MAX } from '@/hooks/useLayout';
 import LoadedImage from '@/components/ui/LoadedImage';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { goBackOr } from '@/utils/navBack';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const goBack = () => router.replace('/(tabs)/products' as any);
+  const goBack = () => goBackOr(router, '/(tabs)/products');
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const queryClient = useQueryClient();

@@ -35,6 +35,7 @@ import { documentLabel } from '@/utils/masks';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle, useIsDesktop, useListGrid } from '@/hooks/useLayout';
 import FAB from '@/components/FAB';
+import { goBackOr } from '@/utils/navBack';
 
 export default function SuppliersIndexScreen() {
   // no PC a lista vira grade de cartões (no celular continua uma coluna)
@@ -157,7 +158,7 @@ export default function SuppliersIndexScreen() {
               : `${suppliers.length} fornecedor${suppliers.length !== 1 ? 'es' : ''} cadastrado${suppliers.length !== 1 ? 's' : ''}`
           }
           showBackButton
-          onBack={() => router.push('/(tabs)/more')}
+          onBack={() => goBackOr(router, '/(tabs)/more')}
         />
       </Animated.View>
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}

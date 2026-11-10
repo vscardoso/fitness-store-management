@@ -18,6 +18,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/Colors';
 import api from '@/services/api';
+import { goBackOr } from '@/utils/navBack';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -93,7 +94,7 @@ export default function ForgotPasswordScreen() {
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => goBackOr(router, '/(auth)/login')}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={24} color={Colors.light.white} />
@@ -204,7 +205,7 @@ export default function ForgotPasswordScreen() {
                 <Button
                   mode="text"
                   compact
-                  onPress={() => router.back()}
+                  onPress={() => goBackOr(router, '/(auth)/login')}
                   style={styles.link}
                 >
                   Voltar ao Login

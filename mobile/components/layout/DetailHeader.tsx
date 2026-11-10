@@ -6,6 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { goBackOr } from '@/utils/navBack';
 
 interface Badge {
   icon: keyof typeof Ionicons.glyphMap;
@@ -82,7 +83,7 @@ export default function DetailHeader({
           {/* Barra de navegação */}
           <View style={styles.navbar}>
             <TouchableOpacity
-              onPress={() => router.push(backRoute as any)}
+              onPress={() => goBackOr(router, backRoute)}
               style={styles.navButton}
             >
               <Ionicons name="arrow-back" size={24} color={Colors.light.white} />

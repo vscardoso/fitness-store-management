@@ -14,6 +14,7 @@ import { useSupplierRanking } from '@/hooks/useSupplierInsights';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import type { SupplierRankingRow, SupplierRating } from '@/services/supplierInsightsService';
 import { useDesktopContentStyle, useDesktopGrid } from '@/hooks/useLayout';
+import { goBackOr } from '@/utils/navBack';
 
 const PERIODS = [
   { days: 30, label: '30 dias' },
@@ -94,7 +95,7 @@ export default function SupplierRankingScreen() {
         title="Ranking"
         subtitle="Quem dá mais retorno"
         showBackButton
-        onBack={() => router.replace('/suppliers' as any)}
+        onBack={() => goBackOr(router, '/suppliers')}
       />
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
       <View style={[{ flex: 1 }, desktopColumn]}>

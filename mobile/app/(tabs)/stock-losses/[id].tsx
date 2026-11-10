@@ -16,6 +16,7 @@ import { formatCurrency } from '@/utils/format';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { goBackOr } from '@/utils/navBack';
 function parseNoteValue(notes: string | null | undefined, key: string): string | null {
   if (!notes) return null;
   const tokens = notes.split('|').map((part) => part.trim());
@@ -38,7 +39,7 @@ export default function StockLossDetailScreen() {
   });
 
   const handleBack = useCallback(() => {
-    router.back();
+    goBackOr(router, '/(tabs)/stock-losses');
   }, [router]);
 
   if (isLoading) {

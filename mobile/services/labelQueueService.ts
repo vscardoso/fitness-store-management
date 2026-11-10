@@ -52,7 +52,7 @@ export interface EntryLabelProgress {
 export type QueuePaper = 'a4' | 'roll' | 'sheet';
 
 export async function getLabelQueue(): Promise<LabelQueue> {
-  return (await api.get('/labels/queue')).data;
+  return (await api.get('/labels/queue', { headers: { 'X-Skip-Loading': 'true' } })).data;   // consulta repetida em segundo plano: sem véu de carregamento
 }
 
 export async function addEntryToQueue(entryId: number): Promise<{ added: number; progress: EntryLabelProgress }> {
@@ -72,11 +72,11 @@ export async function setQueueQuantity(itemId: number, quantity: number): Promis
 }
 
 export async function getEntryLabelProgress(entryId: number): Promise<EntryLabelProgress> {
-  return (await api.get(`/labels/entry/${entryId}/progress`)).data;
+  return (await api.get(`/labels/entry/${entryId}/progress`, { headers: { 'X-Skip-Loading': 'true' } })).data;
 }
 
 export async function getPrintState(layout: QueuePaper, widthMm: number, heightMm: number): Promise<PrintState> {
-  return (await api.get('/labels/print-state', { params: { layout, width_mm: widthMm, height_mm: heightMm } })).data;
+  return (await api.get('/labels/print-state', { params: { layout, width_mm: widthMm, height_mm: heightMm }, headers: { 'X-Skip-Loading': 'true' } })).data;
 }
 
 export interface ConfirmPrintInput {
@@ -119,5 +119,5 @@ export interface RecentPrint {
 
 /** Os 3 últimos PDFs gerados (os mais antigos deixam de abrir sozinhos). */
 export async function getRecentPrints(): Promise<RecentPrint[]> {
-  return (await api.get('/labels/prints/recent')).data;
+  return (await api.get('/labels/prints/recent', { headers: { 'X-Skip-Loading': 'true' } })).data;
 }

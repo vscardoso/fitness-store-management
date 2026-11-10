@@ -28,6 +28,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { checkEmailAvailability } from '@/services/authService';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
+import { goBackOr } from '@/utils/navBack';
 
 export default function AddTeamMemberScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -145,7 +146,7 @@ export default function AddTeamMemberScreen() {
           <View style={styles.headerContent}>
             <View style={styles.headerTop}>
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={() => goBackOr(router, '/team')}
                 style={styles.backButton}
               >
                 <Ionicons name="arrow-back" size={24} color={Colors.light.white} />
@@ -313,7 +314,7 @@ export default function AddTeamMemberScreen() {
         <View style={styles.actions}>
           <Button
             mode="outlined"
-            onPress={() => router.back()}
+            onPress={() => goBackOr(router, '/team')}
             style={styles.button}
             disabled={createMutation.isPending}
           >

@@ -14,13 +14,14 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
 import LoadedImage from '@/components/ui/LoadedImage';
+import { goBackOr } from '@/utils/navBack';
 
 export default function BrandingScreen() {
   const desktopContent = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
-  const goBack = () => router.replace('/(tabs)/more');
+  const goBack = () => goBackOr(router, '/(tabs)/more');
   const { branding, applyPreset, uploadLogoToServer, saveToServer, fetchFromServer, setBranding } = useBrandingStore();
 
   const [name, setName] = useState(branding.name);

@@ -32,6 +32,7 @@ import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
 import { lookupCode } from '@/services/codeResolver';
 import { playScan } from '@/utils/scanFeedback';
 import { addScannedPiece } from '@/utils/conditionalScan';
+import { goBackOr } from '@/utils/navBack';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -470,7 +471,7 @@ export default function CreateConditionalShipmentScreen() {
           title="Novo Envio"
           subtitle={`Passo ${step} de 4`}
           showBackButton
-          onBack={() => step > 1 ? handleBack() : router.back()}
+          onBack={() => step > 1 ? handleBack() : goBackOr(router, '/(tabs)/conditional')}
         />
       </Animated.View>
 

@@ -66,7 +66,7 @@ export async function listPrintJobs(params?: {
   status?: PrintJobStatus;
   limit?: number;
 }): Promise<PrintJobListResponse> {
-  const { data } = await api.get(`${BASE}/print/jobs`, { params });
+  const { data } = await api.get(`${BASE}/print/jobs`, { params, headers: { 'X-Skip-Loading': 'true' } });   // repetida a cada 5 s na fila
   return data;
 }
 

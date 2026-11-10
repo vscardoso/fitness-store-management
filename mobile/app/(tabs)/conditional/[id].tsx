@@ -57,6 +57,7 @@ import { lookupCode } from '@/services/codeResolver';
 import { playScan } from '@/utils/scanFeedback';
 import { keepTheRest, markReturnedPiece } from '@/utils/conditionalScan';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { goBackOr } from '@/utils/navBack';
 
 /**
  * Traduz os códigos de forma de pagamento para labels legíveis
@@ -617,7 +618,7 @@ export default function ConditionalShipmentDetailsScreen() {
           title="Envio Condicional"
           subtitle="Carregando..."
           showBackButton
-          onBack={() => router.push('/(tabs)/conditional')}
+          onBack={() => goBackOr(router, '/(tabs)/conditional')}
         />
         <ScreenLoader message="Carregando envio..." />
       </View>
@@ -635,7 +636,7 @@ export default function ConditionalShipmentDetailsScreen() {
           title="Envio Condicional"
           subtitle="Falha ao carregar"
           showBackButton
-          onBack={() => router.push('/(tabs)/conditional')}
+          onBack={() => goBackOr(router, '/(tabs)/conditional')}
         />
 
         <View style={styles.centerContainer}>
@@ -685,7 +686,7 @@ export default function ConditionalShipmentDetailsScreen() {
           title="Envio Condicional"
           subtitle={shipment.customer_name || `Cliente #${shipment.customer_id}`}
           showBackButton
-          onBack={() => router.push('/(tabs)/conditional')}
+          onBack={() => goBackOr(router, '/(tabs)/conditional')}
         />
       </Animated.View>
 

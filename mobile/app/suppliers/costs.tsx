@@ -11,6 +11,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useCostComparison } from '@/hooks/useSupplierInsights';
 import { formatCurrency, formatPercent, formatSignedPercent } from '@/utils/format';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { goBackOr } from '@/utils/navBack';
 
 export default function SupplierCostsScreen() {
   const desktopColumn = useDesktopContentStyle();
@@ -26,7 +27,7 @@ export default function SupplierCostsScreen() {
         title="Custos"
         subtitle="Preço pago em cada fornecedor, já com o desconto"
         showBackButton
-        onBack={() => router.replace('/suppliers' as any)}
+        onBack={() => goBackOr(router, '/suppliers')}
       />
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
       <View style={[{ flex: 1 }, desktopColumn]}>

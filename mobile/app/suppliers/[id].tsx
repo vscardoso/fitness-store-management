@@ -26,6 +26,7 @@ import { formatDate } from '@/utils/format';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { goBackOr } from '@/utils/navBack';
 
 export default function SupplierDetailScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -105,7 +106,7 @@ export default function SupplierDetailScreen() {
         title={supplier.name}
         subtitle={supplier.cnpj ?? supplier.phone ?? 'Sem dados de contato'}
         showBackButton
-        onBack={() => router.push('/suppliers')}
+        onBack={() => goBackOr(router, '/suppliers')}
         rightActions={[
           {
             icon: 'pencil-outline',

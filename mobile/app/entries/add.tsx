@@ -68,6 +68,7 @@ import { clearPresetEntry } from '@/utils/presetEntry';
 import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
+import { goBackOr } from '@/utils/navBack';
 /**
  * Capitaliza a primeira letra de cada palavra no nome do fornecedor
  * Ex: "joão silva" -> "João Silva", "MARIA SANTOS" -> "Maria Santos"
@@ -1464,7 +1465,7 @@ export default function AddStockEntryScreen() {
               goToWizardStep('entry');
               return;
             }
-            router.replace('/(tabs)/entries');
+            goBackOr(router, '/(tabs)/entries');
           }}
         />
       </Animated.View>

@@ -106,15 +106,9 @@ export default function StockEntryDetailsScreen() {
 
   /**
    * Função para voltar para a tela anterior
-   * Respeita o parâmetro `from` para navegação rastreada (ex: vindo de produto)
+   * Padrão do app: volta à tela anterior; o parâmetro `from` só vale sem histórico (link direto)
    */
-  const handleGoBack = () => {
-    if (from) {
-      router.push(from as any);
-    } else {
-      goBack();
-    }
-  };
+  const handleGoBack = () => goBack();
 
   // Estados
   const [refreshing, setRefreshing] = useState(false);
@@ -650,14 +644,14 @@ export default function StockEntryDetailsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Custo com frete, preço, lucro e markup desta peça */}
+        {/* Custo com as despesas do lote (frete, embalagem, taxa...), preço, lucro e ganho sobre o custo desta peça */}
         {itemNumbers && (
           <Text style={{ fontSize: 12, lineHeight: 18, color: Colors.light.textSecondary, marginBottom: 8 }}>
             Custo {formatCurrency(itemNumbers.landed_unit_cost)}
             {(itemNumbers.freight_unit_cost ?? Math.max(itemNumbers.extra_unit_cost, 0)) > 0 || (itemNumbers.discount_unit_cost ?? 0) > 0
               ? ` (${formatCurrency(itemNumbers.merchandise_unit_cost)} da peça` +
                 ((itemNumbers.freight_unit_cost ?? Math.max(itemNumbers.extra_unit_cost, 0)) > 0
-                  ? ` + ${formatCurrency(itemNumbers.freight_unit_cost ?? itemNumbers.extra_unit_cost)} de frete`
+                  ? ` + ${formatCurrency(itemNumbers.freight_unit_cost ?? itemNumbers.extra_unit_cost)} de despesas`
                   : '') +
                 ((itemNumbers.discount_unit_cost ?? 0) > 0 ? ` - ${formatCurrency(itemNumbers.discount_unit_cost ?? 0)} de desconto` : '') +
                 ')'
@@ -993,6 +987,7 @@ export default function StockEntryDetailsScreen() {
                     label="Produto novo"
                     icon="sparkles-outline"
                     fullWidth
+                oneLine
                     onPress={() => {
                       setPresetEntry(entryId);
                       router.push('/products/wizard' as any);
@@ -1000,7 +995,7 @@ export default function StockEntryDetailsScreen() {
                   />
                 </View>
                 <View style={styles.entryActionCell}>
-                  <AppButton label="Produto já cadastrado" icon="add-circle-outline" variant="outlined" fullWidth onPress={() => setAddProductOpen(true)} />
+                  <AppButton label="Produto já cadastrado" icon="add-circle-outline" variant="outlined" fullWidth oneLine onPress={() => setAddProductOpen(true)} />
                 </View>
               </>
             )}
@@ -1010,6 +1005,7 @@ export default function StockEntryDetailsScreen() {
                 icon="qr-code-outline"
                 variant="outlined"
                 fullWidth
+                oneLine
                 onPress={() => router.push({ pathname: '/entries/check/[id]', params: { id: String(entryId) } } as any)}
               />
             </View>
@@ -1019,6 +1015,7 @@ export default function StockEntryDetailsScreen() {
                 icon="list-outline"
                 variant="outlined"
                 fullWidth
+                oneLine
                 onPress={() => router.push('/etiquetas/fila' as any)}
               />
             </View>
@@ -1028,6 +1025,7 @@ export default function StockEntryDetailsScreen() {
                 icon="print-outline"
                 variant="outlined"
                 fullWidth
+                oneLine
                 onPress={() => router.push({ pathname: '/entries/labels/[id]', params: { id: String(entryId) } } as any)}
               />
             </View>

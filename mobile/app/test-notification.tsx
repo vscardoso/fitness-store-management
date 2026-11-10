@@ -10,6 +10,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNotificationStore } from '@/store/notificationStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { createNotification } from '@/types/notification';
+import { goBackOr } from '@/utils/navBack';
 
 export default function TestNotificationScreen() {
   const router = useRouter();
@@ -133,7 +134,7 @@ export default function TestNotificationScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => goBackOr(router, '/(tabs)/more')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Teste de Notificações</Text>

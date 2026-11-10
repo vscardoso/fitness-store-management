@@ -215,3 +215,6 @@ backend/requirements.demo.txt
 # builds de teste locais
 mobile/dist_qa*/
 mobile/dist_h2/
+
+# acesso do ambiente de teste local (gerado por backend/scripts/ambiente_teste.py)
+backend/ambiente_teste_acesso.local.txt

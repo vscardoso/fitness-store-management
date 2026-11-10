@@ -40,6 +40,7 @@ import LoadedImage from '@/components/ui/LoadedImage';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { goBackOr } from '@/utils/navBack';
 
 export default function EditProductScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -59,7 +60,7 @@ export default function EditProductScreen() {
 
   // Voltar da edição leva ao produto que estava sendo editado (antes ia para a lista de Produtos)
   const handleBack = () => {
-    router.replace((isValidId ? `/products/${productId}` : '/(tabs)/products') as any);
+    goBackOr(router, isValidId ? `/products/${productId}` : '/(tabs)/products');
   };
 
   // Estados do formulário

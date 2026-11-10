@@ -30,6 +30,7 @@ import {
 } from '@/services/cashService';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { getFinanceOverview } from '@/services/financeService';
+import { goBackOr } from '@/utils/navBack';
 
 // Mesmos motivos do servidor (app/services/cash_register_service.py, REASONS); o servidor recusa qualquer outro.
 const REASONS: Record<MovementKind, { id: string; label: string }[]> = {
@@ -144,7 +145,7 @@ export default function CashScreen() {
         title="Caixa da gaveta"
         subtitle={session ? 'Aberto' : 'Fechado'}
         showBackButton
-        onBack={() => (router.canGoBack() ? router.back() : router.replace((manager ? '/finance' : '/(tabs)/more') as any))}
+        onBack={() => goBackOr(router, manager ? '/finance' : '/(tabs)/more')}
         rightActions={manager ? [{ icon: 'time-outline', onPress: () => router.push('/cash/history' as any) }] : undefined}
       />
       <ScrollView

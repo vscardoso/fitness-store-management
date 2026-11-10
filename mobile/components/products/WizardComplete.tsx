@@ -443,6 +443,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
               label={queued > 0 ? `Fila de impressão (${queued})` : 'Fila de impressão'}
               icon="list-outline"
               variant="outlined"
+              oneLine
               onPress={() => router.push('/etiquetas/fila' as any)}
               style={styles.shortcut}
             />

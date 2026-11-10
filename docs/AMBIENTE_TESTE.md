@@ -1,0 +1,17 @@
+# Ambiente de teste (SIT local)
+
+Para ver na tela o que vai para produção ANTES de publicar. Backend e banco descartáveis na máquina, app web servido em
+`http://127.0.0.1:8081`. Nada disto toca no servidor de produção. Acesso (e-mail e senha) em
+`backend/ambiente_teste_acesso.local.txt` (gerado, ignorado pelo git).
+
+1. Backend de teste (na pasta `backend`, banco `ambiente_teste.db` novo):
+   `CORS_ORIGINS='["http://127.0.0.1:8081"]' DATABASE_URL=sqlite+aiosqlite:///./ambiente_teste.db ENVIRONMENT=development SECRET_KEY=<32+ caracteres> venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`
+2. Loja de exemplo: `python scripts/ambiente_teste.py` (6 entradas, 3 vendas, fila de etiquetas, financeiro com transferência, despesa e retirada).
+3. App web com o código atual (na pasta `mobile`): `EXPO_PUBLIC_API_URL=http://127.0.0.1:8000/api/v1 CI=1 node node_modules/expo/bin/cli export --platform web --output-dir <pasta> --clear`
+4. Servir: `python -I -X utf8 mobile/scripts/spa-server.py <pasta> 8081` e abrir `http://127.0.0.1:8081` (NÃO `:8000`, que é só a API).
+
+Depois de mudar o código, refaça o passo 3 (o Metro em `CI=1` não relê arquivo alterado). Para parar: encerrar o uvicorn (8000) e o servidor da 8081.
+
+## SIT hospedado (proposta, ainda não feito)
+`sit.provadorfit.com.br` + `sit-api.provadorfit.com.br` no VPS, com Postgres e containers próprios (nunca o banco de produção), nginx e
+certbot à parte e deploy por branch `sit`. Exige DNS no Registro.br e comandos de servidor rodados pelo Victor.

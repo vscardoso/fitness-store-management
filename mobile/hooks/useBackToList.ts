@@ -1,35 +1,26 @@
 import { useCallback } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { goBackOr } from '@/utils/navBack';
 
 /**
  * Hook para padronizar comportamento do botão "voltar" em telas de detalhe.
  *
- * Estratégia:
- * 1. Se houver param `from`, usa router.replace(from) — navegação explícita de origem.
- * 2. Se houver histórico de navegação (router.canGoBack()), usa router.back() — correto
+ * Estratégia (utils/navBack.goBackOr):
+ * 1. Se houver histórico de navegação (router.canGoBack()), usa router.back() — correto
  *    para fluxos em stack (lista → detalhe → editar → voltar para detalhe).
- * 3. Fallback: router.replace(defaultFallback) — quando não há histórico (deep link).
+ * 2. Sem histórico (deep link, página recarregada): vai para o param `from` ou, se não houver, para o fallback.
  *
- * Isso garante que telas acessadas via stack (ex: editar produto a partir do detalhe)
- * voltem corretamente para a tela anterior, sem pular etapas na pilha de navegação.
+ * Nunca empurra a origem por cima da pilha (isso criava loop entre detalhe e lista).
  */
 export function useBackToList(defaultFallback: string = '/(tabs)') {
   const router = useRouter();
   const params = useLocalSearchParams<{ from?: string }>();
 
   const goBack = useCallback(() => {
-    // 1. Origem explícita via param
-    if (params.from) {
-      router.replace(params.from as any);
-      return;
-    }
-    // 2. Há histórico — voltar normalmente (mantém a pilha intacta)
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    // 3. Sem histórico (ex: deep link) — ir para fallback
-    router.replace(defaultFallback as any);
+    // Padrão do app (utils/navBack): há tela anterior = voltar a ela; sem histórico (link direto, recarregou) =
+    // origem informada em `from` ou a tela de saída. router.replace(from) ABRIA outra cópia da origem por cima da
+    // pilha e a seta ficava em loop (entrada <-> lista).
+    goBackOr(router, defaultFallback, params.from);
   }, [router, params.from, defaultFallback]);
 
   return { goBack, target: defaultFallback };
