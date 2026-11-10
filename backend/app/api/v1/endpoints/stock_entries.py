@@ -7,12 +7,12 @@ Operações de modificação (POST, PUT, DELETE) requerem permissões de admin o
 import logging
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.utils.variant_grid import normalize_size, normalize_color, normalize_gender
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import date
 
 from app.core.database import get_db
@@ -433,6 +433,36 @@ async def create_stock_entry_with_new_product_variants(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao criar entrada com novo produto com variantes: {str(e)}"
         )
+
+
+@router.post(
+    "/receive",
+    status_code=status.HTTP_201_CREATED,
+    summary="Receber compra: vários produtos e fornecedores numa transação só (tudo ou nada)",
+)
+async def receive_purchase(
+    data: Dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Lança a compra inteira (produtos novos e já cadastrados, fornecedores, grade de cores e tamanhos, frete e desconto).
+
+    Produto, variações, itens FIFO, fornecedor e estoque nascem juntos; qualquer erro desfaz tudo. `client_request_id`
+    torna o envio idempotente (repetir devolve a mesma compra). Ver app/services/purchase_receive_service.py."""
+    from app.services.purchase_receive_service import PurchaseReceiveService
+
+    try:
+        return await PurchaseReceiveService(db).receive(data, current_user.id, tenant_id=tenant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro inesperado ao receber a compra")
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Não consegui lançar a compra. Nada foi gravado. Tente de novo.")
 
 
 @router.post(

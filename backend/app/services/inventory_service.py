@@ -26,13 +26,15 @@ class InventoryService:
         self.inventory_repo = InventoryRepository(db)
         self.product_repo = ProductRepository(db)
     
-    async def rebuild_product_from_fifo(self, product_id: int, *, tenant_id: int | None = None) -> dict:
+    async def rebuild_product_from_fifo(self, product_id: int, *, tenant_id: int | None = None, commit: bool = True) -> dict:
         """Recalcula o estoque derivado (inventory) para um produto a partir da soma FIFO (entry_items).
 
         Regras:
         - Soma apenas entry_items ativos.
         - Cria registro de inventory se não existir.
         - Atualiza quantidade diretamente (sem movimentos) se houver divergência.
+        - `commit=False`: só dá flush (para uso DENTRO de uma transação maior, como Receber compra; com o padrão True ele
+          grava tudo que já estava pendente na sessão, e uma falha depois disso não desfaz mais nada).
         - Retorna metadados da operação.
         """
         from sqlalchemy import select, func
@@ -96,8 +98,11 @@ class InventoryService:
                 updated = True
         # Commit local apenas se houve criação/atualização
         if created or updated:
-            await self.db.commit()
-            await self.db.refresh(current)
+            if commit:
+                await self.db.commit()
+                await self.db.refresh(current)
+            else:
+                await self.db.flush()
 
         return {
             'product_id': product_id,
