@@ -6,7 +6,6 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 
 interface Props {
-  start: number;
   perSheet: number;
   total: number;
   sheets: number;
@@ -17,13 +16,12 @@ interface Props {
   undoing?: boolean;
 }
 
-export default function SheetMap({ start, perSheet, total, sheets, leftover, lastJob, onUndo, undoing }: Props) {
+export default function SheetMap({ perSheet, total, sheets, leftover, lastJob, onUndo, undoing }: Props) {
   const brand = useBrandingColors();
   const styles = useMemo(() => makeStyles(brand.primary), [brand.primary]);
 
-  const status = start === 1
-    ? 'Folha nova: as etiquetas saem a partir da primeira posição.'
-    : `A folha em uso já tem ${start - 1} etiqueta${start - 1 !== 1 ? 's' : ''}: as próximas saem a partir da posição ${start}.`;
+  // toda impressão começa numa folha nova, na primeira posição: nunca sai com espaço vazio no começo
+  const status = 'Cada impressão começa numa folha nova, na primeira posição.';
   const summary = total > 0
     ? `${total} etiqueta${total !== 1 ? 's' : ''} = ${sheets} folha${sheets !== 1 ? 's' : ''}${leftover === 0 ? ', sem sobra.' : `. A última fica com ${leftover} de ${perSheet} usadas.`}`
     : 'Escolha as quantidades para ver quantas folhas vão precisar.';

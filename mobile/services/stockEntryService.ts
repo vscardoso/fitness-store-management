@@ -379,14 +379,15 @@ export async function updateStockEntry(id: number, entry: Partial<StockEntryCrea
 /**
  * Deletar entrada (soft delete)
  */
-export async function deleteStockEntry(id: number): Promise<{
+export async function deleteStockEntry(id: number, confirmCode: string): Promise<{
   success: boolean;
   orphan_products_deleted: number;
   orphan_products: Array<{ id: number; name: string; sku: string }>;
   total_stock_removed: number;
   entry_code: string;
 }> {
-  const response = await api.delete(`${ENTRIES_ENDPOINT}${id}`);
+  // o código digitado vai junto: o servidor recusa se não for o da entrada
+  const response = await api.delete(`${ENTRIES_ENDPOINT}${id}`, { params: { confirm_code: confirmCode } });
   return response.data;
 }
 

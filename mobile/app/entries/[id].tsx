@@ -55,7 +55,7 @@ import LotMoneyCard from '@/components/entries/LotMoneyCard';
 import AddVariantModal from '@/components/entries/AddVariantModal';
 import { useAuth } from '@/hooks/useAuth';
 import { EntryType, EntryItemResponse } from '@/types';
-import { isManagerRole } from '@/utils/roles';
+import { isAdminRole, isManagerRole } from '@/utils/roles';
 import SendToSupplierModal from '@/components/entries/SendToSupplierModal';
 import AddProductToEntryModal from '@/components/entries/AddProductToEntryModal';
 import { setPresetEntry } from '@/utils/presetEntry';
@@ -128,6 +128,7 @@ export default function StockEntryDetailsScreen() {
   // Lançar outra variação (cor/tamanho) de um produto já cadastrado nesta entrada
   const [variantTarget, setVariantTarget] = useState<EntryItemResponse | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTyped, setDeleteTyped] = useState('');   // o código da entrada digitado para confirmar a exclusão
   const [successDialog, setSuccessDialog] = useState<{
     visible: boolean;
     message: string;
@@ -204,7 +205,7 @@ export default function StockEntryDetailsScreen() {
    * Mutation: Deletar entrada
    */
   const deleteMutation = useMutation({
-    mutationFn: () => deleteStockEntry(entryId),
+    mutationFn: () => deleteStockEntry(entryId, deleteTyped.trim()),
     onSuccess: (result: any) => {
       setShowDeleteDialog(false);
 
@@ -360,13 +361,16 @@ export default function StockEntryDetailsScreen() {
    * Confirmar exclusão
    */
   const handleDelete = () => {
+    setDeleteTyped('');
     setShowDeleteDialog(true);
   };
 
   /**
    * Confirmar exclusão no diálogo
    */
+  const deleteCodeOk = !!entry?.entry_code && deleteTyped.trim().toLowerCase() === String(entry.entry_code).trim().toLowerCase();
   const confirmDelete = () => {
+    if (!deleteCodeOk) return;   // só efetiva com o código da entrada digitado certo
     deleteMutation.mutate();
   };
 
@@ -1133,8 +1137,8 @@ export default function StockEntryDetailsScreen() {
           </View>
         )}
 
-        {/* Ações */}
-        {!entry.has_sales && (
+        {/* Ações: excluir a entrada é só do admin (o servidor também recusa os outros) */}
+        {!entry.has_sales && isAdminRole(user?.role) && (
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionButton, styles.dangerActionButton]}
@@ -1228,20 +1232,37 @@ export default function StockEntryDetailsScreen() {
           )}
         </BottomSheet>
 
-        {/* Confirm Delete Dialog */}
-        <ConfirmDialog
+        {/* Excluir a entrada: confirmação forte. Só efetiva depois de digitar o código da entrada */}
+        <BottomSheet
           visible={showDeleteDialog}
-          title="Excluir Entrada de Estoque?"
-          message={`Você está prestes a excluir a entrada ${entry?.entry_code || ''}. Esta ação terá as seguintes consequências:`}
-          details={getDeleteDetails()}
-          confirmText="Sim, Excluir"
-          cancelText="Cancelar"
-          onConfirm={confirmDelete}
-          onCancel={() => setShowDeleteDialog(false)}
-          type="danger"
-          icon="trash"
-          loading={deleteMutation.isPending}
-        />
+          onDismiss={() => !deleteMutation.isPending && setShowDeleteDialog(false)}
+          title="Excluir a entrada?"
+          subtitle={entry?.entry_code || ''}
+          icon="trash-outline"
+          dismissOnBackdrop={false}
+          actions={[
+            { label: 'Cancelar', onPress: () => setShowDeleteDialog(false), variant: 'secondary', disabled: deleteMutation.isPending },
+            { label: 'Excluir definitivamente', onPress: confirmDelete, variant: 'danger', icon: 'trash-outline', loading: deleteMutation.isPending, disabled: !deleteCodeOk || deleteMutation.isPending },
+          ]}
+        >
+          <Text style={styles.deleteWarning}>Isto tira as peças do estoque e não dá para desfazer:</Text>
+          {getDeleteDetails().map((d) => (
+            <Text key={d} style={styles.deleteDetail}>• {d}</Text>
+          ))}
+          <Text style={styles.deleteAsk}>Para confirmar, digite o código da entrada:</Text>
+          <Text style={styles.deleteCode} selectable={false}>{entry?.entry_code}</Text>
+          <RNTextInput
+            value={deleteTyped}
+            onChangeText={setDeleteTyped}
+            placeholder="Digite o código aqui"
+            placeholderTextColor={Colors.light.textTertiary}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            style={[styles.nativeInput, deleteTyped.length > 0 && !deleteCodeOk && { borderColor: Colors.light.error }]}
+            accessibilityLabel="Digite o código da entrada para confirmar a exclusão"
+          />
+          {deleteTyped.length > 0 && !deleteCodeOk ? <Text style={styles.deleteMismatch}>O código não confere.</Text> : null}
+        </BottomSheet>
 
         <ConfirmDialog
           visible={!!deleteItemTarget}
@@ -1904,6 +1925,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
   },
   supplierPickText: { flex: 1, fontSize: 14, fontWeight: '600', color: Colors.light.text },
+  deleteWarning: { fontSize: 14, fontWeight: '700', color: Colors.light.errorDark, marginBottom: 6 },
+  deleteDetail: { fontSize: 13, color: Colors.light.text, marginBottom: 4 },
+  deleteAsk: { fontSize: 13, color: Colors.light.textSecondary, marginTop: 12 },
+  deleteCode: { fontSize: 16, fontWeight: '700', color: Colors.light.text, marginVertical: 6 },
+  deleteMismatch: { fontSize: 12, color: Colors.light.errorDark, marginTop: 4 },
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',

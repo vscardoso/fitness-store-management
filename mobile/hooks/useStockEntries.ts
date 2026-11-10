@@ -77,7 +77,7 @@ export function useDeleteStockEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: number) => deleteStockEntry(id),
+    mutationFn: (v: { id: number; confirmCode: string }) => deleteStockEntry(v.id, v.confirmCode),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
     },

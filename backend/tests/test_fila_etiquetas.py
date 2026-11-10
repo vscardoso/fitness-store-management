@@ -315,8 +315,8 @@ async def test_imprimir_pela_entrada_ou_produto_tira_a_peca_da_fila(test_client,
     assert prog["queued"] == 0
 
 
-async def test_posicao_na_folha_e_automatica_e_o_servidor_decide(test_client, async_session):
-    """Quem imprime não escolhe a posição: a folha continua de onde a última impressão parou, mesmo se o app mandar outro número."""
+async def test_toda_impressao_comeca_na_primeira_posicao_sem_espaco_em_branco(test_client, async_session):
+    """Cada impressão começa numa folha nova (posição 1), mesmo se o app mandar outra posição e mesmo depois de impressões anteriores."""
     _sem_override()
     t, h, entry_id, (va, vb) = await _cenario(async_session)
     h_b = await _user(async_session, t, UserRole.SELLER)
@@ -327,11 +327,8 @@ async def test_posicao_na_folha_e_automatica_e_o_servidor_decide(test_client, as
         assert r.status_code == 200, r.text
         return (await test_client.get(f"{API}/prints/recent", headers=headers)).json()[0]
 
-    j1 = await imprimir(h, 2, 6)             # o app mandou 6, mas a folha é nova: começa no 1
-    assert j1["start_position"] == 1
-    j2 = await imprimir(h_b, 3, 1)           # outra pessoa; o app mandou 1, mas a folha já tem 2: continua no 3
-    assert j2["start_position"] == 3
-    j3 = await imprimir(h, 1, 5)             # 2 + 3 = 5 usadas: continua no 6
-    assert j3["start_position"] == 6
-    j4 = await imprimir(h, 1, 3)             # folha cheia: a próxima é folha nova
-    assert j4["start_position"] == 1
+    assert (await imprimir(h, 2, 6))["start_position"] == 1           # o app mandou 6: ignorado
+    assert (await imprimir(h_b, 3, 1))["start_position"] == 1         # a folha anterior ficou com 4 vagas, mas esta começa em folha nova
+    assert (await imprimir(h, 1, 5))["start_position"] == 1
+    assert (await imprimir(h, 7, 3))["start_position"] == 1           # 7 etiquetas: 2 folhas, a primeira cheia desde a posição 1
+

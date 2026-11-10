@@ -203,10 +203,9 @@ async def print_pdf(body: PrintConfirm, db: AsyncSession = Depends(get_db), user
     try:
         await queue.lock_queue(db, tenant_id)
         items = [i.model_dump() for i in body.items]
-        # A posição na folha é AUTOMÁTICA: continua de onde a última impressão do mesmo papel e tamanho parou, calculado aqui,
-        # dentro da trava (duas pessoas imprimindo seguido nunca se sobrepõem). Quem chama não escolhe a posição.
-        state = await queue.print_state(db, tenant_id, body.layout, body.width_mm, body.height_mm, user)
-        start = 1 if body.layout == "roll" else int(state["next_position"])
+        # Toda impressão começa na PRIMEIRA posição de uma folha nova, sempre. Antes continuava a folha da impressão anterior e saía
+        # com os primeiros espaços em branco quando a folha já tinha sido trocada (foto de 10/11/2026). Automático e sem escolha.
+        start = 1
         labels = await labels_for_variants(db, tenant_id, [(i["variant_id"], i["quantity"]) for i in items])
         build_pdf(labels, body.layout, start, body.width_mm, body.height_mm)   # confere que o PDF sai ANTES de gravar
         result = await queue.confirm_print(db, tenant_id, user, body.layout, body.width_mm, body.height_mm, start,

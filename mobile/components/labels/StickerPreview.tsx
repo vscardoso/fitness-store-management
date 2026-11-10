@@ -71,7 +71,7 @@ export default function StickerPreview({
         <View style={{ alignItems: 'center' }}>
           <Text style={[styles.bold, { fontSize: fs(5.4) }]}>TAM</Text>
           <View style={[styles.sizeBox, { width: boxW, height: box, borderRadius: 1.6 * s, borderWidth: Math.max(1, 0.4 * s) }]}>
-            <Text style={[styles.bold, { fontSize: fs(size.length > 2 ? 10 : 14.7) }]}>{size}</Text>
+            <Text style={[styles.bold, { fontSize: fs(size.length > 2 ? 10 : size.length === 2 ? 11.5 : 14.7) }]}>{size}</Text>
           </View>
         </View>
       </View>

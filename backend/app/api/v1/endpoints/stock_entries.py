@@ -1255,6 +1255,7 @@ async def update_stock_entry(
 )
 async def delete_stock_entry(
     entry_id: int,
+    confirm_code: Optional[str] = Query(None, description="Código da entrada digitado para confirmar. O app sempre envia; se vier, tem que ser igual ao da entrada."),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role([UserRole.ADMIN])),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -1278,6 +1279,16 @@ async def delete_stock_entry(
         HTTPException 403: Se não tiver permissões
     """
     try:
+        if confirm_code is not None:
+            # confirmação forte: quem exclui digitou o código da entrada; se não confere, nada é excluído
+            from sqlalchemy import select as _select
+            from app.models.stock_entry import StockEntry as _SE
+            row = (await db.execute(_select(_SE.entry_code).where(_SE.id == entry_id, _SE.tenant_id == tenant_id))).first()
+            if row is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entrada não encontrada")
+            if (confirm_code or "").strip().lower() != (row[0] or "").strip().lower():
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail="O código digitado não confere com o da entrada. Nada foi excluído.")
         service = StockEntryService(db)
         result = await service.delete_entry(entry_id, tenant_id=tenant_id)
 
@@ -1302,6 +1313,8 @@ async def delete_stock_entry(
                 detail=str(e)
             )
     
+    except HTTPException:
+        raise   # a conferência do código (400/404) passa como está, não vira 500
     except Exception as e:
         logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()

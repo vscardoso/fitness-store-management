@@ -118,9 +118,8 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const serverNext = paper === 'roll' ? 1 : stateQ.data?.next_position ?? 1;
   const usedCells = paper === 'roll' ? [] : stateQ.data?.sheet ?? [];
   const lastJob = stateQ.data?.last_job ?? null;
-  // A posição na folha é AUTOMÁTICA: continua de onde a última impressão parou. Ninguém escolhe posição nem marca "folha nova"
-  // (o servidor também decide na hora de gravar, então duas pessoas nunca se sobrepõem).
-  const start = serverNext;
+  // Toda impressão começa na primeira posição de uma folha nova (o servidor também decide assim). Ninguém escolhe posição.
+  const start = 1;
 
   // ── contas da folha
   const perA4 = stickersPerSheet(size.widthMm, size.heightMm);
