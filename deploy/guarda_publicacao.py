@@ -99,6 +99,10 @@ def main() -> int:
 
     code, msg = check(a.log, a.janela_escrita, estrita)
     print(msg, flush=True)
+    if code == BUSY and force and not a.status:
+        # FORCAR=1 = o dono mandou publicar agora: NÃO espera os minutos da guarda (antes só publicava depois de esperar tudo)
+        print("FORCAR=1: publicando AGORA mesmo com gente usando o app (sem esperar).", flush=True)
+        return FREE
     if code == FREE or a.status and not a.esperar:
         return code if not force else FREE
     deadline = time.time() + a.esperar * 60
