@@ -146,21 +146,33 @@ async def list_grouped_products(
         
         if search and search.strip():
             # Nome, marca e SKU de variação; e o código da etiqueta: "#123", "123", "#123-1", "PV#123-1" ou o antigo "#0123"
-            conds = [
-                "LOWER(p.name) LIKE LOWER(:search)",
-                "LOWER(p.brand) LIKE LOWER(:search)",
-                "EXISTS (SELECT 1 FROM product_variants sv WHERE sv.product_id = p.id AND sv.tenant_id = :tid"
-                " AND sv.is_active = true AND LOWER(sv.sku) LIKE LOWER(:search))",
-            ]
-            params["search"] = f"%{search.strip()}%"
-            code = parse_label_code(search)
-            if code is not None:
+            raw_search = search.strip()
+            code = parse_label_code(raw_search)
+            if code is None:
+                # Texto comum: nome, marca e SKU de variação
+                conds = [
+                    "LOWER(p.name) LIKE LOWER(:search)",
+                    "LOWER(p.brand) LIKE LOWER(:search)",
+                    "EXISTS (SELECT 1 FROM product_variants sv WHERE sv.product_id = p.id AND sv.tenant_id = :tid"
+                    " AND sv.is_active = true AND LOWER(sv.sku) LIKE LOWER(:search))",
+                ]
+                params["search"] = f"%{raw_search}%"
+            else:
+                # Só número ou código da etiqueta ("001", "#123", "123-1", "PV#123-1"): acha pelo CÓDIGO, não por
+                # qualquer texto que contenha esses dígitos (o SKU só vale se for igual ao digitado).
                 prod_code, var_num = code
                 params["code_prod"] = prod_code
+                params["sku_exact"] = raw_search.lower()
+                conds = [
+                    "EXISTS (SELECT 1 FROM product_variants sv WHERE sv.product_id = p.id AND sv.tenant_id = :tid"
+                    " AND sv.is_active = true AND LOWER(sv.sku) = :sku_exact)",
+                ]
                 if var_num is None:
                     conds.append("p.code_number = :code_prod")
-                    conds.append("EXISTS (SELECT 1 FROM product_variants cv WHERE cv.product_id = p.id"
-                                 " AND cv.tenant_id = :tid AND cv.short_code = :code_prod)")
+                    if "#" in raw_search or raw_search.lower().startswith("pv"):
+                        # antigo "#0123" (código curto da variação)
+                        conds.append("EXISTS (SELECT 1 FROM product_variants cv WHERE cv.product_id = p.id"
+                                     " AND cv.tenant_id = :tid AND cv.short_code = :code_prod)")
                 else:
                     params["code_var"] = var_num
                     conds.append("EXISTS (SELECT 1 FROM product_variants cv WHERE cv.product_id = p.id AND cv.tenant_id = :tid"

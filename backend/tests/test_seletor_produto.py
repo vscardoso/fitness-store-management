@@ -52,6 +52,20 @@ async def test_acha_por_nome_marca_sku_e_codigo(test_client: AsyncClient, auth_t
     for termo in (f"#{numero}", numero, f"PV#{numero}-1", f"#{int(numero)}-2"):
         achados = await _busca(test_client, auth_token, termo)
         assert pid in ids(achados), termo
-        assert outro_pid not in ids(achados) or termo == numero, termo   # "123" também pode bater em nome/SKU
+        assert outro_pid not in ids(achados), termo   # número ou código acha só pelo código, não por texto com esses dígitos
     # variação que não existe não acha o produto pelo código
     assert pid not in ids(await _busca(test_client, auth_token, f"#{numero}-99"))
+
+
+async def test_numero_com_zeros_nao_acha_sku_que_contem_os_digitos(test_client: AsyncClient, auth_token: str):
+    # Caso real: digitar "001" listava produtos #116, #043... porque o SKU deles continha "001".
+    pid, _, _, sku = await _produto(test_client, auth_token)
+    produto = next(g for g in await _busca(test_client, auth_token, sku) if g["id"] == pid)
+    numero = produto["variants"][0]["display_code"].split("-")[0].lstrip("#")
+    ids = lambda lst: {g["id"] for g in lst}
+    achados = ids(await _busca(test_client, auth_token, numero.zfill(3)))
+    assert pid in achados
+    # um pedaço do SKU que só tem dígitos não pode trazer o produto, a não ser que seja o número dele
+    digitos = "".join(c for c in sku if c.isdigit())[-4:]
+    if digitos and int(digitos) != int(numero):
+        assert pid not in ids(await _busca(test_client, auth_token, digitos))
