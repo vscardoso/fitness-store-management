@@ -276,6 +276,21 @@ async def confirm_print(db: AsyncSession, tenant_id: int, user: Any, layout: str
                 left -= take
     else:
         job_items = [{"variant_id": vid, "quantity": q, "entry_id": entry_id} for vid, q in wanted]
+        # Imprimiu pela entrada ou pelo produto (não pela fila): o que saiu deixa de estar pendente. Tira da fila as MESMAS peças,
+        # na quantidade impressa (das mais antigas), senão elas ficavam na fila como se não tivessem saído.
+        rows = await _pending(db, tenant_id, lock=True)
+        for vid, qty in wanted:
+            left = qty
+            for r in rows:
+                if left == 0:
+                    break
+                if r.variant_id != vid or not r.is_active:
+                    continue
+                take = min(left, r.quantity)
+                r.quantity -= take
+                if r.quantity == 0:
+                    r.is_active = False
+                left -= take
     used = (start_position - 1 + total) % n
     next_position = 1 if (layout == "roll" or used == 0) else used + 1
     job = LabelPrintJob(tenant_id=tenant_id, layout=layout, width_mm=width_mm, height_mm=height_mm, start_position=start_position,

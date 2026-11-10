@@ -290,3 +290,22 @@ async def test_link_do_pdf_e_https_sem_login_assinado_e_vence_em_24h(test_client
     # desfeita ("não saiu"): o link para de abrir
     await test_client.post(f"{API}/prints/{dados['id']}/undo", headers=h)
     assert (await test_client.get(caminho)).status_code == 404
+
+
+async def test_imprimir_pela_entrada_ou_produto_tira_a_peca_da_fila(test_client, async_session):
+    """Caso real (10/11/2026): peças na fila, impressas pela tela da entrada (fora da fila) e a fila continuava com elas."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)                                  # fila: va 5, vb 4
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": False, "entry_id": entry_id,
+                                                          "items": [{"variant_id": va, "quantity": 5}]}, headers=h)
+    assert r.status_code == 200, r.text
+    q = (await test_client.get(f"{API}/queue", headers=h)).json()
+    assert {i["variant_id"]: i["quantity"] for i in q["items"]} == {vb: 4}                              # va saiu da fila, vb continua
+    # imprimiu mais do que havia na fila e uma peça que nem estava nela: não dá erro e a fila não fica negativa
+    r = await test_client.post(f"{API}/prints", json={**SHEET, "start_position": 1, "from_queue": False, "entry_id": entry_id,
+                                                       "items": [{"variant_id": vb, "quantity": 9}, {"variant_id": va, "quantity": 2}]}, headers=h)
+    assert r.status_code == 201, r.text
+    assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 0
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["queued"] == 0
