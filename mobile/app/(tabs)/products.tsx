@@ -27,6 +27,9 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopProductsTable from '@/components/products/DesktopProductsTable';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import CameraScanSheet from '@/components/scan/CameraScanSheet';
+import AppButton from '@/components/ui/AppButton';
+import { normalizeScan } from '@/utils/scanLogic';
 
 const PAGE_SIZE = 40;
 
@@ -42,6 +45,7 @@ function MobileProductsScreen() {
   const brandingColors = useBrandingColors();
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
+  const [scanOpen, setScanOpen] = useState(false);   // leitor de QR dentro da busca
   const [showOnlyWithStock, setShowOnlyWithStock] = useState(false);
   // cadastros zerados que nunca venderam ficam guardados para a próxima compra: fora da lista, a menos que se peça ou se busque
   const [showCatalogOnly, setShowCatalogOnly] = useState(false);
@@ -356,11 +360,31 @@ function MobileProductsScreen() {
               style={styles.searchbar}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Limpar a busca">
                 <Ionicons name="close-circle" size={18} color={Colors.light.textTertiary} />
               </TouchableOpacity>
             )}
+            <AppButton
+              label="Ler o QR da etiqueta com a câmera"
+              icon="qr-code-outline"
+              iconOnly
+              variant="ghost"
+              size="sm"
+              onPress={() => setScanOpen(true)}
+              style={styles.scanIcon}
+            />
           </View>
+          <CameraScanSheet
+            visible={scanOpen}
+            onClose={() => setScanOpen(false)}
+            closeOnScan
+            hint="Aponte para o QR da etiqueta: a lista mostra a peça."
+            onCode={(raw) => {
+              // PV#101-1 vira #101-1: a busca da lista já entende o código da etiqueta, o SKU e o nome
+              setSearchQuery(normalizeScan(raw).replace(/^pv/i, ''));
+              setScanOpen(false);
+            }}
+          />
 
           <View style={styles.actionsContainer}>
             <View style={styles.actionsRow}>
@@ -593,6 +617,10 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     flexShrink: 0,
+  },
+  scanIcon: {
+    flexShrink: 0,
+    marginRight: -6,
   },
   searchbar: {
     flex: 1,

@@ -698,3 +698,13 @@ Pedido do Victor: loja que já tem estoque em andamento quando começa a usar o 
 - Próximas áreas: Clientes e Equipe, Produtos, Financeiro/Despesas/Brindes, Configurações e WhatsApp, Relatórios, Login, início, `components/ui` antigos, barra lateral, Lookbook, telas mortas. Meta: zero Button do Paper, zero cor fixa fora do login, menos de 50 hex.
 - Armadilha: em heredoc do Bash tool `\` vira `\`; scripts longos gravar com Write e rodar.
 - **Conferência só com estoque (2026-11-10)**: a lista da Conferência de estoque mostra SÓ peças com estoque no sistema (sem botão de filtro, é fixo). Etiqueta de peça já vendida (sistema 0) bipada avisa "está com estoque 0 no sistema (já vendida): não entra na contagem" e não conta. A lista completa (com zeradas) só serve de fundo para o escopo ao salvar e para esse aviso.
+
+## Etiquetas: gerar = imprimir, fila segura e PDF como arquivo (2026-11-10)
+
+- **Sem "Já imprimi"**: `POST /labels/prints/pdf` gera o PDF E salva a impressão (tira da fila, anda a folha, auditoria) numa transação só; PDF que falha ou fila que mudou = nada gravado. "Não saiu? Desfazer" devolve para a fila (só quem imprimiu desfaz, e só se foi a última da loja). `POST /labels/prints` (salvar sem PDF) continua existindo.
+- **Fila concorrente**: `label_queue_service.lock_queue` (`pg_advisory_xact_lock` por loja, base 7_400_000_000) em toda escrita da fila e do histórico; impressão da fila recusa com "A fila mudou" se a peça já não está nela (antes gravava a sobra como impressa de novo). Teste no Postgres: `tests/pg/test_fila_etiquetas_postgres.py` (sem a trava a fila somava 54 em vez de 9). A tela da fila atualiza a cada 15 s.
+- **Só o marcado vai para a fila**: o botão que levava a entrada inteira saiu da tela da entrada; o "Colocar na fila de impressão" do estúdio (agora também na entrada) manda só as quantidades marcadas (`POST /labels/queue` com `entry_id`).
+- **PDF no iPhone**: o app compartilha o PDF como ARQUIVO (`navigator.share({files})`), onde aparece "Imprimir"; abrir `blob:` numa aba e compartilhar mandava um link que só existe no aparelho. Se o iPhone recusar logo após baixar, aparece "Abrir o PDF para imprimir" (um toque novo).
+- **Últimos PDFs (24 h)**: `GET /labels/prints/recent` e `GET /labels/prints/{id}/pdf` (refaz o PDF com as mesmas peças, quantidades, papel e posição; só leitura). Preço mudado nas últimas 24 h sai com o preço novo (o PDF não é guardado).
+- **Bipe por loja**: `tests/test_isolamento_bipe.py` (mesmo código #001-1 nas duas lojas, cada uma acha a sua; sem o filtro de loja 3 dos 4 testes falham).
+- Busca da lista de produtos (celular) tem botão de QR (`CameraScanSheet`): o código lido vira o texto da busca.
