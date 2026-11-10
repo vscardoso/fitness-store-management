@@ -1,8 +1,9 @@
 /**
  * Últimos PDFs gerados (24 horas): abre de novo o arquivo para imprimir, sem salvar nada outra vez.
  * O servidor refaz o PDF com as mesmas peças, quantidades, papel e posição na folha; depois de 24 horas some da lista.
- * No iPhone o compartilhar só abre a partir de um toque: se o aparelho recusar logo depois de baixar, a linha passa a mostrar
- * "Toque para imprimir" com o PDF já pronto.
+ * "Abrir" mostra o PDF numa aba (dali o compartilhar do visualizador manda o arquivo certo à impressora). O ícone de compartilhar
+ * manda o arquivo direto; no iPhone isso só abre a partir de um toque: se o aparelho recusar logo depois de baixar, a linha mostra
+ * "Toque para compartilhar" com o PDF já pronto.
  */
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -10,7 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import AppButton from '@/components/ui/AppButton';
 import { Colors, theme } from '@/constants/Colors';
-import { fetchRecentPrintPdf, type PrintedPdf } from '@/services/labelService';
+import { fetchRecentPrintPdf, type PdfMode, type PrintedPdf } from '@/services/labelService';
 import { getRecentPrints, type RecentPrint } from '@/services/labelQueueService';
 import { parseApiDate } from '@/utils/format';
 
@@ -32,13 +33,13 @@ export default function RecentPrints() {
 
   if (!data || data.length === 0) return null;
 
-  const open = async (job: RecentPrint) => {
+  const open = async (job: RecentPrint, mode: PdfMode = 'open') => {
     if (busyId != null) return;
     setBusyId(job.id);
     setError(null);
     try {
       const pdf = ready[job.id] ?? (await fetchRecentPrintPdf(job.id, `etiquetas-${job.width_mm}x${job.height_mm}-${job.total}un.pdf`));
-      const r = await pdf.deliver().catch(() => 'blocked' as const);
+      const r = await pdf.deliver(mode).catch(() => 'blocked' as const);
       if (r === 'blocked') setReady((p) => ({ ...p, [job.id]: pdf }));
       else setReady((p) => { const n = { ...p }; delete n[job.id]; return n; });
     } catch (e: any) {
@@ -61,13 +62,22 @@ export default function RecentPrints() {
             </Text>
           </View>
           <AppButton
-            label={ready[job.id] ? 'Toque para imprimir' : 'Abrir'}
+            label={ready[job.id] ? 'Toque para compartilhar' : 'Compartilhar o arquivo'}
+            icon="share-outline"
+            iconOnly={!ready[job.id]}
+            variant={ready[job.id] ? 'primary' : 'ghost'}
+            size="sm"
+            disabled={busyId != null}
+            onPress={() => open(job, 'share')}
+          />
+          <AppButton
+            label="Abrir"
             icon="print-outline"
-            variant={ready[job.id] ? 'primary' : 'outlined'}
+            variant="outlined"
             size="sm"
             loading={busyId === job.id}
             disabled={busyId != null}
-            onPress={() => open(job)}
+            onPress={() => open(job, 'open')}
           />
         </View>
       ))}

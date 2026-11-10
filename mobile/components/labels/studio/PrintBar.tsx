@@ -1,7 +1,7 @@
 /**
  * Barra fixa de baixo: UM botão principal que muda conforme a etapa.
  *   edit       "Gerar PDF e imprimir" (gerar o PDF já salva a impressão: tira da fila e anda a folha)
- *   done       "Abrir o PDF para imprimir" (de novo, sem salvar outra vez)   [Não saiu? Desfazer]   [Imprimir mais]
+ *   done       "Abrir o PDF para imprimir" (de novo, sem salvar outra vez)   [Compartilhar o arquivo]   [Não saiu? Desfazer]   [Imprimir mais]
  */
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -64,13 +64,14 @@ export default function PrintBar({ p, summary }: Props) {
             PDF gerado e salvo{p.printedTotal > 0 ? `: ${p.printedTotal} etiqueta${p.printedTotal !== 1 ? 's' : ''}` : ''}
           </Text>
           <Text style={styles.sub}>
-            {p.delivery === 'blocked'
-              ? 'As etiquetas já estão marcadas como impressas. O iPhone pede um toque para abrir o PDF: toque em “Abrir o PDF para imprimir” e escolha Imprimir.'
-              : 'As etiquetas já estão marcadas como impressas. Se o compartilhar fechou, toque em “Abrir o PDF para imprimir”.'}
+            As etiquetas já estão marcadas como impressas. Abra o PDF e use o compartilhar dele para mandar à impressora. Se a aba não abriu, toque em “Abrir o PDF para imprimir”.
           </Text>
-          <TouchableOpacity style={[styles.primary, { justifyContent: 'center' }, busy && styles.disabled]} onPress={p.reshare} disabled={busy || !p.hasPdf} accessibilityRole="button">
+          <TouchableOpacity style={[styles.primary, { justifyContent: 'center' }, busy && styles.disabled]} onPress={() => p.reshare('open')} disabled={busy || !p.hasPdf} accessibilityRole="button">
             <Ionicons name="print-outline" size={18} color={Colors.light.white} />
             <Text style={styles.primaryText}>{p.busy === 'share' ? 'Abrindo...' : 'Abrir o PDF para imprimir'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.secondary, busy && styles.disabled]} onPress={() => p.reshare('share')} disabled={busy || !p.hasPdf} accessibilityRole="button" accessibilityLabel="Compartilhar o arquivo PDF com outro app">
+            <Text style={styles.secondaryText}>{p.delivery === 'blocked' ? 'Toque de novo para compartilhar' : 'Compartilhar o arquivo'}</Text>
           </TouchableOpacity>
           <View style={styles.row}>
             {p.lastJob ? (

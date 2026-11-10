@@ -618,7 +618,7 @@ const ETIQUETAS_ENTRADA: HelpEntry[] = [
     steps: [
       'Veja no topo quantas etiquetas já foram impressas e quantas faltam.',
       'Escolha na lista só as peças e quantidades que quer. Toque em “Colocar na fila de impressão” para juntar com as outras entradas (só o que estiver marcado vai para a fila), ou imprima direto daqui.',
-      'Escolha o tamanho e o papel e toque em “Gerar PDF e imprimir”. No iPhone, escolha Imprimir no menu que abrir.',
+      'Escolha o tamanho e o papel e toque em “Gerar PDF e imprimir”. O PDF abre numa aba: use o botão de compartilhar dele para mandar à impressora (ou “Compartilhar o arquivo”).',
       'Ao gerar o PDF as etiquetas já contam como impressas e a folha avança. Se não saírem, toque em “Não saiu? Desfazer”.',
     ],
     goodToKnow: [

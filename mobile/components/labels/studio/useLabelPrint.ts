@@ -13,7 +13,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   cmText, customSticker, DEFAULT_STICKER, parseCm, printLabelsSaved, STICKER_SIZES, stickersPerSheet, stickersPerThermalSheet,
-  type PdfDelivery, type PrintedPdf, type StickerSize, type TagLabelLayout,
+  type PdfDelivery, type PdfMode, type PrintedPdf, type StickerSize, type TagLabelLayout,
 } from '@/services/labelService';
 import { addToQueue, getPrintState, undoPrint } from '@/services/labelQueueService';
 
@@ -174,17 +174,17 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
       await refresh();
       onGenerated?.();
       onPrinted?.();
-      setDelivery(await printed.deliver().catch(() => 'blocked' as PdfDelivery));
+      setDelivery(await printed.deliver('open').catch(() => 'blocked' as PdfDelivery));
     });
   }, [total, run, paper, start, lines, size, fromQueue, entryId, refresh, onGenerated, onPrinted]);
 
   // abre o PDF de novo (compartilhar ou imprimir) sem salvar nada outra vez; chamado por um toque
-  const reshare = useCallback(async () => {
+  const reshare = useCallback(async (mode: PdfMode = 'open') => {
     if (!pdf || busy) return;
     setBusy('share');
     setError(null);
     try {
-      setDelivery(await pdf.deliver());
+      setDelivery(await pdf.deliver(mode));
     } catch (e: any) {
       setError(e?.message || 'Não foi possível abrir o PDF. Tente de novo.');
     } finally {
