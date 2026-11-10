@@ -127,27 +127,27 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     }
   };
 
-  // Peça que já tem foto não pede outra (evita trocar a foto boa sem querer); aparece quando falta
-  const needsPhoto = useMemo(() => {
-    if (!choice) return false;
+  // Foto que a peça já tem (da variação; produto sem variação usa a do produto): aparece para a pessoa ver e poder trocar
+  const currentPhoto = useMemo(() => {
+    if (!choice) return null;
     const vs = group?.variants ?? [];
-    if (choice.variantId) return !(vs.find((v) => v.id === choice.variantId) as any)?.image_url;
-    return vs.length === 0 && !group?.image_url;
+    if (choice.variantId) return ((vs.find((v) => v.id === choice.variantId) as any)?.image_url as string | null) || null;
+    return vs.length === 0 ? group?.image_url || null : null;
   }, [choice, group]);
 
   const photoBlock = (
     <View style={styles.photoBox}>
-      {photo ? <Image source={{ uri: photo }} style={styles.photoThumb} /> : (
+      {photo || (step === 'form' && currentPhoto) ? <Image source={{ uri: (photo || currentPhoto) as string }} style={styles.photoThumb} /> : (
         <View style={[styles.photoThumb, styles.photoEmpty]}>
           <Ionicons name="camera-outline" size={22} color={Colors.light.textTertiary} />
         </View>
       )}
       <View style={{ flex: 1, gap: theme.spacing.xs }}>
-        <Text style={styles.rowTitle}>Esta peça ainda não tem foto (opcional)</Text>
+        <Text style={styles.rowTitle}>{step === 'form' && currentPhoto && !photo ? 'Foto atual da peça' : photo ? 'Foto nova (vai trocar a atual)' : 'Foto da peça (opcional)'}</Text>
         <View style={styles.photoActions}>
-          {Platform.OS !== 'web' && <AppButton label={photo ? 'Tirar outra' : 'Tirar foto'} icon="camera-outline" variant="outlined" size="sm" onPress={() => getPhoto(true)} />}
-          <AppButton label={photo ? 'Trocar' : 'Galeria'} icon="images-outline" variant="outlined" size="sm" onPress={() => getPhoto(false)} />
-          {!!photo && <AppButton label="Tirar" variant="text" size="sm" onPress={() => setPhoto(null)} />}
+          {Platform.OS !== 'web' && <AppButton label={photo ? 'Tirar outra' : currentPhoto && step === 'form' ? 'Tirar nova' : 'Tirar foto'} icon="camera-outline" variant="outlined" size="sm" onPress={() => getPhoto(true)} />}
+          <AppButton label={photo ? 'Trocar' : currentPhoto && step === 'form' ? 'Escolher nova' : 'Galeria'} icon="images-outline" variant="outlined" size="sm" onPress={() => getPhoto(false)} />
+          {!!photo && <AppButton label="Desfazer" variant="text" size="sm" onPress={() => setPhoto(null)} />}
         </View>
       </View>
     </View>
@@ -436,7 +436,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
               </View>
               <Ionicons name="chevron-forward" size={16} color={Colors.light.textSecondary} />
             </TouchableOpacity>
-            {needsPhoto && photoBlock}
+            {photoBlock}
             {!!group && (
               <TouchableOpacity
                 style={[styles.row, { marginTop: theme.spacing.sm }]}
