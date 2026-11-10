@@ -8,6 +8,7 @@ import { Colors } from '@/constants/Colors';
  * As etiquetas são preto no branco, então não precisa testar a imagem invertida.
  */
 import React, { useEffect, useRef } from 'react';
+import { createCameraKeeper } from '@/utils/cameraKeeper';
 
 const JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.2.0/dist/jsQR.min.js';   // o mesmo que a CSP já libera
 const CROP = 0.75;     // lado do quadrado lido, em fração do lado menor do vídeo
@@ -15,6 +16,24 @@ const MAX_SIDE = 560;  // px analisados por quadro
 const TICK_MS = 80;
 
 type Decode = (img: ImageData) => Promise<string | null>;
+
+// A câmera já liberada fica ligada 3 minutos depois de fechar o leitor: no iPhone instalado o aviso "deseja ter acesso à câmera"
+// aparecia a CADA abertura. Ao sair do app (segundo plano) ela desliga na hora.
+const KEEP_CAMERA_MS = 3 * 60 * 1000;
+const keeper = createCameraKeeper<MediaStream>({
+  open: () => navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false,
+  }),
+  isLive: (s) => s.getTracks().some((t) => t.readyState === 'live'),
+  stop: (s) => s.getTracks().forEach((t) => t.stop()),
+  keepMs: KEEP_CAMERA_MS,
+  setTimer: (fn, ms) => setTimeout(fn, ms),
+  clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+});
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => { if (document.hidden) keeper.dropNow(); });
+}
 
 function jsqrWorker(): { decode: Decode; stop: () => void } {
   const src = [
@@ -46,7 +65,7 @@ export default function WebQrCamera({ onCode, onError }: { onCode: (text: string
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let stream: MediaStream | null = null;
+    let acquired = false;
     let busy = false;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D | null;
@@ -86,11 +105,9 @@ export default function WebQrCamera({ onCode, onError }: { onCode: (text: string
 
     (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        });
-        if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const stream = await keeper.acquire();
+        acquired = true;
+        if (stopped) { keeper.release(); acquired = false; return; }
         const v = videoRef.current;
         if (!v) return;
         v.srcObject = stream;
@@ -106,7 +123,9 @@ export default function WebQrCamera({ onCode, onError }: { onCode: (text: string
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
-      stream?.getTracks().forEach((t) => t.stop());
+      const v = videoRef.current;
+      if (v) v.srcObject = null;
+      if (acquired) keeper.release();   // não desliga já: guarda a câmera para a próxima leitura não pedir permissão
       worker?.stop();
     };
   }, [onError]);
