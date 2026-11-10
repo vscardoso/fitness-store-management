@@ -68,7 +68,8 @@ export async function addToQueue(items: { variantId: number; quantity: number }[
 }
 
 export async function setQueueQuantity(itemId: number, quantity: number): Promise<void> {
-  await api.put(`/labels/queue/${itemId}`, { quantity });
+  // sem véu de carregamento: a fila já mostra o que mudou na hora (atualização otimista) e o véu bloqueava o toque na lixeira
+  await api.put(`/labels/queue/${itemId}`, { quantity }, { headers: { 'X-Skip-Loading': 'true' } });
 }
 
 export async function getEntryLabelProgress(entryId: number): Promise<EntryLabelProgress> {

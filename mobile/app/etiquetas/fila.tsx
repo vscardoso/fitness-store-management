@@ -47,10 +47,22 @@ export default function LabelQueueScreen() {
   useEffect(() => { if (items.length > 0) setHadItems(true); }, [items.length]);
 
   // lixeira: tira a peça da fila (todas as linhas dela, de qualquer entrada)
+  // Sai da tela na hora (atualização otimista), as regravações vão em paralelo e silenciosas e só depois recarrega UMA vez.
+  // Antes cada toque esperava a regravação e dois recarregamentos, cada um com o véu de carregamento por cima da tela
+  // (33 toques em 15 minutos na loja 2, em 10/11/2026, deixavam o app preso em "carregando").
   const removeFromQueue = async (variantId: number) => {
-    for (const r of (data?.items ?? []).filter((x) => x.variant_id === variantId)) await setQueueQuantity(r.id, 0);
-    await queryClient.invalidateQueries({ queryKey: ['label-queue'] });
-    await queryClient.invalidateQueries({ queryKey: ['label-progress'] });
+    const rows = (data?.items ?? []).filter((x) => x.variant_id === variantId);
+    if (!rows.length) return;
+    const removed = rows.reduce((a, r) => a + r.quantity, 0);
+    queryClient.setQueryData(['label-queue'], (old: typeof data) => (old
+      ? { ...old, items: old.items.filter((x) => x.variant_id !== variantId), total: Math.max(0, old.total - removed) }
+      : old));
+    try {
+      await Promise.all(rows.map((r) => setQueueQuantity(r.id, 0)));
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['label-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['label-progress'] });
+    }
   };
 
   return (

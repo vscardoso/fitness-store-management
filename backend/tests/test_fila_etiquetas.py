@@ -346,3 +346,73 @@ async def test_impressas_da_entrada_nunca_passa_do_total_reimpressao_vai_a_parte
     prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
     assert prog["printed"] == 9 and prog["reprinted"] == 5 and prog["missing"] == 0                                  # continua 9, não 14
     assert all(l["printed"] <= l["received"] for l in prog["lines"])
+
+
+async def test_imprimir_pelo_produto_conta_na_entrada_de_origem_e_a_fila_nao_volta_a_crescer(test_client, async_session):
+    """Caso real (10/11/2026, loja 2): imprimir pelo PRODUTO (sem entrada) tirava a peça da fila mas gravava a impressão sem a entrada.
+    A entrada seguia achando que a etiqueta faltava e 'pôr a entrada toda' na fila repunha a peça: a fila só crescia."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)                                  # fila: va 5, vb 4 (da entrada)
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": False, "entry_id": None,
+                                                          "items": [{"variant_id": va, "quantity": 2}]}, headers=h)
+    assert r.status_code == 200, r.text
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["printed"] == 2 and prog["queued"] == 7 and prog["missing"] == 0                       # a entrada sabe que 2 saíram
+    r = await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)                              # 'entrada toda' de novo: nada a repor
+    assert r.json()["added"] == 0
+    assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 7
+
+
+async def test_imprimir_peca_que_nao_estava_na_fila_conta_na_entrada_que_ainda_faltava(test_client, async_session):
+    """Sem fila e sem entrada informada, a etiqueta impressa conta na entrada (a mais antiga) que ainda tinha essa peça sem etiqueta."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": False, "entry_id": None,
+                                                          "items": [{"variant_id": va, "quantity": 3}]}, headers=h)
+    assert r.status_code == 200, r.text
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["printed"] == 3 and prog["missing"] == 6 and prog["reprinted"] == 0
+    # o que passa do que faltava é reimpressão sem entrada: não vira etiqueta 'faltando' nem 'impressa' em entrada nenhuma
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": False, "entry_id": None,
+                                                          "items": [{"variant_id": va, "quantity": 4}]}, headers=h)
+    assert r.status_code == 200, r.text
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["printed"] == 5 and prog["reprinted"] == 0 and prog["missing"] == 4                     # va: 5 recebidas, as 2 a mais não contam em entrada nenhuma
+
+
+async def test_nao_saiu_devolve_a_peca_para_a_entrada_de_origem(test_client, async_session):
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)
+    await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)
+    r = await test_client.post(f"{API}/prints/pdf", json={**SHEET, "start_position": 1, "from_queue": False, "entry_id": None,
+                                                          "items": [{"variant_id": va, "quantity": 2}]}, headers=h)
+    job = (await test_client.get(f"{API}/print-state", params=SHEET, headers=h)).json()["last_job"]
+    assert job is not None
+    u = await test_client.post(f"{API}/prints/{job['id']}/undo", headers=h)
+    assert u.status_code == 200, u.text
+    q = (await test_client.get(f"{API}/queue", headers=h)).json()
+    assert q["total"] == 9 and all(i["entry_id"] == entry_id for i in q["items"])                      # voltou na linha da entrada, sem linha solta
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["printed"] == 0 and prog["queued"] == 9 and prog["missing"] == 0
+
+
+async def test_pôr_na_fila_pelo_produto_vai_para_a_entrada_e_a_entrada_toda_nao_duplica(test_client, async_session):
+    """Caso real (10/11/2026, loja 2): a tela do produto põe na fila SEM entrada; a entrada achava que nada dela estava na fila
+    e 'pôr a entrada toda' repunha tudo, dobrando a fila."""
+    _sem_override()
+    t, h, entry_id, (va, vb) = await _cenario(async_session)                                            # va 5, vb 4 recebidas
+    r = await test_client.post(f"{API}/queue", json={"items": [{"variant_id": va, "quantity": 3}], "entry_id": None}, headers=h)
+    assert r.status_code == 201, r.text
+    q = (await test_client.get(f"{API}/queue", headers=h)).json()
+    assert [(i["variant_id"], i["quantity"], i["entry_id"]) for i in q["items"]] == [(va, 3, entry_id)]   # ligada à entrada de origem
+    prog = (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()
+    assert prog["queued"] == 3 and prog["missing"] == 6
+    r = await test_client.post(f"{API}/queue/entry/{entry_id}", headers=h)                              # só o que falta: 2 de va + 4 de vb
+    assert r.json()["added"] == 6
+    assert (await test_client.get(f"{API}/queue", headers=h)).json()["total"] == 9                        # nunca passa do que a entrada recebeu
+    # repetir o mesmo pelo produto: a peça já está toda na fila, o que passa fica sem entrada (não some, mas não conta como faltando)
+    r = await test_client.post(f"{API}/queue", json={"items": [{"variant_id": va, "quantity": 2}], "entry_id": None}, headers=h)
+    q = (await test_client.get(f"{API}/queue", headers=h)).json()
+    assert q["total"] == 11 and any(i["entry_id"] is None and i["quantity"] == 2 for i in q["items"])
+    assert (await test_client.get(f"{API}/entry/{entry_id}/progress", headers=h)).json()["missing"] == 0
