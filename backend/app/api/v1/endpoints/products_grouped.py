@@ -222,7 +222,7 @@ async def list_grouped_products(
                        FROM inventory i2
                        WHERE i2.product_id = p.id AND i2.tenant_id = :tid
                    ) as min_stock,
-                   v.short_code, v.product_code, v.variant_number
+                   v.short_code, v.product_code, v.variant_number, v.image_url
             FROM products p
             LEFT JOIN product_variants v
                    ON p.id = v.product_id AND v.is_active = true AND v.tenant_id = :tid
@@ -279,6 +279,7 @@ async def list_grouped_products(
                     # código da etiqueta (#101-1) e o antigo (#0123): o PDV do notebook acha a peça lida pelo leitor
                     "short_code": row[21],
                     "display_code": format_variant_code(row[22], row[23]),
+                    "image_url": row[24],
                 }
                 grouped[product_id]["variants"].append(variant)
                 grouped[product_id]["total_stock"] += variant_stock

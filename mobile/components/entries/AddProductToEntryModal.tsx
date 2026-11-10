@@ -7,12 +7,16 @@
  * Tudo vai numa chamada só (tudo ou nada).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Platform, StyleSheet, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import { TextInput } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
 
 import BottomSheet from '@/components/ui/BottomSheet';
+import AppButton from '@/components/ui/AppButton';
+import { uploadVariantImageWithFallback } from '@/services/uploadService';
+import { uploadProductMediaWithFallback } from '@/services/productMediaService';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, theme } from '@/constants/Colors';
@@ -56,6 +60,8 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
   const [listPrice, setListPrice] = useState('');
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [error, setError] = useState('');
+  const [group, setGroup] = useState<ProductGrouped | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -67,6 +73,8 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     setListPrice('');
     setSupplier(null);
     setError('');
+    setGroup(null);
+    setPhoto(null);
     if (newVariantOf) {
       // produto de uma cor só: a cor já vem preenchida (o caso comum é lançar outro tamanho da mesma peça)
       const cores = [...new Set((newVariantOf.variants ?? []).map((v) => (v.color || '').trim()).filter(Boolean))];
@@ -87,6 +95,64 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     setStep('form');
   };
 
+  // Foto da peça: tira na hora (celular) ou escolhe da galeria; só é enviada depois que a peça entra na entrada
+  const getPhoto = async (fromCamera: boolean) => {
+    try {
+      const useCamera = fromCamera && Platform.OS !== 'web';
+      const perm = useCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') {
+        setError(useCamera ? 'Para tirar a foto, permita o uso da câmera nas configurações do aparelho.' : 'Para escolher a foto, permita o acesso às fotos nas configurações do aparelho.');
+        return;
+      }
+      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: true, aspect: [3, 4], quality: 0.85 };
+      const r = useCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+      if (!r.canceled && r.assets[0]) {
+        setPhoto(r.assets[0].uri);
+        setError('');
+      }
+    } catch {
+      setError('Não foi possível abrir a foto. Tente de novo.');
+    }
+  };
+
+  const sendPhoto = async (variantId?: number | null, productId?: number | null) => {
+    if (!photo) return;
+    try {
+      if (variantId) await uploadVariantImageWithFallback(variantId, photo);
+      else if (productId) await uploadProductMediaWithFallback(productId, photo);
+    } catch {
+      Alert.alert('Peça lançada, mas a foto não foi enviada', 'Envie a foto de novo pela tela Fotos do produto.');
+    }
+  };
+
+  // Peça que já tem foto não pede outra (evita trocar a foto boa sem querer); aparece quando falta
+  const needsPhoto = useMemo(() => {
+    if (!choice) return false;
+    const vs = group?.variants ?? [];
+    if (choice.variantId) return !(vs.find((v) => v.id === choice.variantId) as any)?.image_url;
+    return vs.length === 0 && !group?.image_url;
+  }, [choice, group]);
+
+  const photoBlock = (
+    <View style={styles.photoBox}>
+      {photo ? <Image source={{ uri: photo }} style={styles.photoThumb} /> : (
+        <View style={[styles.photoThumb, styles.photoEmpty]}>
+          <Ionicons name="camera-outline" size={22} color={Colors.light.textTertiary} />
+        </View>
+      )}
+      <View style={{ flex: 1, gap: theme.spacing.xs }}>
+        <Text style={styles.rowTitle}>Esta peça ainda não tem foto (opcional)</Text>
+        <View style={styles.photoActions}>
+          {Platform.OS !== 'web' && <AppButton label={photo ? 'Tirar outra' : 'Tirar foto'} icon="camera-outline" variant="outlined" size="sm" onPress={() => getPhoto(true)} />}
+          <AppButton label={photo ? 'Trocar' : 'Galeria'} icon="images-outline" variant="outlined" size="sm" onPress={() => getPhoto(false)} />
+          {!!photo && <AppButton label="Tirar" variant="text" size="sm" onPress={() => setPhoto(null)} />}
+        </View>
+      </View>
+    </View>
+  );
+
   const add = useMutation({
     mutationFn: () =>
       addItemToEntry(entryId, {
@@ -98,7 +164,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
         supplier_id: supplier?.id ?? undefined,
         list_unit_cost: unmaskCurrency(listPrice) > 0 ? unmaskCurrency(listPrice) : undefined,
       }),
-    onSuccess: () => afterLaunch(),
+    onSuccess: async () => { await sendPhoto(choice?.variantId, choice?.productId); afterLaunch(); },
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Tente de novo.'),
   });
 
@@ -148,7 +214,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
         cost_price: unmaskCurrency(cost),
         price: Number(newVar!.product.variants?.[0]?.price ?? newVar!.product.min_price ?? 0) || undefined,
       }),
-    onSuccess: () => afterLaunch(),
+    onSuccess: async (res) => { await sendPhoto(res.variant_id, res.product_id); afterLaunch(); },
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Tente de novo.'),
   });
 
@@ -227,8 +293,9 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
       >
         {step === 'list' ? (
           <ProductPickerList
-            onPick={(g, v) => pick(groupedToProduct(g), v)}
+            onPick={(g, v) => { setGroup(g); setPhoto(null); pick(groupedToProduct(g), v); }}
             onNewVariant={(g) => {
+              setPhoto(null);
               setNewVar({ product: g, color: '', size: '' });
               setQty('1');
               const c = Number(g.variants?.[0]?.cost_price ?? 0);
@@ -279,6 +346,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
               mode="outlined" label="Quanto você pagou em cada peça" value={cost}
               onChangeText={(t) => setCost(maskCurrencyBR(t))} keyboardType="numeric" left={<TextInput.Affix text="R$" />} style={styles.input}
             />
+            {photoBlock}
             {!!error && <Text style={styles.error}>{error}</Text>}
           </View>
         ) : step === 'duplicate' && existingLine ? (
@@ -368,6 +436,30 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
               </View>
               <Ionicons name="chevron-forward" size={16} color={Colors.light.textSecondary} />
             </TouchableOpacity>
+            {needsPhoto && photoBlock}
+            {!!group && (
+              <TouchableOpacity
+                style={[styles.row, { marginTop: theme.spacing.sm }]}
+                onPress={() => {
+                  const cores = [...new Set((group.variants ?? []).map((v) => (v.color || '').trim()).filter(Boolean))];
+                  setNewVar({ product: group, color: cores.length === 1 ? cores[0] : '', size: '' });
+                  setPhoto(null);
+                  setError('');
+                  setStep('newVariant');
+                }}
+                activeOpacity={0.75}
+                accessibilityLabel="Lançar outra cor ou tamanho deste produto"
+              >
+                <View style={[styles.rowIcon, { backgroundColor: brand.primary + '20' }]}>
+                  <Ionicons name="color-palette-outline" size={18} color={brand.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle}>Lançar outra cor ou tamanho</Text>
+                  <Text style={styles.rowMeta}>Cada cor ou tamanho novo entra com a própria quantidade e foto.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.light.textSecondary} />
+              </TouchableOpacity>
+            )}
             {!!error && <Text style={styles.error}>{error}</Text>}
           </View>
         )}
@@ -432,6 +524,10 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 14, color: Colors.light.textSecondary, textAlign: 'center' },
   retryText: { fontSize: 14, fontWeight: '700' },
   input: { marginTop: theme.spacing.sm, backgroundColor: Colors.light.card },
+  photoBox: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.md },
+  photoThumb: { width: 64, height: 80, borderRadius: theme.borderRadius.md },
+  photoEmpty: { alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.light.backgroundSecondary },
+  photoActions: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
   note: { fontSize: 13, color: Colors.light.textSecondary, marginTop: theme.spacing.sm },
   error: { color: Colors.light.error, marginTop: theme.spacing.md, fontSize: 13 },
 });
