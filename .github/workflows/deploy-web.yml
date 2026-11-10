@@ -6,6 +6,11 @@ on:
     branches: [main]
     paths: ['mobile/**', '.github/workflows/deploy-web.yml']
   workflow_dispatch:
+    inputs:
+      forcar:
+        description: 'Publicar mesmo com gente usando o app (sim/nao)'
+        required: false
+        default: 'nao'
 
 concurrency:
   group: deploy-web
@@ -14,7 +19,7 @@ concurrency:
 jobs:
   deploy-web:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -57,6 +62,15 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -T 15 -H "$VPS_HOST" >> ~/.ssh/known_hosts
           [ -s ~/.ssh/known_hosts ] || { echo "::error::ssh-keyscan nao retornou chave do host"; exit 1; }
+
+      - name: Guarda de publicação (espera ninguém gravando nem usando o app)
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          FORCAR: ${{ github.event.inputs.forcar == 'sim' && '1' || '0' }}
+        run: |
+          # Publicar o app web recarrega a versão de quem está com o app aberto. Espera até 25 min o app ficar parado;
+          # se não liberar, adia (rode o workflow de novo, ou com forcar=sim). Um push novo cancela este e usa o mais recente.
+          ssh -i ~/.ssh/deploy_key -o ServerAliveInterval=30 root@"$VPS_HOST" "cd /opt/provador/repo && git fetch -q origin main && git show origin/main:deploy/guarda_publicacao.py > /opt/provador/guarda_publicacao.py && FORCAR=$FORCAR python3 /opt/provador/guarda_publicacao.py --esperar 25 --estrita" || { echo "::error::Publicação do app adiada: há gente usando o app. Rode 'Deploy App Web' de novo quando liberar."; exit 1; }
 
       - name: Publicar no VPS
         env:

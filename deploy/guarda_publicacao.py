@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Guarda de publicação: só deixa o backend ser reiniciado quando ninguém está salvando algo.
+"""Guarda de publicação: só deixa publicar quando ninguém está salvando algo e, no modo estrito, quando ninguém está usando o app.
 
 Roda NO VPS, antes do deploy (chamado pelo GitHub Actions). Lê o access.log do nginx e olha, em tempo real:
 - escritas (POST/PUT/PATCH/DELETE na API) nos últimos 120 s: alguém está lançando entrada, venda, cadastro...
   reiniciar agora derrubaria a gravação no meio;
-- pessoas conectadas (IPs diferentes) nos últimos 5 min, só para informar.
+- pessoas conectadas (IPs diferentes) nos últimos 5 min. Sem --estrita só informa; COM --estrita conta como ocupado: publicar
+  recarrega o app de quem está usando (o app web troca de versão) e reinicia o backend, e a loja não pode ser interrompida.
+  Quem só está com o app aberto e parado, sem pedir nada ao servidor por 5 min, não conta.
 
 Uso:
     guarda_publicacao.py --status              # só mostra a situação; sai com 0 (livre) ou 10 (ocupado)
     guarda_publicacao.py --esperar 25          # espera até 25 min a API ficar sem escrita; 10 se não liberar
+    guarda_publicacao.py --esperar 25 --estrita  # espera também ninguém estar usando o app (é o que os workflows usam)
     FORCAR=1 guarda_publicacao.py --esperar 25 # publica mesmo assim (avisa nas mensagens)
 Opções: --log CAMINHO (padrão /var/log/nginx/access.log), --janela-escrita SEGUNDOS (padrão 120).
 """
@@ -65,8 +68,11 @@ def activity(lines: list, now: float, write_window: int = 120, people_window: in
     return {"writes": writes, "people": len(ips)}
 
 
-def report(info: dict, write_window: int) -> str:
+def report(info: dict, write_window: int, estrita: bool = False) -> str:
     n = len(info["writes"])
+    if not n and estrita and info["people"]:
+        return (f"OCUPADO: {info['people']} pessoa(s) usando o app nos últimos 5 min (publicação estrita: só com o app parado); "
+                f"nenhuma gravação nos últimos {write_window}s.")
     if n:
         ultimo = info["writes"][0]
         return (f"OCUPADO: {n} gravação(ões) nos últimos {write_window}s (a última há {ultimo[0]}s: {ultimo[1]} {ultimo[2]}); "
@@ -74,9 +80,10 @@ def report(info: dict, write_window: int) -> str:
     return f"LIVRE: nenhuma gravação nos últimos {write_window}s; {info['people']} pessoa(s) conectada(s) nos últimos 5 min."
 
 
-def check(log: str, write_window: int) -> tuple:
+def check(log: str, write_window: int, estrita: bool = False) -> tuple:
     info = activity(read_tail(log), time.time(), write_window)
-    return (BUSY if info["writes"] else FREE), report(info, write_window)
+    busy = bool(info["writes"]) or (estrita and info["people"] > 0)
+    return (BUSY if busy else FREE), report(info, write_window, estrita)
 
 
 def main() -> int:
@@ -85,23 +92,25 @@ def main() -> int:
     p.add_argument("--esperar", type=int, default=0, metavar="MINUTOS")
     p.add_argument("--log", default="/var/log/nginx/access.log")
     p.add_argument("--janela-escrita", type=int, default=120)
+    p.add_argument("--estrita", action="store_true", help="também espera ninguém estar usando o app (últimos 5 min)")
     a = p.parse_args()
     force = os.environ.get("FORCAR") == "1"
+    estrita = a.estrita or os.environ.get("GUARDA_ESTRITA") == "1"
 
-    code, msg = check(a.log, a.janela_escrita)
+    code, msg = check(a.log, a.janela_escrita, estrita)
     print(msg, flush=True)
     if code == FREE or a.status and not a.esperar:
         return code if not force else FREE
     deadline = time.time() + a.esperar * 60
     while code == BUSY and time.time() < deadline:
         time.sleep(15)
-        code, msg = check(a.log, a.janela_escrita)
+        code, msg = check(a.log, a.janela_escrita, estrita)
         print(time.strftime("%H:%M:%S"), msg, flush=True)
     if code == BUSY:
         if force:
-            print("FORCAR=1: publicando mesmo com gente gravando.", flush=True)
+            print("FORCAR=1: publicando mesmo com gente usando o app.", flush=True)
             return FREE
-        print(f"Adiado: ainda há gente gravando depois de {a.esperar} min. Rode de novo quando liberar.", flush=True)
+        print(f"Adiado: ainda há gente {'usando o app' if estrita else 'gravando'} depois de {a.esperar} min. Rode de novo quando liberar.", flush=True)
     return code
 
 

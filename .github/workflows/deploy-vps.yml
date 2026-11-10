@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       forcar:
-        description: 'Publicar mesmo com gente gravando (sim/nao)'
+        description: 'Publicar mesmo com gente usando o app (sim/nao)'
         required: false
         default: 'nao'
 
@@ -35,14 +35,14 @@ jobs:
           ssh-keyscan -T 15 -H "$VPS_HOST" >> ~/.ssh/known_hosts
           [ -s ~/.ssh/known_hosts ] || { echo "::error::ssh-keyscan nao retornou chave do host $VPS_HOST"; exit 1; }
 
-      - name: Guarda de publicação (espera ninguém estar gravando)
+      - name: Guarda de publicação (espera ninguém gravando nem usando o app)
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           FORCAR: ${{ github.event.inputs.forcar == 'sim' && '1' || '0' }}
         run: |
           # Reiniciar o backend derruba gravação no meio (entrada, venda, cadastro). Espera até 25 min a API ficar
           # sem escrita; se não liberar, adia (rode o workflow de novo, ou com forcar=sim).
-          ssh -i ~/.ssh/deploy_key -o ServerAliveInterval=30 root@"$VPS_HOST"             "cd /opt/provador/repo && git fetch -q origin main && git show origin/main:deploy/guarda_publicacao.py > /opt/provador/guarda_publicacao.py && FORCAR=$FORCAR python3 /opt/provador/guarda_publicacao.py --esperar 25"             || { echo "::error::Publicação adiada: há gente gravando. Rode 'Deploy VPS' de novo quando liberar."; exit 1; }
+          ssh -i ~/.ssh/deploy_key -o ServerAliveInterval=30 root@"$VPS_HOST"             "cd /opt/provador/repo && git fetch -q origin main && git show origin/main:deploy/guarda_publicacao.py > /opt/provador/guarda_publicacao.py && FORCAR=$FORCAR python3 /opt/provador/guarda_publicacao.py --esperar 25 --estrita"             || { echo "::error::Publicação adiada: há gente usando o app. Rode 'Deploy VPS' de novo quando liberar."; exit 1; }
 
       - name: Deploy no VPS
         env:
