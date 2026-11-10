@@ -105,6 +105,14 @@ class ProductEntryItem(BaseModel):
     quantity_removed: int = 0
     unit_cost: Decimal
     supplier_name: Optional[str] = None
+    # a PEÇA: qual variação é, de qual fornecedor veio (cada peça de uma entrada pode ser de um fornecedor) e o código da etiqueta
+    variant_id: Optional[int] = None
+    variant_color: Optional[str] = None
+    variant_size: Optional[str] = None
+    variant_code: Optional[str] = None
+    variant_active: bool = True
+    item_supplier_id: Optional[int] = None
+    item_supplier_name: Optional[str] = None
 
     class Config:
         from_attributes = True

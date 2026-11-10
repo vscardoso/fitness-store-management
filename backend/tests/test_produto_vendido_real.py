@@ -39,3 +39,41 @@ async def test_baixa_nao_aparece_como_vendido_no_historico_de_entradas(test_clie
     assert por_item[ids[0]]["quantity_sold"] == 0 and por_item[ids[0]]["quantity_removed"] == 1
     assert por_item[ids[0]]["quantity_remaining"] == por_item[ids[0]]["quantity_received"] - 1
     assert sum(e["quantity_sold"] for e in d["entry_items"]) == 0
+
+
+async def test_historico_do_produto_traz_a_peca_e_o_fornecedor_de_cada_uma_e_troca_com_venda(test_client, async_session, test_user):
+    """Cada peça de uma entrada tem a sua variação e o seu fornecedor; trocar SÓ o fornecedor vale até para peça que já vendeu."""
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await _criar(test_client, h, cat, f"Top Forn {n}", f"TFO{n}", f"VFO-{n:04d}")
+    assert r.status_code in (200, 201), r.text
+    pid = (await async_session.execute(select(ProductVariant.product_id).where(ProductVariant.sku == f"TFO{n}-PRE-001"))).scalar_one()
+    itens = (await async_session.execute(select(EntryItem).where(EntryItem.product_id == pid).order_by(EntryItem.id))).scalars().all()
+    ids = [i.id for i in itens]
+
+    d = (await test_client.get(f"/api/v1/products/{pid}", headers=h)).json()
+    linhas = {e["entry_item_id"]: e for e in d["entry_items"]}
+    assert len(linhas) == 2
+    for e in linhas.values():
+        assert e["variant_id"] and e["variant_color"] and e["variant_size"] == "M" and e["variant_active"] is True
+        assert e["item_supplier_name"] == "Fornecedor Teste" and e["item_supplier_id"]
+        assert e["variant_code"] is None or e["variant_code"].startswith("#")
+
+    # troca o fornecedor da 1ª peça
+    ok = await test_client.put(f"/api/v1/stock-entries/entry-items/{ids[0]}", headers=h, json={"supplier_name": f"Outro Forn {n}"})
+    assert ok.status_code == 200, ok.text
+    d = (await test_client.get(f"/api/v1/products/{pid}", headers=h)).json()
+    linhas = {e["entry_item_id"]: e for e in d["entry_items"]}
+    assert linhas[ids[0]]["item_supplier_name"] == f"Outro Forn {n}" and linhas[ids[1]]["item_supplier_name"] == "Fornecedor Teste"
+
+    # peça que já vendeu (saldo menor que o recebido): trocar o fornecedor vale; mexer em custo/quantidade continua bloqueado
+    it = (await async_session.execute(select(EntryItem).where(EntryItem.id == ids[1]))).scalar_one()
+    it.quantity_remaining = it.quantity_received - 1
+    await async_session.commit()
+    ok2 = await test_client.put(f"/api/v1/stock-entries/entry-items/{ids[1]}", headers=h, json={"supplier_name": f"Outro Forn {n}"})
+    assert ok2.status_code == 200, ok2.text
+    bloqueado = await test_client.put(f"/api/v1/stock-entries/entry-items/{ids[1]}", headers=h, json={"unit_cost": 99})
+    assert bloqueado.status_code == 400

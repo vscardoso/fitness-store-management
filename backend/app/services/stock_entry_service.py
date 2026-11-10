@@ -1411,8 +1411,10 @@ class StockEntryService:
         from app.services.stock_lock import lock_entry_items
         await lock_entry_items(self.db, [item])  # antes de conferir saldo: venda simultânea não some
 
-        # VALIDAÇÃO CRÍTICA: Bloquear edição se item já teve vendas
-        if item.quantity_sold > 0:
+        # VALIDAÇÃO CRÍTICA: Bloquear edição se item já teve vendas. Trocar SÓ o fornecedor da peça (acertar de quem comprou) vale
+        # sempre: não mexe em quantidade, custo nem nas camadas FIFO das vendas.
+        _only_supplier = {k for k, v in item_data.items() if v is not None} <= {'supplier_id', 'supplier_name'}
+        if item.quantity_sold > 0 and not _only_supplier:
             raise ValueError(
                 f"Não é possível editar item que já teve vendas. "
                 f"Este item já vendeu {item.quantity_sold} unidade(s). "

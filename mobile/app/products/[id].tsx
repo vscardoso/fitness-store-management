@@ -36,6 +36,9 @@ import { documentLabel } from '@/utils/masks';
 import { getEntryTypeLabel, getEntryTypeColor, getEntryTypeIcon } from '@/constants/entryTypes';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useProductSuppliers } from '@/hooks/useSuppliers';
+import EntryPieces, { pieceLabel, type EntryPiece } from '@/components/products/EntryPieces';
+import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
+import { updateEntryItem } from '@/services/stockEntryService';
 import { VALUE_COLORS } from '@/constants/Colors';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import VariantPricesSheet, { distinctPrices } from '@/components/products/VariantPricesSheet';
@@ -262,6 +265,23 @@ export default function ProductDetailsScreen() {
 
   // Custo do produto (só gerente e admin; caixa e vendedor nunca recebem custo do servidor)
   const canSeeCost = isManagerRole(user?.role);
+  // Trocar o fornecedor de UMA peça de uma entrada (cada peça pode ser de um fornecedor)
+  const [supplierPiece, setSupplierPiece] = useState<EntryPiece | null>(null);
+  const [supplierError, setSupplierError] = useState('');
+  const changeSupplier = useMutation({
+    mutationFn: (v: { itemId: number; supplierId: number }) => updateEntryItem(v.itemId, { supplier_id: v.supplierId }),
+    onSuccess: async () => {
+      setSupplierPiece(null);
+      setSupplierError('');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['product', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['product-suppliers', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+      ]);
+    },
+    onError: (e: any) => { setSupplierPiece(null); setSupplierError(parseApiError(e) || 'Não foi possível trocar o fornecedor.'); },
+  });
   const { data: costInfo } = useQuery({
     queryKey: ['product-fifo-cost', productId],
     queryFn: async () => (await getFIFOCosts([productId]))[String(productId)],
@@ -961,8 +981,8 @@ export default function ProductDetailsScreen() {
                     const costs = [...new Set(entry.items.map((i: any) => Number(i.unit_cost) || 0).filter((c: number) => c > 0))] as number[];
 
                     return (
+                      <View key={entry.entry_id}>
                       <TouchableOpacity
-                        key={entry.entry_id}
                         style={[styles.entryCard, isExausted && styles.entryCardExausted]}
                         onPress={() => router.push({ pathname: `/entries/${entry.entry_id}` as any, params: { from: `/products/${id}` } })}
                         activeOpacity={0.7}
@@ -1029,6 +1049,13 @@ export default function ProductDetailsScreen() {
 
                         <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
                       </TouchableOpacity>
+                      <EntryPieces
+                        pieces={entry.items as EntryPiece[]}
+                        canEdit={canSeeCost}
+                        showCost={canSeeCost}
+                        onChangeSupplier={(piece) => { setSupplierError(''); setSupplierPiece(piece); }}
+                      />
+                      </View>
                     );
                   })}
                 </View>
@@ -1036,6 +1063,22 @@ export default function ProductDetailsScreen() {
             </View>
           );
         })()}
+
+        {!!supplierError && (
+          <Text style={[styles.minStockNote, { color: Colors.light.errorDark, marginHorizontal: theme.spacing.md }]}>{supplierError}</Text>
+        )}
+        <SupplierPickerSheet
+          visible={!!supplierPiece}
+          onClose={() => setSupplierPiece(null)}
+          onSelect={(sup) => {
+            if (supplierPiece && sup) changeSupplier.mutate({ itemId: supplierPiece.entry_item_id, supplierId: sup.id });
+            else setSupplierPiece(null);
+          }}
+          productId={productId}
+          productName={supplierPiece ? `${(product as any)?.name ?? ''} ${pieceLabel(supplierPiece)}`.trim() : undefined}
+          selectedSupplierId={supplierPiece?.item_supplier_id ?? null}
+          allowNone={false}
+        />
 
         {/* ── FORNECEDORES ── */}
         {(() => {

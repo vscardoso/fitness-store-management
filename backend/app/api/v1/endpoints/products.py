@@ -3,6 +3,7 @@ Endpoints de produtos - Listagem, Detalhes, Criação, Atualização e Deleção
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Body
 from sqlalchemy import or_, select, text
+from app.utils.variant_code import format_variant_code
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
@@ -800,9 +801,19 @@ async def get_product(
                     ei.quantity_remaining,
                     (ei.quantity_received - ei.quantity_remaining) AS quantity_sold,
                     ei.unit_cost,
-                    se.supplier_name
+                    se.supplier_name,
+                    ei.variant_id,
+                    pv.color,
+                    pv.size,
+                    pv.product_code,
+                    pv.variant_number,
+                    COALESCE(pv.is_active, true),
+                    COALESCE(ei.supplier_id, se.supplier_id),
+                    COALESCE(isup.name, se.supplier_name)
                 FROM entry_items ei
                 JOIN stock_entries se ON se.id = ei.entry_id
+                LEFT JOIN product_variants pv ON pv.id = ei.variant_id
+                LEFT JOIN suppliers isup ON isup.id = COALESCE(ei.supplier_id, se.supplier_id)
                 WHERE ei.product_id = :pid
                   AND se.tenant_id  = :tid
                   AND se.is_active  = true
@@ -838,6 +849,13 @@ async def get_product(
                 "quantity_removed": removed,
                 "unit_cost": float(r[8]) if r[8] else 0.0,
                 "supplier_name": r[9],
+                "variant_id": r[10],
+                "variant_color": r[11],
+                "variant_size": r[12],
+                "variant_code": format_variant_code(r[13], r[14]),
+                "variant_active": bool(r[15]),
+                "item_supplier_id": r[16],
+                "item_supplier_name": r[17],
             })
 
         return {
