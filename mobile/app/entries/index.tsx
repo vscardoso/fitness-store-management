@@ -246,6 +246,8 @@ export default function StockEntriesScreen() {
       ]);
       // Força refetch da lista atual
       await refetch();
+      // O produto e a entrada JÁ estão gravados: a partir daqui nenhum caminho de volta (toque fora, voltar do iPhone) reabre o passo 3
+      if (isFromWizard) markWizardCompleted();
       setShowSuccessDialog(true);
     },
     onError: (error: any) => {
@@ -434,6 +436,49 @@ export default function StockEntriesScreen() {
    * O resumo do cadastro só lista as variações que de fato entraram na entrada: variação sem quantidade
    * não é criada no servidor, então não pode aparecer como "criada" (dava "5 variações" para 3 unidades).
    */
+  // Depois do vínculo: no cadastro segue para o resumo; fora dele abre a entrada. O botão e o toque fora do diálogo usam esta função.
+  const confirmAfterLink = () => {
+    setShowSuccessDialog(false);
+    if (isFromWizard && selectedEntry) {
+      markWizardCompleted();
+      trailMark('cadastro concluído (entrada existente); abrindo o resumo');
+      // Retornar ao wizard com dados da entrada vinculada E do produto
+      router.replace({
+        pathname: '/products/wizard',
+        params: {
+          returnFromEntry: 'true',
+          createdEntryId: String(selectedEntry.id),
+          createdEntryCode: selectedEntry.entry_code || '',
+          createdEntryQuantity: String(productToLink?.quantity || 1),
+          createdEntrySupplier: linkSupplier?.name ?? selectedEntry.supplier_name ?? '',
+          // Para variantes, passar produto completo; para simples, reconstruir
+          createdProductData: productToLink?._fullProductData
+            ? (createdProductId
+                ? JSON.stringify(onlyLaunchedVariants({ ...JSON.parse(productToLink._fullProductData), id: createdProductId, _atomicVariants: undefined, _virtual: undefined }))
+                : JSON.stringify(onlyLaunchedVariants(JSON.parse(productToLink._fullProductData))))
+            : JSON.stringify({
+                id: createdProductId ?? productToLink?.id,
+                name: productToLink?.name,
+                sku: productToLink?.sku,
+              barcode: productToLink?.barcode,
+              image_url: productToLink?.image_url,
+                cost_price: productToLink?.cost_price,
+                price: productToLink?.price,
+              description: productToLink?.description,
+              brand: productToLink?.brand,
+              color: productToLink?.color,
+              size: productToLink?.size,
+              gender: productToLink?.gender,
+              material: productToLink?.material,
+                category_id: productToLink?.category_id,
+              }),
+        },
+      });
+    } else if (selectedEntry) {
+      router.replace({ pathname: `/entries/${selectedEntry.id}`, params: { from: '/(tabs)/entries' } });
+    }
+  };
+
   const onlyLaunchedVariants = (data: any) => {
     const sent = productToLink?.newProduct?.variants ?? productToLink?.variants;
     if (!Array.isArray(sent) || !Array.isArray(data?.variants)) return data;
@@ -927,52 +972,15 @@ export default function StockEntriesScreen() {
           message={`${productToLink?.quantity || 1} ${(productToLink?.quantity || 1) === 1 ? 'unidade' : 'unidades'} de "${productToLink?.name}" ${(productToLink?.quantity || 1) === 1 ? 'foi adicionada' : 'foram adicionadas'} à entrada ${selectedEntry?.entry_code}.`}
           confirmText={isFromWizard ? "Ver Resumo" : "Ver Entrada"}
           cancelText={isFromWizard ? "" : "Voltar"}
-          onConfirm={() => {
-            setShowSuccessDialog(false);
-            if (isFromWizard && selectedEntry) {
-              markWizardCompleted();
-              trailMark('cadastro concluído (entrada existente); abrindo o resumo');
-              // Retornar ao wizard com dados da entrada vinculada E do produto
-              router.replace({
-                pathname: '/products/wizard',
-                params: {
-                  returnFromEntry: 'true',
-                  createdEntryId: String(selectedEntry.id),
-                  createdEntryCode: selectedEntry.entry_code || '',
-                  createdEntryQuantity: String(productToLink?.quantity || 1),
-                  createdEntrySupplier: linkSupplier?.name ?? selectedEntry.supplier_name ?? '',
-                  // Para variantes, passar produto completo; para simples, reconstruir
-                  createdProductData: productToLink?._fullProductData
-                    ? (createdProductId
-                        ? JSON.stringify(onlyLaunchedVariants({ ...JSON.parse(productToLink._fullProductData), id: createdProductId, _atomicVariants: undefined, _virtual: undefined }))
-                        : JSON.stringify(onlyLaunchedVariants(JSON.parse(productToLink._fullProductData))))
-                    : JSON.stringify({
-                        id: createdProductId ?? productToLink?.id,
-                        name: productToLink?.name,
-                        sku: productToLink?.sku,
-                      barcode: productToLink?.barcode,
-                      image_url: productToLink?.image_url,
-                        cost_price: productToLink?.cost_price,
-                        price: productToLink?.price,
-                      description: productToLink?.description,
-                      brand: productToLink?.brand,
-                      color: productToLink?.color,
-                      size: productToLink?.size,
-                      gender: productToLink?.gender,
-                      material: productToLink?.material,
-                        category_id: productToLink?.category_id,
-                      }),
-                },
-              });
-            } else if (selectedEntry) {
-              router.replace({ pathname: `/entries/${selectedEntry.id}`, params: { from: '/(tabs)/entries' } });
-            }
-          }}
+          onConfirm={confirmAfterLink}
           onCancel={() => {
-            setShowSuccessDialog(false);
-            if (!isFromWizard) {
-              goBack();
+            // Tocar fora do diálogo (ou o voltar do aparelho) não deixa o passo 3 aberto: no cadastro vai para o resumo, igual ao botão
+            if (isFromWizard) {
+              confirmAfterLink();
+              return;
             }
+            setShowSuccessDialog(false);
+            goBack();
           }}
           type="success"
           icon="checkmark-circle"
