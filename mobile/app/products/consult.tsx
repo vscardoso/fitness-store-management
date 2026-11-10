@@ -8,6 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 
 import PageHeader from '@/components/layout/PageHeader';
+import AppButton from '@/components/ui/AppButton';
 import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
 import { Money } from '@/components/ui/PriceDisplay';
 import ScreenLoader from '@/components/ui/ScreenLoader';
@@ -112,23 +113,20 @@ export default function ConsultScreen() {
               </View>
 
               <View style={styles.actions}>
-                <TouchableOpacity
-                  style={[styles.btn, styles.btnPrimary, selected.current_stock <= 0 && { opacity: 0.4 }]}
-                  onPress={addToSale}
-                  disabled={selected.current_stock <= 0}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="cart-outline" size={18} color="#fff" />
-                  <Text style={styles.btnPrimaryText}>Adicionar à venda</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.btn} onPress={() => router.push('/products/' + result.product.id as any)} activeOpacity={0.8}>
-                  <Ionicons name="cube-outline" size={18} color={Colors.light.text} />
-                  <Text style={styles.btnText}>Ver produto</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.btn} onPress={() => router.push('/products/label/' + result.product.id as any)} activeOpacity={0.8}>
-                  <Ionicons name="pricetag-outline" size={18} color={Colors.light.text} />
-                  <Text style={styles.btnText}>Etiqueta</Text>
-                </TouchableOpacity>
+                <AppButton
+                  variant="primary" size="md" fullWidth icon="cart-outline" label="Adicionar à venda"
+                  disabled={selected.current_stock <= 0} onPress={addToSale}
+                />
+                <View style={styles.actionsRow}>
+                  <View style={styles.actionHalf}>
+                    <AppButton variant="outlined" size="md" fullWidth icon="cube-outline" label="Ver produto"
+                      onPress={() => router.push('/products/' + result.product.id as any)} />
+                  </View>
+                  <View style={styles.actionHalf}>
+                    <AppButton variant="outlined" size="md" fullWidth icon="pricetag-outline" label="Etiqueta"
+                      onPress={() => router.push('/products/label/' + result.product.id as any)} />
+                  </View>
+                </View>
               </View>
               {added && (
                 <TouchableOpacity onPress={() => router.push('/(tabs)/sale' as any)} style={styles.added} activeOpacity={0.8}>
@@ -184,11 +182,9 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 10, flexWrap: 'wrap' },
   stockPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   stockText: { fontSize: 13, fontWeight: '800' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  btn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: Colors.light.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.light.card },
-  btnPrimary: { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
-  btnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  btnText: { color: Colors.light.text, fontWeight: '700', fontSize: 14 },
+  actions: { gap: 12, marginTop: 12 },
+  actionsRow: { flexDirection: 'row', gap: 12 },
+  actionHalf: { flex: 1, minWidth: 0 },
   added: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#DCFCE7', marginTop: 8 },
   addedText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#166534' },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 6 },

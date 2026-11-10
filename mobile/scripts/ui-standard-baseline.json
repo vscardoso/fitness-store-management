@@ -1,0 +1,867 @@
+{
+ "app/(auth)/create-store.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 4
+ },
+ "app/(auth)/forgot-password.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 5
+ },
+ "app/(auth)/login.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/(auth)/onboarding.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 9
+ },
+ "app/(auth)/signup.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 9
+ },
+ "app/(auth)/_layout.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/(dev)/loading-demo.tsx": {
+  "paperButton": 6,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/(tabs)/conditional/create.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "app/(tabs)/conditional/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/(tabs)/conditional/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/(tabs)/customers.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/(tabs)/expenses/create.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 10
+ },
+ "app/(tabs)/expenses/edit.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "app/(tabs)/expenses/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/(tabs)/expenses/resultado.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/(tabs)/help.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/(tabs)/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 145
+ },
+ "app/(tabs)/inventory.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 8
+ },
+ "app/(tabs)/more.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 10
+ },
+ "app/(tabs)/pdv/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/(tabs)/pdv/pix-checkout.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/(tabs)/pdv/terminal-checkout.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/(tabs)/pdv/terminals.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 20
+ },
+ "app/(tabs)/products.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 5
+ },
+ "app/(tabs)/sale.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/(tabs)/sales/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/(tabs)/stock-losses/register.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/(tabs)/team/add.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "app/(tabs)/team/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/(tabs)/team/[id].tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 17
+ },
+ "app/(tabs)/_layout.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/aceite-termos.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/cash/index.tsx": {
+  "paperButton": 4,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/categories/add.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/categories/edit/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/categories/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 1,
+  "hexColors": 7
+ },
+ "app/checkout/success.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/customers/add.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/customers/edit/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/customers/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 18
+ },
+ "app/entries/add-stock.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/entries/add.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 12,
+  "hexColors": 4
+ },
+ "app/entries/check/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 6
+ },
+ "app/entries/import.tsx": {
+  "paperButton": 7,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/entries/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 6,
+  "hexColors": 3
+ },
+ "app/entries/labels/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/entries/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 6,
+  "hexColors": 2
+ },
+ "app/finance/closing.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/finance/payables.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/finance/receivables.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/finance/setup.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/gifts/new.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/gifts/[id].tsx": {
+  "paperButton": 4,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/labels/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/labels/queue.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/looks/builder.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 12,
+  "hexColors": 0
+ },
+ "app/looks/index.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 5,
+  "hexColors": 1
+ },
+ "app/looks/[id].tsx": {
+  "paperButton": 2,
+  "staticPrimary": 5,
+  "hexColors": 0
+ },
+ "app/products/consult.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 4
+ },
+ "app/products/edit/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/products/photos/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 5
+ },
+ "app/products/scan.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 5
+ },
+ "app/products/wizard.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/products/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/reports/history.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/reports/monthly.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/reports/sales-period.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/reports/stock-check.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 15
+ },
+ "app/reports/stock-counts/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "app/reports/stock-counts/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 5
+ },
+ "app/reports/top-products.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "app/sales/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 14
+ },
+ "app/settings/audit.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 2,
+  "hexColors": 0
+ },
+ "app/settings/branding.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "app/settings/payment-discounts.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 4
+ },
+ "app/settings/pix-key.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/settings/printers/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 5
+ },
+ "app/settings/printers/new.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 4
+ },
+ "app/settings/returns.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/settings/whatsapp-catalog.tsx": {
+  "paperButton": 6,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/settings/whatsapp-connect.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/settings/whatsapp-greeting.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/settings/whatsapp-hours.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/settings/whatsapp-labels.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/settings/whatsapp-profile.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/settings/whatsapp-quick-replies.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/stock/removals.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 4,
+  "hexColors": 0
+ },
+ "app/suppliers/edit/[id].tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/suppliers/restock.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/suppliers/returns.tsx": {
+  "paperButton": 5,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "app/suppliers/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "app/team/add.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "app/team/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/test-notification.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 16
+ },
+ "app/whatsapp/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "app/wishlist/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 7,
+  "hexColors": 1
+ },
+ "app/[...rest].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 1,
+  "hexColors": 1
+ },
+ "components/branding/ProvadorLogo.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/cash/CashStatusCard.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "components/checkout/LoyaltyRedeemCard.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "components/conditional/MarkAsSentModal.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/customers/CustomerLoyaltyCard.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "components/entries/AddVariantModal.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/entries/EntryTrackingCard.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 2,
+  "hexColors": 3
+ },
+ "components/entries/LotMoneyCard.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/ErrorBoundary.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 4
+ },
+ "components/FAB.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 15
+ },
+ "components/help/HelpHost.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/labels/LabelProductPickerModal.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/labels/ProductLabel.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/labels/StickerPreview.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "components/labels/StickerStudio.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/labels/studio/PrintBar.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/labels/studio/PrintSettings.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/labels/studio/SheetMap.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/layout/DesktopSidebar.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 12
+ },
+ "components/layout/DetailHeader.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 5
+ },
+ "components/layout/ListHeader.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/layout/PageHeader.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/layout/SystemUpdateOverlay.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "components/layout/UpdateBanner.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/legal/LegalDocument.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 4
+ },
+ "components/notifications/NotificationBanner.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "components/products/DesktopProductsTable.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 17
+ },
+ "components/products/EntryItemCostEditor.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/products/ProductQRCode.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/products/SimilarProductsModal.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 5
+ },
+ "components/products/VariantBuilderInline.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 15
+ },
+ "components/products/VariantPicker.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/products/VariantSelector.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/products/WizardComplete.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/products/WizardStep1.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 12
+ },
+ "components/products/WizardStep2.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/products/WizardStep3.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/products/WizardStepper.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/receipt/ReceiptActions.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/receipt/SaleReceipt.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/sale/BarcodeScanner.tsx": {
+  "paperButton": 3,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/sale/DesktopPDV.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 46
+ },
+ "components/sale/DesktopSalesTable.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 14
+ },
+ "components/sale/ProductSelectionModal.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/sale/ReturnModal.tsx": {
+  "paperButton": 4,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "components/scan/CameraScanSheet.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 1,
+  "hexColors": 9
+ },
+ "components/scan/ScanBar.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "components/scan/WebQrCamera.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/suppliers/SupplierPickerSheet.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/suppliers/SuppliersTabs.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/tutorial/HelpButton.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "components/tutorial/TutorialTooltip.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 4
+ },
+ "components/tutorial/WelcomeTutorialModal.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "components/ui/ActionButtons.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/ui/AppButton.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/ui/AppRefreshControl.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 1,
+  "hexColors": 1
+ },
+ "components/ui/Badge.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 1,
+  "hexColors": 0
+ },
+ "components/ui/BottomSheet.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 7
+ },
+ "components/ui/CategoryPickerModal.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 10
+ },
+ "components/ui/ConfirmDialog.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "components/ui/CustomModal.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 6
+ },
+ "components/ui/DataTable.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 10
+ },
+ "components/ui/DevMenu.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "components/ui/EmptyState.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "components/ui/ErrorSnackbar.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 10
+ },
+ "components/ui/GlobalConfirmModal.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/ui/GradientSpinner.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/ui/HScroll.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 3
+ },
+ "components/ui/LoadingOverlay.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 2
+ },
+ "components/ui/ModalActions.tsx": {
+  "paperButton": 2,
+  "staticPrimary": 0,
+  "hexColors": 0
+ },
+ "components/ui/PriceDisplay.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 2,
+  "hexColors": 0
+ },
+ "components/ui/SheetHeader.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/ui/SizePicker.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/vitrine/ProdutoVitrine.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1
+ },
+ "components/whatsapp/InviteSheet.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 6
+ }
+}
