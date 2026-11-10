@@ -46,11 +46,11 @@ export default function EntryExtraCostsInput({ costs, onChange }: Props) {
         <View style={[styles.iconWrap, { backgroundColor: `${brand.primary}14` }]}>
           <Ionicons name="cash-outline" size={20} color={brand.primary} />
         </View>
-        <Text style={styles.title}>Frete e outros custos desta compra</Text>
+        <Text style={styles.title}>Despesas desta compra</Text>
       </View>
 
       <Text style={styles.help}>
-        {'Frete, embalagem, taxa... Esses gastos somam no custo das peças desta compra. Assim o lucro de cada venda já desconta o frete. É opcional: dá para lançar depois na tela da entrada.'}
+        {'Frete, embalagem, taxa... Esses gastos somam no custo das peças desta compra. Assim o lucro de cada venda já desconta essas despesas. É opcional: dá para lançar depois na tela da entrada.'}
       </Text>
 
       {costs.map((c, i) => (

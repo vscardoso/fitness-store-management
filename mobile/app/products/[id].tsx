@@ -570,7 +570,7 @@ export default function ProductDetailsScreen() {
                 <Text style={styles.quickValue}>{formatCurrency(cost)}</Text>
                 <Text style={styles.quickSub}>
                   {stockCost > 0
-                    ? `Média das ${costInfo?.total_quantity ?? 0} peça(s) em estoque (mercadoria + frete)`
+                    ? `Média das ${costInfo?.total_quantity ?? 0} peça(s) em estoque (mercadoria + despesas)`
                     : 'Da compra mais recente (não há peça em estoque)'}
                 </Text>
                 {profit !== null && (

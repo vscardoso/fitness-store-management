@@ -64,7 +64,7 @@ const STEPS: Step[] = [
     kicker: 'DINHEIRO NA MÃO',
     title: 'Saiba quanto cada compra rendeu',
     description:
-      'Veja o lucro de cada lote de mercadoria, já com frete e gastos da compra, e receba aviso antes de faltar peça.',
+      'Veja o lucro de cada lote de mercadoria, já com as despesas da compra, e receba aviso antes de faltar peça.',
     highlights: ['Lucro por lote de compra', 'Aviso de estoque baixo', 'Resultado do mês em linguagem simples'],
   },
 ];

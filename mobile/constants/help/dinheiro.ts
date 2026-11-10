@@ -288,7 +288,7 @@ export const DINHEIRO: HelpEntry[] = [
     ],
     goodToKnow: [
       'Venda cancelada não conta; devolução desconta no dia em que aconteceu.',
-      'O custo das peças já inclui frete e desconto de cada compra.',
+      'O custo das peças já inclui as despesas e o desconto de cada compra.',
     ],
     roles: ['manager'],
     related: ['despesas', 'relatorio-vendas'],

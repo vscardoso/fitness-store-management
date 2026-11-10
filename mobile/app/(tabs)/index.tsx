@@ -630,7 +630,7 @@ export default function DashboardScreen() {
                 </View>
               </View>
               <Text style={{ fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, paddingHorizontal: 14, paddingBottom: 12 }}>
-                Você vendeu, menos o que custaram as peças (com o frete da compra), menos os gastos da loja (aluguel, luz...), é o que sobrou.
+                Você vendeu, menos o que custaram as peças (com as despesas da compra), menos os gastos da loja (aluguel, luz...), é o que sobrou.
               </Text>
             </View>
           </TouchableOpacity>
@@ -1277,7 +1277,7 @@ export default function DashboardScreen() {
                     <Text style={styles.tooltipTitle}>Lucro das vendas</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`O que sobrou das vendas depois de pagar o custo das peças vendidas (já com o frete da compra). Ainda não desconta os gastos da loja, como aluguel e luz. O lucro final do mês está no card Resultado do Mês.`}</Text>
+                  <Text style={styles.tooltipText}>{`O que sobrou das vendas depois de pagar o custo das peças vendidas (já com as despesas da compra). Ainda não desconta os gastos da loja, como aluguel e luz. O lucro final do mês está no card Resultado do Mês.`}</Text>
                 </>
               )}
               {activeTooltip === 'cmv' && (
@@ -1289,7 +1289,7 @@ export default function DashboardScreen() {
                     <Text style={styles.tooltipTitle}>Custo das peças</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`Quanto custaram as peças que você vendeu neste período, já com a parte do frete de cada compra. Não inclui as peças que ainda estão no estoque.`}</Text>
+                  <Text style={styles.tooltipText}>{`Quanto custaram as peças que você vendeu neste período, já com a parte das despesas de cada compra. Não inclui as peças que ainda estão no estoque.`}</Text>
                 </>
               )}
               {activeTooltip === 'giro' && (

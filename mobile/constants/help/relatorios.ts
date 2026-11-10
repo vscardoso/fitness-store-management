@@ -124,7 +124,7 @@ export const RELATORIOS: HelpEntry[] = [
       'Toque num lote para abrir a entrada.',
     ],
     parts: [
-      { label: 'Você gastou', text: 'mercadoria e frete do lote, menos o desconto.' },
+      { label: 'Você gastou', text: 'mercadoria e despesas do lote, menos o desconto.' },
       { label: 'Já vendeu', text: 'o que as peças deste lote já renderam em venda.' },
       { label: 'Lucro até agora', text: 'o que já vendeu menos o custo dessas peças.' },
     ],

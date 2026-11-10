@@ -220,7 +220,7 @@ const ENTRADAS: HelpEntry[] = [
     steps: [
       'Escolha o tipo (“Online” ou “Local”), dê um código e confira a data da compra.',
       'Escolha o fornecedor de cada produto (ou cadastre um novo); o último escolhido já vem preenchido no próximo.',
-      'Lance o frete e outros gastos da compra, se houver.',
+      'Lance as despesas da compra (frete, embalagem, taxa), se houver.',
       'Toque em “Adicionar” e escolha cada produto e peça, com quantidade e quanto pagou em cada uma.',
       'Confira o resumo e toque em “Salvar Entrada”.',
     ],
@@ -262,7 +262,7 @@ const ENTRADAS: HelpEntry[] = [
       'Para pôr mais peças nesta compra, use “Produto já cadastrado” ou “Produto novo”.',
       'Use “Conferir recebimento” para bipar as peças que chegaram.',
       'Para mudar um produto, toque em “Editar” (ou “Corrigir”, se já vendeu); “Variação” lança outra cor ou tamanho dele.',
-      'Lance frete esquecido em “Lançar despesa deste lote” e o desconto em “Informar desconto do fornecedor”.',
+      'Lance a despesa esquecida (frete, embalagem...) em “Lançar despesa deste lote” e o desconto em “Informar desconto do fornecedor”.',
     ],
     goodToKnow: [
       'Mudar quantidade ou custo refaz o estoque e o custo das peças sozinho.',
@@ -697,7 +697,7 @@ const BRINDES: HelpEntry[] = [
     ],
     goodToKnow: [
       'Se não houver estoque suficiente, nada é gravado.',
-      'O custo é o que você pagou pela peça, já com o frete da compra.',
+      'O custo é o que você pagou pela peça, já com as despesas da compra.',
     ],
     roles: ['admin'],
     related: ['brindes'],
