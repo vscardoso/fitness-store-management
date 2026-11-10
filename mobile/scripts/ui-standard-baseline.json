@@ -171,7 +171,7 @@
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 0,
-  "handButton": 8,
+  "handButton": 6,
   "oddWeight": 1
  },
  "app/(tabs)/sales/index.tsx": {

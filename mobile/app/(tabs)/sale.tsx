@@ -683,20 +683,8 @@ function MobileSaleScreen() {
                     returnKeyType="done"
                     onSubmitEditing={handleApplyDiscount}
                   />
-                  <TouchableOpacity
-                    style={styles.discountConfirmBtn}
-                    onPress={handleApplyDiscount}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="checkmark" size={18} color={Colors.light.white} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.discountCancelBtn}
-                    onPress={() => { setDiscountVisible(false); setDiscountInput(''); }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="close" size={18} color={Colors.light.textSecondary} />
-                  </TouchableOpacity>
+                  <AppButton label="Aplicar desconto" icon="checkmark" iconOnly size="sm" onPress={handleApplyDiscount} />
+                  <AppButton label="Cancelar desconto" icon="close" iconOnly size="sm" variant="outlined" onPress={() => { setDiscountVisible(false); setDiscountInput(''); }} />
                 </View>
               )}
               <View style={[styles.totalRow, styles.totalRowFinal]}>
