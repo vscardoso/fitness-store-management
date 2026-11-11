@@ -188,6 +188,71 @@ export function linesToQuantities(lines: ReceiveLine[]): Quantities {
   return q;
 }
 
+// ───────────────────────────── grade do construtor de variações ─────────────────────────────
+// A tela usa o MESMO construtor de variações do cadastro de produto (paleta de cores, tamanhos, quantidade por tamanho). Ele guarda
+// as quantidades numa lista plana (`${cor}-${tamanho}`, vazio = sem cor ou sem tamanho) e deixa sobrar o que a pessoa digitou e depois
+// desmarcou; aqui ficam as contas que levam isso para `Quantities` (só o que está VISÍVEL conta) e dizem o que sai por estar zerado.
+
+export const NO_SIZE = '—';   // como o construtor mostra "sem tamanho" (vira vazio na quantidade)
+
+/** Células da grade que aparecem na tela: cada cor com os tamanhos dela (sem cor: uma coluna só; sem tamanho: uma célula só). */
+export function visibleCells(colors: string[], colorSizes: Record<string, string[]>, sizes: string[]): { color: string; size: string }[] {
+  const out: { color: string; size: string }[] = [];
+  const cols = colors.length ? colors : [''];
+  for (const color of cols) {
+    const own = color === '' ? sizes : (colorSizes[color] ?? sizes);
+    const list = own.length ? own : [NO_SIZE];
+    for (const sz of list) out.push({ color, size: sz === NO_SIZE ? '' : sz });
+  }
+  return out;
+}
+
+/** Quantidade lançada de cada célula visível, no formato de `Quantities` (cor -> tamanho -> peças). */
+export function visibleQuantities(cells: { color: string; size: string }[], flat: Record<string, number>): Quantities {
+  const q: Quantities = {};
+  for (const c of cells) {
+    const n = flat[`${c.color}-${c.size}`] ?? 0;
+    q[c.color] = { ...(q[c.color] ?? {}), [c.size]: n > 0 ? n : 0 };
+  }
+  return q;
+}
+
+/** Quantidades salvas (cor -> tamanho -> peças) para a lista plana do construtor. */
+export function quantitiesToFlat(q: Quantities): Record<string, number> {
+  const flat: Record<string, number> = {};
+  for (const color of Object.keys(q)) for (const size of Object.keys(q[color])) flat[`${color}-${size}`] = q[color][size];
+  return flat;
+}
+
+/**
+ * O que vai ficar de fora por estar com 0 peça (o sistema não aceita estoque zerado): cor inteira sem nenhuma peça e tamanhos
+ * zerados dentro de uma cor que tem peças. `ignoreColors`: cores que ninguém escolheu de propósito (não avisa delas).
+ */
+export function zeroLeftovers(q: Quantities, ignoreColors: string[] = []): { colors: string[]; sizes: { color: string; size: string }[] } {
+  const colors: string[] = [];
+  const sizes: { color: string; size: string }[] = [];
+  for (const color of Object.keys(q)) {
+    if (ignoreColors.includes(color)) continue;
+    const entries = Object.entries(q[color]);
+    const total = entries.reduce((a, [, n]) => a + (n || 0), 0);
+    if (total === 0) { colors.push(color); continue; }
+    for (const [size, n] of entries) if (!(n > 0)) sizes.push({ color, size });
+  }
+  return { colors, sizes };
+}
+
+/** Frase do aviso: diz o que saiu e por quê. Vazia quando não sai nada. */
+export function zeroNotice(left: { colors: string[]; sizes: { color: string; size: string }[] }): string {
+  const parts: string[] = [];
+  const nameOf = (c: string) => c || 'Sem cor';
+  left.colors.forEach((c) => parts.push(`${nameOf(c)} (cor inteira)`));
+  const byColor = new Map<string, string[]>();
+  left.sizes.forEach(({ color, size }) => byColor.set(color, [...(byColor.get(color) ?? []), size || 'Único']));
+  byColor.forEach((szs, color) => parts.push(`${nameOf(color)} ${szs.join(', ')}`));
+  if (!parts.length) return '';
+  return `Retirei o que está com 0 peça: ${parts.join('; ')}. O sistema não aceita estoque zerado.`;
+}
+
 // ───────────────────────────── categoria sugerida pelo nome ─────────────────────────────
 const KEYWORD_TO_CATEGORY: [RegExp, string[]][] = [
   [/t[eê]nis|sapatilha|sand[aá]lia|chinelo/i, ['calcad', 'tenis']],
@@ -219,9 +284,12 @@ export const sameSupplier = (a: SupplierRef, b: SupplierRef): boolean => supplie
 export const itemPieces = (it: ReceiveItem): number => it.lines.reduce((a, l) => a + l.quantity, 0);
 export const itemValue = (it: ReceiveItem): number => itemPieces(it) * it.unitCost;
 
+/** Produtos DIFERENTES da compra: a mesma peça de dois fornecedores são duas linhas, mas um produto só. */
+export const productCount = (d: ReceiveDraft): number => new Set(d.items.map((it) => (it.productId ? `p${it.productId}` : `n${norm(it.name)}`))).size;
+
 export function totals(d: ReceiveDraft): { products: number; pieces: number; value: number } {
   return {
-    products: d.items.length,
+    products: productCount(d),
     pieces: d.items.reduce((a, it) => a + itemPieces(it), 0),
     value: d.items.reduce((a, it) => a + itemValue(it), 0),
   };

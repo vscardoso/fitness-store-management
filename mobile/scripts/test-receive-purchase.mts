@@ -1,6 +1,7 @@
 // Receber compra: lógica pura do rascunho. Rodar: node scripts/test-receive-purchase.mts
 import assert from 'node:assert/strict';
 import {
+  visibleCells, visibleQuantities, quantitiesToFlat, zeroLeftovers, zeroNotice,
   addGrade, buildPayload, cleanSize, colorTotal, discountTotal, emptyDraft, extraPerPiece, gradePresets, gridOfProduct, groupsBySupplier,
   itemPieces, linesToQuantities, matchesName, quantitiesToLines, quantitiesTotal, removeItem, setQuantity, sheetProblem,
   similarByTypo, sortSizes, suggestCategory, totals, upsertItem, supplierKey, type ReceiveItem,
@@ -149,5 +150,45 @@ t('trocar e apagar peça da compra', () => {
   assert.equal(itemPieces(d.items[0]), 7);
   d = removeItem(d, 'a');
   assert.deepEqual(d.items.map((x) => x.key), ['b']);
+});
+t('a mesma peça de dois fornecedores é UM produto (duas linhas) e as peças somam', () => {
+  let d = emptyDraft(A, '2026-11-10');
+  d = upsertItem(d, item('a', { productId: 7, name: 'Legging', supplier: A, lines: [{ color: 'Preto', size: 'M', quantity: 8 }], unitCost: 10 }));
+  d = upsertItem(d, item('b', { productId: 7, name: 'Legging', supplier: { name: 'Rua 25' }, lines: [{ color: 'Preto', size: 'M', quantity: 1 }], unitCost: 12 }));
+  d = upsertItem(d, item('c', { name: 'Vestido', lines: [{ color: 'Preto', size: 'P', quantity: 7 }], unitCost: 30 }));
+  assert.equal(d.items.length, 3);
+  assert.deepEqual({ p: totals(d).products, n: totals(d).pieces }, { p: 2, n: 16 });
+  assert.equal(groupsBySupplier(d).length, 2);
+});
+t('células visíveis: cada cor com os tamanhos dela; sem cor e sem tamanho viram uma célula só', () => {
+  assert.deepEqual(visibleCells(['Preto', 'Rosa'], { Preto: ['P', 'M'], Rosa: ['M'] }, ['P', 'M', 'G']), [
+    { color: 'Preto', size: 'P' }, { color: 'Preto', size: 'M' }, { color: 'Rosa', size: 'M' },
+  ]);
+  // cor sem tamanhos próprios usa os do modelo; sem tamanho nenhum é a peça única (tamanho vazio)
+  assert.deepEqual(visibleCells(['Preto'], {}, ['P', 'M']), [{ color: 'Preto', size: 'P' }, { color: 'Preto', size: 'M' }]);
+  assert.deepEqual(visibleCells(['Preto'], { Preto: [] }, []), [{ color: 'Preto', size: '' }]);
+  assert.deepEqual(visibleCells([], {}, []), [{ color: '', size: '' }]);
+  assert.deepEqual(visibleCells([], {}, ['P', '—']), [{ color: '', size: 'P' }, { color: '', size: '' }]);
+});
+t('só o que está visível conta: quantidade de tamanho desmarcado fica de fora', () => {
+  const cells = visibleCells(['Preto'], { Preto: ['P', 'M'] }, ['P', 'M', 'G']);
+  const flat = { 'Preto-P': 2, 'Preto-M': 0, 'Preto-G': 9, 'Rosa-P': 4 };   // G foi desmarcado; Rosa saiu da lista
+  const q = visibleQuantities(cells, flat);
+  assert.deepEqual(q, { Preto: { P: 2, M: 0 } });
+  assert.equal(quantitiesTotal(q), 2);
+  assert.deepEqual(quantitiesToFlat({ Preto: { P: 2 }, '': { '': 3 } }), { 'Preto-P': 2, '-': 3 });
+});
+t('zerados: o que sai da compra e a frase que avisa por quê', () => {
+  const left = zeroLeftovers({ Preto: { P: 2, M: 0, G: 0 }, Rosa: { P: 0, M: 0 }, Azul: { M: 1 } });
+  assert.deepEqual(left.colors, ['Rosa']);
+  assert.deepEqual(left.sizes, [{ color: 'Preto', size: 'M' }, { color: 'Preto', size: 'G' }]);
+  const msg = zeroNotice(left);
+  assert.match(msg, /Rosa \(cor inteira\)/);
+  assert.match(msg, /Preto M, G/);
+  assert.match(msg, /O sistema não aceita estoque zerado/);
+  assert.equal(zeroNotice(zeroLeftovers({ Preto: { P: 1, M: 1 } })), '');   // nada zerado: nenhum aviso
+  assert.match(zeroNotice(zeroLeftovers({ '': { '': 0, P: 3 } })), /Sem cor Único/);
+  // cor que ninguém escolheu de propósito não gera aviso
+  assert.deepEqual(zeroLeftovers({ Preto: { P: 0 }, Rosa: { P: 1 } }, ['Preto']).colors, []);
 });
 console.log(`${n} testes ok`);

@@ -1,22 +1,30 @@
 /**
  * Folha da peça: a MESMA para produto já cadastrado e para produto novo (sem assistente de passos).
- * - já cadastrado: abre direto na grade; cor, tamanho, custo e preço vêm do cadastro (a pessoa só digita as quantidades);
- * - novo: nome e categoria no topo (categoria sugerida pelo nome), cores, grade, custo e preço de venda.
+ * - já cadastrado: cores e tamanhos do produto, a pessoa só digita as quantidades; custo e preço vêm do cadastro;
+ * - novo: nome e categoria no topo (categoria sugerida pelo nome), grade de variações, custo e preço de venda.
+ *
+ * A grade (tamanhos, paleta de cores, um bloco por cor, quantidade por tamanho, "todos os tamanhos desta cor") é o MESMO
+ * `VariantBuilderInline` do cadastro de produto, em modo "receber" (sem preço por variação, com grade fechada por cor).
+ * Tamanho ou cor com 0 peça NÃO entra na compra: sai sozinho, e a folha avisa o que saiu e por quê (o sistema não aceita estoque zerado).
  * Nada vai ao servidor aqui: "Adicionar à compra" só põe a peça no rascunho. O erro aparece embaixo do próprio campo.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { TextInput } from 'react-native-paper';
 
+import AppButton from '@/components/ui/AppButton';
 import BottomSheet from '@/components/ui/BottomSheet';
-import QuantityGrid from '@/components/receber/QuantityGrid';
+import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import { Colors, theme } from '@/constants/Colors';
+import { DEFAULT_SIZES, type SizeOption } from '@/types/productVariant';
 import { useBrandingColors } from '@/store/brandingStore';
 import { moneyInput, parseMoneyBr, toMoneyField } from '@/utils/cashMoney';
 import { formatCurrency } from '@/utils/format';
 import {
-  COLORS, cleanSize, defaultSizesFor, gridOfProduct, sortSizes, linesToQuantities, norm, quantitiesToLines, quantitiesTotal, sheetProblem, suggestCategory,
-  type Quantities, type ReceiveItem, type SupplierRef, type VariantInfo,
+  NO_SIZE, cleanSize, defaultSizesFor, gridOfProduct, linesToQuantities, quantitiesToFlat, quantitiesToLines, quantitiesTotal, sheetProblem,
+  sortSizes, suggestCategory, visibleCells, visibleQuantities, zeroLeftovers, zeroNotice,
+  type ReceiveItem, type SupplierRef, type VariantInfo,
 } from '@/utils/receivePurchase';
 
 export interface PieceModel {
@@ -36,94 +44,129 @@ interface Props {
   categories: { id: number; name: string }[];
   supplier: SupplierRef;
   onPickSupplier: () => void;
-  onSave: (item: ReceiveItem) => void;
+  /** `notice`: o que saiu da peça por estar com 0 peça (a tela mostra o aviso depois de fechar a folha). */
+  onSave: (item: ReceiveItem, notice?: string) => void;
   onDelete?: (key: string) => void;
   onDismiss: () => void;
+  /** Põe a MESMA peça na compra com outro fornecedor (só ao editar uma peça cadastrada que já está na compra). */
+  onAddOtherSupplier?: () => void;
+  /** Esta peça (produto cadastrado) já está na compra com ESTE fornecedor, em outra linha? (a mesma peça de fornecedores diferentes é permitida) */
+  conflict?: (supplier: SupplierRef, productId: number | undefined, itemKey: string | undefined) => boolean;
 }
 
 const newKey = () => `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const DEFAULT_SIZE_VALUES = DEFAULT_SIZES.map((s) => s.value);
 
-export default function PieceSheet({ model, categories, supplier, onPickSupplier, onSave, onDelete, onDismiss }: Props) {
+export default function PieceSheet({ model, categories, supplier, onPickSupplier, onSave, onDelete, onDismiss, onAddOtherSupplier, conflict }: Props) {
   const brand = useBrandingColors();
   const [name, setName] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [suggestedId, setSuggestedId] = useState<number | null>(null);
   const [catTouched, setCatTouched] = useState(false);
-  const [colors, setColors] = useState<string[]>([]);
-  const [q, setQ] = useState<Quantities>({});
   const [cost, setCost] = useState('');
   const [price, setPrice] = useState('');
-  const [custom, setCustom] = useState('');
-  const [oneSize, setOneSize] = useState(false);
+  // grade (formato do construtor de variações do cadastro)
+  const [hasVariants, setHasVariants] = useState(true);
+  const [sizesSel, setSizesSel] = useState<string[]>([]);
+  const [colorsSel, setColorsSel] = useState<string[]>([]);
+  const [colorSizes, setColorSizes] = useState<Record<string, string[]>>({});
+  const [vq, setVq] = useState<Record<string, number>>({});
   const [extraSizes, setExtraSizes] = useState<string[]>([]);
-  const [customSize, setCustomSize] = useState('');
+  const [single, setSingle] = useState(0);
 
   useEffect(() => {
     if (!model) return;
     const it = model.item;
+    const isNewModel = model.kind === 'new';
     setName(it?.newProduct?.name ?? model.name ?? '');
     const cat = categories.find((c) => c.id === it?.newProduct?.categoryId)
-      ?? (model.kind === 'new' ? suggestCategory(model.name, categories) : null);
+      ?? (isNewModel ? suggestCategory(model.name, categories) : null);
     setCategoryId(cat?.id ?? null);
-    setSuggestedId(model.kind === 'new' && !it ? (cat?.id ?? null) : null);
+    setSuggestedId(isNewModel && !it ? (cat?.id ?? null) : null);
     setCatTouched(!!it);
-    const known = model.variants.length ? gridOfProduct(model.variants, model.categoryName).colors : [];
-    const inItem = it ? Object.keys(linesToQuantities(it.lines)) : [];
-    setColors([...new Set([...known, ...inItem])]);
-    setQ(it ? linesToQuantities(it.lines) : {});
     setCost(toMoneyField(it?.unitCost ?? model.lastCost ?? 0));
     setPrice(toMoneyField(it?.newProduct?.basePrice ?? it?.price ?? model.basePrice ?? 0));
-    setCustom('');
-    setOneSize(!!it && model.kind === 'new' && it.lines.length > 0 && it.lines.every((l) => !l.size));
-    setExtraSizes(it ? [...new Set(it.lines.map((l) => l.size ?? '').filter((s) => s !== ''))] : []);
-    setCustomSize('');
+
+    const known = model.variants.length ? gridOfProduct(model.variants, model.categoryName) : { colors: [] as string[], sizes: [] as string[] };
+    const knownSizes = known.sizes.filter((s) => s !== '');
+    const q = it ? linesToQuantities(it.lines) : {};
+    const lineColors = Object.keys(q).filter((c) => c !== '');
+    const lineSizes = [...new Set(Object.values(q).flatMap((row) => Object.keys(row)).filter((s) => s !== ''))];
+    const soloPiece = isNewModel && !!it && it.lines.length > 0 && it.lines.every((l) => !l.color && !l.size);
+
+    setHasVariants(!soloPiece);
+    setSingle(soloPiece ? (q['']?.[''] ?? 0) : 0);
+    const sizesBase = it ? sortSizes(lineSizes.length ? lineSizes : knownSizes) : (isNewModel ? defaultSizesFor(cat?.name) : knownSizes);
+    setSizesSel(sizesBase);
+    setColorsSel(lineColors);
+    const cs: Record<string, string[]> = {};
+    lineColors.forEach((c) => {
+      const own = Object.keys(q[c]).map((s) => s || NO_SIZE);
+      cs[c] = sortSizes(own.filter((s) => s !== NO_SIZE)).concat(own.includes(NO_SIZE) ? [NO_SIZE] : []);
+    });
+    setColorSizes(cs);
+    setVq(it ? quantitiesToFlat(q) : {});
+    setExtraSizes([...new Set([...knownSizes, ...lineSizes, ...sizesBase])].filter((s) => !DEFAULT_SIZE_VALUES.includes(s)));
     // só reinicia ao abrir outra peça
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model]);
 
   const isNew = model?.kind === 'new';
   const category = categories.find((c) => c.id === categoryId);
-  const sizes = useMemo(() => {
-    if (isNew && oneSize) return [''];
-    const base = isNew ? defaultSizesFor(category?.name) : gridOfProduct(model?.variants ?? [], model?.categoryName).sizes;
-    return sortSizes([...base, ...extraSizes]);
-  }, [isNew, oneSize, category?.name, model, extraSizes]);
+
+  // tamanhos oferecidos nos chips: os do cadastro de produto mais os do próprio produto e os digitados
+  const sizeOptions = useMemo<SizeOption[]>(() => {
+    const extras = [...new Set([...extraSizes, ...sizesSel.filter((s) => !DEFAULT_SIZE_VALUES.includes(s))])];
+    return [...DEFAULT_SIZES, ...sortSizes(extras).map((v) => ({ label: v, value: v }))];
+  }, [extraSizes, sizesSel]);
+
+  const cells = useMemo(() => visibleCells(colorsSel, colorSizes, sizesSel), [colorsSel, colorSizes, sizesSel]);
+  const q = useMemo(() => (hasVariants ? visibleQuantities(cells, vq) : { '': { '': single } }), [hasVariants, cells, vq, single]);
   const lines = useMemo(() => quantitiesToLines(q, model?.variants ?? []), [q, model]);
+  const pieces = quantitiesTotal(q);
+  const leftover = useMemo(() => (pieces > 0 ? zeroLeftovers(q) : { colors: [], sizes: [] }), [q, pieces]);
+  const notice = zeroNotice(leftover);
+
   const costNum = parseMoneyBr(cost) ?? 0;
   const priceNum = parseMoneyBr(price) ?? 0;
   const needsPrice = isNew || lines.some((l) => !l.variantId);
-  const pieces = quantitiesTotal(q);
 
-  const colorList = useMemo(() => [...new Set([...(isNew ? [''] : []), ...COLORS, ...colors])], [colors, isNew]);
-  const visibleColors = colors.filter((c) => colorList.includes(c));
-
+  const dupe = !!model && !isNew && !!conflict?.(supplier, model.productId, model.item?.key);
   const problemBase = model
     ? sheetProblem({ mode: model.kind, name, categoryId, q, cost: costNum, price: isNew ? priceNum : 1, supplier })
     : '';
   const loneBlank = lines.length > 1 && lines.some((l) => !l.variantId && !l.color && !l.size);
-  const problem = problemBase
+  const problem = (dupe ? 'Esta peça já está na compra com este fornecedor: abra a que já está na lista para mudar as quantidades, ou troque o fornecedor' : '')
+    || problemBase
     || (loneBlank ? 'Peça sem cor e de tamanho único não combina com outras: escolha a cor de cada uma' : '')
     || (!isNew && needsPrice && !(priceNum > 0) ? 'Falta o preço das variações novas' : '');
   const costError = pieces > 0 && !(costNum > 0) ? 'Falta o custo por peça' : '';
   const priceError = pieces > 0 && needsPrice && !(priceNum > 0) ? (isNew ? 'Falta o preço de venda' : 'Falta o preço das variações novas') : '';
 
-  const toggleColor = (c: string) => {
-    setColors((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
-    setQ((cur) => { if (!(c in cur)) return cur; const { [c]: _gone, ...rest } = cur; return rest; });
-  };
-  const addCustom = () => {
-    const c = custom.trim().replace(/\s+/g, ' ');
-    if (!c) return;
-    const label = c[0].toUpperCase() + c.slice(1);
-    setColors((cur) => (cur.some((x) => norm(x) === norm(label)) ? cur : [...cur, label]));
-    setCustom('');
+  const knownColors = useMemo(
+    () => (model && !isNew ? [...new Set(model.variants.map((v) => v.color ?? '').filter((c) => c !== ''))] : []),
+    [model, isNew],
+  );
+  const toggleKnownColor = (c: string) => {
+    if (colorsSel.includes(c)) {
+      setColorsSel((cur) => cur.filter((x) => x !== c));
+      setColorSizes((cur) => { const { [c]: _gone, ...rest } = cur; return rest; });
+    } else {
+      setColorsSel((cur) => [...cur, c]);
+      setColorSizes((cur) => (cur[c] ? cur : { ...cur, [c]: [...sizesSel] }));
+    }
   };
 
-  const addSize = () => {
-    const s = cleanSize(customSize);
-    if (!s) return;
-    setExtraSizes((cur) => (cur.includes(s) ? cur : [...cur, s]));
-    setCustomSize('');
+  const addCustomSize = (raw: string) => {
+    const v = cleanSize(raw);
+    if (!v) return;
+    setExtraSizes((cur) => (cur.includes(v) || DEFAULT_SIZE_VALUES.includes(v) ? cur : [...cur, v]));
+    setSizesSel((cur) => (cur.includes(v) ? cur : [...cur, v]));
+    setColorSizes((cur) => {
+      const next: Record<string, string[]> = {};
+      Object.entries(cur).forEach(([c, szs]) => { next[c] = szs.includes(v) ? szs : [...szs, v]; });
+      return next;
+    });
   };
 
   const save = () => {
@@ -140,7 +183,7 @@ export default function PieceSheet({ model, categories, supplier, onPickSupplier
       variants: model.variants,
       categoryName: category?.name ?? model.categoryName,
       addedBy: model.item?.addedBy ?? 'Você',
-    });
+    }, notice || undefined);
   };
 
   const hint = !problem ? `Entram ${pieces} peça${pieces === 1 ? '' : 's'} · ${formatCurrency(pieces * costNum)} de mercadoria` : problem;
@@ -157,6 +200,7 @@ export default function PieceSheet({ model, categories, supplier, onPickSupplier
       tall
       actions={[
         { label: model?.item ? 'Salvar alterações' : 'Adicionar à compra', variant: 'primary', disabled: !!problem, onPress: save },
+        ...(model?.item && !isNew && onAddOtherSupplier ? [{ label: 'Mesma peça de outro fornecedor', variant: 'secondary' as const, onPress: onAddOtherSupplier }] : []),
         ...(model?.item && onDelete ? [{ label: 'Tirar da compra', variant: 'danger' as const, onPress: () => onDelete(model.item!.key) }] : []),
       ]}
     >
@@ -196,46 +240,61 @@ export default function PieceSheet({ model, categories, supplier, onPickSupplier
             </>
           )}
 
-          <View>
-            <Text style={styles.label}>Cores que chegaram</Text>
-            <View style={styles.chips}>
-              {colorList.map((c) => (
-                <TouchableOpacity key={c} style={[styles.chip, colors.includes(c) && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}
-                  onPress={() => toggleColor(c)} accessibilityRole="checkbox" accessibilityState={{ checked: colors.includes(c) }}>
-                  <Text style={[styles.chipText, colors.includes(c) && { color: brand.primary }]}>{c || 'Sem cor'}</Text>
-                </TouchableOpacity>
-              ))}
+          {knownColors.length > 0 && (
+            <View>
+              <Text style={styles.label}>Cores que este produto já tem</Text>
+              <View style={styles.chips}>
+                {knownColors.map((c) => (
+                  <TouchableOpacity key={c} style={[styles.chip, colorsSel.includes(c) && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}
+                    onPress={() => toggleKnownColor(c)} accessibilityRole="checkbox" accessibilityState={{ checked: colorsSel.includes(c) }}>
+                    <Text style={[styles.chipText, colorsSel.includes(c) && { color: brand.primary }]}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-            <View style={[styles.rowBetween, { marginTop: 8, gap: 8 }]}>
-              <RNTextInput style={styles.customInput} value={custom} onChangeText={setCustom} placeholder="Outra cor (ex.: Verde militar)"
-                placeholderTextColor={Colors.light.textTertiary} onSubmitEditing={addCustom} accessibilityLabel="Outra cor" />
-              <TouchableOpacity style={styles.chip} onPress={addCustom} accessibilityRole="button" accessibilityLabel="Adicionar cor">
-                <Text style={styles.chipText}>Adicionar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {isNew && (
-            <TouchableOpacity style={[styles.chip, { alignSelf: 'flex-start' }, oneSize && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}
-              onPress={() => { setOneSize((v) => !v); setQ({}); }} accessibilityRole="checkbox" accessibilityState={{ checked: oneSize }}
-              accessibilityLabel="Peça de tamanho único">
-              <Text style={[styles.chipText, oneSize && { color: brand.primary }]}>Tamanho único</Text>
-            </TouchableOpacity>
           )}
 
-          <View>
-            <Text style={styles.label}>Quantas peças de cada tamanho</Text>
-            <QuantityGrid colors={visibleColors} sizes={sizes} q={q} onChange={setQ} />
-            {!(isNew && oneSize) && (
-              <View style={[styles.rowBetween, { marginTop: 8, gap: 8 }]}>
-                <RNTextInput style={styles.customInput} value={customSize} onChangeText={setCustomSize} placeholder="Outro tamanho (ex.: XG, 44)"
-                  placeholderTextColor={Colors.light.textTertiary} onSubmitEditing={addSize} autoCapitalize="characters" accessibilityLabel="Outro tamanho" />
-                <TouchableOpacity style={styles.chip} onPress={addSize} accessibilityRole="button" accessibilityLabel="Adicionar tamanho">
-                  <Text style={styles.chipText}>Adicionar</Text>
-                </TouchableOpacity>
+          {/* Grade de variações: o mesmo construtor do cadastro de produto */}
+          <VariantBuilderInline
+            mode="receber"
+            hideToggle={!isNew}
+            hasVariants={hasVariants}
+            onToggle={(v) => { setHasVariants(v); if (!v) setVq({}); }}
+            selectedSizes={sizesSel}
+            onSizesChange={setSizesSel}
+            selectedColors={colorsSel}
+            onColorsChange={setColorsSel}
+            colorSizes={colorSizes}
+            onColorSizesChange={setColorSizes}
+            basePrice={0}
+            costPrice={0}
+            variantPrices={{}}
+            onVariantPriceChange={() => {}}
+            variantQuantities={vq}
+            onVariantQuantitiesChange={(patch) => setVq((cur) => ({ ...cur, ...patch }))}
+            sizeOptions={sizeOptions}
+            onCustomSize={addCustomSize}
+          />
+
+          {isNew && !hasVariants && (
+            <View style={styles.singleBox}>
+              <Text style={styles.label}>Quantas peças chegaram</Text>
+              <View style={styles.singleRow}>
+                <AppButton variant="outlined" icon="remove" iconOnly onPress={() => setSingle((n) => Math.max(0, n - 1))} />
+                <RNTextInput style={styles.singleInput} keyboardType="number-pad" value={single > 0 ? String(single) : ''} placeholder="0"
+                  placeholderTextColor={Colors.light.textTertiary} maxLength={4}
+                  onChangeText={(t) => setSingle(Math.min(9999, parseInt(t.replace(/[^0-9]/g, ''), 10) || 0))} accessibilityLabel="Quantidade de peças" />
+                <AppButton variant="outlined" icon="add" iconOnly onPress={() => setSingle((n) => Math.min(9999, n + 1))} />
               </View>
-            )}
-          </View>
+            </View>
+          )}
+
+          {!!notice && (
+            <View style={styles.notice} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <Ionicons name="alert-circle" size={18} color={Colors.light.warningDarker} />
+              <Text style={styles.noticeText}>{notice.replace('Retirei', 'Vou retirar')}</Text>
+            </View>
+          )}
 
           <View style={styles.pair}>
             <View style={{ flex: 1 }}>
@@ -274,8 +333,12 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, backgroundColor: Colors.light.card },
   chipText: { fontSize: 13, fontWeight: theme.fontWeight.semibold, color: Colors.light.text },
-  customInput: { flex: 1, minHeight: 44, borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 12, paddingHorizontal: 12, fontSize: 15, color: Colors.light.text, backgroundColor: Colors.light.surfaceSoft },
   pair: { flexDirection: 'row', gap: 10 },
   error: { fontSize: 12, fontWeight: theme.fontWeight.bold, color: Colors.light.error, marginTop: 4 },
   hint: { fontSize: 13, fontWeight: theme.fontWeight.semibold, color: Colors.light.textSecondary, textAlign: 'center' },
+  singleBox: { gap: 6 },
+  singleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  singleInput: { width: 90, height: 48, textAlign: 'center', fontSize: 18, fontWeight: theme.fontWeight.bold, borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 12, color: Colors.light.text, backgroundColor: Colors.light.surfaceSoft },
+  notice: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: Colors.light.warningLight, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.light.warningDark },
+  noticeText: { flex: 1, fontSize: 13, fontWeight: theme.fontWeight.semibold, color: Colors.light.warningDarker },
 });

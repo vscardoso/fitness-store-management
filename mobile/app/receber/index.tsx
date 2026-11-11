@@ -70,6 +70,7 @@ function ReceberCompra() {
   const [picker, setPicker] = useState<Picker>(null);
   const [localSuppliers, setLocalSuppliers] = useState<SupplierRef[]>([]);
   const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null);
+  const [zeroNote, setZeroNote] = useState('');   // o que saiu da última peça por estar com 0 peça (o sistema não aceita estoque zerado)
   const [result, setResult] = useState<ReceivePurchaseResult | null>(null);
   const [labelNote, setLabelNote] = useState('');
   const [submitError, setSubmitError] = useState('');
@@ -156,19 +157,40 @@ function ReceberCompra() {
       ? { kind: 'existing', productId: item.productId, name: item.name, variants: item.variants ?? [], categoryName: item.categoryName, lastCost: item.unitCost, basePrice: item.price, item }
       : { kind: 'new', name: item.name, variants: [], item });
   };
+  const existingModel = (g: ProductGrouped): PieceModel => {
+    const first = g.variants?.[0];
+    return {
+      kind: 'existing', productId: g.id, name: g.name,
+      variants: (g.variants ?? []).map((v) => ({ id: v.id, color: v.color, size: v.size, price: v.price, cost_price: v.cost_price })),
+      categoryName: catName(g.category_id), lastCost: Number(first?.cost_price ?? 0) || undefined, basePrice: Number(first?.price ?? g.min_price ?? 0) || undefined,
+    };
+  };
+  // A MESMA peça pode ter vindo de fornecedores diferentes na mesma compra (cada um com o seu custo): uma linha por produto e fornecedor.
   const openExisting = (g: ProductGrouped) => {
-    const already = draft?.items.find((i) => i.productId === g.id);
-    if (already) return openEdit(already);
     ensureSupplier((s) => {
+      const already = draft?.items.find((i) => i.productId === g.id && supplierKey(i.supplier) === supplierKey(s));
+      if (already) return openEdit(already);
       setPieceSupplier(s);
-      const first = g.variants?.[0];
-      setModel({
-        kind: 'existing', productId: g.id, name: g.name,
-        variants: (g.variants ?? []).map((v) => ({ id: v.id, color: v.color, size: v.size, price: v.price, cost_price: v.cost_price })),
-        categoryName: catName(g.category_id), lastCost: Number(first?.cost_price ?? 0) || undefined, basePrice: Number(first?.price ?? g.min_price ?? 0) || undefined,
-      });
+      setModel(existingModel(g));
     });
   };
+  const addOtherSupplier = () => {
+    const cur = model?.item;
+    if (!cur || !cur.productId) return;
+    const base: PieceModel = { kind: 'existing', productId: cur.productId, name: cur.name, variants: cur.variants ?? [], categoryName: cur.categoryName, lastCost: cur.unitCost, basePrice: cur.price };
+    setModel(null);
+    setPicker({
+      target: 'piece',
+      after: (s) => {
+        const same = draft?.items.find((i) => i.productId === cur.productId && supplierKey(i.supplier) === supplierKey(s));
+        if (same) return openEdit(same);
+        setPieceSupplier(s);
+        setModel(base);
+      },
+    });
+  };
+  const productConflict = (sup: SupplierRef, productId: number | undefined, key: string | undefined) =>
+    !!productId && !!draft?.items.some((i) => i.productId === productId && i.key !== key && supplierKey(i.supplier) === supplierKey(sup));
   const openNew = (name: string) => {
     const already = draft?.items.find((i) => !i.productId && norm(i.name) === norm(name));
     if (already) return openEdit(already);
@@ -178,13 +200,14 @@ function ReceberCompra() {
     });
   };
 
-  const saveItem = (item: ReceiveItem) => {
+  const saveItem = (item: ReceiveItem, notice?: string) => {
     if (!draft) return;
     const before = draft;
     setDraft(upsertItem(draft, item));
     setModel(null);
     setQuery('');
-    showToast(`${item.name} · ${itemPieces(item)} peças na compra`, () => setDraft(before));
+    setZeroNote(notice ?? '');
+    showToast(`${item.name} · ${itemPieces(item)} peças na compra`, () => { setDraft(before); setZeroNote(''); });
   };
   const deleteItem = (key: string) => {
     if (!draft) return;
@@ -290,13 +313,13 @@ function ReceberCompra() {
           </View>
 
           <View style={styles.card}>
-            <TextInput mode="outlined" label="Frete e despesas desta compra (opcional)" value={freightText} keyboardType="decimal-pad"
+            <TextInput mode="outlined" label="Despesas da compra: frete, embalagem... (opcional)" value={freightText} keyboardType="decimal-pad"
               left={<TextInput.Affix text="R$" />} activeOutlineColor={brand.primary}
               onChangeText={(v) => { const m = moneyInput(v); setFreightText(m); setDraft((d) => (d ? { ...d, freight: parseMoneyBr(m) ?? 0 } : d)); }} />
             <Text style={styles.muted}>
               {draft.freight > 0 || discountTotal(draft) > 0
                 ? `O custo real de cada peça ${extra >= 0 ? 'sobe' : 'cai'} ${formatCurrency(Math.abs(extra))} (rateado nas ${t.pieces} peças).`
-                : 'Sem frete nem desconto, o custo fica como digitado.'}
+                : 'Sem despesas nem desconto, o custo fica como digitado.'}
             </Text>
           </View>
 
@@ -329,6 +352,14 @@ function ReceberCompra() {
             <Ionicons name="chevron-down" size={18} color={Colors.light.textSecondary} />
           </TouchableOpacity>
         </View>
+
+        {!!zeroNote && (
+          <View style={styles.zeroNote} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Ionicons name="alert-circle" size={18} color={Colors.light.warningDarker} />
+            <Text style={styles.zeroNoteText}>{zeroNote}</Text>
+            <AppButton variant="text" size="sm" label="Entendi" onPress={() => setZeroNote('')} />
+          </View>
+        )}
 
         <View>
           <Text style={styles.label}>Qual peça chegou?</Text>
@@ -363,6 +394,11 @@ function ReceberCompra() {
                     <Text style={styles.muted} numberOfLines={1}>
                       Já cadastrada · {g.total_stock} em estoque{first?.cost_price ? ` · último custo ${formatCurrency(Number(first.cost_price))}` : ''}
                     </Text>
+                    {draft.items.some((i) => i.productId === g.id) && (
+                      <Text style={[styles.muted, { color: brand.primary }]} numberOfLines={1}>
+                        Já está na compra: {draft.items.filter((i) => i.productId === g.id).map((i) => `${i.supplier.name} (${itemPieces(i)})`).join(', ')}
+                      </Text>
+                    )}
                   </View>
                   <Text style={[styles.badge, { color: brand.primary }]}>cadastrada</Text>
                 </TouchableOpacity>
@@ -429,6 +465,8 @@ function ReceberCompra() {
         onSave={saveItem}
         onDelete={deleteItem}
         onDismiss={() => setModel(null)}
+        onAddOtherSupplier={addOtherSupplier}
+        conflict={productConflict}
       />
       <SupplierSheet
         visible={!!picker}
@@ -467,7 +505,10 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12, color: Colors.light.textSecondary, textAlign: 'center' },
   supplierRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 12, backgroundColor: Colors.light.card },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 52, paddingHorizontal: 14, borderWidth: 2, borderRadius: 14, backgroundColor: Colors.light.card },
-  searchInput: { flex: 1, height: 52, fontSize: 16, color: Colors.light.text },
+  searchInput: { flex: 1, height: 52, fontSize: 16, color: Colors.light.text, outlineStyle: 'none' } as any,
+  zeroNote: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: 12, borderRadius: 12, backgroundColor: Colors.light.warningLight, borderWidth: 1, borderColor: Colors.light.warningDark },
+  zeroNoteText: { flex: 1, minWidth: 200, fontSize: 13, fontWeight: theme.fontWeight.semibold, color: Colors.light.warningDarker },
+
   hit: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, padding: 10, borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 14, backgroundColor: Colors.light.card },
   hitNew: { borderStyle: 'dashed' },
   thumb: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

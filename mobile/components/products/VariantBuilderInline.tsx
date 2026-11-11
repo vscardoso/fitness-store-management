@@ -51,6 +51,7 @@ import {
   type ColorGroup,
 } from '@/types/productVariant';
 import HScroll from '@/components/ui/HScroll';
+import { gradePresets, sortSizes } from '@/utils/receivePurchase';
 import { formatPercent } from '@/utils/format';
 import { useDesktopSheet } from '@/hooks/useLayout';
 
@@ -79,6 +80,18 @@ interface VariantBuilderInlineProps {
   onVariantQuantitiesChange: (patch: Record<string, number>) => void;
   /** Erro de validação (ex: "Selecione pelo menos um tamanho ou cor") */
   validationError?: string;
+  /**
+   * 'cadastro' (padrão): cadastro de produto, com preço por variação.
+   * 'receber': tela Receber compra: a MESMA grade (tamanhos, paleta de cores, uma cor por bloco, quantidade por tamanho),
+   * sem nenhum preço (o custo e o preço são do produto, não de cada variação) e com "grade fechada" por cor.
+   */
+  mode?: 'cadastro' | 'receber';
+  /** Tamanhos oferecidos nos chips (padrão: DEFAULT_SIZES). No Receber compra entram os do próprio produto (ex.: 38, 40). */
+  sizeOptions?: SizeOption[];
+  /** Mostra o campo "Outro tamanho" e avisa a tela do tamanho digitado (ex.: XG, 44). */
+  onCustomSize?: (size: string) => void;
+  /** Esconde o interruptor "Grade de Variações" (produto já cadastrado: a grade fica sempre aberta). */
+  hideToggle?: boolean;
 }
 
 /** Estado local para o modal de edição em lote */
@@ -132,7 +145,13 @@ export default function VariantBuilderInline({
   variantQuantities,
   onVariantQuantitiesChange,
   validationError,
+  mode = 'cadastro',
+  sizeOptions,
+  onCustomSize,
+  hideToggle,
 }: VariantBuilderInlineProps) {
+  const receive = mode === 'receber';
+  const sizeList: SizeOption[] = sizeOptions ?? DEFAULT_SIZES;
   const desktopSheet = useDesktopSheet();
   // Modal de edição em lote (por cor)
   const [batchEdit, setBatchEdit] = useState<BatchEditState | null>(null);
@@ -222,6 +241,15 @@ export default function VariantBuilderInline({
   }, [customColor, selectedColors, toggleColor]);
 
 
+  // ── Outro tamanho (Receber compra) ───────────────────────
+  const [customSize, setCustomSize] = useState('');
+  const addCustomSize = useCallback(() => {
+    const v = customSize.trim().replace(/\s+/g, ' ').toUpperCase();
+    if (!v || !onCustomSize) return;
+    onCustomSize(v);
+    setCustomSize('');
+  }, [customSize, onCustomSize]);
+
   // ── Tamanhos por cor ─────────────────────────────────────
 
   const toggleColorSize = useCallback((color: string, size: string) => {
@@ -269,6 +297,18 @@ export default function VariantBuilderInline({
     const v = parseQty(text);
     const patch: Record<string, number> = {};
     sizes.forEach((sz) => { patch[qtyKey(color, sz)] = v; });
+    onVariantQuantitiesChange(patch);
+  };
+
+  /** Grade fechada (caixa do fornecedor): soma uma quantidade por tamanho, na ordem dos tamanhos desta cor. */
+  const addGradeToColor = (color: string, sizes: string[], per: number[]) => {
+    const patch: Record<string, number> = {};
+    sizes.forEach((sz, i) => { patch[qtyKey(color, sz)] = Math.min(9999, qtyOf(color, sz) + (per[i] ?? 0)); });
+    onVariantQuantitiesChange(patch);
+  };
+  const clearColorQty = (color: string, sizes: string[]) => {
+    const patch: Record<string, number> = {};
+    sizes.forEach((sz) => { patch[qtyKey(color, sz)] = 0; });
     onVariantQuantitiesChange(patch);
   };
 
@@ -362,7 +402,7 @@ export default function VariantBuilderInline({
     <View style={styles.root}>
 
       {/* ── Toggle Header ──────────────────────────────── */}
-      <Pressable
+      {!hideToggle && <Pressable
         style={({ pressed }) => [styles.toggleRow, pressed && { opacity: 0.85 }]}
         onPress={() => onToggle(!hasVariants)}
       >
@@ -389,7 +429,7 @@ export default function VariantBuilderInline({
               <Text style={styles.toggleSubtitle}>
                 {hasVariants
                   ? `${variantCount} ${variantCount !== 1 ? 'variações' : 'variação'} configurada${variantCount !== 1 ? 's' : ''}`
-                  : 'Tamanhos, cores e preços individuais'}
+                  : receive ? 'Peça única, sem cor e sem tamanho' : 'Tamanhos, cores e preços individuais'}
               </Text>
             </View>
           </View>
@@ -399,7 +439,7 @@ export default function VariantBuilderInline({
             color={brandingColors.primary}
           />
         </LinearGradient>
-      </Pressable>
+      </Pressable>}
 
       {/* ── Expanded Content ───────────────────────────── */}
       {hasVariants && (
@@ -430,13 +470,16 @@ export default function VariantBuilderInline({
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.chipsRow}
             >
-              {DEFAULT_SIZES.map((s: SizeOption) => {
+              {sizeList.map((s: SizeOption) => {
                 const isSelected = selectedSizes.includes(s.value);
                 return (
                   <TouchableOpacity
                     key={s.value}
                     onPress={() => toggleSize(s.value)}
                     activeOpacity={0.7}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={`Tamanho ${s.label}`}
                     style={[styles.sizeChip, isSelected && styles.sizeChipSelected, isSelected && { borderColor: brandingColors.primary, shadowColor: brandingColors.primary }]}
                   >
                     {isSelected && (
@@ -459,6 +502,25 @@ export default function VariantBuilderInline({
                 );
               })}
             </HScroll>
+            {!!onCustomSize && (
+              <View style={styles.customColorRow}>
+                <TextInput
+                  value={customSize}
+                  onChangeText={setCustomSize}
+                  label="Outro tamanho"
+                  placeholder="Ex.: XG, 44"
+                  mode="outlined"
+                  dense
+                  autoCapitalize="characters"
+                  maxLength={12}
+                  style={{ flex: 1 }}
+                  returnKeyType="done"
+                  onSubmitEditing={addCustomSize}
+                  accessibilityLabel="Outro tamanho"
+                />
+                <AppButton variant="primary" size="md" label="Adicionar" disabled={!customSize.trim()} onPress={addCustomSize} />
+              </View>
+            )}
           </View>
 
           {/* ══ CORES ════════════════════════════════ */}
@@ -530,6 +592,9 @@ export default function VariantBuilderInline({
                           onPress={() => toggleColor(c.value)}
                           style={styles.colorSwatchWrapper}
                           activeOpacity={0.75}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: isSelected }}
+                          accessibilityLabel={`Cor ${c.label}`}
                         >
                           <View style={[
                             styles.colorSwatchRing,
@@ -595,7 +660,7 @@ export default function VariantBuilderInline({
                     {variantCount} {variantCount !== 1 ? 'variações' : 'variação'}
                   </Text>
                 </View>
-                {basePrice > 0 && (
+                {!receive && basePrice > 0 && (
                   <AppButton
                     variant="ghost"
                     size="sm"
@@ -612,10 +677,15 @@ export default function VariantBuilderInline({
                 const colorDef = DEFAULT_COLORS.find(c => c.value === color);
                 // Tamanhos específicos desta cor (ou global se não houver override)
                 const sizesForColor = color === '—' ? selectedSizes : (colorSizes[color] ?? selectedSizes);
-                const sizes = sizesForColor.length > 0 ? sizesForColor : ['—'];
+                const sizesBase = sizesForColor.length > 0 ? sizesForColor : ['—'];
+                // Receber compra: tamanhos sempre na ordem natural (a grade fechada depende dela); '—' (sem tamanho) primeiro
+                const sizes = receive
+                  ? [...sizesBase.filter((x) => x === '—'), ...sortSizes(sizesBase.filter((x) => x !== '—'))]
+                  : sizesBase;
+                const presets = receive ? gradePresets(sizes.filter((x) => x !== '—')) : [];
 
                 // Verifica se alguma variante desta cor tem preço customizado
-                const hasAnyCustom = sizes.some(s => hasCustomPrice(color, s));
+                const hasAnyCustom = !receive && sizes.some(s => hasCustomPrice(color, s));
 
                 return (
                   <View key={color} style={[styles.colorGroup, colorIdx > 0 && { marginTop: 10 }]}>
@@ -637,13 +707,15 @@ export default function VariantBuilderInline({
                       )}
                       <View style={styles.colorGroupLine} />
                       {/* Botão de edição em lote */}
-                      <AppButton
-                        variant="secondary"
-                        size="sm"
-                        icon="create-outline"
-                        label="Editar preços"
-                        onPress={() => openBatchEdit(color)}
-                      />
+                      {!receive && (
+                        <AppButton
+                          variant="secondary"
+                          size="sm"
+                          icon="create-outline"
+                          label="Editar preços"
+                          onPress={() => openBatchEdit(color)}
+                        />
+                      )}
                     </View>
 
                     {/* Seleção de tamanhos desta cor */}
@@ -653,13 +725,16 @@ export default function VariantBuilderInline({
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={styles.colorGroupSizesRow}
                       >
-                        {DEFAULT_SIZES.map((s: SizeOption) => {
+                        {sizeList.map((s: SizeOption) => {
                           const isSel = sizesForColor.includes(s.value);
                           return (
                             <TouchableOpacity
                               key={s.value}
                               onPress={() => toggleColorSize(color, s.value)}
                               activeOpacity={0.7}
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: isSel }}
+                              accessibilityLabel={`Tamanho ${s.label} de ${color}`}
                               style={[styles.colorGroupSizeChip, isSel && { borderColor: brandingColors.primary }]}
                             >
                               {isSel && (
@@ -704,6 +779,21 @@ export default function VariantBuilderInline({
                       </View>
                     </View>
 
+                    {/* Grade fechada (caixa do fornecedor): soma uma quantidade por tamanho de uma vez */}
+                    {presets.length > 0 && (
+                      <View style={styles.qtyAllRow}>
+                        <Text style={styles.qtyAllLabel}>Grade fechada</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, flexShrink: 1, justifyContent: 'flex-end' }}>
+                          {presets.map((g) => (
+                            <AppButton key={g.label} variant="outlined" size="sm" label={`+ ${g.label}`}
+                              onPress={() => addGradeToColor(color, sizes.filter((x) => x !== '—'), g.per)} />
+                          ))}
+                          <AppButton variant="text" size="sm" label="Zerar" textColor={Colors.light.error}
+                            onPress={() => clearColorQty(color, sizes)} />
+                        </View>
+                      </View>
+                    )}
+
                     {/* Chips de tamanho com preço */}
                     <View style={styles.variantChipsGrid}>
                       {sizes.map(size => {
@@ -713,8 +803,8 @@ export default function VariantBuilderInline({
                           <TouchableOpacity
                             key={size}
                             style={[styles.variantCard, isCustom && styles.variantCardCustom, isCustom && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '08', shadowColor: brandingColors.primary }]}
-                            onPress={() => openBatchEdit(color)}
-                            activeOpacity={0.7}
+                            onPress={receive ? undefined : () => openBatchEdit(color)}
+                            activeOpacity={receive ? 1 : 0.7}
                           >
                             {/* Tamanho */}
                             <View style={[styles.variantCardSizeBadge, isCustom && styles.variantCardSizeBadgeCustom, isCustom && { backgroundColor: brandingColors.primary + '20' }]}>
@@ -723,9 +813,11 @@ export default function VariantBuilderInline({
                               </Text>
                             </View>
                             {/* Preço */}
-                            <Text style={[styles.variantCardPrice, isCustom && styles.variantCardPriceCustom, isCustom && { color: brandingColors.primary }]}>
-                              {price > 0 ? `R$\u00a0${price.toFixed(2).replace('.', ',')}` : '—'}
-                            </Text>
+                            {!receive && (
+                              <Text style={[styles.variantCardPrice, isCustom && styles.variantCardPriceCustom, isCustom && { color: brandingColors.primary }]}>
+                                {price > 0 ? `R$\u00a0${price.toFixed(2).replace('.', ',')}` : '—'}
+                              </Text>
+                            )}
                             {/* Quantidade a lançar: - campo + (cada variação tem a sua) */}
                             <View style={styles.qtyStepper}>
                               <TouchableOpacity style={styles.qtyStepBtn} onPress={() => stepQty(color, size, -1)} accessibilityLabel={`Diminuir quantidade ${color} ${size}`}>
@@ -784,9 +876,13 @@ export default function VariantBuilderInline({
 
               <View style={styles.tapHintRow}>
                 <Ionicons name="hand-left-outline" size={11} color={Colors.light.textTertiary} />
-                <Text style={styles.tapHintText}>
-                  Toque em um card ou em "Editar preços" para ajustar valores · <Ionicons name="star" size={10} color={Colors.light.warning} /> preço customizado
-                </Text>
+                {receive ? (
+                  <Text style={styles.tapHintText}>Use − e + (ou digite) em cada tamanho. Tamanho com 0 peça não entra na compra.</Text>
+                ) : (
+                  <Text style={styles.tapHintText}>
+                    Toque em um card ou em "Editar preços" para ajustar valores · <Ionicons name="star" size={10} color={Colors.light.warning} /> preço customizado
+                  </Text>
+                )}
               </View>
             </View>
           ) : (
