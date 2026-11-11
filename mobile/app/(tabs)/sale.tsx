@@ -29,6 +29,7 @@ import { getCustomerById } from '@/services/customerService';
 import { getFIFOCosts } from '@/services/productService';
 import AppButton from '@/components/ui/AppButton';
 import ItemDiscountEditor from '@/components/sale/ItemDiscountEditor';
+import { cartItemCodeText } from '@/utils/cartCode';
 import {
   validateProductForCart,
   validateCartStock,
@@ -525,7 +526,7 @@ function MobileSaleScreen() {
               </View>
               <View style={styles.addProductTextContainer}>
                 <Text style={styles.addProductText}>Buscar Produtos</Text>
-                <Text style={styles.addProductSubtext}>Pesquisar por nome ou SKU</Text>
+                <Text style={styles.addProductSubtext}>Pesquisar por nome, cor, tamanho ou código</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
             </TouchableOpacity>
@@ -572,7 +573,7 @@ function MobileSaleScreen() {
                         ) : null}
                       </Text>
                       <Text style={styles.cartItemSku}>
-                        SKU: {item.product.sku}
+                        {cartItemCodeText(item.product as any)}
                       </Text>
                       <View style={styles.cartItemPriceRow}>
                         <Text style={styles.cartItemPrice}>

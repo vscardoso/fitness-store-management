@@ -11,6 +11,7 @@ export function buildCartProduct(r: LookupResult): Product {
     image_url: r.product.image_url ?? undefined,
     category_id: r.product.category_id ?? undefined,
     sku: v.sku ?? '',
+    display_code: v.display_code ?? undefined,   // código da etiqueta (#041-11): é o que o carrinho mostra
     price: v.price,
     current_stock: v.current_stock,
     size: v.size ?? undefined,

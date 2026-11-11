@@ -172,6 +172,7 @@ export const useCartStore = create<CartState>()(
           id: product.id,
           name: product.name,
           sku: variant.sku,
+          display_code: variant.display_code ?? undefined,   // código da etiqueta (#041-11): é o que o carrinho mostra
           price: variant.price,
           cost_price: variant.cost_price ?? undefined,
           current_stock: variant.current_stock,
@@ -180,7 +181,7 @@ export const useCartStore = create<CartState>()(
           category_id: product.category_id,
           brand: product.brand,
           image_url: product.image_url,
-        } as Product;
+        } as unknown as Product;
 
         if (existingItem) {
           set({
