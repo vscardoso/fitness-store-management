@@ -778,6 +778,9 @@ export default function CheckoutScreen() {
         tax_amount: 0,
         notes: cart.notes,
       };
+      if (cart.gifts.length > 0) {
+        saleData.gifts = cart.gifts.map((g) => ({ variant_id: g.variant_id, quantity: g.quantity }));
+      }
 
       // Adicionar customer_id apenas se houver cliente selecionado
       if (cart.customer_id) {
@@ -1633,6 +1636,15 @@ export default function CheckoutScreen() {
                   <View style={styles.summaryRow}>
                     <Text style={[styles.summaryLabel, styles.discountText]}>Descontos nas peças</Text>
                     <Text style={[styles.summaryValue, styles.discountText]}>- {formatCurrency(cart.itemsDiscount)}</Text>
+                  </View>
+                )}
+
+                {cart.gifts.length > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Brinde ({cart.gifts.reduce((n, g) => n + g.quantity, 0)} {cart.gifts.reduce((n, g) => n + g.quantity, 0) === 1 ? 'peça' : 'peças'})
+                    </Text>
+                    <Text style={styles.summaryValue}>sem cobrança</Text>
                   </View>
                 )}
 

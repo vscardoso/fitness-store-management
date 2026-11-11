@@ -43,7 +43,7 @@ export const VENDER: HelpEntry[] = [
       'Ache a peça pelo nome ou pelo código da etiqueta e escolha a cor e o tamanho.',
       'Ajuste a quantidade com os botões de menos e mais no carrinho.',
       'Para dar desconto numa peça, toque em “Dar desconto” embaixo dela e digite o desconto em % ou em R$ por peça. Cada peça pode ter o seu.',
-      'Para um desconto na venda toda, use “Desconto na venda toda”. Os dois podem ser usados juntos.',
+      'Para um desconto na venda toda, use “Desconto na venda toda”. Admin e gerente também podem tocar em “Dar brinde nesta venda” para dar uma peça de presente.',
       'Confira o total e toque em “Finalizar Venda” para ir ao pagamento.',
     ],
     parts: [
@@ -52,8 +52,8 @@ export const VENDER: HelpEntry[] = [
     ],
     goodToKnow: [
       'O app não deixa vender mais peças do que há em estoque e avisa quando a peça está esgotada.',
-      'O desconto de uma peça tem que ser menor que o preço dela. Para dar a peça sem cobrança, use Brindes no menu Mais.',
-      'Mudar a quantidade depois do desconto mantém o desconto de cada peça.',
+      'O desconto de uma peça tem que ser menor que o preço dela. Mudar a quantidade depois mantém o desconto de cada peça.',
+      'O brinde sai do estoque pelo custo e aparece a R$ 0,00 no comprovante; o custo vai para a linha Brindes do Resultado do Mês. Sem venda, use Brindes no menu Mais.',
       'Peça que não está publicada no site pode ser vendida normalmente.',
     ],
     web: [
@@ -65,7 +65,7 @@ export const VENDER: HelpEntry[] = [
       'Também dá para digitar o código no campo “Bipe ou digite o código” e confirmar.',
     ],
     related: ['finalizar-venda', 'caixa', 'vendas'],
-    sources: ['app/(tabs)/sale.tsx', 'components/sale/DesktopPDV.tsx', 'components/scan/ScanBar.tsx', 'components/sale/ItemDiscountEditor.tsx'],
+    sources: ['app/(tabs)/sale.tsx', 'components/sale/DesktopPDV.tsx', 'components/scan/ScanBar.tsx', 'components/sale/ItemDiscountEditor.tsx', 'components/sale/CartGifts.tsx'],
   },
   {
     id: 'finalizar-venda',

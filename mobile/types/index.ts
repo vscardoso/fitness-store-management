@@ -444,6 +444,8 @@ export interface SaleCreate {
   notes?: string;
   items: SaleItemCreate[];
   payments: PaymentCreate[];
+  /** Brindes dados junto com a venda (só admin ou gerente; o servidor recusa os outros papéis). */
+  gifts?: { variant_id: number; quantity: number }[];
 }
 
 export interface Sale {

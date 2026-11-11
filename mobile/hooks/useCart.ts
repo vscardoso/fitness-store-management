@@ -60,6 +60,7 @@ export const useCart = () => {
   return {
     // State
     items: store.items,
+    gifts: store.gifts,
     payments: store.payments,
     discount: store.discount,
     customer_id: store.customer_id,
@@ -79,6 +80,9 @@ export const useCart = () => {
     updateItemDiscount: store.updateItemDiscount,
     setItemUnitDiscount: store.setItemUnitDiscount,
     clearItems: store.clearItems,
+    addGift: store.addGift,
+    setGiftQuantity: store.setGiftQuantity,
+    removeGift: store.removeGift,
     addPayment: store.addPayment,
     removePayment: store.removePayment,
     clearPayments: store.clearPayments,

@@ -35,6 +35,18 @@ export interface CartItem extends SaleItem {
   unit_discount?: number;
 }
 
+/** Peça dada de brinde dentro da venda (só admin/gerente): sai do estoque pelo custo, R$ 0,00 para a cliente. */
+export interface CartGift {
+  variant_id: number;
+  product_id: number;
+  name: string;
+  label?: string;
+  code?: string;
+  quantity: number;
+  /** Estoque que a tela viu ao escolher (o servidor confere de novo ao finalizar). */
+  stock?: number;
+}
+
 /** Refaz o desconto da linha quando a quantidade muda (desconto por peça x quantidade). */
 function withQuantity(item: CartItem, quantity: number): CartItem {
   const next = { ...item, quantity };
@@ -51,6 +63,8 @@ const CART_TTL_MS = 8 * 60 * 60 * 1000;
 interface CartState {
   // State
   items: CartItem[];
+  /** Brindes da venda (não entram no total, no desconto nem nos pagamentos). */
+  gifts: CartGift[];
   payments: Payment[];
   discount: number;
   customer_id?: number;
@@ -76,6 +90,9 @@ interface CartState {
   /** Desconto por peça (reais, centavos exatos). 0 tira o desconto. */
   setItemUnitDiscount: (cart_key: string, unitDiscount: number) => void;
   clearItems: () => void;
+  addGift: (gift: Omit<CartGift, 'quantity'>, quantity?: number) => void;
+  setGiftQuantity: (variant_id: number, quantity: number) => void;
+  removeGift: (variant_id: number) => void;
 
   // Actions - Payments
   addPayment: (method: PaymentMethod, amount: number, installments?: number) => void;
@@ -101,6 +118,7 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       // Estado inicial
       items: [],
+      gifts: [],
       payments: [],
       discount: 0,
       customer_id: undefined,
@@ -332,12 +350,31 @@ export const useCartStore = create<CartState>()(
         set({ notes });
       },
 
+      addGift: (gift, quantity = 1) => {
+        set((state) => {
+          const found = state.gifts.find((g) => g.variant_id === gift.variant_id);
+          const gifts = found
+            ? state.gifts.map((g) => (g.variant_id === gift.variant_id ? { ...g, quantity: g.quantity + quantity } : g))
+            : [...state.gifts, { ...gift, quantity }];
+          return { gifts, persisted_at: state.persisted_at ?? new Date().toISOString() };
+        });
+      },
+      setGiftQuantity: (variant_id, quantity) => {
+        set((state) => ({
+          gifts: state.gifts.flatMap((g) => (g.variant_id !== variant_id ? [g] : quantity <= 0 ? [] : [{ ...g, quantity }])),
+        }));
+      },
+      removeGift: (variant_id) => {
+        set((state) => ({ gifts: state.gifts.filter((g) => g.variant_id !== variant_id) }));
+      },
+
       /**
        * Limpar carrinho completamente
        */
       clear: () => {
         set({
           items: [],
+          gifts: [],
           payments: [],
           discount: 0,
           customer_id: undefined,
@@ -404,6 +441,7 @@ export const useCartStore = create<CartState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         items: state.items,
+        gifts: state.gifts,
         // payments NÃO persiste — são específicos da sessão (evita pagamentos fantasma)
         discount: state.discount,
         customer_id: state.customer_id,
@@ -418,6 +456,7 @@ export const useCartStore = create<CartState>()(
           const age = Date.now() - new Date(state.persisted_at).getTime();
           if (age > CART_TTL_MS) {
             state.items = [];
+            state.gifts = [];
             state.payments = [];
             state.discount = 0;
             state.customer_id = undefined;
@@ -427,6 +466,7 @@ export const useCartStore = create<CartState>()(
         }
 
         // Fix 2: recalcular totais após rehydration (evita total zerado)
+        state.gifts = state.gifts ?? [];
         const items = state.items ?? [];
         const globalDiscount = state.discount ?? 0;
         const subtotalCents = items.reduce(

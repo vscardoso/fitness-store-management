@@ -25,6 +25,7 @@ import { getCustomerById } from '@/services/customerService';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import { colorNameToHex } from '@/utils/colorHex';
 import { isManagerRole } from '@/utils/roles';
+import CartGifts from '@/components/sale/CartGifts';
 import { isLabelCode, parseShortCode, variantCodeText } from '@/utils/shortCode';
 import { validateCartStock, validateProductForCart, formatValidationErrors } from '@/utils/validation';
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
@@ -595,6 +596,7 @@ export default function DesktopPDV() {
                 )}
               </View>
             )}
+            <CartGifts dense />
             <View style={[styles.line, { alignItems: 'baseline' }]}>
               <Text style={styles.totalLabel}>Total</Text>
               <Money style={styles.totalValue} value={Number(cart.total)} />

@@ -29,6 +29,7 @@ import { getCustomerById } from '@/services/customerService';
 import { getFIFOCosts } from '@/services/productService';
 import AppButton from '@/components/ui/AppButton';
 import ItemDiscountEditor from '@/components/sale/ItemDiscountEditor';
+import CartGifts from '@/components/sale/CartGifts';
 import { cartItemCodeText } from '@/utils/cartCode';
 import {
   validateProductForCart,
@@ -676,6 +677,9 @@ function MobileSaleScreen() {
                   </View>
                 </TouchableOpacity>
               )}
+
+              {/* Brinde (só admin e gerente: o próprio componente some para os outros papéis) */}
+              <CartGifts />
 
               {/* Input inline de desconto */}
               {discountVisible && (
