@@ -43,6 +43,7 @@ import AppButton from '@/components/ui/AppButton';
 import { addToQueue as addLabelsToQueue, getEntryLabelProgress, getLabelQueue } from '@/services/labelQueueService';
 import { parseApiError } from '@/utils/apiError';
 import HScroll from '@/components/ui/HScroll';
+import { encodeLaunched } from '@/utils/labelFocus';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
 import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
@@ -774,6 +775,7 @@ export default function StockEntryDetailsScreen() {
         entryCode={entry.entry_code}
         entrySupplierName={entry.supplier_name}
         entryItems={entry.entry_items}
+        onLaunched={(lines) => router.push({ pathname: '/entries/labels/[id]', params: { id: String(entryId), only: encodeLaunched(lines) } } as any)}
         onClose={() => setAddProductOpen(false)}
       />
       <SendToSupplierModal

@@ -29,6 +29,7 @@ import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { findExistingLine, sumBlockReason, summedQuantity } from '@/utils/entryLine';
+import { mergeLaunched, type LaunchedLine } from '@/utils/labelFocus';
 import type { EntryItemResponse, Product, ProductGrouped, Supplier } from '@/types';
 
 interface Props {
@@ -40,6 +41,8 @@ interface Props {
   entryItems?: EntryItemResponse[];
   /** Abre direto na grade de lançamento (cores x tamanhos) deste produto (botão da página do produto) */
   newVariantOf?: ProductGrouped | null;
+  /** Chamado depois que as peças entraram, com o que foi lançado (a tela abre as etiquetas só dessas peças) */
+  onLaunched?: (lines: LaunchedLine[]) => void;
   onClose: () => void;
 }
 
@@ -51,7 +54,7 @@ interface Choice {
   price: number;
 }
 
-export default function AddProductToEntryModal({ visible, entryId, entryCode, entrySupplierName, entryItems, newVariantOf, onClose }: Props) {
+export default function AddProductToEntryModal({ visible, entryId, entryCode, entrySupplierName, entryItems, newVariantOf, onLaunched, onClose }: Props) {
   const brand = useBrandingColors();
   const qc = useQueryClient();
   const [step, setStep] = useState<'list' | 'form' | 'supplier' | 'duplicate' | 'grade'>('list');
@@ -180,16 +183,22 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
         supplier_id: supplier?.id ?? undefined,
         list_unit_cost: unmaskCurrency(listPrice) > 0 ? unmaskCurrency(listPrice) : undefined,
       }),
-    onSuccess: async () => { await sendPhoto(choice?.variantId, choice?.productId); afterLaunch(); },
+    onSuccess: async () => {
+      await sendPhoto(choice?.variantId, choice?.productId);
+      afterLaunch(choice?.variantId ? [{ variantId: choice.variantId, quantity: parseInt(qty, 10) || 0 }] : []);
+    },
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Tente de novo.'),
   });
 
-  const afterLaunch = () => {
+  // Fecha a janela e, quando se sabe quais peças entraram, deixa a tela da entrada abrir as etiquetas só delas
+  const afterLaunch = (launched: LaunchedLine[] = []) => {
     ['stock-entry', 'lot-analytics', 'lot-costs'].forEach((k) => qc.invalidateQueries({ queryKey: [k, entryId] }));
     ['stock-entries', 'products', 'grouped-products', 'suppliers', 'entry-add-products'].forEach((k) =>
       qc.invalidateQueries({ queryKey: [k] }),
     );
     onClose();
+    const lines = mergeLaunched(launched);
+    if (lines.length > 0) onLaunched?.(lines);
   };
 
   // A variação já está na entrada: quem lança decide se soma na linha que existe ou cria outra linha
@@ -216,7 +225,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
 
   const sumLine = useMutation({
     mutationFn: () => updateEntryItem(existingLine!.id, { quantity_received: summedQuantity(existingLine!, parseInt(qty, 10) || 0) }),
-    onSuccess: () => afterLaunch(),
+    onSuccess: () => afterLaunch(existingLine ? [{ variantId: existingLine.variant_id as number, quantity: parseInt(qty, 10) || 0 }] : []),
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível somar. Tente de novo.'),
   });
 
@@ -233,7 +242,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
         items: toBatchLines(gridCells, unmaskCurrency(cost), unmaskCurrency(listPrice)),
         supplier_id: supplier?.id ?? undefined,
       }),
-    onSuccess: () => afterLaunch(),
+    onSuccess: (res) => afterLaunch(res.items.map((i) => ({ variantId: i.variant_id, quantity: i.quantity_received }))),
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Nada foi gravado. Tente de novo.'),
   });
 

@@ -215,6 +215,22 @@ class StockEntryService:
         parts = " / ".join(p for p in (size, color) if p) or "variação única"
         return f"{parts} (SKU {sku})" if sku else parts
 
+    async def _refuse_item_without_variant(self, product_id: int, product_name: str, tenant_id: int) -> None:
+        """Produto que JÁ TEVE variações mas ficou sem nenhuma ativa (cores e tamanhos excluídos) não recebe item sem variação:
+        a peça entraria no estoque do produto, mas sem cor, tamanho nem código #086-x, e ficaria invisível na busca e na etiqueta
+        (caso real: #086 Agasalho Com Dedinho, loja 2, 10/11/2026)."""
+        from sqlalchemy import func, select as _select
+        from app.models.product_variant import ProductVariant
+
+        total = (await self.db.execute(
+            _select(func.count(ProductVariant.id)).where(ProductVariant.product_id == product_id, ProductVariant.tenant_id == tenant_id)
+        )).scalar() or 0
+        if total > 0:
+            raise InvalidEntryData(
+                f"{product_name} ficou sem variação ativa (as cores e tamanhos dele foram excluídos). "
+                "Crie a variação antes de dar entrada: use “Nova cor ou tamanho”."
+            )
+
     async def _lock_catalog(self, tenant_id: int) -> None:
         await sku_service.lock_catalog(self.db, tenant_id)
 
@@ -362,6 +378,8 @@ class StockEntryService:
                     )).scalars().all()
                     if len(active_variants) == 1:
                         item_dict['variant_id'] = active_variants[0].id
+                    elif not active_variants:
+                        await self._refuse_item_without_variant(item_dict['product_id'], getattr(product, 'name', None) or f"Produto {item_dict['product_id']}", tenant_id)
                     elif len(active_variants) > 1:
                         # Sem a variação, o estoque ficaria órfão (conta no produto, mas em
                         # nenhuma variação). Exige que o item diga qual variação está entrando.
@@ -2070,6 +2088,8 @@ class StockEntryService:
                 raise ValueError(
                     f"O produto {product_id} tem {len(active_variants)} variações: informe a variação (variant_id)."
                 )
+            if not active_variants:
+                await self._refuse_item_without_variant(product_id, product.name, tenant_id)
             default_variant = active_variants[0] if active_variants else None
 
         self._check_list_price(item_data.get('list_unit_cost'), unit_cost)
