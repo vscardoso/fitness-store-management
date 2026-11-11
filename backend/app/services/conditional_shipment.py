@@ -1,6 +1,7 @@
 """
 Service para envios condicionais com regras de negócio.
 """
+import logging
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
@@ -28,6 +29,8 @@ from app.schemas.conditional_shipment import (
 )
 from app.services.notification_scheduler import NotificationScheduler
 
+logger = logging.getLogger(__name__)
+
 
 class ConditionalShipmentService:
     """Service com regras de negócio para envios condicionais"""
@@ -37,6 +40,19 @@ class ConditionalShipmentService:
     def __init__(self):
         self.shipment_repo = ConditionalShipmentRepository()
         self.item_repo = ConditionalShipmentItemRepository()
+
+    @staticmethod
+    async def _sync_inventory(db: AsyncSession, tenant_id: int, product_ids) -> None:
+        """O total agregado do estoque (Inventory) acompanha o FIFO depois que o envio, a volta ou o cancelamento
+        mexem nas peças. Sem isso o agregado ficava desatualizado (loja 2, 11/11/2026: Blusa Tule Plus mostrava 12 com 16 no
+        FIFO) e o alerta de estoque baixo e o estoque atual de alguns detalhes saíam errados. Não derruba a operação."""
+        from app.services.inventory_service import InventoryService
+        svc = InventoryService(db)
+        for pid in {p for p in product_ids if p}:
+            try:
+                await svc.rebuild_product_from_fifo(pid, tenant_id=tenant_id)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Sincronia do estoque do produto %s falhou depois do condicional: %s", pid, e)
     
     async def create_shipment(
         self,
@@ -133,11 +149,13 @@ class ConditionalShipmentService:
                 await db.rollback()
                 raise ValueError(f"Erro ao reservar estoque via FIFO: {str(e)}")
 
+        product_ids = {i.product_id for i in shipment.items}
         try:
             await db.commit()
         except Exception:
             await db.rollback()
             raise
+        await self._sync_inventory(db, tenant_id, product_ids)
         await db.refresh(shipment)
 
         # 4. NOVO: Criar notificações automáticas se departure_datetime ou return_datetime foram fornecidos
@@ -175,6 +193,7 @@ class ConditionalShipmentService:
         shipment = await self.shipment_repo.get_with_items(db, shipment_id, tenant_id)
         if not shipment:
             raise ValueError(f"Envio {shipment_id} não encontrado")
+        product_ids = {i.product_id for i in shipment.items}   # lido agora: o objeto muda mais abaixo (update_status)
         
         # Importar enum
         from app.models.enums import ShipmentStatus
@@ -356,6 +375,7 @@ class ConditionalShipmentService:
 
         # Um único commit: itens, estoque devolvido, perdas, status e venda juntos (ou nada)
         await db.commit()
+        await self._sync_inventory(db, tenant_id, product_ids)
         if sale_created:
             from app.core.dashboard_cache import invalidate_dashboard_cache
             invalidate_dashboard_cache(tenant_id)  # a venda do condicional aparece no início na hora
@@ -775,6 +795,7 @@ class ConditionalShipmentService:
         shipment = await self.shipment_repo.get_with_items(db, shipment_id, tenant_id)
         if not shipment:
             raise ValueError(f"Envio {shipment_id} não encontrado")
+        product_ids = {i.product_id for i in shipment.items}   # lido agora: update_status devolve outro objeto
         
         if shipment.status not in ["PENDING", "SENT", "OVERDUE"]:
             if shipment.status == "COMPLETED":
@@ -819,9 +840,10 @@ class ConditionalShipmentService:
         except Exception:
             await db.rollback()
             raise
+        await self._sync_inventory(db, tenant_id, product_ids)
 
         return shipment
-    
+
     async def check_overdue_shipments(
         self,
         db: AsyncSession,

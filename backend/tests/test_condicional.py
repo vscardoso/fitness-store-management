@@ -497,3 +497,37 @@ async def test_item_mostra_custo_real_da_peca_reservada(test_client, async_sessi
     assert float(s["items"][0]["unit_cost"]) == 40.0
     det = (await test_client.get(f"{URL}/{s['id']}", headers=h)).json()
     assert float(det["items"][0]["unit_cost"]) == 40.0
+
+
+# ───────────────── total agregado do estoque acompanha o FIFO ─────────────────
+
+async def _agregado(db, product_id):
+    """Soma da tabela Inventory (o total agregado) do produto; o FIFO é a conta de verdade (entry_items)."""
+    from sqlalchemy import func as _f
+    from app.models.inventory import Inventory
+    db.expire_all()
+    return int((await db.execute(select(_f.coalesce(_f.sum(Inventory.quantity), 0)).where(Inventory.product_id == product_id))).scalar())
+
+
+async def test_envio_volta_e_cancelamento_mantem_o_total_agregado_igual_ao_fifo(test_client, async_session, test_user):
+    """Loja 2, 11/11/2026: o envio e a volta do condicional mexiam no FIFO e deixavam o total agregado (Inventory) para trás
+    (Blusa Tule Plus: 12 no agregado, 16 no FIFO). O alerta de estoque baixo e o estoque atual de alguns detalhes saíam errados."""
+    ids, h = await _cenario(async_session, test_user)
+    cid = await _cliente(test_client, h)
+    assert await _estoque(async_session, ids.v) == 10
+    s = await _criar(test_client, h, cid, [_item(ids, 4)])
+    assert await _estoque(async_session, ids.v) == 6
+    assert await _agregado(async_session, ids.p) == 6               # o envio já derruba o agregado
+    await _enviar(test_client, h, s["id"])
+    it = s["items"][0]
+    r = await _devolver(test_client, h, s["id"], [_upd(it, kept=1, ret=3)], payment_method="pix")
+    assert r.status_code == 200, r.text
+    assert await _estoque(async_session, ids.v) == 9                # 3 voltaram, 1 foi vendida
+    assert await _agregado(async_session, ids.p) == 9               # a volta devolve ao agregado (antes ficava em 6)
+    # cancelar um envio novo devolve tudo, também no agregado
+    s2 = await _criar(test_client, h, cid, [_item(ids, 2)])
+    assert await _agregado(async_session, ids.p) == 7
+    r = await test_client.delete(f"{URL}/{s2['id']}", headers=h, params={"reason": "Cliente desistiu"})
+    assert r.status_code == 200, r.text
+    assert await _estoque(async_session, ids.v) == 9
+    assert await _agregado(async_session, ids.p) == 9
