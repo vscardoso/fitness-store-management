@@ -17,6 +17,7 @@ import { Colors } from '@/constants/Colors';
 import { createPresenceGate } from '@/utils/scanLogic';
 import { useScreenWakeLock } from '@/hooks/usePwaExtras';
 import WebQrCamera from './WebQrCamera';
+import { cameraFailureText, classifyCameraError } from '@/utils/cameraError';
 
 export interface CameraStatus {
   kind: 'ok' | 'warn' | 'error';
@@ -39,6 +40,7 @@ const WEB = Platform.OS === 'web';
 export default function CameraScanSheet({ visible, onClose, onCode, status, hint, closeOnScan }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [webFailed, setWebFailed] = useState(false);
+  const [webReason, setWebReason] = useState<string | undefined>(undefined);   // error.name da câmera (para dizer o motivo real)
   // depois de cada leitura, 2 s sem ler nada; a mesma etiqueta só conta de novo depois de 2,5 s e fora da vista
   const gate = useRef(createPresenceGate(1200, 2500, 2000)).current;
   const insets = useSafeAreaInsets();
@@ -48,10 +50,11 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
     if (visible) {
       gate.reset();
       setWebFailed(false);
+      setWebReason(undefined);
     }
   }, [visible, gate]);
 
-  const onWebError = React.useCallback(() => setWebFailed(true), []);
+  const onWebError = React.useCallback((reason?: string) => { setWebReason(reason); setWebFailed(true); }, []);
 
   const handle = (result: BarcodeScanningResult) => {
     if (gate.accept(result.data, Date.now())) {
@@ -63,7 +66,8 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
   const showCamera = WEB ? !webFailed : !!permission?.granted;
   const askAgain = () => {
     if (WEB) {
-      setWebFailed(false);   // monta a câmera de novo: o navegador pede a permissão
+      setWebReason(undefined);
+      setWebFailed(false);   // monta a câmera de novo (já sem a câmera guardada): o navegador pede a permissão se puder
       return;
     }
     if (permission?.canAskAgain) requestPermission();
@@ -96,10 +100,13 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
             <View style={styles.perm}>
               <Ionicons name="camera-outline" size={48} color={Colors.light.white} />
               <Text style={styles.permTitle}>
-                {WEB ? 'A câmera não abriu. Confira se o navegador tem permissão de usar a câmera.' : 'Precisamos da câmera para ler as etiquetas'}
+                {WEB ? cameraFailureText(classifyCameraError(webReason)).title : 'Precisamos da câmera para ler as etiquetas'}
               </Text>
+              {WEB && cameraFailureText(classifyCameraError(webReason)).steps.map((step, i) => (
+                <Text key={i} style={styles.permStep}>{step}</Text>
+              ))}
               <TouchableOpacity style={styles.permBtn} onPress={askAgain}>
-                <Text style={styles.permBtnText}>{WEB || permission?.canAskAgain ? 'Permitir câmera' : 'Abrir configurações'}</Text>
+                <Text style={styles.permBtnText}>{WEB ? 'Tentar de novo' : permission?.canAskAgain ? 'Permitir câmera' : 'Abrir configurações'}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -143,6 +150,7 @@ const styles = StyleSheet.create({
   doneText: { color: Colors.light.white, fontSize: 16, fontWeight: '800' },
   perm: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 },
   permTitle: { color: Colors.light.white, fontSize: 16, textAlign: 'center' },
+  permStep: { color: Colors.light.white, fontSize: 14, textAlign: 'center', opacity: 0.85, paddingHorizontal: 24 },
   permBtn: { backgroundColor: Colors.light.white, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12 },
   permBtnText: { fontWeight: '800', color: '#111' },
 });
