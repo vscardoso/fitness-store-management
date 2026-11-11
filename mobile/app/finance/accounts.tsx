@@ -3,11 +3,11 @@
  * (depósito da gaveta, repasse da maquininha) e o resumo das contas a pagar. O saldo vem calculado do servidor a partir
  * das vendas, devoluções, caixa, transferências e pagamentos (nada é digitado depois da implantação).
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from 'react-native-paper';
 import AppButton from '@/components/ui/AppButton';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -60,6 +60,15 @@ export default function AccountsScreen() {
   const [detail, setDetail] = useState<FinanceAccount | null>(null);
   // Corrigir saldo (admin): 'adjust' leva o saldo de hoje ao valor real; 'opening' corrige o saldo de partida
   const [fix, setFix] = useState<{ acc: FinanceAccount; mode: 'adjust' | 'opening'; amount: string; reason: string } | null>(null);
+
+  // vindo do botão "Transferir entre contas" do Financeiro: abre a folha de transferência uma vez e limpa o parâmetro
+  const params = useLocalSearchParams<{ transfer?: string }>();
+  useEffect(() => {
+    if (params.transfer === '1' && data?.started) {
+      setSheetError(''); setTransfer({ from: null, to: null, amount: '', note: '' });
+      router.setParams({ transfer: undefined } as any);
+    }
+  }, [params.transfer, data?.started]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = () => queryClient.invalidateQueries();
   const doTransfer = useMutation({
