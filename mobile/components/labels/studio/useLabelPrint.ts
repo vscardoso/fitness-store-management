@@ -43,7 +43,9 @@ export type Step = 'edit' | 'done';
 export type Busy = 'generate' | 'undo' | 'queue' | 'share' | null;
 
 export const MAX_PER_ITEM = 200;
-const SIZE_KEY = '@provador:etiqueta_medida';   // última medida usada neste aparelho
+// última medida usada neste aparelho. v2 (11/11/2026): o padrão passou a 5 x 4 cm e o aparelho que tinha o 4,7 x 4,2 ou 6 x 5 gravado
+// continuava com a medida antiga; a chave nova faz todo aparelho começar no padrão atual (a escolha seguinte volta a ser lembrada).
+const SIZE_KEY = '@provador:etiqueta_medida_v2';
 const PAPER_KEY = '@provador:etiqueta_papel';    // último papel usado neste aparelho
 const LEGACY_PENDING_KEY = '@provador:etiqueta_pendente';   // do fluxo antigo (Já imprimi): só é apagado
 

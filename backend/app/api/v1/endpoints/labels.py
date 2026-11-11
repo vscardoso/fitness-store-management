@@ -24,8 +24,8 @@ class LabelItem(BaseModel):
 class LabelOptions(BaseModel):
     layout: Literal["a4", "roll", "sheet"] = "a4"
     start_position: int = Field(1, ge=1, le=100, description="Na folha A4, em que posição começar (pula as já usadas)")
-    width_mm: float = Field(DEFAULT_W_MM, ge=MIN_MM, le=MAX_MM, description="Largura do adesivo em mm (47 = 4,7 cm)")
-    height_mm: float = Field(DEFAULT_H_MM, ge=MIN_MM, le=MAX_MM, description="Altura do adesivo em mm (42 = 4,2 cm)")
+    width_mm: float = Field(DEFAULT_W_MM, ge=MIN_MM, le=MAX_MM, description="Largura do adesivo em mm (50 = 5 cm)")
+    height_mm: float = Field(DEFAULT_H_MM, ge=MIN_MM, le=MAX_MM, description="Altura do adesivo em mm (40 = 4 cm)")
 
 
 class LabelPdfRequest(LabelOptions):

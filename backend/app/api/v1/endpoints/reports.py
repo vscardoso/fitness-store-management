@@ -137,21 +137,18 @@ async def get_sales_report(
 async def get_sales_report_pdf(
     period: str = Query("this_month", description="Período: this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year"),
     seller_id: int | None = Query(None, description="Filtrar por vendedor (opcional)"),
+    link: bool = Query(False, description="true = devolve o link https do PDF em vez do arquivo"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    from fastapi import Response
+    from app.services.pdf_delivery import pdf_response
     from app.services.sales_report_pdf_service import build_sales_report_pdf
 
     if current_user.role.value == "SELLER":
         seller_id = current_user.id
     report = await ReportService().get_sales_report(db=db, tenant_id=tenant_id, period=period, seller_id=seller_id)
-    return Response(
-        content=build_sales_report_pdf(report),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="relatorio-vendas-{period}.pdf"', "Cache-Control": "no-store"},
-    )
+    return pdf_response(build_sales_report_pdf(report), f"relatorio-vendas-{period}.pdf", link=link, tenant_id=tenant_id, no_store=True)
 
 
 async def _monthly_data(db: AsyncSession, tenant_id: int, user: User, year: int | None, month: int | None):
@@ -187,22 +184,19 @@ async def get_monthly_report(
 async def get_monthly_report_pdf(
     year: int | None = Query(None),
     month: int | None = Query(None, ge=1, le=12),
+    link: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    from fastapi import Response
     from app.models.store import Store
     from app.services.monthly_report_pdf_service import build_monthly_report_pdf
+    from app.services.pdf_delivery import pdf_response
 
     data = await _monthly_data(db, tenant_id, current_user, year, month)
     store = await db.get(Store, tenant_id)
-    return Response(
-        content=build_monthly_report_pdf(data, getattr(store, "name", "") or ""),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="relatorio-mensal-{data["year"]}-{data["month"]:02d}.pdf"',
-                 "Cache-Control": "no-store"},
-    )
+    return pdf_response(build_monthly_report_pdf(data, getattr(store, "name", "") or ""),
+                        f"relatorio-mensal-{data['year']}-{data['month']:02d}.pdf", link=link, tenant_id=tenant_id, no_store=True)
 
 
 @router.get(
@@ -212,22 +206,19 @@ async def get_monthly_report_pdf(
 )
 async def get_stock_chain_pdf(
     supplier_id: int | None = Query(None, description="Só um fornecedor (opcional)"),
+    link: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    from fastapi import Response
     from sqlalchemy import select as _select
+    from app.services.pdf_delivery import pdf_response
     from app.models.store import Store
     from app.services.stock_chain_pdf_service import build_stock_chain_pdf, load_stock_chain
 
     entries = await load_stock_chain(db, tenant_id, supplier_id=supplier_id)
     store_name = (await db.execute(_select(Store.name).where(Store.id == tenant_id))).scalar() or ""
-    return Response(
-        content=build_stock_chain_pdf(entries, store_name=store_name),
-        media_type="application/pdf",
-        headers={"Content-Disposition": 'inline; filename="estoque-atual.pdf"', "Cache-Control": "no-store"},
-    )
+    return pdf_response(build_stock_chain_pdf(entries, store_name=store_name), "estoque-atual.pdf", link=link, tenant_id=tenant_id, no_store=True)
 
 
 @router.get(

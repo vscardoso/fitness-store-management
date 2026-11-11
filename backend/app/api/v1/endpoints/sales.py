@@ -501,19 +501,19 @@ async def get_sale_receipt_pdf(
     sale_id: int,
     size: str = Query("80", pattern="^(58|80|a6)$"),
     change: Optional[float] = Query(None, ge=0, le=1_000_000),
+    link: bool = Query(False, description="true = devolve o link https do PDF em vez do arquivo (app: pdfDelivery.ts)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    from fastapi.responses import Response
     from app.services import sale_receipt_service as rs
+    from app.services.pdf_delivery import pdf_response
     sale = await SaleRepository(db).get_with_details(sale_id, tenant_id=tenant_id)
     if not sale:
         raise HTTPException(status_code=404, detail="Venda não encontrada")
     data = await rs.build_receipt_data(db, sale, tenant_id, change)
     pdf = rs.build_receipt_pdf(data, size)
-    return Response(content=pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="comprovante-{sale.sale_number}.pdf"'})
+    return pdf_response(pdf, f"comprovante-{sale.sale_number}.pdf", link=link, tenant_id=tenant_id)
 
 
 # ============================================================================
