@@ -45,7 +45,7 @@ async def _limpa_loja_1(async_session):
     """O banco de teste é compartilhado: apaga TUDO que cada teste criou na loja 1 (vendas, pagamentos, devoluções, estoque...)
     para não alterar contagens e totais de outros testes. Vale para qualquer tabela com `id` e `tenant_id`, na ordem inversa das
     dependências; só some o que tem id maior que o do início do teste."""
-    from sqlalchemy import delete, func
+    from sqlalchemy import delete, func, or_
     from app.models.base import BaseModel
 
     tabelas = [t for t in reversed(BaseModel.metadata.sorted_tables) if "id" in t.c and "tenant_id" in t.c]
@@ -54,8 +54,14 @@ async def _limpa_loja_1(async_session):
         antes[t.name] = (await async_session.execute(select(func.coalesce(func.max(t.c.id), 0)))).scalar()
     yield
     await async_session.rollback()
+    # Excluir uma entrada pela API solta o vínculo com a loja de propósito (tenant_id = None, para liberar o código da entrada
+    # e o SKU) nestas tabelas; sem apagar essas sobras, um teste vizinho que soma o estoque de uma variação de id reaproveitado
+    # enxergava estoque fantasma (21 testes de condicional falharam na suíte completa). Só estas: outras tabelas têm linhas
+    # sem loja que os testes precisam manter (assinatura, loja).
+    soltas = {"stock_entries", "entry_items", "inventory", "products", "product_variants"}
     for t in tabelas:
-        await async_session.execute(delete(t).where(t.c.tenant_id == 1, t.c.id > antes[t.name]))
+        dono = or_(t.c.tenant_id == 1, t.c.tenant_id.is_(None)) if t.name in soltas else (t.c.tenant_id == 1)
+        await async_session.execute(delete(t).where(dono, t.c.id > antes[t.name]))
     await async_session.commit()
 
 
