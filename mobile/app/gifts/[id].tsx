@@ -15,7 +15,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole } from '@/utils/roles';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
-import { cancelGift, getGift, getGiftReceipt, openGiftReceiptPdf, sendGiftReceiptViaStoreWhatsapp } from '@/services/giftService';
+import PdfActions from '@/components/ui/PdfActions';
+import { cancelGift, getGift, getGiftReceipt, getGiftReceiptPdf, sendGiftReceiptViaStoreWhatsapp } from '@/services/giftService';
 
 export default function GiftDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,10 +44,6 @@ export default function GiftDetailScreen() {
     mutationFn: () => sendGiftReceiptViaStoreWhatsapp(gid),
     onSuccess: (r) => { setSendMsg(''); setSendOk(`Enviado para ${r.customer} pelo WhatsApp da loja.`); queryClient.invalidateQueries({ queryKey: ['gift-receipt', gid] }); },
     onError: (e) => { setSendOk(''); setSendMsg(parseApiError(e) || 'Não foi possível enviar.'); },
-  });
-  const doPdf = useMutation({
-    mutationFn: () => openGiftReceiptPdf(gid, g?.gift_number ?? String(gid)),
-    onError: (e) => setSendMsg(parseApiError(e) || 'Não foi possível gerar o PDF.'),
   });
 
   if (!admin) return <Redirect href="/(tabs)/more" />;
@@ -104,10 +101,7 @@ export default function GiftDetailScreen() {
             icon="whatsapp" disabled={!waUrl} onPress={() => waUrl && Linking.openURL(waUrl).catch(() => setSendMsg('Não consegui abrir o WhatsApp neste aparelho.'))}>
             Abrir no meu WhatsApp
           </Button>
-          <Button mode="outlined" textColor={brand.primary} icon="file-pdf-box" loading={doPdf.isPending} disabled={doPdf.isPending}
-            onPress={() => { setSendMsg(''); doPdf.mutate(); }}>
-            Baixar PDF
-          </Button>
+          <PdfActions getPdf={() => getGiftReceiptPdf(gid, g.gift_number)} cacheKey={String(gid)} prefetch shareLabel="Baixar PDF" variant="outlined" size="md" />
           {!receipt?.receipt.customer_phone && <Text style={styles.meta}>Sem telefone de cliente cadastrada: use o PDF ou escolha o contato no WhatsApp.</Text>}
         </View>
 

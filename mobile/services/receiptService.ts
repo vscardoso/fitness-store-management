@@ -3,7 +3,7 @@
  * O servidor monta tudo (nunca sai custo nem lucro). Web: compartilhar do aparelho, senão abre ou baixa.
  */
 import api from './api';
-import { openServerPdf } from './pdfDelivery';
+import { getServerPdf, type PrintedPdf } from './pdfDelivery';
 
 /** O PDF sai sempre em A6 (folha pequena, boa para mandar e para abrir no celular): ninguém escolhe papel. */
 const PDF_SIZE = 'a6';
@@ -47,6 +47,9 @@ export function receiptWhatsappUrl(info: ReceiptInfo): string {
 }
 
 /** Baixa um PDF do servidor e entrega à pessoa: web = compartilhar do aparelho, senão abre ou baixa; celular = compartilhar. */
-export async function openReceiptPdf(saleId: number, saleNumber: string, change?: number): Promise<void> {
-  await openServerPdf(`/sales/${saleId}/receipt/pdf`, { params: { size: PDF_SIZE, change: change && change > 0 ? change : undefined }, message: 'Gerando comprovante...', title: `Comprovante ${saleNumber}` });
+/** Comprovante da venda em PDF (objeto para o <PdfActions />). */
+export function getReceiptPdf(saleId: number, saleNumber: string, change?: number): Promise<PrintedPdf> {
+  return getServerPdf(`/sales/${saleId}/receipt/pdf`, {
+    params: { size: PDF_SIZE, change: change && change > 0 ? change : undefined }, message: 'Gerando comprovante...', title: `Comprovante ${saleNumber}`,
+  });
 }

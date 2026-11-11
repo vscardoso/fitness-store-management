@@ -16,7 +16,8 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
-import { getMonthlyReport, openMonthlyReportPdfWeb } from '@/services/monthlyReportService';
+import PdfActions from '@/components/ui/PdfActions';
+import { getMonthlyReport, getMonthlyReportPdf } from '@/services/monthlyReportService';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 
 const PAYMENTS: Record<string, string> = {
@@ -63,9 +64,6 @@ export default function MonthlyReportScreen() {
     const t = sel.year * 12 + (sel.month - 1) + step;
     setSel({ year: Math.floor(t / 12), month: (t % 12) + 1 });
   };
-  const openPdf = async () => {
-    try { await openMonthlyReportPdfWeb(sel.year, sel.month); } catch (e) { showApiError(e, 'Não foi possível gerar o PDF'); }
-  };
   const levelColor = (l: string) => (l === 'bad' ? Colors.light.error : l === 'warn' ? Colors.light.warning : Colors.light.success);
   const levelTag = (l: string) => (l === 'bad' ? 'AGIR' : l === 'warn' ? 'OLHAR' : 'OK');
 
@@ -94,7 +92,7 @@ export default function MonthlyReportScreen() {
         {!!d && (
           <>
             {Platform.OS === 'web' && (
-              <Button mode="outlined" icon="file-pdf-box" onPress={openPdf} style={styles.left}>Abrir PDF do mês</Button>
+              <PdfActions getPdf={() => getMonthlyReportPdf(sel.year, sel.month)} cacheKey={`${sel.year}-${sel.month}`} shareLabel="Abrir PDF do mês" variant="outlined" size="md" fullWidth={false} />
             )}
 
             <Card title="Saúde da loja: o que olhar">

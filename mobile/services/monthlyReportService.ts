@@ -1,6 +1,6 @@
 /** Relatório mensal da loja (financeiro e analítico). Tudo calculado no servidor (backend/app/services/monthly_report_service.py). */
 import api from './api';
-import { openServerPdf } from './pdfDelivery';
+import { getServerPdf } from './pdfDelivery';
 
 export interface ResultSide {
   revenue: number; cost: number; gross_profit: number; gross_margin_pct: number; expenses: number; stock_losses: number;
@@ -38,7 +38,6 @@ export async function getMonthlyReport(year: number, month: number): Promise<Mon
   return res.data;
 }
 
-/** PDF gerado no servidor (no iPhone instalado não há arquivo local): o app abre o link https. */
-export async function openMonthlyReportPdfWeb(year: number, month: number): Promise<void> {
-  await openServerPdf('/reports/monthly/pdf', { params: { year, month }, title: 'Relatório mensal da loja' });
-}
+/** Relatório mensal em PDF (objeto para o <PdfActions />). */
+export const getMonthlyReportPdf = (year: number, month: number) =>
+  getServerPdf('/reports/monthly/pdf', { params: { year, month }, title: 'Relatório mensal da loja' });

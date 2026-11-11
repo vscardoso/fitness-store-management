@@ -1,17 +1,15 @@
 /**
- * Últimos PDFs gerados (só os 3 últimos; os mais antigos somem sozinhos): abre de novo o arquivo para imprimir, sem salvar nada outra vez.
- * O servidor refaz o PDF com as mesmas peças, quantidades, papel e posição na folha, num link https assinado; e só os 3 últimos ficam na lista.
- * "Abrir" mostra o PDF numa aba (dali o compartilhar do visualizador manda o arquivo certo à impressora). O ícone de compartilhar
- * manda o arquivo direto; no iPhone isso só abre a partir de um toque: se o aparelho recusar logo depois de baixar, a linha mostra
- * "Toque para compartilhar" com o PDF já pronto.
+ * Últimos PDFs gerados (só os 3 últimos; os mais antigos somem sozinhos): manda de novo o arquivo para a impressora, sem salvar nada
+ * outra vez. O servidor refaz o PDF com as mesmas peças, quantidades, papel e posição, num link https assinado. Os botões e o
+ * "toque de novo" do iPhone vêm do <PdfActions /> (o mesmo de todo PDF do app).
  */
-import React, { useRef, useState } from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 
-import AppButton from '@/components/ui/AppButton';
+import PdfActions from '@/components/ui/PdfActions';
 import { Colors, theme } from '@/constants/Colors';
-import { pdfFromUrl, type PdfMode, type PrintedPdf } from '@/services/labelService';
+import { pdfFromUrl } from '@/services/pdfDelivery';
 import { getRecentPrints, type RecentPrint } from '@/services/labelQueueService';
 import { parseApiDate } from '@/utils/format';
 
@@ -25,68 +23,30 @@ function when(iso: string): string {
   return mesmoDia ? `Hoje ${hora}` : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hora}`;
 }
 
+/** Uma linha: o PDF vira objeto UMA vez (arquivo baixado e reaproveitado pelos toques) e usa os mesmos botões do resto do app. */
+function JobRow({ job }: { job: RecentPrint }) {
+  const pdf = useMemo(() => pdfFromUrl(job.url, job.filename, 'Etiquetas'), [job.url, job.filename]);
+  return (
+    <View style={styles.row}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.main}>{when(job.at)} · {job.total} etiqueta{job.total !== 1 ? 's' : ''}</Text>
+        <Text style={styles.sub} numberOfLines={1}>
+          {PAPER[job.layout]}{job.layout === 'roll' ? '' : `, começa na posição ${job.start_position}`}{job.by ? ` · ${job.by}` : ''}
+        </Text>
+      </View>
+      <PdfActions pdf={pdf} iconOnly showOpen openLabel="Abrir" shareLabel="Enviar o PDF para a impressora" />
+    </View>
+  );
+}
+
 export default function RecentPrints() {
   const { data } = useQuery({ queryKey: ['label-recent-prints'], queryFn: getRecentPrints, refetchInterval: 60_000 });
-  const pdfs = useRef<Record<number, PrintedPdf>>({});   // guarda o arquivo baixado: o 2º toque em compartilhar não espera
-  const [blocked, setBlocked] = useState<Record<number, boolean>>({});
-  const [busyId, setBusyId] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
   if (!data || data.length === 0) return null;
-
-  // Abrir não espera nada antes de abrir (o link já veio na lista): o toque ainda vale para o navegador abrir o PDF
-  const open = async (job: RecentPrint, mode: PdfMode) => {
-    if (busyId != null) return;
-    setError(null);
-    const pdf = (pdfs.current[job.id] ??= pdfFromUrl(job.url, job.filename));
-    if (mode === 'open') {
-      try { await pdf.deliver('open'); } catch (e: any) { setError(e?.message || 'Não foi possível abrir o PDF.'); }
-      return;
-    }
-    setBusyId(job.id);
-    try {
-      const r = await pdf.deliver('share').catch(() => 'blocked' as const);
-      setBlocked((p) => ({ ...p, [job.id]: r === 'blocked' }));
-    } catch (e: any) {
-      setError(e?.message || 'Não foi possível compartilhar o PDF.');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   return (
     <View style={styles.box}>
       <Text style={styles.title}>Últimos PDFs gerados</Text>
       <Text style={styles.hint}>Ficam só os 3 últimos. Abrir de novo não marca nada como impresso outra vez.</Text>
-      {data.map((job) => (
-        <View key={job.id} style={styles.row}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.main}>{when(job.at)} · {job.total} etiqueta{job.total !== 1 ? 's' : ''}</Text>
-            <Text style={styles.sub} numberOfLines={1}>
-              {PAPER[job.layout]}{job.layout === 'roll' ? '' : `, começa na posição ${job.start_position}`}{job.by ? ` · ${job.by}` : ''}
-            </Text>
-          </View>
-          <AppButton
-            label={blocked[job.id] ? 'Toque para compartilhar' : 'Compartilhar o arquivo'}
-            icon="share-outline"
-            iconOnly={!blocked[job.id]}
-            variant={blocked[job.id] ? 'primary' : 'ghost'}
-            loading={busyId === job.id}
-            size="sm"
-            disabled={busyId != null}
-            onPress={() => open(job, 'share')}
-          />
-          <AppButton
-            label="Abrir"
-            icon="print-outline"
-            variant="outlined"
-            size="sm"
-            disabled={busyId != null}
-            onPress={() => open(job, 'open')}
-          />
-        </View>
-      ))}
-      {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
+      {data.map((job) => <JobRow key={job.id} job={job} />)}
     </View>
   );
 }

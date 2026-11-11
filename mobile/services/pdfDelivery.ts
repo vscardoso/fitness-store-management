@@ -28,7 +28,10 @@ export interface PrintedPdf {
 /** PDF a partir do link https do servidor. */
 export function pdfFromUrl(url: string, filename: string, title = 'Documento'): PrintedPdf {
   if (Platform.OS === 'web') {
-    let cached: Blob | null = null;   // o 2º toque em "compartilhar" já usa o arquivo baixado (o iPhone exige um toque novo)
+    // O arquivo já é baixado AGORA, antes de qualquer toque: o iPhone só abre a folha de compartilhar se ela for chamada logo no
+    // toque, sem esperar rede (esperar fazia o 1º toque falhar e exigia um 2º). Sem isso a pessoa salvava e mandava de novo.
+    let cached: Blob | null = null;
+    fetch(url).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) cached = b; }).catch(() => undefined);
     const deliver = async (mode: PdfMode = 'open'): Promise<PdfDelivery> => {
       if (mode === 'share') {
         try {
@@ -36,7 +39,7 @@ export function pdfFromUrl(url: string, filename: string, title = 'Documento'): 
           const file = new File([cached], filename, { type: 'application/pdf' });
           const nav: any = navigator;
           if (nav.canShare && nav.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(nav.userAgent || '')) {
-            await nav.share({ files: [file], title });
+            await nav.share({ files: [file] });   // só o arquivo: com título ou texto o WhatsApp mandava também um link
             return 'shared';
           }
         } catch (e: any) {
@@ -89,14 +92,18 @@ export async function getServerPdfLink(path: string, options: ServerPdfOptions =
   return data;
 }
 
+/** O PDF de uma rota do servidor como objeto (arquivo baixado uma vez e reaproveitado por todos os toques). */
+export async function getServerPdf(path: string, options: ServerPdfOptions = {}): Promise<PrintedPdf> {
+  const { url, filename } = await getServerPdfLink(path, options);
+  return pdfFromUrl(url, filename, options.title);
+}
+
 /**
- * Entrega o PDF de uma rota do servidor: no celular abre a folha NATIVA de compartilhar já com o arquivo PDF anexado (era assim antes
- * do link https; o link só serve de arquivo de verdade, nunca vira texto "blob:"). Sem compartilhar de arquivo (computador, navegador
- * antigo) ou se o iPhone pedir um toque novo, abre o PDF numa aba. Chamar direto do toque do botão.
+ * Entrega o PDF de uma rota do servidor num toque só (telas que não usam o <PdfActions />, como o relatório de vendas dentro de um
+ * diálogo): folha NATIVA de compartilhar com o arquivo; se o iPhone pedir um toque novo, abre o PDF numa aba.
  */
 export async function openServerPdf(path: string, options: ServerPdfOptions = {}): Promise<PdfDelivery> {
-  const { url, filename } = await getServerPdfLink(path, options);
-  const pdf = pdfFromUrl(url, filename, options.title);
+  const pdf = await getServerPdf(path, options);
   const result = await pdf.deliver('share');
   return result === 'blocked' ? pdf.deliver('open') : result;
 }

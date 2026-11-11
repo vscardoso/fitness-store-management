@@ -13,7 +13,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   cmText, customSticker, DEFAULT_STICKER, parseCm, printLabelsSaved, STICKER_SIZES, stickersPerSheet, stickersPerThermalSheet,
-  type PdfDelivery, type PdfMode, type PrintedPdf, type StickerSize, type TagLabelLayout,
+  type PrintedPdf, type StickerSize, type TagLabelLayout,
 } from '@/services/labelService';
 import { addToQueue, getPrintState, undoPrint } from '@/services/labelQueueService';
 
@@ -40,7 +40,7 @@ export interface UseLabelPrintOptions {
 }
 
 export type Step = 'edit' | 'done';
-export type Busy = 'generate' | 'undo' | 'queue' | 'share' | null;
+export type Busy = 'generate' | 'undo' | 'queue' | null;
 
 export const MAX_PER_ITEM = 200;
 // última medida usada neste aparelho. v2 (11/11/2026): o padrão passou a 5 x 4 cm e o aparelho que tinha o 4,7 x 4,2 ou 6 x 5 gravado
@@ -66,7 +66,6 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
   const [notice, setNotice] = useState<string | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
   const [pdf, setPdf] = useState<PrintedPdf | null>(null);
-  const [delivery, setDelivery] = useState<PdfDelivery | null>(null);
   const [printedTotal, setPrintedTotal] = useState(0);
 
   // sobra do fluxo antigo (Já imprimi): apaga para nunca mais aparecer aviso de PDF pendente
@@ -169,30 +168,15 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
       }
       // a impressão já está salva no servidor (tirou da fila e andou a folha)
       setPdf(printed);
-      setDelivery(null);
       setPrintedTotal(total);
       setNotice(null);
       setStep('done');
       await refresh();
       onGenerated?.();
       onPrinted?.();
-      setDelivery(await printed.deliver('open').catch(() => 'blocked' as PdfDelivery));
+      // o PDF não abre mais sozinho numa aba: o botão "Enviar o PDF para a impressora" compartilha o ARQUIVO (sem link) direto
     });
   }, [total, run, paper, start, lines, size, fromQueue, entryId, refresh, onGenerated, onPrinted]);
-
-  // abre o PDF de novo (compartilhar ou imprimir) sem salvar nada outra vez; chamado por um toque
-  const reshare = useCallback(async (mode: PdfMode = 'open') => {
-    if (!pdf || busy) return;
-    setBusy('share');
-    setError(null);
-    try {
-      setDelivery(await pdf.deliver(mode));
-    } catch (e: any) {
-      setError(e?.message || 'Não foi possível abrir o PDF. Tente de novo.');
-    } finally {
-      setBusy(null);
-    }
-  }, [pdf, busy]);
 
   const undo = useCallback(() => {
     if (!lastJob) return;
@@ -216,7 +200,7 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
     });
   }, [total, run, lines, entryId, queryClient]);
 
-  const backToEdit = useCallback(() => { setStep('edit'); setPdf(null); setDelivery(null); setNotice(null); setError(null); }, []);
+  const backToEdit = useCallback(() => { setStep('edit'); setPdf(null); setNotice(null); setError(null); }, []);
 
   return {
     // escolhas
@@ -226,8 +210,8 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
     // peças escolhidas
     chosen, total,
     // fluxo
-    step, busy, error, notice, queuedCount, canQueue: !fromQueue, printedTotal, delivery, hasPdf: !!pdf,
-    generate, reshare, undo, sendToQueue, backToEdit,
+    step, busy, error, notice, queuedCount, canQueue: !fromQueue, printedTotal, pdf,
+    generate, undo, sendToQueue, backToEdit,
   };
 }
 

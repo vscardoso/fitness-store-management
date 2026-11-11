@@ -12,7 +12,8 @@ import { Colors, theme } from '@/constants/Colors';
 import { useSaleReceipt } from '@/hooks/useSaleReceipt';
 import { useBrandingColors } from '@/store/brandingStore';
 import { parseApiError } from '@/utils/apiError';
-import { openReceiptPdf, receiptWhatsappUrl, sendReceiptViaStoreWhatsapp } from '@/services/receiptService';
+import PdfActions from '@/components/ui/PdfActions';
+import { getReceiptPdf, receiptWhatsappUrl, sendReceiptViaStoreWhatsapp } from '@/services/receiptService';
 
 interface Props {
   saleId: number;
@@ -23,7 +24,6 @@ interface Props {
 
 export default function ReceiptActions({ saleId, saleNumber, change }: Props) {
   const brand = useBrandingColors();
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState('');
   const [sending, setSending] = useState(false);
@@ -55,18 +55,6 @@ export default function ReceiptActions({ saleId, saleNumber, change }: Props) {
     if (!info) return;
     setError('');
     Linking.openURL(receiptWhatsappUrl(info)).catch(() => setError('Não consegui abrir o WhatsApp neste aparelho.'));
-  };
-
-  const openPdf = async () => {
-    setError('');
-    setBusy(true);
-    try {
-      await openReceiptPdf(saleId, saleNumber, change);
-    } catch (e) {
-      setError(parseApiError(e) || 'Não consegui gerar o comprovante agora. Tente de novo.');
-    } finally {
-      setBusy(false);
-    }
   };
 
   const number = info?.store_whatsapp.number;
@@ -105,9 +93,9 @@ export default function ReceiptActions({ saleId, saleNumber, change }: Props) {
         />
       )}
 
-      <AppButton
-        variant="secondary" size="md" fullWidth icon="document-text-outline" label="Abrir ou compartilhar PDF"
-        onPress={openPdf} loading={busy} disabled={busy}
+      <PdfActions
+        getPdf={() => getReceiptPdf(saleId, saleNumber, change)} cacheKey={`${saleId}-${change ?? 0}`} prefetch
+        shareLabel="Abrir ou compartilhar PDF" variant="secondary" size="md"
       />
       {!!error && <Text style={styles.error}>{error}</Text>}
       <Text style={styles.hint}>Comprovante sem valor fiscal.</Text>
