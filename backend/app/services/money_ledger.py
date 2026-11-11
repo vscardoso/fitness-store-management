@@ -27,7 +27,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import get_period_range_utc
-from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.sale import Payment, Sale, SaleItem, SaleStatus
 from app.models.sale_return import ReturnItem, SaleReturn
 
 BR = ZoneInfo("America/Sao_Paulo")
@@ -145,6 +145,7 @@ async def period_totals(
         select(Sale.id, Sale.created_at, Sale.total_amount, Sale.discount_amount, Sale.seller_id, Sale.payment_method,
                Sale.id.in_(exchange_ids).label("is_exchange"))
         .where(and_(*sale_filter)))).all()
+    fallback_method: dict = {}
     for sid, created, total, disc, seller, method, is_exchange in sales:
         day = t.days[br_day(created)]
         amount = _d(total)
@@ -161,9 +162,24 @@ async def period_totals(
             t.by_seller[seller]["gross"] += amount
             if not is_exchange:
                 t.by_seller[seller]["sales"] += 1
-        key = getattr(method, "value", method) or "outro"
-        t.by_payment[key]["total"] += amount
-        t.by_payment[key]["count"] += 0 if is_exchange else 1
+        fallback_method[sid] = (getattr(method, "value", method) or "outro", amount, is_exchange)
+
+    # Forma de pagamento: cada forma com o valor que ela pagou (venda de 2 métodos, ex.: cartão 700 + PIX 228,34, conta o
+    # cartão como cartão e o PIX como PIX; antes a venda inteira entrava só na forma principal). Venda antiga sem
+    # pagamentos gravados usa a forma principal da venda.
+    if sales:
+        paid: dict = defaultdict(lambda: defaultdict(lambda: D0))
+        rows = (await db.execute(
+            select(Payment.sale_id, Payment.payment_method, Payment.amount)
+            .join(Sale, Sale.id == Payment.sale_id)
+            .where(and_(*sale_filter), Payment.is_active == True, Payment.status == "confirmed"))).all()  # noqa: E712
+        for sale_id, pm, amt in rows:
+            paid[sale_id][getattr(pm, "value", pm) or "outro"] += _d(amt)
+        for sale_id, (main_method, amount, is_exchange) in fallback_method.items():
+            parts = paid.get(sale_id) or {main_method: amount}
+            for key, part in parts.items():
+                t.by_payment[key]["total"] += part
+                t.by_payment[key]["count"] += 0 if is_exchange else 1
 
     if sales:
         items = (await db.execute(
