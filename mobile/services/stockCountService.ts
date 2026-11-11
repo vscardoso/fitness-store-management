@@ -84,12 +84,8 @@ export async function updateStockCount(
 }
 
 /** Uma operação da conferência compartilhada: +1/-1 (delta), quantidade digitada (set) ou "não contada" (clear). */
-export interface CountOp {
-  variant_id: number;
-  delta?: number;
-  set?: number;
-  clear?: boolean;
-}
+export type { CountOp } from '@/utils/countOps';
+import type { CountOp } from '@/utils/countOps';
 
 /**
  * Conferência compartilhada: manda as bipadas deste aparelho (somam com as dos outros, ninguém apaga ninguém).
@@ -97,10 +93,11 @@ export interface CountOp {
  */
 export async function applyStockCount(
   id: number,
-  params: { ops?: CountOp[]; name?: string; note?: string; finish?: boolean; revision?: number },
+  params: { ops?: CountOp[]; name?: string; note?: string; finish?: boolean; revision?: number; batchId?: string },
 ): Promise<StockCountSummary> {
   const { data } = await api.post<StockCountSummary>(`/reports/stock-counts/${id}/apply`, {
     ops: params.ops ?? [],
+    ...(params.batchId ? { batch_id: params.batchId } : {}),
     ...(params.name !== undefined ? { name: params.name.trim() } : {}),
     ...(params.note !== undefined ? { note: params.note.trim() } : {}),
     finish: !!params.finish,

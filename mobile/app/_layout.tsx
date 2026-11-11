@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { LogBox } from 'react-native';
+import { AppState, LogBox } from 'react-native';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 
 LogBox.ignoreLogs([
@@ -30,6 +30,8 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
+import { isSessionIdle, markActivity, startActivityTracking } from '@/services/sessionActivity';
+import { IDLE_REASON } from '@/utils/sessionRules';
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
 import UpdateBanner from '@/components/layout/UpdateBanner';
 import SystemUpdateOverlay from '@/components/layout/SystemUpdateOverlay';
@@ -177,6 +179,24 @@ function AppLayout() {
     loadNotifications();
   }, []);
 
+  // Sessão só acaba por inatividade (2 horas sem tocar no app), nunca com a pessoa usando. Gestos no app web ficam aqui;
+  // no celular o toque é registrado pelo onTouchStart da raiz. Ao voltar para o app, confere na hora se passou do prazo.
+  useEffect(() => {
+    const stop = startActivityTracking();
+    const conferir = async () => {
+      if (useAuthStore.getState().isAuthenticated && (await isSessionIdle())) {
+        await forceLogout(IDLE_REASON);
+      }
+    };
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') conferir();
+    });
+    return () => {
+      stop();
+      sub.remove();
+    };
+  }, [forceLogout]);
+
   // Sessão caiu (401, logout): volta ao login de qualquer tela, não só das abas
   const wasAuthenticated = useRef(isAuthenticated);
   useEffect(() => {
@@ -195,7 +215,7 @@ function AppLayout() {
 
   return (
     <ErrorBoundary>
-      <SafeAreaProvider>
+      <SafeAreaProvider onTouchStart={markActivity}>
         <QueryClientProvider client={queryClient}>
           <PaperProvider theme={theme}>
             <ErrorProvider>

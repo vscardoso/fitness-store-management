@@ -19,9 +19,66 @@ from app.utils.variant_code import format_variant_code
 from app.utils.variant_grid import size_sort_key
 
 
+def _row(vid, pid, color, size, sku, short_code, product_code, variant_number, pname, pcat, cname, qty, sold=frozenset()) -> Dict[str, Any]:
+    return {
+        "variant_id": vid,
+        "product_id": pid,
+        "product_name": pname,
+        "category_id": pcat,
+        "category_name": cname or "Sem categoria",
+        "color": color,
+        "size": size,
+        "label": " · ".join(x for x in (color, size) if x) or "Único",
+        "sku": sku,
+        "short_code": short_code,   # número antigo por variação (#0123)
+        "display_code": format_variant_code(product_code, variant_number),   # código da etiqueta (#101-1), quando já numerada
+        "system_quantity": qty,
+        "ever_sold": vid in sold,
+    }
+
+
+_VARIANT_COLS = (
+    ProductVariant.id, ProductVariant.product_id, ProductVariant.color, ProductVariant.size, ProductVariant.sku,
+    ProductVariant.short_code, ProductVariant.product_code, ProductVariant.variant_number,
+    Product.name, Product.category_id, Category.name,
+)
+
+
 class StockCheckService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def entry_report(self, *, tenant_id: int, entry_id: int) -> Dict[str, Any]:
+        """As peças de UMA entrada (Conferir recebimento): o "sistema" de cada linha é o que a nota trouxe
+        (`quantity_received`, somado por variação). Item sem variação não entra (não dá para bipar). Mesmo formato do `report`."""
+        got = {vid: int(q) for vid, q in (await self.db.execute(
+            select(EntryItem.variant_id, func.coalesce(func.sum(EntryItem.quantity_received), 0))
+            .where(EntryItem.entry_id == entry_id, EntryItem.tenant_id == tenant_id, EntryItem.is_active == True,  # noqa: E712
+                   EntryItem.variant_id.isnot(None))
+            .group_by(EntryItem.variant_id)
+        )).all()}
+        out: List[Dict[str, Any]] = []
+        if got:
+            rows = (await self.db.execute(
+                select(*_VARIANT_COLS).join(Product, Product.id == ProductVariant.product_id)
+                .outerjoin(Category, Category.id == Product.category_id)
+                .where(ProductVariant.id.in_(list(got)), ProductVariant.tenant_id == tenant_id)
+            )).all()
+            out = [_row(*r, got[r[0]]) for r in rows]
+        out.sort(key=lambda r: (r["product_name"].casefold(), (r["color"] or "").casefold(), size_sort_key(r["size"])))
+        return {"rows": out, "total_variants": len(out), "total_pieces": sum(r["system_quantity"] for r in out)}
+
+    async def variant_rows(self, *, tenant_id: int, variant_ids) -> Dict[int, Dict[str, Any]]:
+        """Linhas (com quantidade 0) de variações soltas da loja: a peça lida que NÃO é da entrada ("fora da entrada")."""
+        ids = {int(v) for v in variant_ids if v}
+        if not ids:
+            return {}
+        rows = (await self.db.execute(
+            select(*_VARIANT_COLS).join(Product, Product.id == ProductVariant.product_id)
+            .outerjoin(Category, Category.id == Product.category_id)
+            .where(ProductVariant.id.in_(ids), ProductVariant.tenant_id == tenant_id, ProductVariant.is_active == True)  # noqa: E712
+        )).all()
+        return {r[0]: _row(*r, 0) for r in rows}
 
     async def report(
         self, *, tenant_id: int, category_id: Optional[int] = None, only_in_stock: bool = False,
@@ -80,20 +137,7 @@ class StockCheckService:
                 qty += legacy_by_product.get(pid, 0)
             if only_in_stock and qty <= 0:
                 continue
-            out.append({
-                "variant_id": vid,
-                "product_id": pid,
-                "product_name": pname,
-                "category_id": pcat,
-                "category_name": cname or "Sem categoria",
-                "color": color,
-                "size": size,
-                "sku": sku,
-                "short_code": short_code,   # número antigo por variação (#0123)
-                "display_code": format_variant_code(product_code, variant_number),   # código da etiqueta (#101-1), quando já numerada
-                "system_quantity": qty,
-                "ever_sold": vid in sold,
-            })
+            out.append(_row(vid, pid, color, size, sku, short_code, product_code, variant_number, pname, pcat, cname, qty, sold))
         out.sort(key=lambda r: (
             r["category_name"].casefold(), r["product_name"].casefold(), (r["color"] or "").casefold(), size_sort_key(r["size"]),
         ))

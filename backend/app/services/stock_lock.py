@@ -18,6 +18,7 @@ _CLASS_SALE = 7302
 _CLASS_VARIANT = 7301
 _CLASS_PRODUCT = 7303  # estoque legado sem variação
 _CLASS_SHIPMENT = 7304  # envio condicional
+_CLASS_RECEIPT_CHECK = 7305  # conferir recebimento de uma entrada (várias pessoas bipando a mesma entrada)
 
 
 async def lock_stock(
@@ -38,6 +39,13 @@ async def lock_stock(
     )
     for cls, key in plan:
         await db.execute(text("SELECT pg_advisory_xact_lock(:c, :k)"), {"c": cls, "k": key})
+
+
+async def lock_receipt_check(db: AsyncSession, entry_id: int) -> None:
+    """Serializa as gravações da conferência de recebimento de UMA entrada (Postgres; no SQLite não faz nada)."""
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    await db.execute(text("SELECT pg_advisory_xact_lock(:c, :k)"), {"c": _CLASS_RECEIPT_CHECK, "k": int(entry_id)})
 
 
 async def lock_entry_items(db: AsyncSession, items) -> None:

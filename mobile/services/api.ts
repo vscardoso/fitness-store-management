@@ -11,6 +11,8 @@ import { loadingManager } from './loadingManager';
 import { OFFLINE_ERROR, friendlyFromText, safeMessage, validationMessage } from '@/utils/friendlyError';
 import { logError } from './debugLog';
 import { reportApiFailure } from './systemStatus';
+import { isSessionIdle } from './sessionActivity';
+import { IDLE_REASON, REFRESH_ATTEMPTS, refreshFailureKind, refreshRetryDelayMs, sentTokenIsStale } from '@/utils/sessionRules';
 
 /** Espera antes de cada nova tentativa de leitura quando o servidor não responde (ms). */
 export const READ_RETRY_DELAYS_MS = [1000, 2000, 4000, 6000];
@@ -36,7 +38,10 @@ export function setForceLogoutCallback(callback: (reason: string) => Promise<voi
  */
 let onInvalidateQueriesCallback: (() => void) | null = null;
 
-let refreshPromise: Promise<string | null> | null = null;
+/** Resultado da renovação: token novo, ou o tipo de falha (só `definitive` encerra a sessão). */
+type RefreshOutcome = { token: string } | { failure: 'definitive' | 'transient' };
+
+let refreshPromise: Promise<RefreshOutcome> | null = null;
 
 /**
  * Configura o callback para invalidar queries
@@ -62,7 +67,7 @@ let expiringSession: Promise<void> | null = null;
  * Encerra a sessão: limpa tokens, cache do React Query e estado do authStore.
  * O redirecionamento ao login acontece no layout raiz quando isAuthenticated vira false.
  */
-const expireSession = (): Promise<void> => {
+const expireSession = (reason: string = 'Sessão expirada. Faça login novamente.'): Promise<void> => {
   if (expiringSession) return expiringSession;
 
   expiringSession = (async () => {
@@ -77,7 +82,6 @@ const expireSession = (): Promise<void> => {
       onInvalidateQueriesCallback();
     }
 
-    const reason = 'Sessão expirada. Faça login novamente.';
     if (onForceLogoutCallback) {
       await onForceLogoutCallback(reason);
     } else {
@@ -90,49 +94,71 @@ const expireSession = (): Promise<void> => {
   return expiringSession;
 };
 
-const refreshAccessToken = async (): Promise<string | null> => {
+/** Só uma aba renova por vez (Web Locks); sem o recurso, vale só a trava dentro da própria aba. */
+const withCrossTabLock = async <T,>(fn: () => Promise<T>): Promise<T> => {
+  const locks = typeof navigator !== 'undefined' ? (navigator as any).locks : undefined;
+  if (locks && typeof locks.request === 'function') {
+    try {
+      return await locks.request('provador-refresh-sessao', fn);
+    } catch {
+      /* trava indisponível (aba em segundo plano, política do navegador): segue sem ela */
+    }
+  }
+  return fn();
+};
+
+const statusOf = (err: any): number | undefined => err?.response?.status ?? err?.status;
+
+const runRefresh = (staleAccess: string | null): Promise<RefreshOutcome> =>
+  withCrossTabLock(async (): Promise<RefreshOutcome> => {
+    // Outra aba já renovou enquanto esperávamos a vez: usa o token que ela guardou, sem gastar o refresh_token de novo.
+    const current = await getAccessToken();
+    if (current && staleAccess && current !== staleAccess) return { token: current };
+
+    let used = await getRefreshToken();
+    if (!used) {
+      if (__DEV__) console.log('⚠️ Refresh token ausente - não foi possível renovar sessão');
+      return { failure: 'definitive' };
+    }
+
+    for (let attempt = 0; attempt < REFRESH_ATTEMPTS; attempt++) {
+      try {
+        // Usa a mesma instância com headers de controle para evitar loop de auth/loading.
+        const { data } = await api.post<RefreshResponse>(
+          '/auth/refresh',
+          { refresh_token: used },
+          { headers: { 'X-Skip-Auth': 'true', 'X-Skip-Loading': 'true' } }
+        );
+        await saveAccessToken(data.access_token);
+        await saveRefreshToken(data.refresh_token);
+        if (__DEV__) console.log('♻️ Sessão renovada com sucesso via refresh token');
+        return { token: data.access_token };
+      } catch (refreshError) {
+        const status = statusOf(refreshError);
+        if (refreshFailureKind(status) === 'definitive') {
+          // O token usado pode ter sido trocado por outra aba no meio do caminho: se o guardado agora é outro, tenta com ele.
+          const latest = await getRefreshToken();
+          if (latest && latest !== used) {
+            used = latest;
+            continue;
+          }
+          return { failure: 'definitive' };
+        }
+        // Limite de pedidos (429), servidor reiniciando (5xx) ou rede: a sessão NÃO acabou. Espera e tenta de novo.
+        if (attempt < REFRESH_ATTEMPTS - 1) {
+          await new Promise((resolve) => setTimeout(resolve, refreshRetryDelayMs(attempt)));
+        }
+      }
+    }
+    return { failure: 'transient' };
+  });
+
+const refreshAccessToken = async (staleAccess: string | null): Promise<RefreshOutcome> => {
   if (refreshPromise) {
     return refreshPromise;
   }
 
-  refreshPromise = (async () => {
-    const refreshToken = await getRefreshToken();
-
-    if (!refreshToken) {
-      if (__DEV__) {
-        console.log('⚠️ Refresh token ausente - não foi possível renovar sessão');
-      }
-      return null;
-    }
-
-    try {
-      // Usa a mesma instância com headers de controle para evitar loop de auth/loading.
-      const { data } = await api.post<RefreshResponse>(
-        '/auth/refresh',
-        { refresh_token: refreshToken },
-        {
-          headers: {
-            'X-Skip-Auth': 'true',
-            'X-Skip-Loading': 'true',
-          },
-        }
-      );
-
-      await saveAccessToken(data.access_token);
-      await saveRefreshToken(data.refresh_token);
-
-      if (__DEV__) {
-        console.log('♻️ Sessão renovada com sucesso via refresh token');
-      }
-
-      return data.access_token;
-    } catch (refreshError) {
-      if (__DEV__) {
-        console.log('🔒 Falha ao renovar sessão via refresh token');
-      }
-      return null;
-    }
-  })();
+  refreshPromise = runRefresh(staleAccess);
 
   try {
     return await refreshPromise;
@@ -162,6 +188,12 @@ api.interceptors.request.use(
   async (config) => {
     const token = await getAccessToken();
     const skipAuth = config.headers?.['X-Skip-Auth'] === 'true';
+
+    // 2 horas sem nenhum toque na tela: a sessão acaba (só por falta de uso; usando, nunca). O pedido nem sai.
+    if (token && !skipAuth && !isPublicAuthEndpoint(config.url) && (await isSessionIdle())) {
+      await expireSession(IDLE_REASON);
+      throw Object.assign(new Error('Sessão encerrada por inatividade'), { sessionExpired: true });
+    }
 
     // Skip Authorization for signup-related endpoints
     const isSignupEndpoint = config.url?.includes('/auth/signup') ||
@@ -319,26 +351,51 @@ api.interceptors.response.use(
     // 401 -> refresh silencioso uma vez; se falhar (ou o reenvio também der 401), volta ao login
     if (error.response?.status === 401) {
       if (isPublicAuthEndpoint(originalRequest.url)) {
-        return Promise.reject(error);
+        // 401 de login ou da renovação: a frase do servidor ("Email ou senha incorretos"), não o texto técnico do axios
+        const d = error.response?.data?.detail as any;
+        const frase = typeof d === 'string' && d ? safeMessage(d) : 'Email ou senha incorretos';
+        return Promise.reject(Object.assign(new Error(frase), { status: 401, response: error.response }));
       }
 
       const hadAuth = (originalRequest as any)._hadAuth === true;
+      const sentAuth = (originalRequest.headers as any)?.Authorization;
 
-      if (hadAuth && !originalRequest._retry) {
-        originalRequest._retry = true;
-        const newAccessToken = await refreshAccessToken();
-
-        if (newAccessToken) {
+      // O pedido saiu com um token que já não é o guardado (outra aba renovou, ou a pessoa entrou de novo no meio do caminho):
+      // repete com o de agora. Antes, esse 401 atrasado apagava a sessão nova (4 logins em 33 s, 10/11/2026).
+      if (hadAuth && !(originalRequest as any)._staleRetried) {
+        const current = await getAccessToken();
+        if (sentTokenIsStale(sentAuth, current)) {
+          (originalRequest as any)._staleRetried = true;
           if (!originalRequest.headers) {
             originalRequest.headers = {};
           }
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          originalRequest.headers.Authorization = `Bearer ${current}`;
+          return api(originalRequest);
+        }
+      }
+
+      if (hadAuth && !originalRequest._retry) {
+        originalRequest._retry = true;
+        const outcome = await refreshAccessToken(typeof sentAuth === 'string' ? sentAuth.replace(/^Bearer /, '') : null);
+
+        if ('token' in outcome) {
+          if (!originalRequest.headers) {
+            originalRequest.headers = {};
+          }
+          originalRequest.headers.Authorization = `Bearer ${outcome.token}`;
 
           if (__DEV__) {
             console.log('🔁 Reenviando requisição após refresh de token');
           }
 
           return api(originalRequest);
+        }
+
+        // Falha passageira (limite de pedidos, servidor reiniciando, rede): a sessão continua valendo, só este pedido falha.
+        if (outcome.failure === 'transient') {
+          return Promise.reject(
+            Object.assign(new Error('Não consegui renovar sua sessão agora. Tente de novo em instantes.'), { status: 0, transientAuth: true })
+          );
         }
       }
 

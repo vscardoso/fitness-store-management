@@ -50,6 +50,7 @@ from app.api.v1.endpoints import (
     supplier_returns,
     gifts,
     stock_counts,
+    entry_receipt_check,
     cash_register,
     finance,
     receivables,
@@ -209,6 +210,7 @@ api_router.include_router(
 
 # Conferência de estoque salva
 api_router.include_router(stock_counts.router)
+api_router.include_router(entry_receipt_check.router)
 api_router.include_router(stock_import.router)
 api_router.include_router(cash_register.router)
 api_router.include_router(finance.router)

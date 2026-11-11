@@ -194,6 +194,7 @@ _SQLITE_EXTRA_COLUMNS = {
     "expenses": [("stock_entry_id", "INTEGER"), ("account_id", "INTEGER"), ("payable_id", "INTEGER")],
     "payables": [("counts_as_expense", "BOOLEAN NOT NULL DEFAULT 0"), ("expense_category_id", "INTEGER")],
     "stock_count_items": [("counted_by_name", "VARCHAR(120)")],
+    "stock_counts": [("entry_id", "INTEGER"), ("recent_batches", "JSON")],
     "account_transfers": [("is_auto", "BOOLEAN NOT NULL DEFAULT 0"), ("card_day", "DATE")],
     "sale_returns": [("receivable_abated", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
     "stores": [

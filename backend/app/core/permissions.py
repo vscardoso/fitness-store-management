@@ -118,6 +118,10 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"GET"}, r"^/suggestions/", SELLER),
     ({"POST", "GET", "DELETE"}, r"^/wishlist/(\{wishlist_id\}|customer/\{customer_id\})?$", SELLER),
 
+    # conferir o recebimento de uma entrada: toda a equipe da loja confere junto (zerar para todos é do gerente: cai na regra abaixo)
+    ({"GET"}, r"^/stock-entries/\{entry_id\}/receipt-check$", SELLER),
+    ({"POST"}, r"^/stock-entries/\{entry_id\}/receipt-check/apply$", SELLER),
+
     # ── gerente ──────────────────────────────────────────────────────────────
     (ANY, r"^/(reports|dashboard|expenses|suppliers|stock-entries)(/|$)", MANAGER),
     (ANY, r"^/sales/reports/", MANAGER),
