@@ -295,6 +295,7 @@ async def test_pdf_tamanhos_6x5_5x6_e_grade_da_folha(test_client, async_session)
     r = await test_client.get("/api/v1/labels/sizes", headers=h)
     assert r.status_code == 200
     tam = {x["id"]: x for x in r.json()}
+    assert (tam["50x40"]["width_mm"], tam["50x40"]["height_mm"], tam["50x40"]["per_sheet"]) == (50, 40, 18)
     assert (tam["47x42"]["width_mm"], tam["47x42"]["height_mm"], tam["47x42"]["per_sheet"]) == (47, 42, 24)
     assert (tam["50x45"]["width_mm"], tam["50x45"]["height_mm"], tam["50x45"]["per_sheet"]) == (50, 45, 18)
     assert (tam["60x50"]["width_mm"], tam["60x50"]["height_mm"], tam["60x50"]["per_sheet"]) == (60, 50, 15)
@@ -320,7 +321,7 @@ async def test_pdf_tamanhos_6x5_5x6_e_grade_da_folha(test_client, async_session)
     r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 16}], "layout": "a4", "width_mm": 65, "height_mm": 55}, headers=h)
     assert _pages(r.content) == 2   # 65x55: 15 por folha
     # medidas pequenas e grandes no limite: o desenho cabe e o texto sai inteiro
-    for w, hh in ((30, 30), (100, 100), (47, 42), (50, 45), (60, 50), (50, 60)):
+    for w, hh in ((30, 30), (100, 100), (50, 40), (47, 42), (50, 45), (60, 50), (50, 60)):
         r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 1}], "layout": "roll", "width_mm": w, "height_mm": hh}, headers=h)
         txt = _pdf_text(r.content)
         assert r.status_code == 200 and "R$ 89,90" in txt and "Bege" in txt, (w, hh)

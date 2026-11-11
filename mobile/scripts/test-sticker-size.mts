@@ -7,9 +7,11 @@ import {
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
 
-t('padrão é 4,7 x 4,2 cm (sobra borda na tag de 5 x 4,5)', () => {
-  assert.equal(DEFAULT_STICKER.widthMm, 47);
-  assert.equal(DEFAULT_STICKER.heightMm, 42);
+t('padrão é 5 x 4 cm (5 de largura, 4 de altura)', () => {
+  assert.equal(DEFAULT_STICKER.widthMm, 50);
+  assert.equal(DEFAULT_STICKER.heightMm, 40);
+  assert.equal(sizeDims(50, 40), '5 de largura × 4 de altura');
+  assert.equal(stickersPerSheet(50, 40), 18);
 });
 t('centímetros com vírgula ou ponto viram milímetros', () => {
   assert.equal(parseCm('6'), 60);
