@@ -18,6 +18,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import { getGroupedProducts } from '@/services/productService';
 import EmptyState from '@/components/ui/EmptyState';
+import { filterProductsBySearch } from '@/utils/searchMatch';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { formatVariantLabel } from '@/services/productVariantService';
 import { useDesktopSheet } from '@/hooks/useLayout';
@@ -62,16 +63,13 @@ export default function ProductSelectionModal({
     }
   }, [visible]);
 
-  // Filter products by search query (client-side filtering)
-  const filteredProducts = useMemo(() => products?.filter((product: ProductGrouped) => {
-    if (hasStock && (product.total_stock ?? 0) <= 0) return false;
-    if (!searchQuery.trim()) return true;
-    const search = searchQuery.toLowerCase();
-    return (
-      product.name.toLowerCase().includes(search) ||
-      product.brand?.toLowerCase().includes(search)
-    );
-  }), [products, searchQuery, hasStock]);
+  // Busca por palavras (nome, marca, cor, tamanho e código); só as variações que combinam aparecem
+  const filteredProducts = useMemo(
+    () => filterProductsBySearch((products ?? []).filter((p: ProductGrouped) => !(hasStock && (p.total_stock ?? 0) <= 0)), searchQuery),
+    [products, searchQuery, hasStock],
+  );
+  // sobrou um produto só: já abre as variações dele
+  const onlyOneId = searchQuery.trim() && filteredProducts.length === 1 ? filteredProducts[0].id : null;
 
   const handleProductPress = (product: ProductGrouped) => {
     setSelectedProduct(prev => prev?.id === product.id ? null : product);
@@ -83,7 +81,7 @@ export default function ProductSelectionModal({
   };
 
   const renderProduct = ({ item }: { item: ProductGrouped }) => {
-    const isSelected = selectedProduct?.id === item.id;
+    const isSelected = (selectedProduct?.id ?? onlyOneId) === item.id;
     const visibleVariants = item.variants;
 
     return (
@@ -269,7 +267,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '88%',
+    // altura FIXA: com altura pelo conteúdo a janela subia e descia a cada letra digitada (a lista encolhe e cresce) e a tela tremia
+    height: '88%',
     minHeight: '50%',
     shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -4 },
