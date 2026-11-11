@@ -140,3 +140,10 @@ export function findVariantLocal(index: Map<string, number>, code: string): numb
   }
   return null;
 }
+
+/** Quanto tempo o aviso da última leitura fica na tela: o de sucesso some logo (5 s); alerta e erro ficam mais (10 s) para dar tempo de ler. */
+export const SCAN_STATUS_MS: Record<'ok' | 'warn' | 'error', number> = { ok: 5000, warn: 10000, error: 10000 };
+
+export function scanStatusLifetimeMs(kind: string): number {
+  return kind === 'ok' ? SCAN_STATUS_MS.ok : kind === 'warn' ? SCAN_STATUS_MS.warn : SCAN_STATUS_MS.error;
+}
