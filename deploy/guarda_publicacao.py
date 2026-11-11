@@ -11,7 +11,8 @@ Roda NO VPS, antes do deploy (chamado pelo GitHub Actions). Lê o access.log do 
 Uso:
     guarda_publicacao.py --status              # só mostra a situação; sai com 0 (livre) ou 10 (ocupado)
     guarda_publicacao.py --esperar 25          # espera até 25 min a API ficar sem escrita; 10 se não liberar
-    guarda_publicacao.py --esperar 25 --estrita  # espera também ninguém estar usando o app (é o que os workflows usam)
+    guarda_publicacao.py --esperar 25 --estrita  # espera também ninguém estar usando o app (é o que os workflows usam);
+                                                 # das 20h às 6h (Brasília) o modo estrito é relaxado: só espera parar de gravar
     FORCAR=1 guarda_publicacao.py --esperar 25 # publica mesmo assim (avisa nas mensagens)
 Opções: --log CAMINHO (padrão /var/log/nginx/access.log), --janela-escrita SEGUNDOS (padrão 120).
 """
@@ -29,6 +30,14 @@ WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 IGNORED_PREFIXES = ("/api/v1/auth/refresh", "/api/v1/client-logs", "/api/v1/webhooks", "/webhooks", "/health")
 IGNORED_AGENTS = ("curl", "python-requests", "python-httpx", "GitHub", "UptimeRobot", "kube-probe")
 BUSY, FREE = 10, 0
+# À noite (20h às 6h, horário de Brasília) a loja está fechada: a guarda deixa de exigir "ninguém usando o app" (modo estrito)
+# e só espera ninguém estar GRAVANDO. Pedido do Victor em 11/11/2026. Brasília é UTC-3 fixo (sem horário de verão).
+NOITE_INICIO, NOITE_FIM = 20, 6
+
+
+def eh_noite(now: float) -> bool:
+    hora = datetime.fromtimestamp(now - 3 * 3600, tz=timezone.utc).hour
+    return hora >= NOITE_INICIO or hora < NOITE_FIM
 
 
 def parse_time(stamp: str) -> float:
@@ -80,8 +89,11 @@ def report(info: dict, write_window: int, estrita: bool = False) -> str:
     return f"LIVRE: nenhuma gravação nos últimos {write_window}s; {info['people']} pessoa(s) conectada(s) nos últimos 5 min."
 
 
-def check(log: str, write_window: int, estrita: bool = False) -> tuple:
-    info = activity(read_tail(log), time.time(), write_window)
+def check(log: str, write_window: int, estrita: bool = False, now: float = None) -> tuple:
+    now = time.time() if now is None else now
+    if estrita and eh_noite(now):
+        estrita = False
+    info = activity(read_tail(log), now, write_window)
     busy = bool(info["writes"]) or (estrita and info["people"] > 0)
     return (BUSY if busy else FREE), report(info, write_window, estrita)
 
