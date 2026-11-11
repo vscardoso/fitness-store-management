@@ -117,6 +117,18 @@ class GiftService:
 
     # ── dar o brinde ─────────────────────────────────────────────────────────
     async def create(self, tenant_id: int, user: User, data: Dict[str, Any]) -> Dict[str, Any]:
+        gift, product_ids = await self._build(tenant_id, user, data, own_tx=True)
+        await self._sync_inventory(product_ids, tenant_id)
+        invalidate_dashboard_cache(tenant_id)
+        await self._notify(tenant_id, user, f"deu um brinde de R$ {self._fmt(gift.total_cost)} (custo para a loja)")
+        return await self._public(await self._gift(tenant_id, gift.id))
+
+    async def create_in_sale(self, tenant_id: int, user: User, data: Dict[str, Any]):
+        """Brinde dado DENTRO de uma venda: usa a transação da venda (não grava sozinho). Quem chama grava tudo junto
+        (a venda e o brinde saem ou não saem juntos) e depois sincroniza o estoque dos produtos devolvidos aqui."""
+        return await self._build(tenant_id, user, data, own_tx=False)
+
+    async def _build(self, tenant_id: int, user: User, data: Dict[str, Any], *, own_tx: bool):
         raw_items = data.get("items") or []
         if not isinstance(raw_items, list) or not raw_items:
             raise GiftError("Escolha pelo menos uma peça para o brinde.")
@@ -203,14 +215,13 @@ class GiftService:
                 "para": recipient or None, "cliente_id": customer_id, "venda_id": sale_id,
                 "custo": float(gift.total_cost), "valor_de_vitrine": float(gift.list_value),
                 "pecas": sum(q for _, q in lines)})
-            await self.db.commit()
+            if own_tx:
+                await self.db.commit()
         except Exception:
-            await self.db.rollback()
+            if own_tx:
+                await self.db.rollback()
             raise
-        await self._sync_inventory(product_ids, tenant_id)
-        invalidate_dashboard_cache(tenant_id)
-        await self._notify(tenant_id, user, f"deu um brinde de R$ {self._fmt(gift.total_cost)} (custo para a loja)")
-        return await self._public(await self._gift(tenant_id, gift.id))
+        return gift, product_ids
 
     @staticmethod
     def _fmt(v: Any) -> str:

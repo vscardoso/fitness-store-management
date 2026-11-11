@@ -69,6 +69,12 @@ class PaymentCreate(BaseModel):
         return _check_money(v)
 
 
+class SaleGiftCreate(BaseModel):
+    """Peça dada de brinde dentro da venda (só administrador/gerente): sai do estoque pelo custo e vai para o controle de Brindes."""
+    variant_id: int
+    quantity: int = Field(..., gt=0, le=MAX_QTY)
+
+
 class SaleCreate(BaseModel):
     """Schema for creating a sale."""
     customer_id: Optional[int] = None
@@ -80,6 +86,8 @@ class SaleCreate(BaseModel):
     payments: List[PaymentCreate] = Field(..., max_length=MAX_LINES)
     # Chave de idempotência (ou o header Idempotency-Key): a mesma chave na mesma loja em 24 h devolve a venda já criada
     client_request_id: Optional[str] = Field(default=None, max_length=80)
+    # Brindes dados junto com esta venda (R$ 0,00 no comprovante, custo para o controle de Brindes). Só admin/gerente.
+    gifts: List[SaleGiftCreate] = Field(default_factory=list, max_length=MAX_LINES)
 
     @field_validator("discount_amount", "tax_amount")
     @classmethod

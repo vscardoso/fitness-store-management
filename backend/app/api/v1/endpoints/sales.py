@@ -110,6 +110,8 @@ async def create_sale(
         }
     """
     sale_service = SaleService(db)
+    if sale_data.gifts and current_user.role not in (UserRole.ADMIN, UserRole.MANAGER):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só administrador ou gerente dá brinde na venda.")
     if idempotency_key and idempotency_key.strip():
         sale_data.client_request_id = idempotency_key.strip()
     key = sale_data.client_request_id
@@ -121,6 +123,7 @@ async def create_sale(
                 sale_data,
                 seller_id=current_user.id,
                 tenant_id=tenant_id,
+                gift_user=current_user if sale_data.gifts else None,
             )
         except IdempotencyConflictError as e:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))

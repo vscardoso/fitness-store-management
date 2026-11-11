@@ -49,6 +49,8 @@ def request_fingerprint(sale_data) -> str:
         "p": [[getattr(p.payment_method, "value", p.payment_method), m(p.amount), p.installments,
                str(p.first_due_date or ""), p.interval_days or 0] for p in sale_data.payments],
     }
+    if getattr(sale_data, "gifts", None):          # só entra no resumo quando há brinde (vendas antigas mantêm o mesmo resumo)
+        doc["g"] = [[g.variant_id, g.quantity] for g in sale_data.gifts]
     return hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -150,6 +152,7 @@ class SaleService:
         *,
         tenant_id: int,
         keep_pending: bool = False,
+        gift_user=None,
     ) -> Sale:
         """
         Cria uma venda completa com validações e movimentação de estoque.
@@ -180,7 +183,7 @@ class SaleService:
             # Trava as variações da venda (ordem fixa) antes de ler o saldo: dois pedidos pela mesma peça se enfileiram
             await lock_stock(
                 self.db,
-                variant_ids=[i.variant_id for i in sale_data.items],
+                variant_ids=[i.variant_id for i in sale_data.items] + [g.variant_id for g in sale_data.gifts],
                 product_ids=[i.product_id for i in sale_data.items if not i.variant_id],
             )
             # Idempotência: a mesma chave na mesma loja em 24 h devolve a venda que já existe (sem baixar estoque de novo).
@@ -439,6 +442,21 @@ class SaleService:
                 sale.status = SaleStatus.COMPLETED.value
             sale.loyalty_points_earned = float(loyalty_points_earned)
 
+            # Brindes da venda: saem do estoque pelo custo (FIFO) na MESMA transação da venda. Se faltar peça, nada é gravado.
+            gift_product_ids = set()
+            gift_obj = None
+            if sale_data.gifts:
+                if gift_user is None:
+                    raise ValueError("Só administrador ou gerente dá brinde na venda.")
+                from app.services.gift_service import GiftError, GiftService
+                try:
+                    gift_obj, gift_product_ids = await GiftService(self.db).create_in_sale(tenant_id, gift_user, {
+                        "items": [{"variant_id": g.variant_id, "quantity": g.quantity} for g in sale_data.gifts],
+                        "reason_type": "with_sale", "customer_id": sale_data.customer_id,
+                        "recipient_name": f"Cliente da venda {sale_number}", "related_sale_id": sale.id})
+                except GiftError as ge:
+                    raise ValueError(str(ge))
+
             await self.db.commit()
 
             if not keep_pending:
@@ -448,7 +466,7 @@ class SaleService:
             # Rebuild incremental de inventário ANTES do reload final
             # (rebuild pode fazer commit próprio, o que expiraria os objetos se feito depois)
             inv_sync = InventoryService(self.db)
-            affected_product_ids = {item.product_id for item in sale_data.items if item.product_id}
+            affected_product_ids = {item.product_id for item in sale_data.items if item.product_id} | set(gift_product_ids)
             for pid in affected_product_ids:
                 try:
                     delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)

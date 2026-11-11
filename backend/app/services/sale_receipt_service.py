@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import to_brazil_tz
 from app.models.customer import Customer
+from app.models.gift import Gift, GiftItem
 from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.models.receivable import Receivable
@@ -167,6 +168,17 @@ async def build_receipt_data(db: AsyncSession, sale: Any, tenant_id: int, change
             "subtotal": float(it.subtotal),
         })
 
+    # brindes dados junto com a venda: aparecem a R$ 0,00 e NUNCA com custo
+    gifts: List[Dict[str, Any]] = []
+    grows = (await db.execute(
+        select(GiftItem).join(Gift, Gift.id == GiftItem.gift_id)
+        .where(Gift.related_sale_id == sale.id, Gift.tenant_id == tenant_id, Gift.status == "given",
+               Gift.is_active == True)  # noqa: E712
+        .order_by(GiftItem.id)
+    )).scalars().all()
+    for g in grows:
+        gifts.append({"name": g.product_name or "Produto", "variant": g.variant_label, "quantity": int(g.quantity)})
+
     payments = []
     for p in sale.payments:
         if _enum(p.status) != "confirmed":
@@ -210,6 +222,7 @@ async def build_receipt_data(db: AsyncSession, sale: Any, tenant_id: int, change
         "customer": customer.full_name if customer else None,
         "customer_phone": customer.phone if customer else None,
         "items": items,
+        "gifts": gifts,
         "pieces": sum(i["quantity"] for i in items),
         "subtotal": float(sale.subtotal),
         # valor das peças a preço de tabela e o que foi abatido em cada peça (o `discount` abaixo é só o da venda toda)
@@ -258,6 +271,8 @@ def build_receipt_text(d: Dict[str, Any]) -> str:
         if it["discount"] > 0:
             line += f" (desconto de {brl(it['discount'])})"
         out.append(line)
+    for g in d["gifts"]:
+        out.append(f"{g['quantity']}x {g['name']}" + (f" ({g['variant']})" if g["variant"] else "") + f" - {brl(0)} (brinde)")
     out.append("")
     if d["items_discount"] > 0:
         out.append(f"Valor das peças: {brl(d['gross_subtotal'])}")
@@ -428,6 +443,10 @@ def build_receipt_pdf(d: Dict[str, Any], size: str = "80") -> bytes:
         if it["discount"] > 0:
             detail += f"  (desconto {brl(it['discount'])})"
         p.pair(detail, brl(it["subtotal"]), 8)
+        p.gap(2)
+    for g in d["gifts"]:
+        p.text(g["name"] + (f" · {g['variant']}" if g["variant"] else ""), 8.5, bold=True)
+        p.pair(f"{g['quantity']} x brinde", brl(0), 8)
         p.gap(2)
     p.rule()
     p.pair(f"Peças: {d['pieces']}", "", 8)
