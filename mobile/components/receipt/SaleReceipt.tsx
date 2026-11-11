@@ -2,10 +2,13 @@ import React, { forwardRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Card } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { itemsDiscountOf } from '@/utils/itemDiscount';
+import PaymentLines from '@/components/receipt/PaymentLines';
+import { useSaleReceipt } from '@/hooks/useSaleReceipt';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import type { SaleWithDetails, PaymentMethod } from '@/types';
+import type { SaleWithDetails } from '@/types';
 
 interface SaleReceiptProps {
   sale: SaleWithDetails;
@@ -14,30 +17,10 @@ interface SaleReceiptProps {
   change?: number;
 }
 
-const getPaymentMethodLabel = (method: PaymentMethod | string): string => {
-  const labels: Record<string, string> = {
-    PIX: 'PIX',
-    pix: 'PIX',
-    CASH: 'Dinheiro',
-    cash: 'Dinheiro',
-    CREDIT_CARD: 'Cartão de Crédito',
-    credit_card: 'Cartão de Crédito',
-    DEBIT_CARD: 'Cartão de Débito',
-    debit_card: 'Cartão de Débito',
-    BANK_TRANSFER: 'Transferência Bancária',
-    bank_transfer: 'Transferência Bancária',
-    INSTALLMENTS: 'Parcelado',
-    installments: 'Parcelado',
-    ON_ACCOUNT: 'Fiado',
-    on_account: 'Fiado',
-    LOYALTY_POINTS: 'Pontos de Fidelidade',
-    loyalty_points: 'Pontos de Fidelidade',
-  };
-  return labels[method] || method;
-};
-
 export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName, change }, ref) => {
   const brandingColors = useBrandingColors();
+  const { data: receipt } = useSaleReceipt(sale.id, change);
+  const gifts = receipt?.receipt.gifts ?? [];
   return (
     <View ref={ref} collapsable={false} style={styles.receiptContainer}>
       <Card style={styles.detailsCard}>
@@ -84,34 +67,12 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
             </View>
           )}
 
-          {/* Método(s) de pagamento */}
-          <View style={styles.detailRow}>
+          {/* Método(s) de pagamento: nome e parcelas à esquerda, valor à direita (cada um no seu lugar) */}
+          <View style={styles.paymentsBlock}>
             <Text variant="labelMedium" style={styles.label}>
               {(sale.payments?.length ?? 0) > 1 ? 'Pagamentos' : 'Forma de Pagamento'}
             </Text>
-            <View style={styles.paymentValueContainer}>
-              {sale.payments && sale.payments.length > 0 ? (
-                sale.payments.map((p, i) => {
-                  const isCredit = p.method === 'credit_card';
-                  const inst = p.installments ?? 1;
-                  const instText = isCredit
-                    ? inst > 1
-                      ? ` · ${inst}x de ${formatCurrency(p.amount / inst)}`
-                      : ' · à vista'
-                    : '';
-                  const amountText = sale.payments.length > 1 ? ` ${formatCurrency(p.amount)}` : '';
-                  return (
-                    <Text key={i} variant="bodyLarge" style={styles.detailValue}>
-                      {getPaymentMethodLabel(p.method)}{instText}{amountText}
-                    </Text>
-                  );
-                })
-              ) : (
-                <Text variant="bodyLarge" style={styles.detailValue}>
-                  {sale.payment_method ? getPaymentMethodLabel(sale.payment_method) : 'Não especificado'}
-                </Text>
-              )}
-            </View>
+            <PaymentLines payments={sale.payments ?? []} fallbackMethod={sale.payment_method} fallbackAmount={Number(sale.total_amount)} />
           </View>
 
           {/* Itens da venda */}
@@ -127,6 +88,8 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
                 ? Number(sale.discount_amount) * (itemSubtotal / Number(sale.subtotal))
                 : 0;
               const effectiveSubtotal = itemSubtotal - discountShare;
+              const lineDiscount = Number((item as any).discount_amount ?? 0);
+              const grossLine = Number(item.unit_price) * item.quantity;
               return (
                 <View key={index} style={styles.itemRow}>
                   <Text variant="bodyMedium" style={styles.itemQuantity}>
@@ -141,16 +104,16 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
                         {variantLabel}
                       </Text>
                     )}
-                    {discountShare > 0 && (
+                    {(discountShare > 0 || lineDiscount > 0) && (
                       <Text variant="bodySmall" style={styles.itemDiscountNote}>
-                        (desc. aplicado)
+                        {lineDiscount > 0 ? `(desconto de ${formatCurrency(lineDiscount)})` : '(desc. aplicado)'}
                       </Text>
                     )}
                   </View>
                   <View style={styles.itemPriceContainer}>
-                    {discountShare > 0 && (
+                    {(discountShare > 0 || lineDiscount > 0) && (
                       <Text variant="bodySmall" style={styles.itemPriceStrike}>
-                        {formatCurrency(itemSubtotal)}
+                        {formatCurrency(grossLine)}
                       </Text>
                     )}
                     <Text variant="bodyMedium" style={styles.itemPrice}>
@@ -160,19 +123,37 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
                 </View>
               );
             })}
+            {gifts.map((g, i) => (
+              <View key={`g${i}`} style={styles.itemRow}>
+                <Text variant="bodyMedium" style={styles.itemQuantity}>{g.quantity}x</Text>
+                <View style={styles.itemNameContainer}>
+                  <Text variant="bodyMedium" style={styles.itemName} numberOfLines={2}>{g.name}</Text>
+                  {!!g.variant && <Text variant="bodySmall" style={styles.itemVariant}>{g.variant}</Text>}
+                </View>
+                <Text variant="bodyMedium" style={styles.itemPrice}>brinde</Text>
+              </View>
+            ))}
           </View>
 
           {/* Resumo financeiro */}
           <View style={styles.financialSummary}>
             <View style={styles.summaryRow}>
-              <Text variant="bodyMedium" style={styles.summaryLabel}>Subtotal</Text>
+              <Text variant="bodyMedium" style={styles.summaryLabel}>{itemsDiscountOf(sale.items as any) > 0 ? 'Valor das peças' : 'Subtotal'}</Text>
               <Text variant="bodyMedium" style={styles.summaryValue}>
-                {formatCurrency(sale.subtotal)}
+                {formatCurrency(Number(sale.subtotal) + itemsDiscountOf(sale.items as any))}
               </Text>
             </View>
+            {itemsDiscountOf(sale.items as any) > 0 && (
+              <View style={styles.summaryRow}>
+                <Text variant="bodyMedium" style={styles.discountLabel}>Descontos nas peças</Text>
+                <Text variant="bodyMedium" style={styles.discountValue}>
+                  -{formatCurrency(itemsDiscountOf(sale.items as any))}
+                </Text>
+              </View>
+            )}
             {sale.discount_amount > 0 && (
               <View style={styles.summaryRow}>
-                <Text variant="bodyMedium" style={styles.discountLabel}>Desconto</Text>
+                <Text variant="bodyMedium" style={styles.discountLabel}>{itemsDiscountOf(sale.items as any) > 0 ? 'Desconto geral' : 'Desconto'}</Text>
                 <Text variant="bodyMedium" style={styles.discountValue}>
                   -{formatCurrency(sale.discount_amount)}
                 </Text>
@@ -255,8 +236,9 @@ const styles = StyleSheet.create({
   detailValue: {
     fontWeight: '500',
   },
-  paymentValueContainer: {
-    alignItems: 'flex-end',
+  paymentsBlock: {
+    marginTop: 12,
+    gap: 6,
   },
   installmentLabel: {
     color: Colors.light.textSecondary,

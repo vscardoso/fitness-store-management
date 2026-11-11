@@ -110,6 +110,8 @@ async def create_sale(
         }
     """
     sale_service = SaleService(db)
+    if sale_data.gifts and current_user.role not in (UserRole.ADMIN, UserRole.MANAGER):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só administrador ou gerente dá brinde na venda.")
     if idempotency_key and idempotency_key.strip():
         sale_data.client_request_id = idempotency_key.strip()
     key = sale_data.client_request_id
@@ -121,6 +123,7 @@ async def create_sale(
                 sale_data,
                 seller_id=current_user.id,
                 tenant_id=tenant_id,
+                gift_user=current_user if sale_data.gifts else None,
             )
         except IdempotencyConflictError as e:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
@@ -498,19 +501,19 @@ async def get_sale_receipt_pdf(
     sale_id: int,
     size: str = Query("80", pattern="^(58|80|a6)$"),
     change: Optional[float] = Query(None, ge=0, le=1_000_000),
+    link: bool = Query(False, description="true = devolve o link https do PDF em vez do arquivo (app: pdfDelivery.ts)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    from fastapi.responses import Response
     from app.services import sale_receipt_service as rs
+    from app.services.pdf_delivery import pdf_response
     sale = await SaleRepository(db).get_with_details(sale_id, tenant_id=tenant_id)
     if not sale:
         raise HTTPException(status_code=404, detail="Venda não encontrada")
     data = await rs.build_receipt_data(db, sale, tenant_id, change)
     pdf = rs.build_receipt_pdf(data, size)
-    return Response(content=pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="comprovante-{sale.sale_number}.pdf"'})
+    return pdf_response(pdf, f"comprovante-{sale.sale_number}.pdf", link=link, tenant_id=tenant_id)
 
 
 # ============================================================================

@@ -299,6 +299,9 @@ export async function createStockEntryWithNewProduct(
     payment_method?: string;
     notes?: string;
     discount_amount?: number;
+    paid_account_id?: number | null;
+    paid_outside?: boolean;
+    paid_with_cash?: boolean;
     extra_costs?: Array<{ description: string; amount: number }>;
   },
   quantity: number
@@ -345,6 +348,9 @@ export async function createStockEntryWithNewProductVariants(
     payment_method?: string;
     notes?: string;
     discount_amount?: number;
+    paid_account_id?: number | null;
+    paid_outside?: boolean;
+    paid_with_cash?: boolean;
     extra_costs?: Array<{ description: string; amount: number }>;
   }
 ): Promise<StockEntry> {

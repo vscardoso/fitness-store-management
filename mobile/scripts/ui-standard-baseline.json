@@ -265,13 +265,6 @@
   "handButton": 1,
   "oddWeight": 0
  },
- "app/checkout/success.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 2
- },
  "app/checkout.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,

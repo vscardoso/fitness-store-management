@@ -28,6 +28,9 @@ import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { getCustomerById } from '@/services/customerService';
 import { getFIFOCosts } from '@/services/productService';
 import AppButton from '@/components/ui/AppButton';
+import ItemDiscountEditor from '@/components/sale/ItemDiscountEditor';
+import CartGifts from '@/components/sale/CartGifts';
+import { cartItemCodeText } from '@/utils/cartCode';
 import {
   validateProductForCart,
   validateCartStock,
@@ -139,7 +142,8 @@ function MobileSaleScreen() {
         totalCost += costInfo.average_unit_cost * item.quantity;
         hasData = true;
       }
-      totalRevenue += item.unit_price * item.quantity;
+      // receita da linha JÁ com o desconto da peça (antes o lucro estimado ignorava o desconto de cada peça)
+      totalRevenue += item.unit_price * item.quantity - (item.discount ?? 0);
     }
     if (!hasData) return null;
     const effectiveRevenue = totalRevenue - (cart.discount ?? 0);
@@ -523,7 +527,7 @@ function MobileSaleScreen() {
               </View>
               <View style={styles.addProductTextContainer}>
                 <Text style={styles.addProductText}>Buscar Produtos</Text>
-                <Text style={styles.addProductSubtext}>Pesquisar por nome ou SKU</Text>
+                <Text style={styles.addProductSubtext}>Pesquisar por nome, cor, tamanho ou código</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
             </TouchableOpacity>
@@ -570,7 +574,7 @@ function MobileSaleScreen() {
                         ) : null}
                       </Text>
                       <Text style={styles.cartItemSku}>
-                        SKU: {item.product.sku}
+                        {cartItemCodeText(item.product as any)}
                       </Text>
                       <View style={styles.cartItemPriceRow}>
                         <Text style={styles.cartItemPrice}>
@@ -578,13 +582,15 @@ function MobileSaleScreen() {
                         </Text>
                         {fifoCosts?.[String(item.product_id)]?.average_unit_cost != null && (() => {
                           const cost = fifoCosts[String(item.product_id)].average_unit_cost;
-                          const marginPct = item.unit_price > 0
-                            ? ((item.unit_price - cost) / item.unit_price) * 100
-                            : 0;
+                          // lucro pelo preço COM o desconto da peça; abaixo do custo avisa em vermelho
+                          const netUnit = item.unit_price - (item.unit_discount ?? 0);
+                          const marginPct = netUnit > 0 ? ((netUnit - cost) / netUnit) * 100 : 0;
+                          const belowCost = netUnit < cost;
+                          const tone = belowCost ? VALUE_COLORS.negative : marginPct >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning;
                           return (
-                            <View style={[styles.cartMarginBadge, { backgroundColor: marginPct >= 30 ? VALUE_COLORS.positive + '18' : VALUE_COLORS.warning + '18' }]}>
-                              <Text style={[styles.cartMarginText, { color: marginPct >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning }]}>
-                                lucro {formatPercent(marginPct, 0)}
+                            <View style={[styles.cartMarginBadge, { backgroundColor: tone + '18' }]}>
+                              <Text style={[styles.cartMarginText, { color: tone }]}>
+                                {belowCost ? 'abaixo do custo' : `lucro ${formatPercent(marginPct, 0)}`}
                               </Text>
                             </View>
                           );
@@ -610,10 +616,22 @@ function MobileSaleScreen() {
                           <Ionicons name="add" size={14} color={Colors.light.white} />
                         </TouchableOpacity>
                       </View>
+                      {item.discount > 0 ? (
+                        <Text style={styles.itemTotalStrike}>{formatCurrency(item.unit_price * item.quantity)}</Text>
+                      ) : null}
                       <Text style={styles.itemTotal}>
-                        {formatCurrency(item.unit_price * item.quantity)}
+                        {formatCurrency(item.unit_price * item.quantity - item.discount)}
                       </Text>
                     </View>
+                  </View>
+                  <View style={styles.cartItemDiscount}>
+                    <ItemDiscountEditor
+                      unitPrice={item.unit_price}
+                      quantity={item.quantity}
+                      unitDiscount={item.unit_discount}
+                      onApply={(d) => cart.setItemUnitDiscount(item.cart_key, d)}
+                      onClear={() => cart.setItemUnitDiscount(item.cart_key, 0)}
+                    />
                   </View>
                 </View>
               ))}
@@ -626,9 +644,15 @@ function MobileSaleScreen() {
           <View style={styles.footer}>
             <View style={styles.totalsContainer}>
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Subtotal</Text>
-                <Text style={styles.totalValue}>{formatCurrency(cart.subtotal)}</Text>
+                <Text style={styles.totalLabel}>{cart.itemsDiscount > 0 ? 'Valor das peças' : 'Subtotal'}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(cart.subtotal + cart.itemsDiscount)}</Text>
               </View>
+              {cart.itemsDiscount > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: Colors.light.success }]}>Descontos nas peças</Text>
+                  <Text style={[styles.totalValue, { color: Colors.light.success }]}>- {formatCurrency(cart.itemsDiscount)}</Text>
+                </View>
+              )}
               {/* Linha de desconto avulso */}
               {!discountVisible && (
                 <TouchableOpacity
@@ -639,7 +663,7 @@ function MobileSaleScreen() {
                   <View style={styles.discountRowLeft}>
                     <Ionicons name="pricetag-outline" size={15} color={cart.discount > 0 ? Colors.light.success : Colors.light.textSecondary} />
                     <Text style={cart.discount > 0 ? styles.discountLabel : styles.discountAddLabel}>
-                      {cart.discount > 0 ? `Desconto  -${formatCurrency(cart.discount)}` : 'Adicionar desconto'}
+                      {cart.discount > 0 ? `Desconto geral  -${formatCurrency(cart.discount)}` : 'Desconto na venda toda'}
                     </Text>
                   </View>
                   <View style={styles.discountRowRight}>
@@ -653,6 +677,9 @@ function MobileSaleScreen() {
                   </View>
                 </TouchableOpacity>
               )}
+
+              {/* Brinde (só admin e gerente: o próprio componente some para os outros papéis) */}
+              <CartGifts />
 
               {/* Input inline de desconto */}
               {discountVisible && (
@@ -1089,6 +1116,15 @@ const createStyles = (brand: string) => StyleSheet.create({
   discountRowRight: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  cartItemDiscount: {
+    paddingHorizontal: theme.spacing.sm + 4,
+    paddingBottom: theme.spacing.sm,
+  },
+  itemTotalStrike: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textTertiary,
+    textDecorationLine: 'line-through',
   },
   discountAddLabel: {
     fontSize: theme.fontSize.sm,

@@ -1,6 +1,6 @@
 // Testes da lógica de leitura. Rodar: node scripts/test-scan-logic.mts
 import assert from 'node:assert/strict';
-import { buildCodeIndex, codeKeys, createPresenceGate, createScanGate, createWedgeBuffer, findVariantLocal, normalizeScan } from '../utils/scanLogic.ts';
+import { buildCodeIndex, codeKeys, createPresenceGate, createScanGate, createWedgeBuffer, findVariantLocal, normalizeScan, scanStatusLifetimeMs } from '../utils/scanLogic.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -150,3 +150,10 @@ console.log(`\n${n} testes passaram`);
   assert.equal(g.accept('PV#077-3', 5000), true);     // segunda peça igual, 2,9 s depois e fora da vista antes: conta
   console.log('ok presença com tempo mínimo entre leituras iguais');
 }
+
+t('aviso da leitura: sucesso some em 5 s; alerta e erro ficam 10 s', () => {
+  assert.equal(scanStatusLifetimeMs('ok'), 5000);
+  assert.equal(scanStatusLifetimeMs('warn'), 10000);
+  assert.equal(scanStatusLifetimeMs('error'), 10000);
+  assert.equal(scanStatusLifetimeMs('qualquer-outro'), 10000);   // desconhecido fica o tempo maior (nunca some antes de ler)
+});

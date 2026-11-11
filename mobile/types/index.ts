@@ -444,6 +444,8 @@ export interface SaleCreate {
   notes?: string;
   items: SaleItemCreate[];
   payments: PaymentCreate[];
+  /** Brindes dados junto com a venda (só admin ou gerente; o servidor recusa os outros papéis). */
+  gifts?: { variant_id: number; quantity: number }[];
 }
 
 export interface Sale {
@@ -643,6 +645,12 @@ export interface StockEntry {
   invoice_number?: string;
   payment_method?: string;
   discount_amount?: number;
+  /** Conta do Financeiro (gaveta ou banco) de onde saiu o dinheiro da compra; vazio = ainda não saiu de nenhuma. */
+  paid_account_id?: number | null;
+  /** Pago por fora das contas do app (ex.: dinheiro pessoal). */
+  paid_outside?: boolean;
+  /** Parte da compra que saiu da gaveta (o resto saiu da conta em paid_account_id). */
+  paid_cash_amount?: number | null;
   notes?: string;
   total_cost: number;
   /** Frete e despesas do lote, rateadas nas peças. */
@@ -679,6 +687,10 @@ export interface StockEntryCreate {
   invoice_number?: string;
   payment_method?: string;
   discount_amount?: number;
+  /** De onde saiu o dinheiro da compra (o saldo da conta cai sozinho). */
+  paid_account_id?: number | null;
+  paid_outside?: boolean;
+  paid_with_cash?: boolean;
   /** Desconto de cada fornecedor da entrada (valor 0 remove). */
   supplier_discounts?: Array<{ supplier_id: number; amount: number }>;
   notes?: string;

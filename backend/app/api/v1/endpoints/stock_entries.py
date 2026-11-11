@@ -25,6 +25,7 @@ from app.schemas.stock_entry import (
 )
 from app.schemas.entry_item import EntryItemCreate, EntryItemResponse, EntryItemUpdate
 from app.services.stock_entry_service import StockEntryService, InvalidEntryData
+from app.services.finance_service import FinanceConflict, FinanceError, FinanceNotFound
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 from app.models.stock_entry import EntryType
@@ -195,6 +196,9 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
     invoice_number: Optional[str] = None
     payment_method: Optional[str] = None
     discount_amount: Decimal = Field(Decimal('0'), ge=0)
+    paid_account_id: Optional[int] = None   # conta do Financeiro (gaveta ou banco) de onde saiu o dinheiro
+    paid_outside: bool = False              # pago por fora das contas do app
+    paid_with_cash: bool = False            # a gaveta paga o que tiver e a conta paga o resto
     notes: Optional[str] = None
 
     @field_validator("entry_code", mode="before")
@@ -305,6 +309,9 @@ async def create_stock_entry_with_new_product(
                 "invoice_number": request_data.invoice_number,
                 "payment_method": request_data.payment_method,
                 "discount_amount": request_data.discount_amount,
+                "paid_account_id": request_data.paid_account_id,
+                "paid_outside": request_data.paid_outside,
+                "paid_with_cash": request_data.paid_with_cash,
                 "notes": request_data.notes,
             },
             quantity=request_data.quantity,
@@ -410,6 +417,9 @@ async def create_stock_entry_with_new_product_variants(
                 "invoice_number": request_data.invoice_number,
                 "payment_method": request_data.payment_method,
                 "discount_amount": request_data.discount_amount,
+                "paid_account_id": request_data.paid_account_id,
+                "paid_outside": request_data.paid_outside,
+                "paid_with_cash": request_data.paid_with_cash,
                 "notes": request_data.notes,
             },
             user_id=current_user.id,
@@ -573,6 +583,9 @@ async def create_stock_entry(
             invoice_number=request_data.invoice_number,
             payment_method=request_data.payment_method,
             discount_amount=request_data.discount_amount,
+            paid_account_id=request_data.paid_account_id,
+            paid_outside=request_data.paid_outside,
+            paid_with_cash=request_data.paid_with_cash,
             notes=request_data.notes
             ,extra_costs=request_data.extra_costs
         )
@@ -1253,7 +1266,7 @@ async def update_stock_entry(
     """
     try:
         service = StockEntryService(db)
-        entry = await service.update_entry(entry_id, entry_data, tenant_id=tenant_id)
+        entry = await service.update_entry(entry_id, entry_data, tenant_id=tenant_id, user=current_user)
         
         await db.commit()
         await db.refresh(entry)
@@ -1263,6 +1276,12 @@ async def update_stock_entry(
     except InvalidEntryData as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except FinanceError as e:
+        # recusa do Financeiro ao mudar de onde saiu o dinheiro (gaveta sem saldo, mês fechado, conta que não serve)
+        await db.rollback()
+        code = (status.HTTP_404_NOT_FOUND if isinstance(e, FinanceNotFound)
+                else status.HTTP_409_CONFLICT if isinstance(e, FinanceConflict) else status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=code, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

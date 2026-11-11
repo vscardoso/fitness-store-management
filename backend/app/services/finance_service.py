@@ -28,9 +28,11 @@ from app.models.finance import (
 )
 from app.models.sale import Payment, PaymentMethod, Sale
 from app.models.sale_return import SaleReturn
+from app.models.stock_entry import EntryType, StockEntry
 from app.models.store import Store
 from app.models.supplier import Supplier
 from app.models.user import User
+from app.services import lot_cost_service
 from app.services.money_ledger import VALID_STATUS, br_day
 
 logger = logging.getLogger(__name__)
@@ -276,6 +278,7 @@ class FinanceService:
                 *day_range(AccountEntry.occurred_on),
             ).group_by(AccountEntry.account_id, AccountEntry.kind)
         )).all()
+        purchases = await self._purchases_by_account(tenant_id, start_day, end_day)
 
         by_account: Dict[int, Dict[str, Decimal]] = {}
         for a in accounts:
@@ -293,18 +296,42 @@ class FinanceService:
                 "transfers_out": _q(sum((_q(t.amount) for t in transfers if t.from_account_id == a.id), D0)),
                 "payables_paid": _q(paid.get(a.id, 0)),
                 "expenses_paid": _q(expenses.get(a.id, 0)),
+                "purchases_paid": _q(purchases.get(a.id, 0)),
                 "other_in": _q(sum((v for k, v in mine if k in ENTRY_IN_KINDS), D0)),
                 "other_out": _q(sum((v for k, v in mine if k in ENTRY_OUT_KINDS), D0)),
                 "closing_adjustments": _q(sum((v for k, v in mine if k == ENTRY_CLOSING_ADJUSTMENT), D0)),
             }
         return {"accounts": accounts, "by_account": by_account, "sales": sales, "refunds": refunds, "fiado": fiado}
 
+    async def _purchases_by_account(self, tenant_id: int, start_day: date, end_day: Optional[date]) -> Dict[int, Decimal]:
+        """Quanto cada conta pagou de mercadoria: entradas com `paid_account_id`, pelo dia da compra. Sai da conta o que a
+        mercadoria custou (peças x custo menos desconto); frete e despesas do lote têm a própria conta ("Pago com")."""
+        conds = [StockEntry.tenant_id == tenant_id, StockEntry.is_active == True,  # noqa: E712
+                 StockEntry.paid_account_id.is_not(None), StockEntry.entry_date >= start_day]
+        if end_day is not None:
+            conds.append(StockEntry.entry_date < end_day)
+        rows = (await self.db.execute(
+            select(StockEntry.id, StockEntry.paid_account_id, StockEntry.paid_cash_amount).where(*conds))).all()
+        if not rows:
+            return {}
+        goods = await lot_cost_service.goods_paid_by_entry(self.db, [r[0] for r in rows])
+        cash = await self._cash_account(tenant_id)
+        out: Dict[int, Decimal] = {}
+        for entry_id, account_id, cash_part in rows:
+            total = goods.get(entry_id, D0)
+            # compra paga com Gaveta + conta: a gaveta pagou a parte gravada (nunca mais que a compra custa hoje) e a conta, o resto
+            from_cash = min(_q(cash_part or 0), total) if cash is not None and (cash_part or 0) > 0 else D0
+            if from_cash > 0:
+                out[cash.id] = out.get(cash.id, D0) + from_cash
+            out[account_id] = out.get(account_id, D0) + (total - from_cash)
+        return out
+
     @staticmethod
     def net(b: Dict[str, Decimal]) -> Decimal:
         """Quanto a conta mudou com estes movimentos."""
         return _q(b["sales"] + b["receivables_received"] - b["refunds"] + b["cash_register"] + b["transfers_in"]
-                  - b["transfers_out"] - b["payables_paid"] - b["expenses_paid"] + b["other_in"] - b["other_out"]
-                  + b["closing_adjustments"])
+                  - b["transfers_out"] - b["payables_paid"] - b["expenses_paid"] - b["purchases_paid"] + b["other_in"]
+                  - b["other_out"] + b["closing_adjustments"])
 
     async def balances_at(self, tenant_id: int, day: Optional[date]) -> Dict[int, Decimal]:
         """Saldo de cada conta no COMEÇO do dia `day` (None = agora)."""
@@ -1039,6 +1066,148 @@ class FinanceService:
             if a["id"] in set(account_ids) and a["kind"] in (KIND_CASH, KIND_CARD) and Decimal(str(a["balance"])) < 0:
                 txt = f"{Decimal(str(a['balance'])):.2f}".replace(".", ",")
                 raise FinanceError(f"Com este valor a conta {a['name']} ficaria negativa (R$ {txt}). Confira os lançamentos dela.")
+
+    # ── compras de mercadoria: o dinheiro sai da conta de onde foi pago ───────────
+    @staticmethod
+    def _brl(v: Decimal) -> str:
+        return f"{_q(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    async def _purchase_account(self, tenant_id: int, account_id: Any) -> FinancialAccount:
+        acc = await self._account(tenant_id, as_int(account_id, "a conta"))
+        if acc.kind not in (KIND_CASH, KIND_BANK):
+            raise FinanceError("A compra só pode sair da gaveta ou de um banco (a maquininha é dinheiro a receber).")
+        return acc
+
+    async def _cash_account(self, tenant_id: int) -> Optional[FinancialAccount]:
+        return next((a for a in await self._accounts(tenant_id) if a.kind == KIND_CASH), None)
+
+    async def cash_available(self, tenant_id: int, entry_ids=()) -> Decimal:
+        """Quanto a gaveta tem para pagar compra: o saldo de agora MAIS o que as compras de `entry_ids` já tiraram dela
+        (elas vão ser refeitas). Nunca negativo."""
+        cash = await self._cash_account(tenant_id)
+        if cash is None:
+            return D0
+        bal = next((a for a in (await self.balances(tenant_id))["accounts"] if a["id"] == cash.id), None)
+        have = Decimal(str(bal["balance"])) if bal else D0
+        if entry_ids:
+            back = (await self.db.execute(select(func.coalesce(func.sum(StockEntry.paid_cash_amount), 0)).where(
+                StockEntry.tenant_id == tenant_id, StockEntry.id.in_(list(entry_ids)), StockEntry.is_active == True,  # noqa: E712
+                StockEntry.paid_account_id.is_not(None)))).scalar() or 0
+            have += _q(back)
+        return max(D0, have)
+
+    async def check_purchase_payment(self, tenant_id: int, account_id: Any, day: date, amount: Any,
+                                     with_cash: bool = False):
+        """Confere, ANTES de gravar a entrada, de onde sai o dinheiro da compra. Devolve (conta a gravar, parte da gaveta):
+        (None, None) quando a compra é de antes de a loja começar a contar (o dinheiro dela já está dentro do saldo de partida).
+        Com `with_cash`, a gaveta paga primeiro tudo o que tiver (até o valor da compra) e `account_id` (um banco) paga o resto."""
+        if account_id in (None, "", 0):
+            return None, None
+        store = await self._require_started(tenant_id)
+        acc = await self._purchase_account(tenant_id, account_id)
+        if day < store.finance_start_date:
+            return None, None
+        await self.ensure_open_month(tenant_id, day)
+        amount = _q(amount)
+        if with_cash:
+            if acc.kind != KIND_BANK:
+                raise FinanceError("Para pagar com a gaveta e o resto de uma conta, escolha um banco para o resto.")
+            return acc.id, _q(min(await self.cash_available(tenant_id), amount)) or None
+        if acc.kind == KIND_CASH and amount > 0:
+            bal = next((a for a in (await self.balances(tenant_id))["accounts"] if a["id"] == acc.id), None)
+            have = Decimal(str(bal["balance"])) if bal else D0
+            if have - amount < 0:
+                raise FinanceError(f"A gaveta tem R$ {self._brl(have)} e esta compra custa R$ {self._brl(amount)}. "
+                                   "Escolha o banco de onde saiu o dinheiro.")
+        return acc.id, None
+
+    async def set_purchase_account(self, tenant_id: int, user: User, entry_ids: Any, account_id: Any = None,
+                                   outside: bool = False, with_cash: bool = False) -> Dict[str, Any]:
+        """Diz de onde saiu o dinheiro de compras JÁ lançadas. `account_id` vazio e `outside` falso desfaz. Tudo ou nada."""
+        store = await self._require_started(tenant_id)
+        await self._store(tenant_id, lock=True)
+        ids = sorted({as_int(i, "a compra") for i in (entry_ids or [])})
+        if not ids:
+            raise FinanceError("Escolha ao menos uma compra.")
+        acc = None if outside or account_id in (None, "", 0) else await self._purchase_account(tenant_id, account_id)
+        if with_cash and (acc is None or acc.kind != KIND_BANK):
+            raise FinanceError("Para pagar com a gaveta e o resto de uma conta, escolha um banco para o resto.")
+        entries = (await self.db.execute(select(StockEntry).where(
+            StockEntry.tenant_id == tenant_id, StockEntry.id.in_(ids), StockEntry.is_active == True,  # noqa: E712
+        ))).scalars().all()
+        if len(entries) != len(ids):
+            raise FinanceNotFound("Compra não encontrada.")
+        changed: List[int] = []
+        # com a gaveta: ela paga, compra por compra, o que ainda tiver (o que estas compras já tinham tirado dela volta antes)
+        cash_left = await self.cash_available(tenant_id, ids) if with_cash else D0
+        goods_by = await lot_cost_service.goods_paid_by_entry(self.db, ids) if with_cash else {}
+        try:
+            for e in sorted(entries, key=lambda x: (x.entry_date, x.id)):
+                if e.entry_type not in (EntryType.ONLINE, EntryType.LOCAL):
+                    raise FinanceError(f"A entrada {e.entry_code} não é compra de mercadoria: estoque inicial, ajuste, "
+                                       "devolução e doação não tiram dinheiro de conta.")
+                if e.entry_date < store.finance_start_date:
+                    raise FinanceError(f"A compra {e.entry_code} é de antes de o app começar a contar: o dinheiro dela já "
+                                       "está dentro do saldo de partida.")
+                await self.ensure_open_month(tenant_id, e.entry_date)
+                before = {"paid_account_id": e.paid_account_id, "paid_outside": bool(e.paid_outside),
+                          "paid_cash_amount": float(e.paid_cash_amount) if e.paid_cash_amount is not None else None}
+                new_cash = None
+                if with_cash:
+                    take = _q(min(cash_left, goods_by.get(e.id, D0)))
+                    cash_left -= take
+                    new_cash = take if take > 0 else None
+                if e.paid_account_id != (acc.id if acc else None) or (e.paid_cash_amount or None) != new_cash:
+                    changed.append(e.id)
+                e.paid_account_id = acc.id if acc else None
+                e.paid_outside = bool(outside)
+                e.paid_cash_amount = new_cash
+                self.db.add(e)
+                await self._audit(tenant_id, user, "FINANCE_PURCHASE_ACCOUNT_SET", "stock_entry", e.id, {
+                    "antes": before, "depois": {"paid_account_id": e.paid_account_id, "paid_outside": e.paid_outside,
+                                                "paid_cash_amount": float(new_cash) if new_cash is not None else None},
+                    "compra": e.entry_code})
+            await self.db.flush()
+            if acc is not None:
+                if acc.kind == KIND_CASH and changed:
+                    # mesma frase da criação da entrada: quanto a gaveta tem e quanto a compra custa
+                    bal = next((a for a in (await self.balances(tenant_id))["accounts"] if a["id"] == acc.id), None)
+                    after = Decimal(str(bal["balance"])) if bal else D0
+                    if after < 0:
+                        cost = sum((await lot_cost_service.goods_paid_by_entry(self.db, changed)).values(), D0)
+                        raise FinanceError(
+                            f"A gaveta tem R$ {self._brl(after + cost)} e {'esta compra custa' if len(changed) == 1 else 'estas compras custam'} "
+                            f"R$ {self._brl(cost)}. Escolha o banco de onde saiu o dinheiro.")
+                await self._refuse_negative_cash(tenant_id, {acc.id})
+            if with_cash:
+                cash_acc = await self._cash_account(tenant_id)
+                if cash_acc is not None:
+                    await self._refuse_negative_cash(tenant_id, {cash_acc.id})
+            await self.db.commit()
+        except FinanceError:
+            await self.db.rollback()
+            raise
+        return await self.balances(tenant_id)
+
+    async def purchases_pending(self, tenant_id: int) -> Dict[str, Any]:
+        """Compras de mercadoria de depois do começo da contagem que ainda não disseram de onde saiu o dinheiro: enquanto
+        isso, o saldo das contas não as desconta."""
+        store = await self._store(tenant_id)
+        if store.finance_start_date is None:
+            return {"started": False, "count": 0, "total": 0.0, "entries": []}
+        rows = (await self.db.execute(
+            select(StockEntry.id, StockEntry.entry_code, StockEntry.entry_date, StockEntry.supplier_name).where(
+                StockEntry.tenant_id == tenant_id, StockEntry.is_active == True,  # noqa: E712
+                StockEntry.paid_account_id.is_(None), StockEntry.paid_outside == False,  # noqa: E712
+                StockEntry.entry_date >= store.finance_start_date,
+                StockEntry.entry_type.in_([EntryType.ONLINE, EntryType.LOCAL]),
+            ).order_by(StockEntry.entry_date.desc(), StockEntry.id.desc())
+        )).all()
+        goods = await lot_cost_service.goods_paid_by_entry(self.db, [r[0] for r in rows])
+        entries = [{"id": r[0], "entry_code": r[1], "entry_date": r[2].isoformat(), "supplier_name": r[3],
+                    "amount": float(goods[r[0]])} for r in rows if goods.get(r[0], D0) > 0]
+        return {"started": True, "count": len(entries), "total": float(_q(sum((Decimal(str(e["amount"])) for e in entries), D0))),
+                "entries": entries}
 
     async def update_account(self, tenant_id: int, user: User, account_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
         """Corrige o saldo de partida (o que foi digitado na implantação) e o nome do banco. Só admin."""

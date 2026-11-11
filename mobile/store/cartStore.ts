@@ -9,6 +9,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Product, SaleItem, Payment, PaymentMethod } from '@/types';
 import type { ProductGrouped, ProductVariant as GroupedVariant } from '@/types';
+import { lineDiscount } from '@/utils/itemDiscount';
+
+const cents = (v: number): number => Math.round((Number(v) + Number.EPSILON) * 100);
+/** Reais em centavos exatos (evita 359.59999999999997 na soma). */
+const money = (c: number): number => c / 100;
 
 /**
  * Item do carrinho — suporta produto simples e produto com variante.
@@ -22,6 +27,31 @@ export interface CartItem extends SaleItem {
   variant_label?: string;
   /** Produto (com name/sku ajustados para a variante quando aplicável) */
   product: Product;
+  /**
+   * Desconto POR PEÇA em reais (quem vende digita; centavos exatos). `discount` (herdado de SaleItem) é o desconto da
+   * LINHA = unit_discount x quantidade, refeito toda vez que a quantidade muda. Sem isto, mudar a quantidade depois de
+   * dar o desconto deixava o desconto da linha parado.
+   */
+  unit_discount?: number;
+}
+
+/** Peça dada de brinde dentro da venda (só admin/gerente): sai do estoque pelo custo, R$ 0,00 para a cliente. */
+export interface CartGift {
+  variant_id: number;
+  product_id: number;
+  name: string;
+  label?: string;
+  code?: string;
+  quantity: number;
+  /** Estoque que a tela viu ao escolher (o servidor confere de novo ao finalizar). */
+  stock?: number;
+}
+
+/** Refaz o desconto da linha quando a quantidade muda (desconto por peça x quantidade). */
+function withQuantity(item: CartItem, quantity: number): CartItem {
+  const next = { ...item, quantity };
+  if (item.unit_discount && item.unit_discount > 0) next.discount = lineDiscount(item.unit_discount, quantity);
+  return next;
 }
 
 /** Duração máxima do carrinho persistido: 8 horas */
@@ -33,6 +63,8 @@ const CART_TTL_MS = 8 * 60 * 60 * 1000;
 interface CartState {
   // State
   items: CartItem[];
+  /** Brindes da venda (não entram no total, no desconto nem nos pagamentos). */
+  gifts: CartGift[];
   payments: Payment[];
   discount: number;
   customer_id?: number;
@@ -42,6 +74,8 @@ interface CartState {
 
   // Computed
   subtotal: number;
+  /** Soma dos descontos dados em cada peça (o `discount` do estado é o desconto geral da venda). */
+  itemsDiscount: number;
   total: number;
   itemCount: number;
   totalPaid: number;
@@ -53,7 +87,12 @@ interface CartState {
   removeItem: (cart_key: string) => void;
   updateQuantity: (cart_key: string, quantity: number) => void;
   updateItemDiscount: (cart_key: string, discount: number) => void;
+  /** Desconto por peça (reais, centavos exatos). 0 tira o desconto. */
+  setItemUnitDiscount: (cart_key: string, unitDiscount: number) => void;
   clearItems: () => void;
+  addGift: (gift: Omit<CartGift, 'quantity'>, quantity?: number) => void;
+  setGiftQuantity: (variant_id: number, quantity: number) => void;
+  removeGift: (variant_id: number) => void;
 
   // Actions - Payments
   addPayment: (method: PaymentMethod, amount: number, installments?: number) => void;
@@ -79,12 +118,14 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       // Estado inicial
       items: [],
+      gifts: [],
       payments: [],
       discount: 0,
       customer_id: undefined,
       notes: undefined,
       persisted_at: undefined,
       subtotal: 0,
+      itemsDiscount: 0,
       total: 0,
       itemCount: 0,
       totalPaid: 0,
@@ -108,7 +149,7 @@ export const useCartStore = create<CartState>()(
           set({
             items: items.map((item) =>
               item.cart_key === cart_key
-                ? { ...item, quantity: item.quantity + quantity }
+                ? withQuantity(item, item.quantity + quantity)
                 : item
             ),
           });
@@ -149,6 +190,7 @@ export const useCartStore = create<CartState>()(
           id: product.id,
           name: product.name,
           sku: variant.sku,
+          display_code: variant.display_code ?? undefined,   // código da etiqueta (#041-11): é o que o carrinho mostra
           price: variant.price,
           cost_price: variant.cost_price ?? undefined,
           current_stock: variant.current_stock,
@@ -157,13 +199,13 @@ export const useCartStore = create<CartState>()(
           category_id: product.category_id,
           brand: product.brand,
           image_url: product.image_url,
-        } as Product;
+        } as unknown as Product;
 
         if (existingItem) {
           set({
             items: items.map((item) =>
               item.cart_key === cart_key
-                ? { ...item, quantity: item.quantity + quantity }
+                ? withQuantity(item, item.quantity + quantity)
                 : item
             ),
           });
@@ -208,7 +250,7 @@ export const useCartStore = create<CartState>()(
 
         set({
           items: get().items.map((item) =>
-            item.cart_key === cart_key ? { ...item, quantity } : item
+            item.cart_key === cart_key ? withQuantity(item, quantity) : item
           ),
         });
         get().calculateTotals();
@@ -220,8 +262,26 @@ export const useCartStore = create<CartState>()(
       updateItemDiscount: (cart_key: string, discount: number) => {
         set({
           items: get().items.map((item) =>
-            item.cart_key === cart_key ? { ...item, discount } : item
+            item.cart_key === cart_key ? { ...item, discount, unit_discount: undefined } : item
           ),
+        });
+        get().calculateTotals();
+      },
+
+      /**
+       * Desconto por peça: guarda o valor de UMA peça e deriva o da linha (x quantidade).
+       * Recusa desconto que não deixa a peça com valor (>= preço) para o carrinho nunca mandar linha inválida.
+       */
+      setItemUnitDiscount: (cart_key: string, unitDiscount: number) => {
+        set({
+          items: get().items.map((item) => {
+            if (item.cart_key !== cart_key) return item;
+            const per = Math.max(0, money(cents(unitDiscount)));
+            if (per <= 0 || cents(per) >= cents(item.unit_price)) {
+              return { ...item, unit_discount: undefined, discount: 0 };
+            }
+            return { ...item, unit_discount: per, discount: lineDiscount(per, item.quantity) };
+          }),
         });
         get().calculateTotals();
       },
@@ -290,18 +350,38 @@ export const useCartStore = create<CartState>()(
         set({ notes });
       },
 
+      addGift: (gift, quantity = 1) => {
+        set((state) => {
+          const found = state.gifts.find((g) => g.variant_id === gift.variant_id);
+          const gifts = found
+            ? state.gifts.map((g) => (g.variant_id === gift.variant_id ? { ...g, quantity: g.quantity + quantity } : g))
+            : [...state.gifts, { ...gift, quantity }];
+          return { gifts, persisted_at: state.persisted_at ?? new Date().toISOString() };
+        });
+      },
+      setGiftQuantity: (variant_id, quantity) => {
+        set((state) => ({
+          gifts: state.gifts.flatMap((g) => (g.variant_id !== variant_id ? [g] : quantity <= 0 ? [] : [{ ...g, quantity }])),
+        }));
+      },
+      removeGift: (variant_id) => {
+        set((state) => ({ gifts: state.gifts.filter((g) => g.variant_id !== variant_id) }));
+      },
+
       /**
        * Limpar carrinho completamente
        */
       clear: () => {
         set({
           items: [],
+          gifts: [],
           payments: [],
           discount: 0,
           customer_id: undefined,
           notes: undefined,
           persisted_at: undefined,
           subtotal: 0,
+          itemsDiscount: 0,
           total: 0,
           itemCount: 0,
           totalPaid: 0,
@@ -317,13 +397,17 @@ export const useCartStore = create<CartState>()(
         const payments = get().payments;
         const globalDiscount = get().discount;
 
-        // Subtotal dos items (com descontos individuais)
-        const subtotal = items.reduce((sum, item) => {
-          return sum + item.unit_price * item.quantity - item.discount;
-        }, 0);
+        // Subtotal dos items (com o desconto de cada peça), em centavos exatos
+        const subtotalCents = items.reduce(
+          (sum, item) => sum + cents(item.unit_price) * item.quantity - cents(item.discount),
+          0,
+        );
+        const itemsDiscountCents = items.reduce((sum, item) => sum + cents(item.discount), 0);
+        const subtotal = money(subtotalCents);
+        const itemsDiscount = money(itemsDiscountCents);
 
-        // Total final (subtotal - desconto global)
-        const total = Math.max(0, subtotal - globalDiscount);
+        // Total final (subtotal - desconto geral da venda)
+        const total = Math.max(0, money(subtotalCents - cents(globalDiscount)));
 
         // Quantidade de items
         const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -332,10 +416,11 @@ export const useCartStore = create<CartState>()(
         const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
 
         // Valor restante
-        const remaining = Math.max(0, total - totalPaid);
+        const remaining = Math.max(0, money(cents(total) - cents(totalPaid)));
 
         set({
           subtotal,
+          itemsDiscount,
           total,
           itemCount,
           totalPaid,
@@ -356,6 +441,7 @@ export const useCartStore = create<CartState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         items: state.items,
+        gifts: state.gifts,
         // payments NÃO persiste — são específicos da sessão (evita pagamentos fantasma)
         discount: state.discount,
         customer_id: state.customer_id,
@@ -370,6 +456,7 @@ export const useCartStore = create<CartState>()(
           const age = Date.now() - new Date(state.persisted_at).getTime();
           if (age > CART_TTL_MS) {
             state.items = [];
+            state.gifts = [];
             state.payments = [];
             state.discount = 0;
             state.customer_id = undefined;
@@ -379,14 +466,16 @@ export const useCartStore = create<CartState>()(
         }
 
         // Fix 2: recalcular totais após rehydration (evita total zerado)
+        state.gifts = state.gifts ?? [];
         const items = state.items ?? [];
         const globalDiscount = state.discount ?? 0;
-        const subtotal = items.reduce(
-          (sum, item) => sum + item.unit_price * item.quantity - item.discount,
+        const subtotalCents = items.reduce(
+          (sum, item) => sum + cents(item.unit_price) * item.quantity - cents(item.discount),
           0,
         );
-        state.subtotal = subtotal;
-        state.total = Math.max(0, subtotal - globalDiscount);
+        state.subtotal = money(subtotalCents);
+        state.itemsDiscount = money(items.reduce((sum, item) => sum + cents(item.discount), 0));
+        state.total = Math.max(0, money(subtotalCents - cents(globalDiscount)));
         state.itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
         state.totalPaid = 0;   // payments não persistem
         state.remaining = state.total;

@@ -68,17 +68,17 @@ async def gift_receipt(gift_id: int, db: AsyncSession = Depends(get_db), tenant_
 
 
 @router.get("/{gift_id}/receipt/pdf", summary="Comprovante do brinde em PDF (58 mm, 80 mm ou A6)")
-async def gift_receipt_pdf(gift_id: int, size: str = Query("a6", pattern="^(58|80|a6)$"), db: AsyncSession = Depends(get_db),
+async def gift_receipt_pdf(gift_id: int, size: str = Query("a6", pattern="^(58|80|a6)$"), link: bool = Query(False),
+                           db: AsyncSession = Depends(get_db),
                            tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
-    from fastapi.responses import Response
     from app.services import gift_receipt_service as gr
+    from app.services.pdf_delivery import pdf_response
     try:
         gift = await GiftService(db).get(tenant_id, gift_id)
     except GiftError as e:
         raise _http(e)
     pdf = gr.build_gift_receipt_pdf(await gr.build_gift_receipt_data(db, tenant_id, gift), size)
-    return Response(content=pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="brinde-{gift["gift_number"]}.pdf"'})
+    return pdf_response(pdf, f"brinde-{gift['gift_number']}.pdf", link=link, tenant_id=tenant_id)
 
 
 @router.post("/{gift_id}/receipt/send-whatsapp", summary="Manda o comprovante do brinde pelo WhatsApp OFICIAL da loja")

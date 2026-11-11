@@ -58,6 +58,54 @@ async def supplier_discounts_by_entry(db: AsyncSession, entry_ids: list[int]) ->
     return out
 
 
+def applied_discounts(
+    entry_base: Decimal, general_raw: Decimal, base_by_sup: dict, sup_raw: dict
+) -> tuple[Decimal, dict]:
+    """Desconto que de fato vale (nunca passa da mercadoria): o geral, e o de cada fornecedor só até o que sobrou das
+    peças dele depois da parte do geral. É a MESMA conta do rateio e do dinheiro que saiu da conta na compra."""
+    general = min(general_raw, entry_base)
+    sup: dict = {}
+    for sid, amount in sup_raw.items():
+        base_s = base_by_sup.get(sid, ZERO)
+        general_share = general * base_s / entry_base if entry_base > 0 else ZERO
+        sup[sid] = max(ZERO, min(amount, base_s - general_share))
+    return general, sup
+
+
+async def goods_paid_by_entry(db: AsyncSession, entry_ids: Iterable[int]) -> dict[int, Decimal]:
+    """Quanto a MERCADORIA de cada entrada custou ao lojista: peças x custo menos o desconto aplicado (geral e por
+    fornecedor). Frete e despesas do lote ficam de fora (cada uma tem a sua conta). Em lote: poucas consultas para
+    qualquer número de entradas, porque o saldo das contas usa isto a cada abertura do Financeiro."""
+    ids = {int(i) for i in entry_ids if i is not None}
+    if not ids:
+        return {}
+    entries = {r[0]: r for r in (await db.execute(
+        select(StockEntry.id, StockEntry.supplier_id, StockEntry.discount_amount)
+        .where(StockEntry.id.in_(ids), StockEntry.is_active == True)  # noqa: E712
+    )).all()}
+    if not entries:
+        return {}
+    rows = (await db.execute(
+        select(EntryItem.entry_id, EntryItem.supplier_id, func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.unit_cost), 0))
+        .where(EntryItem.entry_id.in_(list(entries)), EntryItem.is_active == True)  # noqa: E712
+        .group_by(EntryItem.entry_id, EntryItem.supplier_id)
+    )).all()
+    base_by_sup: dict[int, dict] = {}
+    for entry_id, item_sup, total in rows:
+        sid = item_sup or entries[entry_id][1]          # item sem fornecedor próprio usa o da entrada
+        d = base_by_sup.setdefault(entry_id, {})
+        d[sid] = d.get(sid, ZERO) + Decimal(str(total))
+    sup_discounts = await supplier_discounts_by_entry(db, list(entries))
+
+    out: dict[int, Decimal] = {}
+    for entry_id, (_id, _sup_id, general_raw) in entries.items():
+        by_sup = base_by_sup.get(entry_id, {})
+        base = sum(by_sup.values(), ZERO)
+        general, sup = applied_discounts(base, Decimal(str(general_raw or 0)), by_sup, sup_discounts.get(entry_id, {}))
+        out[entry_id] = (base - general - sum(sup.values(), ZERO)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return out
+
+
 async def entry_total_discount(db: AsyncSession, entry: StockEntry) -> Decimal:
     """Desconto total da entrada: geral + soma dos descontos por fornecedor."""
     d = await supplier_discounts_by_entry(db, [entry.id])
@@ -101,8 +149,6 @@ async def recompute_entries(
     for entry in entries.values():
         entry_base = base.get(entry.id, ZERO)
         own = await entry_own_costs(db, entry.id) if entry.is_active else ZERO
-        # Desconto do fornecedor abate o custo das peças; nunca passa da mercadoria (custo não fica negativo)
-        general = min(Decimal(str(entry.discount_amount or 0)), entry_base) if entry.is_active else ZERO
         freight_gross = own   # despesas do lote (sempre >= 0)
 
         items = (await db.execute(
@@ -117,13 +163,11 @@ async def recompute_entries(
         base_by_sup: dict = {}
         for i in items:
             base_by_sup[_sup(i)] = base_by_sup.get(_sup(i), ZERO) + Decimal(i.quantity_received) * i.unit_cost
-        sup_disc: dict = {}
+        # Desconto do fornecedor abate o custo das peças; nunca passa da mercadoria (custo não fica negativo)
+        general, sup_disc = ZERO, {}
         if entry.is_active:
-            for sid, amount in sup_discounts.get(entry.id, {}).items():
-                base_s = base_by_sup.get(sid, ZERO)
-                # o desconto geral já tirou a parte proporcional das peças dele: o dele só vai até o que sobrou
-                general_share = general * base_s / entry_base if entry_base > 0 else ZERO
-                sup_disc[sid] = max(ZERO, min(amount, base_s - general_share))
+            general, sup_disc = applied_discounts(
+                entry_base, Decimal(str(entry.discount_amount or 0)), base_by_sup, sup_discounts.get(entry.id, {}))
         sup_total = sum(sup_disc.values(), ZERO)
         discount = general + sup_total
         extra_total = freight_gross - discount

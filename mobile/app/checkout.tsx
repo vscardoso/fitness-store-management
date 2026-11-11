@@ -22,6 +22,7 @@ import type { PDVTerminal } from '@/types/pdv';
 import { getProductById } from '@/services/productService';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency, discountInCents, roundCents } from '@/utils/format';
+import { centsDigits } from '@/utils/cashMoney';
 import { haptics } from '@/utils/haptics';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import AppButton from '@/components/ui/AppButton';
@@ -560,7 +561,7 @@ export default function CheckoutScreen() {
    */
   const handleFillRemaining = () => {
     const remaining = finalTotal - cart.totalPaid;
-    setPaymentAmount(formatMoneyInput((remaining * 100).toString()));
+    setPaymentAmount(formatMoneyInput(centsDigits(remaining)));
     haptics.light();
   };
 
@@ -778,6 +779,9 @@ export default function CheckoutScreen() {
         tax_amount: 0,
         notes: cart.notes,
       };
+      if (cart.gifts.length > 0) {
+        saleData.gifts = cart.gifts.map((g) => ({ variant_id: g.variant_id, quantity: g.quantity }));
+      }
 
       // Adicionar customer_id apenas se houver cliente selecionado
       if (cart.customer_id) {
@@ -979,6 +983,11 @@ export default function CheckoutScreen() {
                       <Text style={styles.cartItemQty}>
                         {item.quantity}x {formatCurrency(item.unit_price)}
                       </Text>
+                      {item.discount > 0 ? (
+                        <Text style={[styles.cartItemQty, styles.discountText]}>
+                          desconto de {formatCurrency(item.discount)}
+                        </Text>
+                      ) : null}
                     </View>
                     <Text style={styles.cartItemTotal}>
                       {formatCurrency(item.quantity * item.unit_price - item.discount)}
@@ -1620,9 +1629,25 @@ export default function CheckoutScreen() {
             <View style={styles.cardContent}>
               <View style={styles.totalsStack}>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Subtotal</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(cart.subtotal)}</Text>
+                  <Text style={styles.summaryLabel}>{cart.itemsDiscount > 0 ? 'Valor das peças' : 'Subtotal'}</Text>
+                  <Text style={styles.summaryValue}>{formatCurrency(cart.subtotal + cart.itemsDiscount)}</Text>
                 </View>
+
+                {cart.itemsDiscount > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, styles.discountText]}>Descontos nas peças</Text>
+                    <Text style={[styles.summaryValue, styles.discountText]}>- {formatCurrency(cart.itemsDiscount)}</Text>
+                  </View>
+                )}
+
+                {cart.gifts.length > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>
+                      Brinde ({cart.gifts.reduce((n, g) => n + g.quantity, 0)} {cart.gifts.reduce((n, g) => n + g.quantity, 0) === 1 ? 'peça' : 'peças'})
+                    </Text>
+                    <Text style={styles.summaryValue}>sem cobrança</Text>
+                  </View>
+                )}
 
                 {pointsUse > 0 && (
                   <View style={styles.summaryRow}>
@@ -1634,7 +1659,7 @@ export default function CheckoutScreen() {
                 {cart.discount > 0 && (
                   <View style={styles.summaryRow}>
                     <Text style={[styles.summaryLabel, styles.discountText]}>
-                      Desconto Manual
+                      Desconto geral da venda
                     </Text>
                     <Text style={[styles.summaryValue, styles.discountText]}>
                       - {formatCurrency(cart.discount)}

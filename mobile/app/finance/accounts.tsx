@@ -15,6 +15,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import CashStatusCard from '@/components/cash/CashStatusCard';
 import FiadoProjectionCard from '@/components/finance/FiadoProjectionCard';
 import CardScheduleCard from '@/components/finance/CardScheduleCard';
+import PendingPurchasesCard from '@/components/finance/PendingPurchasesCard';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors } from '@/constants/Colors';
@@ -166,6 +167,7 @@ export default function AccountsScreen() {
           </View>
         </View>
 
+        {!!data.purchases_pending && data.purchases_pending.count > 0 && <PendingPurchasesCard pending={data.purchases_pending} />}
         {!!data.card_schedule && <CardScheduleCard schedule={data.card_schedule} />}
         {!!data.projection && <FiadoProjectionCard projection={data.projection} />}
 
@@ -399,6 +401,7 @@ export default function AccountsScreen() {
             <Line label="Transferências enviadas" value={-detail.breakdown.transfers_out} />
             <Line label="Contas pagas" value={-detail.breakdown.payables_paid} />
             <Line label="Despesas pagas" value={-detail.breakdown.expenses_paid} />
+            {!!detail.breakdown.purchases_paid && <Line label="Compras de mercadoria" value={-detail.breakdown.purchases_paid} />}
             <Line label="Fiado recebido" value={detail.breakdown.receivables_received} />
             <Line label="Outras entradas (sócio, empréstimo)" value={detail.breakdown.other_in} />
             <Line label="Retiradas, empréstimos e fatura" value={-detail.breakdown.other_out} />

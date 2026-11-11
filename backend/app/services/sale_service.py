@@ -49,6 +49,8 @@ def request_fingerprint(sale_data) -> str:
         "p": [[getattr(p.payment_method, "value", p.payment_method), m(p.amount), p.installments,
                str(p.first_due_date or ""), p.interval_days or 0] for p in sale_data.payments],
     }
+    if getattr(sale_data, "gifts", None):          # só entra no resumo quando há brinde (vendas antigas mantêm o mesmo resumo)
+        doc["g"] = [[g.variant_id, g.quantity] for g in sale_data.gifts]
     return hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -69,6 +71,21 @@ class SaleService:
         self.product_repo = ProductRepository(db)
         self.fifo_service = FIFOService(db)
     
+    @staticmethod
+    def _check_line_discount(name: str, item) -> None:
+        """O desconto de uma linha tem que ficar abaixo do valor dela.
+
+        Sem isso uma linha com desconto maior que o preço fica NEGATIVA e a outra linha da venda "paga" a diferença
+        (lucro, devolução e relatório por produto passam a mentir). Peça de graça é brinde, que tem fluxo e custo próprios.
+        """
+        from app.services.sale_receipt_service import brl
+        gross = (Decimal(str(item.unit_price)) * item.quantity).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        disc = Decimal(str(item.discount_amount or 0)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        if disc > gross:
+            raise ValueError(f"O desconto de {brl(disc)} em {name} é maior que o valor da peça ({brl(gross)}). Confira o desconto.")
+        if disc == gross:
+            raise ValueError(f"{name} ficaria de graça (desconto igual ao valor). Para dar a peça sem cobrança, use Brindes no menu Mais.")
+
     async def _validate_refs(self, sale_data, tenant_id: int) -> None:
         """customer_id, product_id e variant_id do corpo precisam ser da loja (e a variacao do produto)."""
         from sqlalchemy import select as _sel
@@ -78,8 +95,10 @@ class SaleService:
             if not await self.customer_repo.get(self.db, sale_data.customer_id, tenant_id=tenant_id):
                 raise ValueError("Cliente não encontrado")
         for item in sale_data.items:
-            if not await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id):
+            product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
+            if not product:
                 raise ValueError(f"Produto {item.product_id} não encontrado")
+            self._check_line_discount(product.name, item)
             if item.variant_id:
                 ok = (await self.db.execute(
                     _sel(_PV.id).where(
@@ -133,6 +152,7 @@ class SaleService:
         *,
         tenant_id: int,
         keep_pending: bool = False,
+        gift_user=None,
     ) -> Sale:
         """
         Cria uma venda completa com validações e movimentação de estoque.
@@ -163,7 +183,7 @@ class SaleService:
             # Trava as variações da venda (ordem fixa) antes de ler o saldo: dois pedidos pela mesma peça se enfileiram
             await lock_stock(
                 self.db,
-                variant_ids=[i.variant_id for i in sale_data.items],
+                variant_ids=[i.variant_id for i in sale_data.items] + [g.variant_id for g in sale_data.gifts],
                 product_ids=[i.product_id for i in sale_data.items if not i.variant_id],
             )
             # Idempotência: a mesma chave na mesma loja em 24 h devolve a venda que já existe (sem baixar estoque de novo).
@@ -210,15 +230,23 @@ class SaleService:
                 subtotal += item_subtotal
             
             # 2.1. Aplicar desconto por forma de pagamento (se configurado)
+            # MESMA regra do app (checkout): o desconto da forma de pagamento só vale com UMA forma de pagamento (pontos de
+            # fidelidade não contam como forma) e é calculado sobre o que sobrou DEPOIS do desconto das peças e do
+            # desconto manual. Se o servidor calculasse diferente, o app cobraria um valor e o servidor esperaria outro
+            # (venda recusada no PIX/cartão, ou diferença virando "troco" no dinheiro).
             payment_discount_amount = Decimal('0')
-            if sale_data.payment_method:
-                print(f" Verificando desconto para forma de pagamento: {sale_data.payment_method.value}")
+            real_payments = [p for p in sale_data.payments if getattr(p.payment_method, 'value', p.payment_method) != 'loyalty_points']
+            if len(real_payments) == 1:
+                pay_method = getattr(real_payments[0].payment_method, 'value', real_payments[0].payment_method)
+                manual_discount = Decimal(str(sale_data.discount_amount or 0))
+                base_for_payment_discount = max(Decimal('0'), subtotal - manual_discount)
+                print(f" Verificando desconto para forma de pagamento: {pay_method}")
                 discount_service = PaymentDiscountService(self.db)
                 try:
                     discount_calc = await discount_service.calculate_discount(
                         tenant_id=tenant_id,
-                        payment_method=sale_data.payment_method.value,
-                        amount=subtotal
+                        payment_method=pay_method,
+                        amount=base_for_payment_discount
                     )
                     payment_discount_amount = discount_calc.discount_amount
                     if payment_discount_amount > 0:
@@ -414,6 +442,21 @@ class SaleService:
                 sale.status = SaleStatus.COMPLETED.value
             sale.loyalty_points_earned = float(loyalty_points_earned)
 
+            # Brindes da venda: saem do estoque pelo custo (FIFO) na MESMA transação da venda. Se faltar peça, nada é gravado.
+            gift_product_ids = set()
+            gift_obj = None
+            if sale_data.gifts:
+                if gift_user is None:
+                    raise ValueError("Só administrador ou gerente dá brinde na venda.")
+                from app.services.gift_service import GiftError, GiftService
+                try:
+                    gift_obj, gift_product_ids = await GiftService(self.db).create_in_sale(tenant_id, gift_user, {
+                        "items": [{"variant_id": g.variant_id, "quantity": g.quantity} for g in sale_data.gifts],
+                        "reason_type": "with_sale", "customer_id": sale_data.customer_id,
+                        "recipient_name": f"Cliente da venda {sale_number}", "related_sale_id": sale.id})
+                except GiftError as ge:
+                    raise ValueError(str(ge))
+
             await self.db.commit()
 
             if not keep_pending:
@@ -423,7 +466,7 @@ class SaleService:
             # Rebuild incremental de inventário ANTES do reload final
             # (rebuild pode fazer commit próprio, o que expiraria os objetos se feito depois)
             inv_sync = InventoryService(self.db)
-            affected_product_ids = {item.product_id for item in sale_data.items if item.product_id}
+            affected_product_ids = {item.product_id for item in sale_data.items if item.product_id} | set(gift_product_ids)
             for pid in affected_product_ids:
                 try:
                     delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)

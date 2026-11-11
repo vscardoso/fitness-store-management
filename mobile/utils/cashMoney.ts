@@ -50,6 +50,12 @@ export function parseSignedMoney(raw: string): number | null {
 }
 
 /** Número -> texto do campo (12.5 -> "12,50", -50 -> "-50,00", 0 -> "0,00"). */
+/** Reais para os centavos inteiros em texto ("228,34" vira "22834"). Math.round: 228.34 * 100 dá 22834.000000000004. */
+export function centsDigits(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '0';
+  return String(Math.round(value * 100));
+}
+
 export function toMoneyField(n: number): string {
   const cents = Math.round(Math.abs(n) * 100);
   const v = cents === 0 ? '0,00' : moneyInput(String(cents));

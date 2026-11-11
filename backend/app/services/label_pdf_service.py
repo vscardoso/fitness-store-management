@@ -39,7 +39,7 @@ MIN_MM, MAX_MM = 30, 100
 SHEET_W_MM, SHEET_H_MM = 100, 150
 SHEET_MARGIN_MM, SHEET_GAP_MM = 1.5, 2
 # tag da W.A tem 5 x 4,5 cm; o adesivo é 3 mm menor em cada medida para sobrar borda e o erro de corte/colagem não aparecer (Victor, 05/11/2026)
-DEFAULT_W_MM, DEFAULT_H_MM = 47, 42
+DEFAULT_W_MM, DEFAULT_H_MM = 50, 40   # igual ao DEFAULT_STICKER do app (mobile/utils/stickerSize.ts): 5 de largura x 4 de altura
 
 
 def scale_for(width_mm: float, height_mm: float) -> float:

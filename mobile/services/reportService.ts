@@ -2,9 +2,7 @@
  * Service para API de relatórios
  */
 import api from './api';
-import { Platform } from 'react-native';
-import * as Sharing from 'expo-sharing';
-import * as LegacyFileSystem from 'expo-file-system/legacy';
+import { openServerPdf } from './pdfDelivery';
 
 export interface PaymentBreakdown {
   method: string;
@@ -268,84 +266,12 @@ export const getHistory = async (
   return response.data;
 };
 
-/**
- * Web (inclusive o app instalado no iPhone): PDF gerado no servidor, porque o navegador não tem
- * impressão confiável nem arquivo local. Tenta o compartilhar do aparelho; se não der, abre ou baixa.
- */
+/** Relatório de vendas em PDF (web, inclusive o app instalado no iPhone): o servidor gera e o app abre o link https. */
 export async function openSalesReportPdfWeb(period: string): Promise<void> {
-  const res = await api.get(`/reports/sales/pdf?period=${period}`, {
-    responseType: 'blob',
-    headers: { 'X-Loading-Message': 'Gerando PDF...' },
-  });
-  const filename = `relatorio-vendas-${period}.pdf`;
-  const blob = new Blob([res.data], { type: 'application/pdf' });
-  try {
-    const file = new File([blob], filename, { type: 'application/pdf' });
-    const nav: any = navigator;
-    if (nav.canShare && nav.canShare({ files: [file] })) {
-      await nav.share({ files: [file], title: 'Relatório de Vendas' });
-      return;
-    }
-  } catch (e: any) {
-    if (e?.name === 'AbortError') return; // a pessoa fechou o compartilhar
-  }
-  const href = URL.createObjectURL(blob);
-  const win = window.open(href, '_blank');
-  if (!win) {
-    const a = document.createElement('a');
-    a.href = href;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-  setTimeout(() => URL.revokeObjectURL(href), 60_000);
+  await openServerPdf('/reports/sales/pdf', { params: { period }, title: 'Relatório de Vendas' });
 }
 
-/**
- * Estoque atual em PDF (entrada, fornecedor e produto), gerado no servidor.
- * Web: compartilhar do aparelho ou abre/baixa. Celular: grava no cache e abre o compartilhar.
- */
+/** Estoque atual em PDF (entrada, fornecedor e produto), gerado no servidor. */
 export async function openStockChainPdf(supplierId?: number | null): Promise<void> {
-  const qs = supplierId ? `?supplier_id=${supplierId}` : '';
-  const filename = 'estoque-atual.pdf';
-  if (Platform.OS === 'web') {
-    const res = await api.get(`/reports/stock-chain/pdf${qs}`, {
-      responseType: 'blob',
-      headers: { 'X-Loading-Message': 'Gerando PDF...' },
-    });
-    const blob = new Blob([res.data], { type: 'application/pdf' });
-    try {
-      const file = new File([blob], filename, { type: 'application/pdf' });
-      const nav: any = navigator;
-      if (nav.canShare && nav.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(nav.userAgent || '')) {
-        await nav.share({ files: [file], title: 'Estoque atual' });
-        return;
-      }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
-    }
-    const href = URL.createObjectURL(blob);
-    const win = window.open(href, '_blank');
-    if (!win) {
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
-    setTimeout(() => URL.revokeObjectURL(href), 60_000);
-    return;
-  }
-  const res = await api.get(`/reports/stock-chain/pdf${qs}`, {
-    responseType: 'arraybuffer',
-    headers: { 'X-Loading-Message': 'Gerando PDF...' },
-  });
-  const bytes = new Uint8Array(res.data as ArrayBuffer);
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  const path = `${LegacyFileSystem.cacheDirectory}${filename}`;
-  await LegacyFileSystem.writeAsStringAsync(path, globalThis.btoa(bin), { encoding: 'base64' as any });
-  await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Estoque atual' });
+  await openServerPdf('/reports/stock-chain/pdf', { params: { supplier_id: supplierId ?? undefined }, title: 'Estoque atual' });
 }

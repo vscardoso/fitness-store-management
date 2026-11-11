@@ -4,8 +4,9 @@
  */
 export interface StickerSize { id: string; name: string; note: string; widthMm: number; heightMm: number }
 
-// a tag da W.A tem 5 x 4,5 cm; o padrão é 4,7 x 4,2 para sobrar borda na colagem (Victor, 05/11/2026); as outras ficam para quem já tem
+// 5 x 4 cm é o padrão (Victor, 11/11/2026); 4,7 x 4,2 era o padrão para a tag de 5 x 4,5 (sobra borda na colagem); as outras ficam para quem já tem
 export const STICKER_SIZES: StickerSize[] = [
+  { id: '50x40', name: '5 × 4 cm', note: '', widthMm: 50, heightMm: 40 },
   { id: '47x42', name: '4,7 × 4,2 cm', note: 'para a tag de 5 × 4,5', widthMm: 47, heightMm: 42 },
   { id: '50x45', name: '5 × 4,5 cm', note: '', widthMm: 50, heightMm: 45 },
   { id: '60x50', name: '6 × 5 cm', note: '', widthMm: 60, heightMm: 50 },

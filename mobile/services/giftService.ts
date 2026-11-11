@@ -1,6 +1,6 @@
 /** Brindes: peça que sai do estoque sem cobrança. Só administrador (o servidor recusa os outros papéis). */
 import api from './api';
-import { openPdfFromApi } from './receiptService';
+import { openServerPdf } from './pdfDelivery';
 
 export type GiftReason = 'with_sale' | 'courtesy' | 'voucher' | 'promotion' | 'other';
 
@@ -56,4 +56,4 @@ export const getGiftReceipt = async (id: number): Promise<GiftReceiptInfo> =>
 export const sendGiftReceiptViaStoreWhatsapp = async (id: number): Promise<{ mode: 'pdf'; store_number: string | null; customer: string }> =>
   (await api.post(`/gifts/${id}/receipt/send-whatsapp`, null, { headers: { 'X-Loading-Message': 'Enviando pelo WhatsApp da loja...' } })).data;
 export const openGiftReceiptPdf = (id: number, giftNumber: string): Promise<void> =>
-  openPdfFromApi(`/gifts/${id}/receipt/pdf?size=a6`, `brinde-${giftNumber}.pdf`, `Brinde ${giftNumber}`);
+  openServerPdf(`/gifts/${id}/receipt/pdf`, { params: { size: 'a6' }, message: 'Gerando comprovante...', title: `Brinde ${giftNumber}` }).then(() => undefined);

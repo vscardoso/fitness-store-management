@@ -1,6 +1,6 @@
 // Testes dos valores digitados no caixa. Rodar: node scripts/test-cash-money.mts
 import assert from 'node:assert/strict';
-import { differenceText, moneyInput, parseMoneyBr } from '../utils/cashMoney.ts';
+import { centsDigits, differenceText, moneyInput, parseMoneyBr } from '../utils/cashMoney.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
@@ -43,5 +43,15 @@ t('diferença do fechamento', () => {
   assert.deepEqual(differenceText(2.34, brl), { text: 'Sobrou R$ 2,34', kind: 'over' });
   assert.deepEqual(differenceText(-4.5, brl), { text: 'Faltou R$ 4,50', kind: 'short' });
   assert.deepEqual(differenceText(0.004, brl), { text: 'Bateu certinho', kind: 'ok' });
+});
+t('Preencher: centavos inteiros, sem a sobra do ponto flutuante', () => {
+  assert.equal(centsDigits(228.34), '22834');         // 228.34 * 100 = 22834.000000000004
+  assert.equal(centsDigits(928.34 - 700), '22834');   // a conta da tela: total menos o que já foi pago
+  assert.equal(centsDigits(0.1 + 0.2), '30');
+  assert.equal(centsDigits(1234.56), '123456');
+  assert.equal(centsDigits(0), '0');
+  assert.equal(centsDigits(-5), '0');                 // nunca negativo
+  assert.equal(centsDigits(NaN), '0');
+  for (let c = 1; c <= 200000; c += 7) assert.equal(centsDigits(c / 100), String(c));   // todo valor em centavos volta igual
 });
 console.log(`${n} testes ok`);

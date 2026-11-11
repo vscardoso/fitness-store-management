@@ -30,7 +30,28 @@ async def accounts(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(
         if data.get("started"):
             data["projection"] = await svc.projection(tenant_id, data)
             data["card_schedule"] = await svc.card_schedule(tenant_id)
+            data["purchases_pending"] = await svc.purchases_pending(tenant_id)
         return data
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.get("/purchases-pending", summary="Compras de mercadoria que ainda não disseram de onde saiu o dinheiro")
+async def purchases_pending(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+                            current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).purchases_pending(tenant_id)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.post("/purchases-pay", summary="Dizer de onde saiu o dinheiro de compras já lançadas (a conta é descontada)")
+async def purchases_pay(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                        tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).set_purchase_account(
+            tenant_id, current_user, data.get("entry_ids"), data.get("account_id"), bool(data.get("outside")),
+            with_cash=bool(data.get("with_cash")))
     except FinanceError as e:
         raise _http(e)
 

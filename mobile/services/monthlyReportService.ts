@@ -1,5 +1,6 @@
 /** Relatório mensal da loja (financeiro e analítico). Tudo calculado no servidor (backend/app/services/monthly_report_service.py). */
 import api from './api';
+import { openServerPdf } from './pdfDelivery';
 
 export interface ResultSide {
   revenue: number; cost: number; gross_profit: number; gross_margin_pct: number; expenses: number; stock_losses: number;
@@ -37,28 +38,7 @@ export async function getMonthlyReport(year: number, month: number): Promise<Mon
   return res.data;
 }
 
-/** PDF gerado no servidor (no iPhone instalado não há arquivo local): compartilhar do aparelho, senão abre ou baixa. */
+/** PDF gerado no servidor (no iPhone instalado não há arquivo local): o app abre o link https. */
 export async function openMonthlyReportPdfWeb(year: number, month: number): Promise<void> {
-  const res = await api.get('/reports/monthly/pdf', {
-    params: { year, month }, responseType: 'blob', headers: { 'X-Loading-Message': 'Gerando PDF...' },
-  });
-  const filename = `relatorio-mensal-${year}-${String(month).padStart(2, '0')}.pdf`;
-  const blob = new Blob([res.data], { type: 'application/pdf' });
-  try {
-    const file = new File([blob], filename, { type: 'application/pdf' });
-    const nav: any = navigator;
-    if (nav.canShare && nav.canShare({ files: [file] })) {
-      await nav.share({ files: [file], title: 'Relatório mensal da loja' });
-      return;
-    }
-  } catch (e: any) {
-    if (e?.name === 'AbortError') return;
-  }
-  const href = URL.createObjectURL(blob);
-  const win = window.open(href, '_blank');
-  if (!win) {
-    const a = document.createElement('a');
-    a.href = href; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-  }
-  setTimeout(() => URL.revokeObjectURL(href), 60_000);
+  await openServerPdf('/reports/monthly/pdf', { params: { year, month }, title: 'Relatório mensal da loja' });
 }

@@ -11,7 +11,7 @@ import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'r
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { createScanGate, createWedgeBuffer, normalizeScan } from '@/utils/scanLogic';
+import { createScanGate, createWedgeBuffer, normalizeScan, scanStatusLifetimeMs } from '@/utils/scanLogic';
 import { isScanMuted, onScanMutedChange, setScanMuted, unlockAudio } from '@/utils/scanFeedback';
 import CameraScanSheet, { type CameraStatus } from './CameraScanSheet';
 
@@ -39,6 +39,15 @@ const COLORS = { ok: '#16A34A', warn: Colors.light.warningDark, error: '#DC2626'
 const BG = { ok: '#DCFCE7', warn: Colors.light.warningLight, error: Colors.light.errorLight } as const;
 
 export default function ScanBar({ onCode, status, placeholder, paused, right, closeOnScan, field, searchAsYouType }: Props) {
+  // o aviso da última leitura some sozinho: 5 s o de sucesso, 10 s o de alerta ou erro (nova leitura reinicia a contagem)
+  const [shownStatus, setShownStatus] = useState<ScanStatus | null>(status ?? null);
+  useEffect(() => {
+    setShownStatus(status ?? null);
+    if (!status) return;
+    const t = setTimeout(() => setShownStatus(null), scanStatusLifetimeMs(status.kind));
+    return () => clearTimeout(t);
+  }, [status]);
+
   const brand = useBrandingColors();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [muted, setMuted] = useState(isScanMuted());
@@ -136,14 +145,14 @@ export default function ScanBar({ onCode, status, placeholder, paused, right, cl
           <Ionicons name={muted ? 'volume-mute-outline' : 'volume-high-outline'} size={20} color={Colors.light.textSecondary} />
         </TouchableOpacity>
       </View>
-      {!!status && (
-        <View style={[styles.status, { backgroundColor: BG[status.kind] }]} accessibilityLiveRegion="polite">
+      {!!shownStatus && (
+        <View style={[styles.status, { backgroundColor: BG[shownStatus.kind] }]} accessibilityLiveRegion="polite">
           <Ionicons
-            name={status.kind === 'ok' ? 'checkmark-circle' : status.kind === 'warn' ? 'alert-circle' : 'close-circle'}
+            name={shownStatus.kind === 'ok' ? 'checkmark-circle' : shownStatus.kind === 'warn' ? 'alert-circle' : 'close-circle'}
             size={18}
-            color={COLORS[status.kind]}
+            color={COLORS[shownStatus.kind]}
           />
-          <Text style={[styles.statusText, { color: COLORS[status.kind] }]} numberOfLines={2}>{status.text}</Text>
+          <Text style={[styles.statusText, { color: COLORS[shownStatus.kind] }]} numberOfLines={2}>{shownStatus.text}</Text>
         </View>
       )}
       <CameraScanSheet

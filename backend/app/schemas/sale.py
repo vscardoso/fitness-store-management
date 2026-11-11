@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Dict, Any
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
@@ -45,6 +45,13 @@ class SaleItemCreate(BaseModel):
     def _money_cap(cls, v):
         return _check_money(v)
 
+    @field_validator("discount_amount")
+    @classmethod
+    def _discount_in_cents(cls, v):
+        # o desconto da peça é dinheiro: sempre em centavos (33,333 vira 33,33), senão a linha, a venda e a devolução
+        # somariam frações diferentes
+        return v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if v is not None else v
+
 
 class PaymentCreate(BaseModel):
     """Schema for creating a payment."""
@@ -62,6 +69,12 @@ class PaymentCreate(BaseModel):
         return _check_money(v)
 
 
+class SaleGiftCreate(BaseModel):
+    """Peça dada de brinde dentro da venda (só administrador/gerente): sai do estoque pelo custo e vai para o controle de Brindes."""
+    variant_id: int
+    quantity: int = Field(..., gt=0, le=MAX_QTY)
+
+
 class SaleCreate(BaseModel):
     """Schema for creating a sale."""
     customer_id: Optional[int] = None
@@ -73,6 +86,8 @@ class SaleCreate(BaseModel):
     payments: List[PaymentCreate] = Field(..., max_length=MAX_LINES)
     # Chave de idempotência (ou o header Idempotency-Key): a mesma chave na mesma loja em 24 h devolve a venda já criada
     client_request_id: Optional[str] = Field(default=None, max_length=80)
+    # Brindes dados junto com esta venda (R$ 0,00 no comprovante, custo para o controle de Brindes). Só admin/gerente.
+    gifts: List[SaleGiftCreate] = Field(default_factory=list, max_length=MAX_LINES)
 
     @field_validator("discount_amount", "tax_amount")
     @classmethod

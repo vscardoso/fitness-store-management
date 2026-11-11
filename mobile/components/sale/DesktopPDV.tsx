@@ -25,9 +25,11 @@ import { getCustomerById } from '@/services/customerService';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import { colorNameToHex } from '@/utils/colorHex';
 import { isManagerRole } from '@/utils/roles';
+import CartGifts from '@/components/sale/CartGifts';
 import { isLabelCode, parseShortCode, variantCodeText } from '@/utils/shortCode';
 import { validateCartStock, validateProductForCart, formatValidationErrors } from '@/utils/validation';
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
+import ItemDiscountEditor from '@/components/sale/ItemDiscountEditor';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Money } from '@/components/ui/PriceDisplay';
 import { HelpIconButton } from '@/components/help/HelpHost';
@@ -143,7 +145,7 @@ export default function DesktopPDV() {
         cost += info.average_unit_cost * item.quantity;
         hasData = true;
       }
-      revenue += item.unit_price * item.quantity;
+      revenue += item.unit_price * item.quantity - (item.discount ?? 0);   // com o desconto de cada peça
     }
     if (!hasData) return null;
     const effective = revenue - (cart.discount ?? 0);
@@ -503,7 +505,8 @@ export default function DesktopPDV() {
               <Text style={styles.cartEmpty}>Carrinho vazio.{'\n'}Busque à esquerda ou passe o leitor na etiqueta.</Text>
             ) : (
               cart.items.map((item) => (
-                <View key={item.cart_key} style={styles.cartItem}>
+                <View key={item.cart_key} style={styles.cartItemWrap}>
+                <View style={styles.cartItem}>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.cartName} numberOfLines={1}>{item.product.name}</Text>
                     <Text style={styles.cartMeta} numberOfLines={1}>
@@ -519,7 +522,21 @@ export default function DesktopPDV() {
                       <Ionicons name="add" size={14} color={INK} />
                     </TouchableOpacity>
                   </View>
-                  <Text style={styles.cartTotal}>{formatCurrency(item.unit_price * item.quantity)}</Text>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    {item.discount > 0 ? <Text style={styles.cartTotalStrike}>{formatCurrency(item.unit_price * item.quantity)}</Text> : null}
+                    <Text style={styles.cartTotal}>{formatCurrency(item.unit_price * item.quantity - item.discount)}</Text>
+                  </View>
+                </View>
+                <View style={styles.cartDiscountSlot}>
+                  <ItemDiscountEditor
+                    dense
+                    unitPrice={item.unit_price}
+                    quantity={item.quantity}
+                    unitDiscount={item.unit_discount}
+                    onApply={(d) => cart.setItemUnitDiscount(item.cart_key, d)}
+                    onClear={() => cart.setItemUnitDiscount(item.cart_key, 0)}
+                  />
+                </View>
                 </View>
               ))
             )}
@@ -527,9 +544,15 @@ export default function DesktopPDV() {
 
           <View style={styles.totals}>
             <View style={styles.line}>
-              <Text style={styles.lineLabel}>Subtotal</Text>
-              <Text style={styles.lineValue}>{formatCurrency(cart.subtotal)}</Text>
+              <Text style={styles.lineLabel}>{cart.itemsDiscount > 0 ? 'Valor das peças' : 'Subtotal'}</Text>
+              <Text style={styles.lineValue}>{formatCurrency(cart.subtotal + cart.itemsDiscount)}</Text>
             </View>
+            {cart.itemsDiscount > 0 && (
+              <View style={styles.line}>
+                <Text style={[styles.lineLabel, { color: Colors.light.success }]}>Descontos nas peças</Text>
+                <Text style={[styles.lineValue, { color: Colors.light.success }]}>- {formatCurrency(cart.itemsDiscount)}</Text>
+              </View>
+            )}
             {discountOpen ? (
               <View style={styles.discountRow}>
                 <TouchableOpacity style={[styles.dtype, discountType === 'value' && styles.dtypeOn]} onPress={() => setDiscountType('value')}>
@@ -560,7 +583,7 @@ export default function DesktopPDV() {
               <View style={styles.line}>
                 <TouchableOpacity onPress={() => setDiscountOpen(true)} disabled={cart.items.length === 0}>
                   <Text style={[styles.lineLabel, cart.discount > 0 ? { color: Colors.light.success } : { color: cart.items.length ? primary : MUTED }]}>
-                    {cart.discount > 0 ? 'Desconto' : '+ Adicionar desconto'}
+                    {cart.discount > 0 ? 'Desconto geral' : '+ Desconto na venda toda'}
                   </Text>
                 </TouchableOpacity>
                 {cart.discount > 0 && (
@@ -573,6 +596,7 @@ export default function DesktopPDV() {
                 )}
               </View>
             )}
+            <CartGifts dense />
             <View style={[styles.line, { alignItems: 'baseline' }]}>
               <Text style={styles.totalLabel}>Total</Text>
               <Money style={styles.totalValue} value={Number(cart.total)} />
@@ -679,7 +703,10 @@ const styles = StyleSheet.create({
   clear: { fontSize: 13, fontWeight: '600', color: DESK.danger },
   cartList: { flex: 1, minHeight: 120 },
   cartEmpty: { padding: 24, textAlign: 'center', color: MUTED, fontSize: 14, lineHeight: 21 },
-  cartItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: SOFT_LINE },
+  cartItemWrap: { borderBottomWidth: 1, borderBottomColor: SOFT_LINE },
+  cartItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  cartDiscountSlot: { paddingHorizontal: 16, paddingBottom: 8 },
+  cartTotalStrike: { fontSize: 11, color: MUTED, textDecorationLine: 'line-through' },
   cartName: { fontSize: 14, fontWeight: '600', color: INK },
   cartMeta: { fontSize: 12, color: MUTED },
   qty: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: LINE, borderRadius: 8 },

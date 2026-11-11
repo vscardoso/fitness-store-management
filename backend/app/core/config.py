@@ -60,7 +60,7 @@ class Settings(BaseSettings):
         '["Authorization","Content-Type","Accept","Accept-Language",'
         '"X-Tenant-Id","X-Store-Slug","X-Skip-Auth","X-Skip-Loading","X-Loading-Message",'
         '"Cache-Control","Pragma","Expires","If-None-Match","If-Modified-Since","X-Requested-With",'
-        '"bypass-tunnel-reminder"]'
+        '"Idempotency-Key","bypass-tunnel-reminder"]'
     )
 
     @property
