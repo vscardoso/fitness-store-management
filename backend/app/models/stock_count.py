@@ -5,7 +5,7 @@ foi encontrado em cada peça.
 Os nomes, cores, tamanhos e quantidades do sistema são COPIADOS no momento de salvar (fotografia), para o relatório
 continuar igual mesmo que a peça seja renomeada, vendida ou apagada depois. A conferência não altera o estoque.
 """
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import BaseModel
@@ -18,6 +18,11 @@ class StockCount(BaseModel):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     category_name: Mapped[str | None] = mapped_column(String(120), nullable=True, comment="Categoria no dia (vazio = todas)")
+    entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stock_entries.id", ondelete="SET NULL"), nullable=True, index=True,
+        comment="Conferir recebimento: a conferência é de UMA entrada (o 'sistema' de cada peça é o que a nota trouxe). Vazio = conferência de estoque")
+    recent_batches: Mapped[list | None] = mapped_column(
+        JSON, nullable=True, comment="Últimos lotes de operações já aplicados: lote reenviado depois de falha de rede não conta em dobro")
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
 

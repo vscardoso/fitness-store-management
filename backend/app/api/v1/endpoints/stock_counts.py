@@ -50,6 +50,7 @@ class StockCountApply(BaseModel):
     note: Optional[str] = Field(None, max_length=2000)
     finish: bool = False
     revision: Optional[int] = Field(None, ge=1, description="Para finalizar: a revisão que a tela está mostrando (tem que ser a última)")
+    batch_id: Optional[str] = Field(None, max_length=64, description="Identifica o lote: reenviado depois de falha de rede, não conta de novo")
 
 
 class StockCountSummary(BaseModel):
@@ -157,7 +158,7 @@ async def apply_ops(
         return await StockCountService(db).apply(
             tenant_id=tenant_id, user=current_user, count_id=count_id,
             ops=[o.model_dump() for o in body.ops], name=body.name, note=body.note, finish=body.finish,
-            revision=body.revision,
+            revision=body.revision, batch_id=body.batch_id,
         )
     except StockCountError as exc:
         _raise(exc)

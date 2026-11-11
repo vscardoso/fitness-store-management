@@ -10,13 +10,15 @@ Peça que ninguém contou não entra (fica como "não contada"). A conferência 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
 from app.models.stock_count import StockCount, StockCountItem
+from app.models.stock_entry import StockEntry
 from app.models.user import User
 from app.services.stock_check_service import StockCheckService
+from app.services.stock_lock import lock_receipt_check
 from app.utils.variant_grid import size_sort_key
 
 
@@ -26,6 +28,9 @@ class StockCountError(ValueError):
 
 class StockCountNotFound(StockCountError):
     pass
+
+
+KEEP_BATCHES = 60
 
 
 class StockCountConflict(StockCountError):
@@ -87,8 +92,8 @@ class StockCountService:
     async def _follow_stock(self, tenant_id: int, count: StockCount, items) -> bool:
         """Conferência aberta: põe cada peça contada em dia com o estoque de agora (ver `_follow`). True se mudou algo."""
         items = list(items)
-        if count.status != "open" or not items:
-            return False
+        if count.status != "open" or not items or count.entry_id:
+            return False   # conferência de entrada: o "sistema" é o que a nota trouxe, não muda com venda
         live = await StockCheckService(self.db).quantities(tenant_id=tenant_id, variant_ids=[i.variant_id for i in items])
         changed = False
         for it in items:
@@ -119,7 +124,7 @@ class StockCountService:
             # uma conferência só por loja: com uma em andamento, todo mundo conta nela (não abre outra em paralelo)
             aberta = (await self.db.execute(select(StockCount.id, StockCount.name).where(
                 StockCount.tenant_id == tenant_id, StockCount.is_active == True,  # noqa: E712
-                StockCount.status == "open").limit(1))).first()
+                StockCount.entry_id.is_(None), StockCount.status == "open").limit(1))).first()
             if aberta:
                 raise StockCountConflict(
                     f"Já existe uma conferência em andamento{(' (' + aberta.name + ')') if aberta.name else ''}. "
@@ -210,6 +215,7 @@ class StockCountService:
     async def apply(
         self, *, tenant_id: int, user: User, count_id: int, ops: List[Dict[str, Any]],
         name: Optional[str] = None, note: Optional[str] = None, finish: bool = False, revision: Optional[int] = None,
+        batch_id: Optional[str] = None,
     ) -> StockCount:
         """Conferência compartilhada: aplica as bipadas de um aparelho na conferência em andamento, sem apagar as dos outros.
 
@@ -220,6 +226,9 @@ class StockCountService:
         count = (await self.db.execute(
             select(StockCount).where(StockCount.id == count_id, StockCount.tenant_id == tenant_id,
                                      StockCount.is_active == True).with_for_update()  # noqa: E712
+            # populate_existing: se a conferência já foi carregada nesta sessão (ex.: `open_for_entry`), relê o valor de AGORA
+            # (depois da trava). Sem isso a `revision` ficava velha e dois lotes simultâneos gravavam o mesmo número.
+            .execution_options(populate_existing=True)
         )).scalar_one_or_none()
         if count is None:
             raise StockCountNotFound("Conferência não encontrada.")
@@ -231,6 +240,12 @@ class StockCountService:
             raise StockCountConflict(
                 "Chegaram contagens novas de outra pessoa. A tela foi atualizada: confira os números e finalize de novo."
             )
+        recent = list(count.recent_batches or [])
+        if batch_id and batch_id in recent:
+            # lote já aplicado (o aparelho reenviou depois de uma falha de rede): não conta de novo
+            await self.db.rollback()
+            await self.db.refresh(count)
+            return count
         try:
             items = {i.variant_id: i for i in (await self.db.execute(select(StockCountItem).where(
                 StockCountItem.count_id == count.id, StockCountItem.tenant_id == tenant_id))).scalars().all()}
@@ -248,14 +263,19 @@ class StockCountService:
                 item = items.get(vid)
                 if op.get("clear"):
                     if item is not None:
-                        await self.db.delete(item)
+                        if inspect(item).pending:
+                            self.db.expunge(item)   # criada neste mesmo lote e ainda não gravada: só descarta
+                        else:
+                            await self.db.delete(item)
                         items.pop(vid)
                     continue
                 if item is None:
                     if report is None:
-                        report = await StockCheckService(self.db).report(tenant_id=tenant_id, category_id=count.category_id)
-                        report = {r["variant_id"]: r for r in report["rows"]}
+                        report = {r["variant_id"]: r for r in (await self._scope(tenant_id, count))["rows"]}
                     r = report.get(vid)
+                    if r is None and count.entry_id:
+                        # peça lida que não é desta entrada: entra com "sistema" 0 e aparece como "fora da entrada"
+                        r = (await StockCheckService(self.db).variant_rows(tenant_id=tenant_id, variant_ids=[vid])).get(vid)
                     if r is None:
                         raise StockCountError("Esta peça não existe mais nesta loja (ou está fora da categoria da conferência). "
                                               "Atualize a tela.")
@@ -279,18 +299,60 @@ class StockCountService:
             await self.db.flush()
             total_variants = count.total_variants
             if not total_variants:
-                rep = await StockCheckService(self.db).report(tenant_id=tenant_id, category_id=count.category_id)
-                total_variants = rep["total_variants"]
+                total_variants = (await self._scope(tenant_id, count))["total_variants"]
             for k, v in _summarize(items.values(), total_variants).items():
                 setattr(count, k, v)
             if name is not None:
                 count.name = name.strip()[:120] or None
             if note is not None:
                 count.note = note.strip() or None
+            if batch_id:
+                recent.append(batch_id)
+                count.recent_batches = recent[-KEEP_BATCHES:]
             count.revision = (count.revision or 1) + 1
             if finish:
                 count.status = "finished"
                 count.finished_at = datetime.utcnow()
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+        await self.db.refresh(count)
+        return count
+
+    async def _scope(self, tenant_id: int, count: StockCount) -> Dict[str, Any]:
+        """As peças que a conferência cobre e o "sistema" de cada uma: a loja/categoria, ou as peças de UMA entrada."""
+        if count.entry_id:
+            return await StockCheckService(self.db).entry_report(tenant_id=tenant_id, entry_id=count.entry_id)
+        return await StockCheckService(self.db).report(tenant_id=tenant_id, category_id=count.category_id)
+
+    async def find_for_entry(self, *, tenant_id: int, entry_id: int) -> Optional[StockCount]:
+        return (await self.db.execute(
+            select(StockCount).where(StockCount.tenant_id == tenant_id, StockCount.entry_id == entry_id,
+                                     StockCount.is_active == True, StockCount.status == "open")  # noqa: E712
+            .order_by(StockCount.id.desc()).limit(1)
+        )).scalar_one_or_none()
+
+    async def open_for_entry(self, *, tenant_id: int, user: User, entry_id: int) -> StockCount:
+        """Conferir recebimento: a conferência em andamento da entrada (a 1ª bipada de qualquer pessoa a cria; as outras entram nela)."""
+        entry = (await self.db.execute(
+            select(StockEntry).where(StockEntry.id == entry_id, StockEntry.tenant_id == tenant_id,
+                                     StockEntry.is_active == True)  # noqa: E712
+        )).scalar_one_or_none()
+        if entry is None:
+            raise StockCountNotFound("Entrada não encontrada.")
+        await lock_receipt_check(self.db, entry_id)   # duas pessoas bipando ao mesmo tempo não criam duas conferências
+        count = await self.find_for_entry(tenant_id=tenant_id, entry_id=entry_id)
+        if count is not None:
+            return count
+        try:
+            count = StockCount(
+                tenant_id=tenant_id, entry_id=entry_id, name=f"Recebimento {entry.entry_code}"[:120], status="open", revision=1,
+                created_by_id=user.id, created_by_name=_who(user),
+                total_variants=0, counted_variants=0, ok_variants=0, diff_variants=0, short_pieces=0, over_pieces=0,
+                system_pieces=0, counted_pieces=0, recent_batches=[],
+            )
+            self.db.add(count)
             await self.db.commit()
         except Exception:
             await self.db.rollback()
@@ -313,14 +375,16 @@ class StockCountService:
         await self.db.commit()
 
     async def list(self, *, tenant_id: int, status: Optional[str] = None, limit: int = 50, offset: int = 0) -> List[StockCount]:
-        stmt = select(StockCount).where(StockCount.tenant_id == tenant_id, StockCount.is_active == True)  # noqa: E712
+        stmt = select(StockCount).where(StockCount.tenant_id == tenant_id, StockCount.is_active == True,  # noqa: E712
+                                        StockCount.entry_id.is_(None))   # conferência de recebimento tem a tela dela
         if status:
             stmt = stmt.where(StockCount.status == status)
         stmt = stmt.order_by((StockCount.status == "open").desc(), StockCount.created_at.desc(), StockCount.id.desc())
         return list((await self.db.execute(stmt.limit(limit).offset(offset))).scalars().all())
 
     async def total(self, *, tenant_id: int, status: Optional[str] = None) -> int:
-        stmt = select(func.count(StockCount.id)).where(StockCount.tenant_id == tenant_id, StockCount.is_active == True)  # noqa: E712
+        stmt = select(func.count(StockCount.id)).where(StockCount.tenant_id == tenant_id, StockCount.is_active == True,  # noqa: E712
+                                                       StockCount.entry_id.is_(None))
         if status:
             stmt = stmt.where(StockCount.status == status)
         return int((await self.db.execute(stmt)).scalar() or 0)
@@ -330,7 +394,7 @@ class StockCountService:
             count = await self._load(tenant_id, count_id)
         except StockCountNotFound:
             return None
-        if count.status == "open":
+        if count.status == "open" and not count.entry_id:
             # venda/entrada feita durante a conferência entra na hora (trava a conferência só enquanto confere)
             count = (await self.db.execute(
                 select(StockCount).where(StockCount.id == count_id).with_for_update().execution_options(populate_existing=True)

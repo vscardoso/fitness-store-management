@@ -45,6 +45,10 @@ import { variantCodeText } from '@/utils/shortCode';
 import HScroll from '@/components/ui/HScroll';
 import { formatInt, formatDateTime } from '@/utils/format';
 import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
+import DuplicateScanNotice from '@/components/scan/DuplicateScanNotice';
+import { useSharedCountSync } from '@/hooks/useSharedCountSync';
+import { useDuplicateScan } from '@/hooks/useDuplicateScan';
+import { overlayOps, type CountMap } from '@/utils/countOps';
 import { lookupCode } from '@/services/codeResolver';
 import { buildCodeIndex, findVariantLocal } from '@/utils/scanLogic';
 import { useScreenWakeLock } from '@/hooks/usePwaExtras';
@@ -312,33 +316,27 @@ export default function StockCheckScreen() {
   }, [draft, draftLoaded, draftKey]);
 
   // ===== Conferência compartilhada =====
-  // Uma conferência aberta por loja; todo aparelho que abre esta tela entra nela. Cada bipada vai para o servidor
-  // como operação (+1, -1, quantidade digitada, limpar) e soma com as dos outros; a tela puxa as dos outros a cada 4 s.
+  // Uma conferência aberta por loja; todo aparelho que abre esta tela entra nela. Cada bipada vai para o servidor como
+  // operação (+1, -1, quantidade digitada, limpar) e soma com as dos outros; a tela puxa as dos outros a cada 4 s.
+  // O motor (fila, lote com identificador, atualização a cada 4 s) é o `useSharedCountSync`: o MESMO do Conferir recebimento.
   const [countedBy, setCountedBy] = useState<Record<number, string>>({});
   const [people, setPeople] = useState<string[]>([]);
   const [joinAsk, setJoinAsk] = useState<StockCountSummary | null>(null);
   const [discardAsk, setDiscardAsk] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [openChecked, setOpenChecked] = useState(false);
-  const [syncError, setSyncError] = useState('');
+  const [syncMsg, setSyncMsg] = useState('');
   const draftRef = useRef<Draft | null>(null);
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
-  const opsRef = useRef<CountOp[]>([]);
-  const flushing = useRef(false);
-  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flushRef = useRef<() => Promise<void>>(async () => {});
   const creatingRef = useRef(false);
+  const syncApi = useRef<ReturnType<typeof useSharedCountSync<StockCountDetail>> | null>(null);
+  const dup = useDuplicateScan();
 
   const setDraftNow = useCallback((d: Draft | null) => {
     draftRef.current = d;
     setDraft(d);
-  }, []);
-
-  const scheduleFlush = useCallback((ms: number) => {
-    if (flushTimer.current) clearTimeout(flushTimer.current);
-    flushTimer.current = setTimeout(() => { flushRef.current(); }, ms);
   }, []);
 
   // Põe na tela o que está no servidor; operações deste aparelho ainda não enviadas continuam valendo por cima
@@ -349,33 +347,31 @@ export default function StockCheckScreen() {
     if (live && detail.items.some((i) => i.variant_id != null && live.has(i.variant_id) && live.get(i.variant_id) !== i.system_quantity)) {
       queryClient.invalidateQueries({ queryKey: ['stock-check'] });
     }
-    const next: Counts = {};
+    const server: CountMap = {};
     const by: Record<number, string> = {};
     const who = new Set<string>();
     detail.items.forEach((i) => {
       if (i.variant_id == null) return;
-      next[i.variant_id] = String(i.counted_quantity);
+      server[i.variant_id] = i.counted_quantity;
       if (i.counted_by_name) {
         by[i.variant_id] = i.counted_by_name;
         who.add(i.counted_by_name);
       }
     });
-    opsRef.current.forEach((op) => {
-      if (op.clear) delete next[op.variant_id];
-      else if (op.set != null) next[op.variant_id] = String(op.set);
-      else next[op.variant_id] = String(Math.max(0, (parseInt(next[op.variant_id] ?? '0', 10) || 0) + (op.delta ?? 0)));
-    });
+    const next: Counts = {};
+    Object.entries(overlayOps(server, syncApi.current?.getPending() ?? [])).forEach(([vid, n]) => { next[Number(vid)] = String(n); });
     if (detail.count.created_by_name) who.add(detail.count.created_by_name);
     setCounts(next);
     setCountedBy(by);
     setPeople(Array.from(who));
     const c = detail.count;
+    syncApi.current?.setRevision(c.revision);
     setDraftNow({ id: c.id, revision: c.revision, name: c.name ?? '', note: c.note ?? '', categoryId: c.category_id, createdBy: c.created_by_name });
     setSavedAt(c.updated_at ?? c.created_at);
   }, [setDraftNow, queryClient]);
 
   const endedByOther = useCallback(() => {
-    opsRef.current = [];
+    syncApi.current?.reset();
     countsRef.current = {};
     setDraftNow(null);
     setCounts({});
@@ -384,35 +380,36 @@ export default function StockCheckScreen() {
     setMessage('Esta conferência foi finalizada. O relatório está em Conferências salvas.');
   }, [setDraftNow]);
 
-  flushRef.current = async () => {
-    const d = draftRef.current;
-    if (!d || flushing.current || !opsRef.current.length) return;
-    flushing.current = true;
-    const batch = opsRef.current;
-    opsRef.current = [];
-    try {
-      const res = await applyStockCount(d.id, { ops: batch });
+  const sync = useSharedCountSync<StockCountDetail>({
+    enabled: !!draft?.id,
+    fetchDetail: () => {
+      const d = draftRef.current;
+      if (!d) return Promise.reject(Object.assign(new Error('Sem conferência.'), { status: 404 }));
+      return getStockCount(d.id, false, true);
+    },
+    revisionOf: (d) => d.count.revision,
+    isEnded: (d) => d.count.status !== 'open',
+    sendOps: async (ops, batchId) => {
+      const d = draftRef.current;
+      if (!d) throw Object.assign(new Error('Sem conferência.'), { status: 404 });
+      const res = await applyStockCount(d.id, { ops, batchId });
       if (draftRef.current && draftRef.current.id === res.id) setDraftNow({ ...draftRef.current, revision: res.revision });
       setSavedAt(new Date().toISOString());
-      setSyncError('');
-    } catch (e: any) {
-      const st = e?.response?.status;
-      if (st === 409 || st === 404) endedByOther();
-      else {
-        opsRef.current = [...batch, ...opsRef.current];
-        setSyncError('Sem conexão: as contagens deste aparelho vão ser enviadas assim que a internet voltar.');
-      }
-    } finally {
-      flushing.current = false;
-      if (opsRef.current.length && draftRef.current) scheduleFlush(2500);
-    }
-  };
+      setSyncMsg('');
+      return null;   // a próxima atualização traz também o que os outros contaram no meio do caminho
+    },
+    onDetail: (d) => applyDetail(d),
+    onEnded: () => endedByOther(),
+  });
+  syncApi.current = sync;
+  const syncError = sync.syncError
+    ? 'Sem conexão: as contagens deste aparelho vão ser enviadas assim que a internet voltar.'
+    : syncMsg;
 
   const queueOp = useCallback((op: CountOp) => {
     if (!draftRef.current) return;   // sem conferência no servidor ainda: a 1ª contagem cria (abaixo) com tudo
-    opsRef.current.push(op);
-    scheduleFlush(300);
-  }, [scheduleFlush]);
+    syncApi.current?.queueOp(op);
+  }, []);
 
   // Entra numa conferência do servidor (sumLocal: soma os números que estavam só neste aparelho)
   const joinCount = useCallback(async (id: number, sumLocal: boolean) => {
@@ -423,7 +420,7 @@ export default function StockCheckScreen() {
         endedByOther();
         return;
       }
-      opsRef.current = [];
+      syncApi.current?.reset();
       applyDetail(det);
       setCategoryId(null);
       setConflict('');
@@ -433,51 +430,21 @@ export default function StockCheckScreen() {
       Object.entries(local).forEach(([vid, raw]) => {
         const n = parseInt(raw, 10);
         if (Number.isFinite(n) && n > 0 && !onServer.has(Number(vid))) {
-          opsRef.current.push({ variant_id: Number(vid), set: n });
+          syncApi.current?.queueOp({ variant_id: Number(vid), set: n });
           setCounts((prev) => ({ ...prev, [vid]: String(n) }));
         }
       });
-      if (opsRef.current.length) scheduleFlush(200);
       setMessage(`Você está na conferência${det.count.name ? ' "' + det.count.name + '"' : ''} começada por ${det.count.created_by_name || 'outra pessoa'}.`);
     } catch (e: any) {
-      if (e?.response?.status === 404) endedByOther();   // conferência apagada: limpa este aparelho
+      if ((e?.response?.status ?? e?.status) === 404) endedByOther();   // conferência apagada: limpa este aparelho
       else setMessage(e?.message || 'Não foi possível abrir a conferência. Tente de novo.');
     }
-  }, [applyDetail, endedByOther, scheduleFlush]);
-
-  const syncNow = useCallback(async () => {
-    const d = draftRef.current;
-    if (!d) return;
-    if (flushTimer.current) clearTimeout(flushTimer.current);
-    await flushRef.current();
-    const det = await getStockCount(d.id, false, true);
-    if (det.count.status !== 'open') {
-      endedByOther();
-      return;
-    }
-    applyDetail(det);
   }, [applyDetail, endedByOther]);
 
-  // Puxa o que os outros contaram, a cada 4 s
-  useEffect(() => {
-    if (!draft?.id) return;
-    const id = draft.id;
-    const t = setInterval(async () => {
-      if (flushing.current || opsRef.current.length) return;
-      try {
-        const det = await getStockCount(id, false, true);
-        if (det.count.status !== 'open') {
-          endedByOther();
-          return;
-        }
-        if (det.count.revision !== draftRef.current?.revision && !opsRef.current.length && !flushing.current) applyDetail(det);
-      } catch (e: any) {
-        if (e?.response?.status === 404) endedByOther();   // conferência apagada: limpa este aparelho
-        // sem rede: tenta de novo no próximo
-      }
-    }, 4000);
-    return () => clearInterval(t);
-  }, [draft?.id, applyDetail, endedByOther]);
+  const syncNow = useCallback(async () => {
+    if (!draftRef.current) return;
+    await syncApi.current?.syncNow();
+  }, []);
 
   const setCount = useCallback((variantId: number, text: string) => {
     const clean = text.replace(/[^0-9]/g, '');
@@ -509,9 +476,8 @@ export default function StockCheckScreen() {
         let res: StockCountSummary;
         if (draft) {
           // manda o que falta deste aparelho; finalizar só com tudo enviado e a tela na última versão
-          if (flushTimer.current) clearTimeout(flushTimer.current);
-          await flushRef.current();
-          if (opsRef.current.length) {
+          await syncApi.current?.flushNow();
+          if (syncApi.current?.hasPending()) {
             setSaveError('Ainda há contagens deste aparelho para enviar (sem conexão). Tente de novo em instantes.');
             return false;
           }
@@ -534,6 +500,7 @@ export default function StockCheckScreen() {
           setFinishOpen(false);
           router.push({ pathname: '/reports/stock-counts/[id]', params: { id: String(res.id) } } as any);
         } else {
+          syncApi.current?.setRevision(res.revision);
           setDraftNow({ id: res.id, revision: res.revision, name: res.name ?? '', note: res.note ?? '', categoryId: res.category_id, createdBy: res.created_by_name });
           setSaveOpen(false);
         }
@@ -597,6 +564,7 @@ export default function StockCheckScreen() {
     creatingRef.current = true;
     createStockCount({ categoryId: null, items })
       .then((res) => {
+        syncApi.current?.setRevision(res.revision);
         setDraftNow({ id: res.id, revision: res.revision, name: res.name ?? '', note: res.note ?? '', categoryId: res.category_id, createdBy: res.created_by_name });
         setSavedAt(res.created_at);
         queryClient.invalidateQueries({ queryKey: ['stock-counts'] });
@@ -604,7 +572,7 @@ export default function StockCheckScreen() {
       .catch(async (e: any) => {
         const m = /\[#(\d+)\]/.exec(e?.response?.data?.detail || e?.message || '');
         if (m) await joinCount(Number(m[1]), true);   // outro aparelho abriu antes: entra somando
-        else setSyncError('Não foi possível começar a conferência no servidor. Os números continuam neste aparelho.');
+        else setSyncMsg('Não foi possível começar a conferência no servidor. Os números continuam neste aparelho.');
       })
       .finally(() => {
         creatingRef.current = false;
@@ -666,24 +634,38 @@ export default function StockCheckScreen() {
         return;
       }
       const vid = row.variant_id;
-      const before = countsRef.current[vid];
-      const cur = before === undefined || before === '' ? 0 : parseInt(before, 10) || 0;
-      const next = cur + 1;
-      setCounts((prev) => ({ ...prev, [vid]: String(next) }));
-      countsRef.current = { ...countsRef.current, [vid]: String(next) };
-      queueOp({ variant_id: vid, delta: 1 });
-      setLastScan(vid);
-      const diff = next - row.system_quantity;
-      playScan(diff > 0 ? 'warn' : 'ok');
-      const tail = diff > 0 ? ' (sobra ' + diff + ')' : diff === 0 ? ' (confere)' : '';
-      setScanStatus({
-        kind: diff > 0 ? 'warn' : 'ok',
-        text: row.product_name + ' · ' + variantLabel(row) + ': contado ' + next + ' de ' + row.system_quantity + tail,
-      });
-      setHighlightId(vid);
-      setFocusId(vid);
+      const title = row.product_name + ' · ' + variantLabel(row);
+      const countedNow = () => {
+        const b = countsRef.current[vid];
+        return b === undefined || b === '' ? 0 : parseInt(b, 10) || 0;
+      };
+      const count = () => {
+        const next = countedNow() + 1;
+        setCounts((prev) => ({ ...prev, [vid]: String(next) }));
+        countsRef.current = { ...countsRef.current, [vid]: String(next) };
+        queueOp({ variant_id: vid, delta: 1 });
+        setLastScan(vid);
+        const diff = next - row.system_quantity;
+        playScan(diff > 0 ? 'warn' : 'ok');
+        const tail = diff > 0 ? ' (sobra ' + diff + ')' : diff === 0 ? ' (confere)' : '';
+        setScanStatus({
+          kind: diff > 0 ? 'warn' : 'ok',
+          text: title + ': contado ' + next + ' de ' + row.system_quantity + tail,
+        });
+        setHighlightId(vid);
+        setFocusId(vid);
+      };
+      // Mesma peça bipada de novo nesta conferência: avisa que está duplicada e só conta se a pessoa confirmar
+      if (!dup.check({ variantId: vid, title, alreadyCounted: countedNow(), expected: row.system_quantity }, count)) {
+        playScan('warn');
+        setScanStatus({ kind: 'warn', text: title + ': duplicada. Confirme abaixo se é outra peça igual.' });
+        setHighlightId(vid);
+        setFocusId(vid);
+        return;
+      }
+      count();
     },
-    [codeIndex, allIndex, rowById, allData, queueOp],
+    [codeIndex, allIndex, rowById, allData, queueOp, dup],
   );
 
   // Um campo só: digitar filtra a lista; Enter (ou o leitor, que manda Enter) com um código inteiro conta 1 peça
@@ -882,11 +864,13 @@ export default function StockCheckScreen() {
             ) : null
           }
         />
+        <DuplicateScanNotice dup={dup} />
 
         {/* Filtros */}
         <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           <Chip label="Falta bipar" active={onlyPending} onPress={() => { setOnlyPending((v) => !v); setOnlyDiffs(false); }} color={brand.primary} />
           <Chip label="Só divergências" active={onlyDiffs} onPress={() => { setOnlyDiffs((v) => !v); setOnlyPending(false); }} color={brand.primary} />
+          <Chip label="Avisar peça repetida" active={dup.warn} onPress={() => dup.setWarn(!dup.warn)} color={brand.primary} />
           <View style={styles.chipDivider} />
           <Chip label="Todas" active={categoryId === null} onPress={() => setCategoryId(null)} color={brand.primary} disabled={!!draft && draft.categoryId !== null} />
           {categories.map(([id, name]) => (
@@ -1241,7 +1225,7 @@ export default function StockCheckScreen() {
           if (!draft || discarding) return;
           setDiscarding(true);
           try {
-            if (flushTimer.current) clearTimeout(flushTimer.current);
+            syncApi.current?.reset();
             await discardStockCount(draft.id);
             endedByOther();
             setMessage('Conferência apagada. Pode começar de novo: a primeira peça bipada abre uma nova para todos.');
