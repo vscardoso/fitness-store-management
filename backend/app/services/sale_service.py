@@ -69,6 +69,21 @@ class SaleService:
         self.product_repo = ProductRepository(db)
         self.fifo_service = FIFOService(db)
     
+    @staticmethod
+    def _check_line_discount(name: str, item) -> None:
+        """O desconto de uma linha tem que ficar abaixo do valor dela.
+
+        Sem isso uma linha com desconto maior que o preço fica NEGATIVA e a outra linha da venda "paga" a diferença
+        (lucro, devolução e relatório por produto passam a mentir). Peça de graça é brinde, que tem fluxo e custo próprios.
+        """
+        from app.services.sale_receipt_service import brl
+        gross = (Decimal(str(item.unit_price)) * item.quantity).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        disc = Decimal(str(item.discount_amount or 0)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        if disc > gross:
+            raise ValueError(f"O desconto de {brl(disc)} em {name} é maior que o valor da peça ({brl(gross)}). Confira o desconto.")
+        if disc == gross:
+            raise ValueError(f"{name} ficaria de graça (desconto igual ao valor). Para dar a peça sem cobrança, use Brindes no menu Mais.")
+
     async def _validate_refs(self, sale_data, tenant_id: int) -> None:
         """customer_id, product_id e variant_id do corpo precisam ser da loja (e a variacao do produto)."""
         from sqlalchemy import select as _sel
@@ -78,8 +93,10 @@ class SaleService:
             if not await self.customer_repo.get(self.db, sale_data.customer_id, tenant_id=tenant_id):
                 raise ValueError("Cliente não encontrado")
         for item in sale_data.items:
-            if not await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id):
+            product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
+            if not product:
                 raise ValueError(f"Produto {item.product_id} não encontrado")
+            self._check_line_discount(product.name, item)
             if item.variant_id:
                 ok = (await self.db.execute(
                     _sel(_PV.id).where(
@@ -210,15 +227,23 @@ class SaleService:
                 subtotal += item_subtotal
             
             # 2.1. Aplicar desconto por forma de pagamento (se configurado)
+            # MESMA regra do app (checkout): o desconto da forma de pagamento só vale com UMA forma de pagamento (pontos de
+            # fidelidade não contam como forma) e é calculado sobre o que sobrou DEPOIS do desconto das peças e do
+            # desconto manual. Se o servidor calculasse diferente, o app cobraria um valor e o servidor esperaria outro
+            # (venda recusada no PIX/cartão, ou diferença virando "troco" no dinheiro).
             payment_discount_amount = Decimal('0')
-            if sale_data.payment_method:
-                print(f" Verificando desconto para forma de pagamento: {sale_data.payment_method.value}")
+            real_payments = [p for p in sale_data.payments if getattr(p.payment_method, 'value', p.payment_method) != 'loyalty_points']
+            if len(real_payments) == 1:
+                pay_method = getattr(real_payments[0].payment_method, 'value', real_payments[0].payment_method)
+                manual_discount = Decimal(str(sale_data.discount_amount or 0))
+                base_for_payment_discount = max(Decimal('0'), subtotal - manual_discount)
+                print(f" Verificando desconto para forma de pagamento: {pay_method}")
                 discount_service = PaymentDiscountService(self.db)
                 try:
                     discount_calc = await discount_service.calculate_discount(
                         tenant_id=tenant_id,
-                        payment_method=sale_data.payment_method.value,
-                        amount=subtotal
+                        payment_method=pay_method,
+                        amount=base_for_payment_discount
                     )
                     payment_discount_amount = discount_calc.discount_amount
                     if payment_discount_amount > 0:

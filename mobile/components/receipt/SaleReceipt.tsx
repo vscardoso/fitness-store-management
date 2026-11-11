@@ -2,6 +2,7 @@ import React, { forwardRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Card } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { itemsDiscountOf } from '@/utils/itemDiscount';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -127,6 +128,8 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
                 ? Number(sale.discount_amount) * (itemSubtotal / Number(sale.subtotal))
                 : 0;
               const effectiveSubtotal = itemSubtotal - discountShare;
+              const lineDiscount = Number((item as any).discount_amount ?? 0);
+              const grossLine = Number(item.unit_price) * item.quantity;
               return (
                 <View key={index} style={styles.itemRow}>
                   <Text variant="bodyMedium" style={styles.itemQuantity}>
@@ -141,16 +144,16 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
                         {variantLabel}
                       </Text>
                     )}
-                    {discountShare > 0 && (
+                    {(discountShare > 0 || lineDiscount > 0) && (
                       <Text variant="bodySmall" style={styles.itemDiscountNote}>
-                        (desc. aplicado)
+                        {lineDiscount > 0 ? `(desconto de ${formatCurrency(lineDiscount)})` : '(desc. aplicado)'}
                       </Text>
                     )}
                   </View>
                   <View style={styles.itemPriceContainer}>
-                    {discountShare > 0 && (
+                    {(discountShare > 0 || lineDiscount > 0) && (
                       <Text variant="bodySmall" style={styles.itemPriceStrike}>
-                        {formatCurrency(itemSubtotal)}
+                        {formatCurrency(grossLine)}
                       </Text>
                     )}
                     <Text variant="bodyMedium" style={styles.itemPrice}>
@@ -165,14 +168,22 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
           {/* Resumo financeiro */}
           <View style={styles.financialSummary}>
             <View style={styles.summaryRow}>
-              <Text variant="bodyMedium" style={styles.summaryLabel}>Subtotal</Text>
+              <Text variant="bodyMedium" style={styles.summaryLabel}>{itemsDiscountOf(sale.items as any) > 0 ? 'Valor das peças' : 'Subtotal'}</Text>
               <Text variant="bodyMedium" style={styles.summaryValue}>
-                {formatCurrency(sale.subtotal)}
+                {formatCurrency(Number(sale.subtotal) + itemsDiscountOf(sale.items as any))}
               </Text>
             </View>
+            {itemsDiscountOf(sale.items as any) > 0 && (
+              <View style={styles.summaryRow}>
+                <Text variant="bodyMedium" style={styles.discountLabel}>Descontos nas peças</Text>
+                <Text variant="bodyMedium" style={styles.discountValue}>
+                  -{formatCurrency(itemsDiscountOf(sale.items as any))}
+                </Text>
+              </View>
+            )}
             {sale.discount_amount > 0 && (
               <View style={styles.summaryRow}>
-                <Text variant="bodyMedium" style={styles.discountLabel}>Desconto</Text>
+                <Text variant="bodyMedium" style={styles.discountLabel}>{itemsDiscountOf(sale.items as any) > 0 ? 'Desconto geral' : 'Desconto'}</Text>
                 <Text variant="bodyMedium" style={styles.discountValue}>
                   -{formatCurrency(sale.discount_amount)}
                 </Text>

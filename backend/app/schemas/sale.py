@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Dict, Any
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
@@ -44,6 +44,13 @@ class SaleItemCreate(BaseModel):
     @classmethod
     def _money_cap(cls, v):
         return _check_money(v)
+
+    @field_validator("discount_amount")
+    @classmethod
+    def _discount_in_cents(cls, v):
+        # o desconto da peça é dinheiro: sempre em centavos (33,333 vira 33,33), senão a linha, a venda e a devolução
+        # somariam frações diferentes
+        return v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if v is not None else v
 
 
 class PaymentCreate(BaseModel):

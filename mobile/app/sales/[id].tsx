@@ -23,6 +23,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { getSaleById } from '@/services/saleService';
 import { checkReturnEligibility, getReturnHistory } from '@/services/returnService';
 import { confirmManualPayment, cancelOrder } from '@/services/pdvService';
+import { itemsDiscountOf } from '@/utils/itemDiscount';
 import { formatCurrency, formatDateTime, formatPercent } from '@/utils/format';
 import type { SaleReturn } from '@/services/returnService';
 import { Colors, REFUNDED_COLOR, VALUE_COLORS, theme } from '@/constants/Colors';
@@ -253,6 +254,8 @@ export default function SaleDetailsScreen() {
   // Título curto, como nas demais telas de detalhe: o número completo fica no cartão do total
   const shortSaleCode = sale.sale_number.split('-').pop() || sale.sale_number;
   const hasDiscount = Number(sale.discount_amount) > 0;
+  // desconto dado em cada peça (o `discount_amount` da venda é só o da venda toda)
+  const itemsDiscount = itemsDiscountOf(sale.items as any);
   const hasTax = Number(sale.tax_amount) > 0;
 
   const returnDays = eligibility?.max_return_days;
@@ -375,6 +378,8 @@ export default function SaleDetailsScreen() {
               ? saleDiscount * (itemSubtotal / saleSubtotal)
               : 0;
             const effectiveSubtotal = itemSubtotal - discountShare;
+            const lineDiscount = Number((item as any).discount_amount ?? 0);
+            const grossLine = Number(item.unit_price) * item.quantity;
             const hasMargin = item.margin_percent != null;
 
             return (
@@ -395,6 +400,11 @@ export default function SaleDetailsScreen() {
                     <Text style={styles.itemQtyPrice}>
                       {item.quantity} × {formatCurrency(item.unit_price)}
                     </Text>
+                    {lineDiscount > 0 && (
+                      <Text style={[styles.itemQtyPrice, { color: Colors.light.successDark }]}>
+                        desconto de {formatCurrency(lineDiscount)} na peça
+                      </Text>
+                    )}
                     {(item.quantity_returned ?? 0) > 0 && (
                       <Text style={[styles.itemQtyPrice, { color: VALUE_COLORS.negative }]}>
                         devolveu {item.quantity_returned} {item.quantity_returned === 1 ? 'peça' : 'peças'}
@@ -402,11 +412,11 @@ export default function SaleDetailsScreen() {
                     )}
                   </View>
                   <View style={styles.itemRight}>
-                    {discountShare > 0 && (
-                      <Text style={styles.itemStrike}>{formatCurrency(itemSubtotal)}</Text>
+                    {(discountShare > 0 || lineDiscount > 0) && (
+                      <Text style={styles.itemStrike}>{formatCurrency(grossLine)}</Text>
                     )}
                     <Text style={styles.itemSubtotal}>
-                      {formatCurrency(discountShare > 0 ? effectiveSubtotal : itemSubtotal)}
+                      {formatCurrency(effectiveSubtotal)}
                     </Text>
                     {hasMargin && (
                       <View style={[
@@ -429,15 +439,21 @@ export default function SaleDetailsScreen() {
 
           {/* Rodapé de totais — única fonte de verdade */}
           <View style={styles.totalsFooter}>
-            {(hasDiscount || hasTax) && (
+            {(hasDiscount || hasTax || itemsDiscount > 0) && (
               <View style={styles.totalLine}>
-                <Text style={styles.totalLineLabel}>Subtotal</Text>
-                <Text style={styles.totalLineValue}>{formatCurrency(sale.subtotal)}</Text>
+                <Text style={styles.totalLineLabel}>{itemsDiscount > 0 ? 'Valor das peças' : 'Subtotal'}</Text>
+                <Text style={styles.totalLineValue}>{formatCurrency(Number(sale.subtotal) + itemsDiscount)}</Text>
+              </View>
+            )}
+            {itemsDiscount > 0 && (
+              <View style={styles.totalLine}>
+                <Text style={[styles.totalLineLabel, { color: Colors.light.warningDark }]}>Descontos nas peças</Text>
+                <Text style={[styles.totalLineValue, { color: Colors.light.warningDark }]}>-{formatCurrency(itemsDiscount)}</Text>
               </View>
             )}
             {hasDiscount && (
               <View style={styles.totalLine}>
-                <Text style={[styles.totalLineLabel, { color: Colors.light.warningDark }]}>Desconto</Text>
+                <Text style={[styles.totalLineLabel, { color: Colors.light.warningDark }]}>{itemsDiscount > 0 ? 'Desconto geral' : 'Desconto'}</Text>
                 <Text style={[styles.totalLineValue, { color: Colors.light.warningDark }]}>
                   -{formatCurrency(sale.discount_amount)}
                 </Text>

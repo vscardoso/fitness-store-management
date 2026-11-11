@@ -9,6 +9,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Product, SaleItem, Payment, PaymentMethod } from '@/types';
 import type { ProductGrouped, ProductVariant as GroupedVariant } from '@/types';
+import { lineDiscount } from '@/utils/itemDiscount';
+
+const cents = (v: number): number => Math.round((Number(v) + Number.EPSILON) * 100);
+/** Reais em centavos exatos (evita 359.59999999999997 na soma). */
+const money = (c: number): number => c / 100;
 
 /**
  * Item do carrinho — suporta produto simples e produto com variante.
@@ -22,6 +27,19 @@ export interface CartItem extends SaleItem {
   variant_label?: string;
   /** Produto (com name/sku ajustados para a variante quando aplicável) */
   product: Product;
+  /**
+   * Desconto POR PEÇA em reais (quem vende digita; centavos exatos). `discount` (herdado de SaleItem) é o desconto da
+   * LINHA = unit_discount x quantidade, refeito toda vez que a quantidade muda. Sem isto, mudar a quantidade depois de
+   * dar o desconto deixava o desconto da linha parado.
+   */
+  unit_discount?: number;
+}
+
+/** Refaz o desconto da linha quando a quantidade muda (desconto por peça x quantidade). */
+function withQuantity(item: CartItem, quantity: number): CartItem {
+  const next = { ...item, quantity };
+  if (item.unit_discount && item.unit_discount > 0) next.discount = lineDiscount(item.unit_discount, quantity);
+  return next;
 }
 
 /** Duração máxima do carrinho persistido: 8 horas */
@@ -42,6 +60,8 @@ interface CartState {
 
   // Computed
   subtotal: number;
+  /** Soma dos descontos dados em cada peça (o `discount` do estado é o desconto geral da venda). */
+  itemsDiscount: number;
   total: number;
   itemCount: number;
   totalPaid: number;
@@ -53,6 +73,8 @@ interface CartState {
   removeItem: (cart_key: string) => void;
   updateQuantity: (cart_key: string, quantity: number) => void;
   updateItemDiscount: (cart_key: string, discount: number) => void;
+  /** Desconto por peça (reais, centavos exatos). 0 tira o desconto. */
+  setItemUnitDiscount: (cart_key: string, unitDiscount: number) => void;
   clearItems: () => void;
 
   // Actions - Payments
@@ -85,6 +107,7 @@ export const useCartStore = create<CartState>()(
       notes: undefined,
       persisted_at: undefined,
       subtotal: 0,
+      itemsDiscount: 0,
       total: 0,
       itemCount: 0,
       totalPaid: 0,
@@ -108,7 +131,7 @@ export const useCartStore = create<CartState>()(
           set({
             items: items.map((item) =>
               item.cart_key === cart_key
-                ? { ...item, quantity: item.quantity + quantity }
+                ? withQuantity(item, item.quantity + quantity)
                 : item
             ),
           });
@@ -163,7 +186,7 @@ export const useCartStore = create<CartState>()(
           set({
             items: items.map((item) =>
               item.cart_key === cart_key
-                ? { ...item, quantity: item.quantity + quantity }
+                ? withQuantity(item, item.quantity + quantity)
                 : item
             ),
           });
@@ -208,7 +231,7 @@ export const useCartStore = create<CartState>()(
 
         set({
           items: get().items.map((item) =>
-            item.cart_key === cart_key ? { ...item, quantity } : item
+            item.cart_key === cart_key ? withQuantity(item, quantity) : item
           ),
         });
         get().calculateTotals();
@@ -220,8 +243,26 @@ export const useCartStore = create<CartState>()(
       updateItemDiscount: (cart_key: string, discount: number) => {
         set({
           items: get().items.map((item) =>
-            item.cart_key === cart_key ? { ...item, discount } : item
+            item.cart_key === cart_key ? { ...item, discount, unit_discount: undefined } : item
           ),
+        });
+        get().calculateTotals();
+      },
+
+      /**
+       * Desconto por peça: guarda o valor de UMA peça e deriva o da linha (x quantidade).
+       * Recusa desconto que não deixa a peça com valor (>= preço) para o carrinho nunca mandar linha inválida.
+       */
+      setItemUnitDiscount: (cart_key: string, unitDiscount: number) => {
+        set({
+          items: get().items.map((item) => {
+            if (item.cart_key !== cart_key) return item;
+            const per = Math.max(0, money(cents(unitDiscount)));
+            if (per <= 0 || cents(per) >= cents(item.unit_price)) {
+              return { ...item, unit_discount: undefined, discount: 0 };
+            }
+            return { ...item, unit_discount: per, discount: lineDiscount(per, item.quantity) };
+          }),
         });
         get().calculateTotals();
       },
@@ -302,6 +343,7 @@ export const useCartStore = create<CartState>()(
           notes: undefined,
           persisted_at: undefined,
           subtotal: 0,
+          itemsDiscount: 0,
           total: 0,
           itemCount: 0,
           totalPaid: 0,
@@ -317,13 +359,17 @@ export const useCartStore = create<CartState>()(
         const payments = get().payments;
         const globalDiscount = get().discount;
 
-        // Subtotal dos items (com descontos individuais)
-        const subtotal = items.reduce((sum, item) => {
-          return sum + item.unit_price * item.quantity - item.discount;
-        }, 0);
+        // Subtotal dos items (com o desconto de cada peça), em centavos exatos
+        const subtotalCents = items.reduce(
+          (sum, item) => sum + cents(item.unit_price) * item.quantity - cents(item.discount),
+          0,
+        );
+        const itemsDiscountCents = items.reduce((sum, item) => sum + cents(item.discount), 0);
+        const subtotal = money(subtotalCents);
+        const itemsDiscount = money(itemsDiscountCents);
 
-        // Total final (subtotal - desconto global)
-        const total = Math.max(0, subtotal - globalDiscount);
+        // Total final (subtotal - desconto geral da venda)
+        const total = Math.max(0, money(subtotalCents - cents(globalDiscount)));
 
         // Quantidade de items
         const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -332,10 +378,11 @@ export const useCartStore = create<CartState>()(
         const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
 
         // Valor restante
-        const remaining = Math.max(0, total - totalPaid);
+        const remaining = Math.max(0, money(cents(total) - cents(totalPaid)));
 
         set({
           subtotal,
+          itemsDiscount,
           total,
           itemCount,
           totalPaid,
@@ -381,12 +428,13 @@ export const useCartStore = create<CartState>()(
         // Fix 2: recalcular totais após rehydration (evita total zerado)
         const items = state.items ?? [];
         const globalDiscount = state.discount ?? 0;
-        const subtotal = items.reduce(
-          (sum, item) => sum + item.unit_price * item.quantity - item.discount,
+        const subtotalCents = items.reduce(
+          (sum, item) => sum + cents(item.unit_price) * item.quantity - cents(item.discount),
           0,
         );
-        state.subtotal = subtotal;
-        state.total = Math.max(0, subtotal - globalDiscount);
+        state.subtotal = money(subtotalCents);
+        state.itemsDiscount = money(items.reduce((sum, item) => sum + cents(item.discount), 0));
+        state.total = Math.max(0, money(subtotalCents - cents(globalDiscount)));
         state.itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
         state.totalPaid = 0;   // payments não persistem
         state.remaining = state.total;

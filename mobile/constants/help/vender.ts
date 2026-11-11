@@ -42,16 +42,18 @@ export const VENDER: HelpEntry[] = [
       'Se a venda é para uma cliente cadastrada, escolha a cliente (é opcional).',
       'Ache a peça pelo nome ou pelo código da etiqueta e escolha a cor e o tamanho.',
       'Ajuste a quantidade com os botões de menos e mais no carrinho.',
-      'Se for dar desconto, toque em “Adicionar desconto” e escolha valor em reais ou porcentagem.',
+      'Para dar desconto numa peça, toque em “Dar desconto” embaixo dela e digite o desconto em % ou em R$ por peça. Cada peça pode ter o seu.',
+      'Para um desconto na venda toda, use “Desconto na venda toda”. Os dois podem ser usados juntos.',
       'Confira o total e toque em “Finalizar Venda” para ir ao pagamento.',
     ],
     parts: [
       { label: 'Carrinho', text: 'cada peça com cor, tamanho, preço e quantidade; “Limpar” tira todas.' },
-      { label: 'Lucro estimado', text: 'quanto a venda deixa de lucro, só para gerente e admin.' },
+      { label: 'Lucro estimado', text: 'quanto a venda deixa de lucro, já com os descontos, só para gerente e admin. A peça com preço abaixo do custo aparece em vermelho.' },
     ],
     goodToKnow: [
       'O app não deixa vender mais peças do que há em estoque e avisa quando a peça está esgotada.',
-      'O desconto não pode passar do valor da venda.',
+      'O desconto de uma peça tem que ser menor que o preço dela. Para dar a peça sem cobrança, use Brindes no menu Mais.',
+      'Mudar a quantidade depois do desconto mantém o desconto de cada peça.',
       'Peça que não está publicada no site pode ser vendida normalmente.',
     ],
     web: [
@@ -63,7 +65,7 @@ export const VENDER: HelpEntry[] = [
       'Também dá para digitar o código no campo “Bipe ou digite o código” e confirmar.',
     ],
     related: ['finalizar-venda', 'caixa', 'vendas'],
-    sources: ['app/(tabs)/sale.tsx', 'components/sale/DesktopPDV.tsx', 'components/scan/ScanBar.tsx'],
+    sources: ['app/(tabs)/sale.tsx', 'components/sale/DesktopPDV.tsx', 'components/scan/ScanBar.tsx', 'components/sale/ItemDiscountEditor.tsx'],
   },
   {
     id: 'finalizar-venda',

@@ -167,10 +167,12 @@ async def period_totals(
 
     if sales:
         items = (await db.execute(
-            select(SaleItem.quantity, SaleItem.unit_cost, Sale.created_at)
+            select(SaleItem.quantity, SaleItem.unit_cost, Sale.created_at, SaleItem.discount_amount)
             .join(Sale, Sale.id == SaleItem.sale_id)
             .where(and_(*sale_filter), SaleItem.is_active == True))).all()  # noqa: E712
-        for qty, cost, created in items:
+        for qty, cost, created, item_disc in items:
+            # "Descontos dados" = desconto da venda toda (acima) + o de cada peça (Black Friday: cada peça com o seu)
+            t.discount_total += _d(item_disc)
             c = _d(cost) * int(qty)
             t.cost_sold += c
             t.pieces_sold += int(qty)

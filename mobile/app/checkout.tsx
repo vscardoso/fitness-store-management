@@ -979,6 +979,11 @@ export default function CheckoutScreen() {
                       <Text style={styles.cartItemQty}>
                         {item.quantity}x {formatCurrency(item.unit_price)}
                       </Text>
+                      {item.discount > 0 ? (
+                        <Text style={[styles.cartItemQty, styles.discountText]}>
+                          desconto de {formatCurrency(item.discount)}
+                        </Text>
+                      ) : null}
                     </View>
                     <Text style={styles.cartItemTotal}>
                       {formatCurrency(item.quantity * item.unit_price - item.discount)}
@@ -1620,9 +1625,16 @@ export default function CheckoutScreen() {
             <View style={styles.cardContent}>
               <View style={styles.totalsStack}>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Subtotal</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(cart.subtotal)}</Text>
+                  <Text style={styles.summaryLabel}>{cart.itemsDiscount > 0 ? 'Valor das peças' : 'Subtotal'}</Text>
+                  <Text style={styles.summaryValue}>{formatCurrency(cart.subtotal + cart.itemsDiscount)}</Text>
                 </View>
+
+                {cart.itemsDiscount > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, styles.discountText]}>Descontos nas peças</Text>
+                    <Text style={[styles.summaryValue, styles.discountText]}>- {formatCurrency(cart.itemsDiscount)}</Text>
+                  </View>
+                )}
 
                 {pointsUse > 0 && (
                   <View style={styles.summaryRow}>
@@ -1634,7 +1646,7 @@ export default function CheckoutScreen() {
                 {cart.discount > 0 && (
                   <View style={styles.summaryRow}>
                     <Text style={[styles.summaryLabel, styles.discountText]}>
-                      Desconto Manual
+                      Desconto geral da venda
                     </Text>
                     <Text style={[styles.summaryValue, styles.discountText]}>
                       - {formatCurrency(cart.discount)}
