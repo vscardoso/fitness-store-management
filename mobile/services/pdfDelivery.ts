@@ -90,20 +90,13 @@ export async function getServerPdfLink(path: string, options: ServerPdfOptions =
 }
 
 /**
- * Abre ou compartilha o PDF de uma rota do servidor. Chamar direto do toque do botão: no navegador a aba é aberta JÁ, dentro do
- * toque (depois da espera do servidor o navegador bloquearia a janela) e recebe o link quando ele chega.
+ * Entrega o PDF de uma rota do servidor: no celular abre a folha NATIVA de compartilhar já com o arquivo PDF anexado (era assim antes
+ * do link https; o link só serve de arquivo de verdade, nunca vira texto "blob:"). Sem compartilhar de arquivo (computador, navegador
+ * antigo) ou se o iPhone pedir um toque novo, abre o PDF numa aba. Chamar direto do toque do botão.
  */
 export async function openServerPdf(path: string, options: ServerPdfOptions = {}): Promise<PdfDelivery> {
-  const win = Platform.OS === 'web' && typeof window !== 'undefined' ? window.open('', '_blank') : null;
-  try {
-    const { url, filename } = await getServerPdfLink(path, options);
-    if (win) {
-      win.location.href = url;
-      return 'opened';
-    }
-    return await pdfFromUrl(url, filename, options.title).deliver('open');
-  } catch (e) {
-    try { win?.close(); } catch { /* aba já fechada */ }
-    throw e;
-  }
+  const { url, filename } = await getServerPdfLink(path, options);
+  const pdf = pdfFromUrl(url, filename, options.title);
+  const result = await pdf.deliver('share');
+  return result === 'blocked' ? pdf.deliver('open') : result;
 }
