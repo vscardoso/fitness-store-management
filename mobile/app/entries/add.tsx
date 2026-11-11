@@ -52,6 +52,7 @@ import { formatCurrency } from '@/utils/format';
 import { cnpjMask, dateMask, isValidDate, phoneMask } from '@/utils/masks';
 import { cleanEntryCode, formatEntryCodeInput } from '@/utils/entryCode';
 import EntryExtraCostsInput, { type EntryExtraCostInput } from '@/components/entries/EntryExtraCostsInput';
+import PurchasePaidFrom, { NO_PURCHASE_PAYMENT, type PurchasePayment } from '@/components/finance/PurchasePaidFrom';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { EntryType, StockEntryCreate, EntryItem, Product, ProductVariant, Supplier } from '@/types';
@@ -275,6 +276,7 @@ export default function AddStockEntryScreen() {
   const [defaultSupplier, setDefaultSupplier] = useState<Supplier | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [purchasePay, setPurchasePay] = useState<PurchasePayment>(NO_PURCHASE_PAYMENT);   // de onde saiu o dinheiro (Financeiro)
   const [discountText, setDiscountText] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EntryItemForm[]>([]);
@@ -779,6 +781,8 @@ export default function AddStockEntryScreen() {
           invoice_number: invoiceNumber.trim() || undefined,
           payment_method: paymentMethod.trim() || undefined,
           discount_amount: unmaskCurrency(discountText) || undefined,
+          paid_account_id: purchasePay.accountId ?? undefined,
+          paid_outside: purchasePay.outside || undefined,
           notes: notes.trim() || undefined,
           extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
         },
@@ -844,6 +848,8 @@ export default function AddStockEntryScreen() {
           invoice_number: invoiceNumber.trim() || undefined,
           payment_method: paymentMethod.trim() || undefined,
           discount_amount: unmaskCurrency(discountText) || undefined,
+          paid_account_id: purchasePay.accountId ?? undefined,
+          paid_outside: purchasePay.outside || undefined,
           notes: notes.trim() || undefined,
           extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
         }
@@ -866,6 +872,7 @@ export default function AddStockEntryScreen() {
     // Invalidate stock entries queries
     queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
     queryClient.invalidateQueries({ queryKey: ['stock-entries-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['finance'] });   // a compra tira da conta escolhida
     queryClient.invalidateQueries({ queryKey: ['products'] });
     queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
     queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
@@ -1182,6 +1189,8 @@ export default function AddStockEntryScreen() {
       invoice_number: invoiceNumber.trim() || undefined,
       payment_method: paymentMethod.trim() || undefined,
       discount_amount: unmaskCurrency(discountText) || undefined,
+      paid_account_id: purchasePay.accountId ?? undefined,
+      paid_outside: purchasePay.outside || undefined,
       notes: notes.trim() || undefined,
       extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
       items: items.filter(item => item.quantity_received > 0).map(item => ({
@@ -1678,6 +1687,13 @@ export default function AddStockEntryScreen() {
               Se o fornecedor abateu um valor no fim da compra, informe aqui. O desconto reduz o custo de cada peça.
             </Text>
           </View>
+
+          <PurchasePaidFrom
+            value={purchasePay}
+            onChange={setPurchasePay}
+            amount={Math.max(0, total - Math.min(unmaskCurrency(discountText) || 0, total))}
+            entryDate={computeEntryDateISO()}
+          />
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Forma de Pagamento</Text>

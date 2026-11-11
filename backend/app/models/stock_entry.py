@@ -3,7 +3,7 @@ Modelo de entrada de estoque (substituição do Batch).
 """
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLEnum, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List, TYPE_CHECKING, Optional
 import enum
@@ -115,7 +115,22 @@ class StockEntry(BaseModel):
         nullable=False,
         comment="Desconto dado pelo fornecedor no fim da compra; abate o custo das peças (rateado)"
     )
-    
+
+    # Conta (gaveta ou banco) de onde saiu o dinheiro da mercadoria. O Financeiro tira da conta, na hora, o que a compra
+    # custou (peças x custo menos desconto) a partir do dia da compra. Vazio = a compra ainda não saiu de nenhuma conta.
+    paid_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("financial_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Conta do Financeiro de onde saiu o dinheiro da compra (gaveta ou banco)"
+    )
+    paid_outside: Mapped[bool] = mapped_column(
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="A compra foi paga por fora das contas do app (ex.: dinheiro pessoal): não tira de nenhuma conta"
+    )
+
     # Observações
     notes: Mapped[str | None] = mapped_column(
         Text,

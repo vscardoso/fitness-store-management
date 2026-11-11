@@ -643,6 +643,10 @@ export interface StockEntry {
   invoice_number?: string;
   payment_method?: string;
   discount_amount?: number;
+  /** Conta do Financeiro (gaveta ou banco) de onde saiu o dinheiro da compra; vazio = ainda não saiu de nenhuma. */
+  paid_account_id?: number | null;
+  /** Pago por fora das contas do app (ex.: dinheiro pessoal). */
+  paid_outside?: boolean;
   notes?: string;
   total_cost: number;
   /** Frete e despesas do lote, rateadas nas peças. */
@@ -679,6 +683,9 @@ export interface StockEntryCreate {
   invoice_number?: string;
   payment_method?: string;
   discount_amount?: number;
+  /** De onde saiu o dinheiro da compra (o saldo da conta cai sozinho). */
+  paid_account_id?: number | null;
+  paid_outside?: boolean;
   /** Desconto de cada fornecedor da entrada (valor 0 remove). */
   supplier_discounts?: Array<{ supplier_id: number; amount: number }>;
   notes?: string;

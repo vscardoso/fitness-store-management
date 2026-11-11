@@ -38,6 +38,7 @@ import StatCard from '@/components/ui/StatCard';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
+import EntryPaidFromCard from '@/components/entries/EntryPaidFromCard';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import AppButton from '@/components/ui/AppButton';
 import { addToQueue as addLabelsToQueue, getEntryLabelProgress, getLabelQueue } from '@/services/labelQueueService';
@@ -843,6 +844,9 @@ export default function StockEntryDetailsScreen() {
               <InfoRow label="Observações" value={entry.notes} icon="document-outline" />
             )}
         </View>
+
+        {/* De onde saiu o dinheiro da compra (o saldo do Financeiro acompanha) */}
+        <EntryPaidFromCard entry={entry} />
 
         <AddVariantModal
           visible={!!variantTarget}

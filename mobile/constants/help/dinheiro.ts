@@ -20,14 +20,16 @@ export const DINHEIRO: HelpEntry[] = [
       { label: 'E se eu receber o fiado?', text: 'uma suposição: o dinheiro de hoje mais o fiado a receber, menos o que há a pagar. Nada é lançado.' },
       { label: 'Fiado: quem me deve', text: 'o que as clientes ainda vão pagar; mostra em vermelho o que já venceu.' },
       { label: 'Despesas a pagar', text: 'contas e boletos que ainda vão vencer, com as vencidas em destaque.' },
+      { label: 'Compras sem conta', text: 'compras de mercadoria que ainda não disseram de onde saiu o dinheiro. Escolha a gaveta ou o banco e toque em “Descontar”: o saldo cai.' },
     ],
     goodToKnow: [
       'O caixa da gaveta é o turno do dia: abrir, vender e fechar. O saldo da conta Gaveta vem da implantação mais as vendas em dinheiro e as retiradas.',
       'Antes de começar a controlar o dinheiro, o app não sabe o saldo de cada conta.',
+      'Compra de mercadoria só tira dinheiro da conta quando você diz de onde saiu, na Nova entrada ou na própria entrada. Compra de antes da data de partida já está dentro do saldo de partida.',
     ],
     roles: ['manager'],
     related: ['contas-saldos', 'contas-pagar', 'fechamento-mes'],
-    sources: ['app/finance/index.tsx'],
+    sources: ['app/finance/index.tsx', 'components/finance/PendingPurchasesCard.tsx'],
   },
   {
     id: 'contas-saldos',
@@ -38,7 +40,7 @@ export const DINHEIRO: HelpEntry[] = [
     purpose: 'Mostra quanto a loja tem agora na gaveta, em cada banco e a receber da maquininha.',
     steps: [
       'Na primeira vez, o admin toca em “Começar a controlar o dinheiro” e informa os saldos de hoje.',
-      'Toque numa conta para ver de onde veio o saldo: vendas, devoluções, transferências e contas pagas.',
+      'Toque numa conta para ver de onde veio o saldo: vendas, devoluções, transferências, contas pagas e compras de mercadoria.',
       'Para levar dinheiro de uma conta para outra (gaveta para o banco, por exemplo), toque em “Transferir”.',
       'Quando a maquininha depositar no banco, toque em “Fazer repasse” e confira o valor. Ou o admin liga o “Repasse automático”.',
       'Errou o valor ou o dia de uma transferência? Toque no lápis dela em “Últimas transferências”, corrija e toque em “Salvar correção”. Foi para a conta errada, veio do caixa ou é repasse com taxa? Use a lixeira e lance de novo.',

@@ -18,6 +18,8 @@ export interface FinanceAccount {
   breakdown: {
     opening: number; sales: number; refunds: number; cash_register: number;
     transfers_in: number; transfers_out: number; payables_paid: number; expenses_paid: number;
+    /** Mercadoria das compras que saíram desta conta (entradas com "de onde saiu o dinheiro"). */
+    purchases_paid?: number;
     receivables_received: number; other_in: number; other_out: number; closing_adjustments: number;
   };
 }
@@ -31,7 +33,16 @@ export interface FinanceOverview {
   projection?: FinanceProjection;
   /** Maquininha: quando o cartão cai no banco (previsão por dia útil). */
   card_schedule?: CardSchedule | null;
+  /** Compras de mercadoria que ainda não disseram de onde saiu o dinheiro (o saldo ainda não as desconta). */
+  purchases_pending?: PurchasesPending;
 }
+
+export interface PendingPurchase { id: number; entry_code: string; entry_date: string; supplier_name: string; amount: number }
+export interface PurchasesPending { started: boolean; count: number; total: number; entries: PendingPurchase[] }
+
+/** Diz de onde saiu o dinheiro de compras já lançadas (conta vazia e outside falso desfaz). */
+export const payPurchases = async (entryIds: number[], target: { accountId?: number | null; outside?: boolean }): Promise<FinanceOverview> =>
+  (await api.post('/finance/purchases-pay', { entry_ids: entryIds, account_id: target.accountId ?? null, outside: !!target.outside })).data;
 
 export interface CardScheduleItem { expected_on: string; weekday: string; amount: number; status: 'overdue' | 'today' | 'future' }
 export interface CardSchedule {

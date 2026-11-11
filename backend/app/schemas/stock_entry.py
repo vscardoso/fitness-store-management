@@ -74,6 +74,8 @@ class StockEntryBase(BaseModel):
     invoice_number: Optional[str] = Field(None, max_length=100, description="Número da nota fiscal")
     payment_method: Optional[str] = Field(None, max_length=50, description="Forma de pagamento")
     discount_amount: Decimal = Field(Decimal("0"), ge=0, description="Desconto do fornecedor no total da compra (R$)")
+    paid_account_id: Optional[int] = Field(None, description="Conta do Financeiro (gaveta ou banco) de onde saiu o dinheiro")
+    paid_outside: bool = Field(False, description="Pago por fora das contas do app: não tira de nenhuma conta")
     notes: Optional[str] = Field(None, max_length=1000, description="Observações")
 
     @field_validator('supplier_cnpj')
@@ -147,6 +149,8 @@ class StockEntryUpdate(BaseModel):
     invoice_number: Optional[str] = Field(None, max_length=100)
     payment_method: Optional[str] = Field(None, max_length=50)
     discount_amount: Optional[Decimal] = Field(None, ge=0)
+    paid_account_id: Optional[int] = Field(None, description="Conta de onde saiu o dinheiro; null desfaz")
+    paid_outside: Optional[bool] = None
     supplier_discounts: Optional[List[SupplierDiscountIn]] = Field(
         None, description="Desconto por fornecedor da entrada (substitui o valor de cada fornecedor informado)"
     )
