@@ -44,6 +44,17 @@ t('nenhum arquivo monta blob: de PDF nem compartilha application/pdf por conta p
   assert.deepEqual(bad, [], `use openServerPdf / pdfFromUrl (services/pdfDelivery.ts) em vez de copiar a entrega do PDF:\n${bad.join('\n')}`);
 });
 
+t('só o hook e o serviço entregam PDF (.deliver): telas usam <PdfActions /> ou usePdfDelivery', () => {
+  const DELIVER_OK = new Set(['services/pdfDelivery.ts', 'hooks/usePdfDelivery.ts']);
+  const bad: string[] = [];
+  for (const f of files) {
+    const r = rel(f);
+    if (DELIVER_OK.has(r)) continue;
+    if (/\.deliver\(/.test(fs.readFileSync(f, 'utf8'))) bad.push(r);
+  }
+  assert.deepEqual(bad, [], `não chame .deliver() na tela: use <PdfActions /> (components/ui/PdfActions.tsx): ${bad.join(', ')}`);
+});
+
 t('as rotas de PDF do app passam pelo pdfDelivery', () => {
   for (const f of ['services/receiptService.ts', 'services/giftService.ts', 'services/reportService.ts', 'services/monthlyReportService.ts', 'services/labelService.ts']) {
     assert.ok(/pdfDelivery/.test(fs.readFileSync(path.join(MOBILE, f), 'utf8')), `${f} deveria usar services/pdfDelivery.ts`);

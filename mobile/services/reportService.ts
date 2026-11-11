@@ -2,7 +2,7 @@
  * Service para API de relatórios
  */
 import api from './api';
-import { openServerPdf } from './pdfDelivery';
+import { getServerPdf, openServerPdf } from './pdfDelivery';
 
 export interface PaymentBreakdown {
   method: string;
@@ -271,7 +271,6 @@ export async function openSalesReportPdfWeb(period: string): Promise<void> {
   await openServerPdf('/reports/sales/pdf', { params: { period }, title: 'Relatório de Vendas' });
 }
 
-/** Estoque atual em PDF (entrada, fornecedor e produto), gerado no servidor. */
-export async function openStockChainPdf(supplierId?: number | null): Promise<void> {
-  await openServerPdf('/reports/stock-chain/pdf', { params: { supplier_id: supplierId ?? undefined }, title: 'Estoque atual' });
-}
+/** Estoque atual em PDF (entrada, fornecedor e produto), gerado no servidor (objeto para o <PdfActions />). */
+export const getStockChainPdf = (supplierId?: number | null) =>
+  getServerPdf('/reports/stock-chain/pdf', { params: { supplier_id: supplierId ?? undefined }, title: 'Estoque atual' });

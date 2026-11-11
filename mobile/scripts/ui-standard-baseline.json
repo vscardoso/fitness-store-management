@@ -392,7 +392,7 @@
   "oddWeight": 1
  },
  "app/gifts/[id].tsx": {
-  "paperButton": 4,
+  "paperButton": 3,
   "staticPrimary": 0,
   "hexColors": 0,
   "handButton": 0,
@@ -490,7 +490,7 @@
   "oddWeight": 4
  },
  "app/reports/monthly.tsx": {
-  "paperButton": 3,
+  "paperButton": 2,
   "staticPrimary": 0,
   "hexColors": 0,
   "handButton": 0,

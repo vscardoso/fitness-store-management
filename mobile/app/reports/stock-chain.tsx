@@ -12,7 +12,8 @@ import AppButton from '@/components/ui/AppButton';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getSuppliers } from '@/services/supplierService';
-import { openStockChainPdf } from '@/services/reportService';
+import PdfActions from '@/components/ui/PdfActions';
+import { getStockChainPdf } from '@/services/reportService';
 import { parseApiError } from '@/utils/apiError';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 
@@ -20,22 +21,9 @@ export default function StockChainReportScreen() {
   const brandingColors = useBrandingColors();
   const desktopContent = useDesktopContentStyle();
   const [supplierId, setSupplierId] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const { data: suppliers = [] } = useQuery({ queryKey: ['suppliers'], queryFn: getSuppliers });
 
-  const generate = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      await openStockChainPdf(supplierId);
-    } catch (e) {
-      setError(parseApiError(e) || 'Não foi possível gerar o PDF.');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const chip = (id: number | null, label: string) => {
     const active = supplierId === id;
@@ -75,17 +63,7 @@ export default function StockChainReportScreen() {
           </View>
         </View>
 
-        {!!error && <Text style={styles.error}>{error}</Text>}
-
-        <AppButton
-          variant="primary"
-          size="lg"
-          fullWidth
-          icon="download-outline"
-          label={busy ? 'Gerando...' : 'Gerar PDF'}
-          onPress={generate}
-          disabled={busy}
-        />
+        <PdfActions getPdf={() => getStockChainPdf(supplierId)} cacheKey={String(supplierId)} shareLabel="Gerar PDF" />
       </ScrollView>
     </View>
   );

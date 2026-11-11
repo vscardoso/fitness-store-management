@@ -159,6 +159,8 @@ export default function AppButton({
       <TouchableOpacity
         onPress={onPress}
         disabled={isDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={label}
         activeOpacity={0.82}
         style={[styles.base, containerStyle]}
       >
@@ -178,6 +180,8 @@ export default function AppButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       activeOpacity={variant === 'ghost' || variant === 'text' ? 0.6 : 0.8}
       style={[
         styles.base,

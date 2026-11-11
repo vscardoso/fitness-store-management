@@ -622,7 +622,7 @@ const ETIQUETAS_ENTRADA: HelpEntry[] = [
     steps: [
       'Veja no topo quantas etiquetas já foram impressas e quantas faltam.',
       'Escolha na lista só as peças e quantidades que quer. Toque em “Colocar na fila de impressão” para juntar com as outras entradas (só o que estiver marcado vai para a fila), ou imprima direto daqui.',
-      'Escolha o tamanho e o papel e toque em “Gerar PDF e imprimir”. O PDF abre numa aba: use o botão de compartilhar dele para mandar à impressora (ou “Compartilhar o arquivo”).',
+      'Escolha o tamanho e o papel e toque em “Gerar PDF e imprimir”. Depois toque em “Enviar o PDF para a impressora” e escolha o app da impressora na lista do iPhone (ou “Abrir o PDF numa aba”).',
       'Ao gerar o PDF as etiquetas já contam como impressas e a folha avança. Se não saírem, toque em “Não saiu? Desfazer”.',
     ],
     goodToKnow: [
@@ -648,7 +648,7 @@ const FILA_ETIQUETAS: HelpEntry[] = [
     steps: [
       'Na entrada, abra as etiquetas, marque só as peças que quer e toque em “Colocar na fila de impressão”.',
       'Aqui, confira as quantidades, escolha o tamanho e o papel e toque em “Gerar PDF e imprimir”: as etiquetas saem da fila na hora e a folha avança.',
-      'Se o PDF não abrir ou as etiquetas não saírem, use “Abrir o PDF para imprimir” ou “Não saiu? Desfazer”. Se outra pessoa imprimir a mesma fila, a tela avisa e atualiza.',
+      'Se o PDF não abrir ou as etiquetas não saírem, use “Enviar o PDF para a impressora” ou “Não saiu? Desfazer”. Se outra pessoa imprimir a mesma fila, a tela avisa e atualiza.',
       'Peça avulsa: no Estúdio de etiquetas (ou no produto), escolha as peças e toque em “Colocar na fila de impressão”.',
     ],
     goodToKnow: [
