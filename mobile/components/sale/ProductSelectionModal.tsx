@@ -3,6 +3,7 @@ import {
   View,
   StyleSheet,
   Modal,
+  Platform,
   TouchableOpacity,
   FlatList,
   Pressable,
@@ -18,7 +19,8 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import { getGroupedProducts } from '@/services/productService';
 import EmptyState from '@/components/ui/EmptyState';
-import { filterProductsBySearch } from '@/utils/searchMatch';
+import { filterProductsBySearch, sellableProducts } from '@/utils/searchMatch';
+import { useKeyboardState, useVisibleBox } from '@/hooks/useKeyboardInset';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { formatVariantLabel } from '@/services/productVariantService';
 import { useDesktopSheet } from '@/hooks/useLayout';
@@ -41,6 +43,9 @@ export default function ProductSelectionModal({
   const brandingColors = useBrandingColors();
   const insets = useSafeAreaInsets();
   const searchRef = useRef<TextInput>(null);
+  // área que a pessoa está VENDO (acima do teclado): a janela cabe nela, senão o fim da lista fica atrás do teclado
+  const visibleBox = useVisibleBox(visible && Platform.OS === 'web');
+  const keyboard = useKeyboardState(visible);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductGrouped | null>(null);
 
@@ -65,7 +70,11 @@ export default function ProductSelectionModal({
 
   // Busca por palavras (nome, marca, cor, tamanho e código); só as variações que combinam aparecem
   const filteredProducts = useMemo(
-    () => filterProductsBySearch((products ?? []).filter((p: ProductGrouped) => !(hasStock && (p.total_stock ?? 0) <= 0)), searchQuery),
+    () => {
+      // na venda, variação sem estoque nem aparece (só o que dá para vender)
+      const sellable = hasStock ? sellableProducts(products ?? []) : (products ?? []);
+      return filterProductsBySearch(sellable, searchQuery);
+    },
     [products, searchQuery, hasStock],
   );
   // sobrou um produto só: já abre as variações dele
@@ -173,9 +182,10 @@ export default function ProductSelectionModal({
       onRequestClose={onDismiss}
       statusBarTranslucent
     >
+      <View style={[styles.layer, visibleBox && { top: visibleBox.top, height: visibleBox.height, bottom: undefined }]}>
       <Pressable style={styles.backdrop} onPress={onDismiss} />
 
-      <View style={[styles.sheet, desktopSheet.absSheet, { paddingBottom: insets.bottom }]}>
+      <View style={[styles.sheet, desktopSheet.absSheet, { paddingBottom: keyboard.open ? 0 : insets.bottom }]}>
         {/* Header gradiente — padrão BottomSheet */}
         <LinearGradient
           colors={[brandingColors.primary, brandingColors.secondary]}
@@ -240,7 +250,10 @@ export default function ProductSelectionModal({
             keyExtractor={(item, index) => `${item.id}-${index}`}
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
+            // no fim da lista a rolagem não passa para a página por trás (era o que fazia a tela tremer)
+            style={Platform.OS === 'web' ? ({ overscrollBehavior: 'contain' } as any) : undefined}
             ListEmptyComponent={
               <EmptyState
                 icon="cube-outline"
@@ -251,11 +264,13 @@ export default function ProductSelectionModal({
           />
         )}
       </View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   backdrop: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,

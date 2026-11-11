@@ -1,6 +1,6 @@
 // Testes da busca de produto no PDV. Rodar: node scripts/test-pdv-search.mts
 import assert from 'node:assert/strict';
-import { filterProductsBySearch } from '../utils/searchMatch.ts';
+import { filterProductsBySearch, sellableProducts } from '../utils/searchMatch.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
@@ -47,5 +47,15 @@ t('palavra que não existe não acha nada; vazio devolve tudo', () => {
 });
 t('só ligação digitada ("de") ainda filtra pelo que foi digitado', () => {
   assert.deepEqual(nomes('de'), []);
+});
+t('na venda variação sem estoque some, e produto sem nada em estoque também', () => {
+  const lista = [
+    { name: 'Conjunto Pantalona', variants: [{ sku: 'A', current_stock: 1 }, { sku: 'B', current_stock: 0 }, { sku: 'C', current_stock: 3 }, { sku: 'D' }] },
+    { name: 'Tudo zerado', variants: [{ sku: 'X', current_stock: 0 }] },
+  ];
+  const r = sellableProducts(lista);
+  assert.deepEqual(r.map((p) => p.name), ['Conjunto Pantalona']);
+  assert.deepEqual(r[0].variants.map((v) => v.sku), ['A', 'C']);
+  assert.equal(lista[0].variants.length, 4);        // não altera a lista original
 });
 console.log(`${n} testes passaram`);

@@ -109,3 +109,10 @@ export function filterProductsBySearch<V extends SearchableVariant, P extends Se
   }
   return out;
 }
+
+/** Na venda só aparece o que dá para vender: variação sem estoque some, e produto sem nenhuma variação com estoque também. */
+export function sellableProducts<V extends { current_stock?: number | null }, P extends { variants: V[] }>(products: P[]): P[] {
+  return products
+    .map((p) => ({ ...p, variants: (p.variants ?? []).filter((v) => (v.current_stock ?? 0) > 0) }))
+    .filter((p) => p.variants.length > 0);
+}
