@@ -1,3 +1,4 @@
+import { paymentText } from '@/utils/paymentLabel';
 import { Colors, DESK, REFUNDED_COLOR } from '@/constants/Colors';
 /**
  * Vendas no modo notebook (app web com 1024 px ou mais): tabela com período, situação, busca, ordenação e páginas.
@@ -32,10 +33,6 @@ const STATUS: Record<string, { label: string; color: string }> = {
   cancelled: { label: 'Cancelada', color: VALUE_COLORS.negative },
   partially_refunded: { label: 'Dev. parcial', color: Colors.light.warningDark },
   refunded: { label: 'Devolvida', color: REFUNDED_COLOR },
-};
-
-const PAYMENT: Record<string, string> = {
-  cash: 'Dinheiro', pix: 'PIX', debit_card: 'Débito', credit_card: 'Crédito', transfer: 'Transferência',
 };
 
 type StatusFilter = 'all' | 'completed' | 'pending' | 'cancelled' | 'refunded';
@@ -100,7 +97,7 @@ export default function DesktopSalesTable() {
       if (status === 'cancelled' && st !== 'cancelled') return false;
       if (status === 'refunded' && st !== 'refunded' && st !== 'partially_refunded') return false;
       if (!words.length) return true;
-      const hay = norm([s.sale_number, s.customer_name, s.seller_name, PAYMENT[s.payment_method as string], ...saleCodes(s)].filter(Boolean).join(' '));
+      const hay = norm([s.sale_number, s.customer_name, s.seller_name, paymentText(s), ...saleCodes(s)].filter(Boolean).join(' '));
       return words.every((w) => hay.includes(w));
     });
   }, [sales, status, search]);
@@ -148,8 +145,8 @@ export default function DesktopSalesTable() {
     },
     {
       key: 'payment', title: 'Pagamento', flex: 1.1, minWidth: 80,
-      sortValue: (s) => PAYMENT[s.payment_method as string] ?? '',
-      render: (s) => <Text style={styles.cellText} numberOfLines={1}>{PAYMENT[s.payment_method as string] ?? '-'}</Text>,
+      sortValue: (s) => paymentText(s),
+      render: (s) => <Text style={styles.cellText} numberOfLines={1}>{paymentText(s) || '-'}</Text>,
     },
     {
       key: 'total', title: 'Total', flex: 1.2, minWidth: 90, align: 'right',
