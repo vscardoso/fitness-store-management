@@ -22,6 +22,7 @@ import type { PDVTerminal } from '@/types/pdv';
 import { getProductById } from '@/services/productService';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency, discountInCents, roundCents } from '@/utils/format';
+import { centsDigits } from '@/utils/cashMoney';
 import { haptics } from '@/utils/haptics';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import AppButton from '@/components/ui/AppButton';
@@ -560,7 +561,7 @@ export default function CheckoutScreen() {
    */
   const handleFillRemaining = () => {
     const remaining = finalTotal - cart.totalPaid;
-    setPaymentAmount(formatMoneyInput((remaining * 100).toString()));
+    setPaymentAmount(formatMoneyInput(centsDigits(remaining)));
     haptics.light();
   };
 

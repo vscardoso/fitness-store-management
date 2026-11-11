@@ -1,27 +1,23 @@
 /**
- * Comprovante da venda para a cliente: texto e link do WhatsApp e PDF gerado no servidor (58 mm, 80 mm ou A6).
+ * Comprovante da venda para a cliente: texto e link do WhatsApp e PDF (A6) gerado no servidor.
  * O servidor monta tudo (nunca sai custo nem lucro). Web: compartilhar do aparelho, senão abre ou baixa.
  */
 import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from './api';
 
-export type ReceiptSize = '58' | '80' | 'a6';
-
-export const RECEIPT_SIZES: { key: ReceiptSize; label: string; hint: string }[] = [
-  { key: '80', label: '80 mm', hint: 'Impressora térmica comum' },
-  { key: '58', label: '58 mm', hint: 'Impressora térmica pequena' },
-  { key: 'a6', label: 'A6', hint: 'Folha pequena ou para mandar' },
-];
-
-const SIZE_KEY = '@provador:comprovante_tamanho';
+/** O PDF sai sempre em A6 (folha pequena, boa para mandar e para abrir no celular): ninguém escolhe papel. */
+const PDF_SIZE = 'a6';
 
 export interface ReceiptInfo {
   text: string;
   whatsapp_url: string | null;
-  receipt: { sale_number: string; customer: string | null; customer_phone: string | null; total: number };
+  receipt: {
+    sale_number: string; customer: string | null; customer_phone: string | null; total: number;
+    /** Brindes dados junto com a venda (R$ 0,00 para a cliente) */
+    gifts?: { name: string; variant: string | null; quantity: number }[];
+  };
   /** Número oficial da loja (o fixo) ligado à Cloud API da Meta; só com ele o envio sai pela loja */
   store_whatsapp: { connected: boolean; number: string | null };
 }
@@ -45,18 +41,6 @@ export async function sendReceiptViaStoreWhatsapp(saleId: number, change?: numbe
     headers: { 'X-Loading-Message': 'Enviando pelo WhatsApp da loja...' },
   });
   return data;
-}
-
-export async function getSavedReceiptSize(): Promise<ReceiptSize> {
-  try {
-    const v = await AsyncStorage.getItem(SIZE_KEY);
-    if (v === '58' || v === '80' || v === 'a6') return v;
-  } catch { /* sem armazenamento: usa o padrão */ }
-  return '80';
-}
-
-export async function saveReceiptSize(size: ReceiptSize): Promise<void> {
-  try { await AsyncStorage.setItem(SIZE_KEY, size); } catch { /* só uma conveniência */ }
 }
 
 /** Link do WhatsApp: direto na cliente quando há telefone válido; senão abre o WhatsApp para escolher o contato. */
@@ -101,7 +85,7 @@ export async function openPdfFromApi(url: string, filename: string, title: strin
   await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: title });
 }
 
-export async function openReceiptPdf(saleId: number, saleNumber: string, size: ReceiptSize, change?: number): Promise<void> {
+export async function openReceiptPdf(saleId: number, saleNumber: string, change?: number): Promise<void> {
   const sep = change && change > 0 ? `&change=${change}` : '';
-  return openPdfFromApi(`/sales/${saleId}/receipt/pdf?size=${size}${sep}`, `comprovante-${saleNumber}.pdf`, `Comprovante ${saleNumber}`);
+  return openPdfFromApi(`/sales/${saleId}/receipt/pdf?size=${PDF_SIZE}${sep}`, `comprovante-${saleNumber}.pdf`, `Comprovante ${saleNumber}`);
 }

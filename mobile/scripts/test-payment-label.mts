@@ -1,6 +1,6 @@
 // Testes do nome da forma de pagamento. Rodar: node scripts/test-payment-label.mts
 import assert from 'node:assert/strict';
-import { PAYMENT_LABEL, paymentText } from '../utils/paymentLabel.ts';
+import { PAYMENT_LABEL, paymentLine, paymentText } from '../utils/paymentLabel.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
@@ -18,5 +18,14 @@ t('sem lista de pagamentos usa a forma principal', () => {
 });
 t('toda forma do sistema tem nome', () => {
   for (const m of ['cash', 'pix', 'debit_card', 'credit_card', 'bank_transfer', 'installments', 'on_account', 'loyalty_points']) assert.ok(PAYMENT_LABEL[m], m);
+});
+t('linha de pagamento: nome, parcelas e valor separados (a venda de 2 meios passava da tela)', () => {
+  const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`;
+  assert.deepEqual(paymentLine({ method: 'credit_card', amount: 700, installments: 6 }, brl), { label: 'Cartão de crédito', detail: '6x de R$ 116,67', amount: 'R$ 700,00' });
+  assert.deepEqual(paymentLine({ method: 'credit_card', amount: 50, installments: 1 }, brl), { label: 'Cartão de crédito', detail: 'à vista', amount: 'R$ 50,00' });
+  assert.deepEqual(paymentLine({ method: 'pix', amount: '228.34' }, brl), { label: 'PIX', detail: null, amount: 'R$ 228,34' });
+  assert.deepEqual(paymentLine({ payment_method: 'ON_ACCOUNT', amount: 10 }, brl), { label: 'Fiado', detail: null, amount: 'R$ 10,00' });
+  assert.equal(paymentLine({ method: 'cash', amount: 5, installments: 6 }, brl).detail, null);   // parcela só vale no crédito
+  assert.equal(paymentLine({ amount: 1 }, brl).label, 'Não informado');
 });
 console.log(`${n} testes passaram`);
