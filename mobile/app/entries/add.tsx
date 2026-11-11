@@ -29,7 +29,8 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AppButton from '@/components/ui/AppButton';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Redirect, useRouter, useLocalSearchParams } from 'expo-router';
+import { FEATURES } from '@/constants/features';
 import { markWizardCompleted, PRODUCT_LIST_ROUTE, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { trailMark, trailReport } from '@/utils/navTrail';
 import { parseApiError } from '@/utils/apiError';
@@ -91,7 +92,18 @@ interface EntryItemForm extends EntryItem {
   supplier_name?: string | null; // cache para display sem re-fetch
 }
 
-export default function AddStockEntryScreen() {
+/**
+ * Com a chave `receberCompra` ligada (ambiente de teste), "Nova entrada" abre a tela única Receber compra. Quem chega com
+ * parâmetros (produto já escolhido, volta do assistente) continua nesta tela.
+ */
+export default function AddStockEntryRoute() {
+  const routeParams = useLocalSearchParams();
+  const plain = Object.keys(routeParams).filter((k) => k !== 'from').length === 0;
+  if (FEATURES.receberCompra && plain) return <Redirect href={'/receber' as any} />;
+  return <AddStockEntryScreen />;
+}
+
+function AddStockEntryScreen() {
   const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const queryClient = useQueryClient();

@@ -110,6 +110,12 @@ class PurchaseReceiveService(StockEntryService):
 
         freight = _money(payload.get("freight"), "o frete", allow_none=True) or Decimal("0")
 
+        def sup_key(ref: Dict[str, Any]):
+            return ("id", int(ref["id"])) if ref.get("id") else ("n", self._norm_text(ref.get("name") or ""))
+
+        default_key = sup_key(default_supplier)
+        # A MESMA peça pode ter sido comprada em lojas diferentes na mesma viagem (regra do Victor, 10/11/2026): cada fornecedor
+        # tem a sua linha, com o custo dele. O que não pode é a mesma peça duas vezes com o MESMO fornecedor.
         seen_variants: set = set()
         seen_new_names: set = set()
         clean_items: List[Dict[str, Any]] = []
@@ -121,6 +127,8 @@ class PurchaseReceiveService(StockEntryService):
             if bool(product_id) == bool(new_product):
                 raise InvalidEntryData(f"Produto {n}: informe um produto cadastrado OU os dados de um produto novo")
             label = f"produto {n}"
+            item_sup = _supplier_ref(it.get("supplier"))
+            item_key = sup_key(item_sup) if (item_sup.get("id") or (item_sup.get("name") or "").strip()) else default_key
             base_price = None
             if new_product:
                 if not isinstance(new_product, dict):
@@ -133,9 +141,9 @@ class PurchaseReceiveService(StockEntryService):
                 base_price = _money(new_product.get("base_price"), f"o preço de venda de {name}")
                 if base_price <= 0:
                     raise InvalidEntryData(f"{name}: informe o preço de venda")
-                key = name.lower()
+                key = (item_key, name.lower())
                 if key in seen_new_names:
-                    raise InvalidEntryData(f"{name} aparece duas vezes como produto novo")
+                    raise InvalidEntryData(f"{name} aparece duas vezes como produto novo com o mesmo fornecedor")
                 seen_new_names.add(key)
                 label = name
             cost = self._require_cost(it.get("unit_cost"), label, entry_type)
@@ -160,15 +168,16 @@ class PurchaseReceiveService(StockEntryService):
                 variant_id = ln.get("variant_id")
                 if new_product and variant_id:
                     raise InvalidEntryData(f"{label}: produto novo não tem variação existente")
-                if not variant_id and not color and not size:
+                if not variant_id and not color and not size and not (new_product and len(lines) == 1):
+                    # produto novo com UMA linha sem cor nem tamanho é a "peça única" (acessório, por exemplo)
                     raise InvalidEntryData(f"{label}: informe a cor ou o tamanho de cada variação")
                 key = ("v", int(variant_id)) if variant_id else ("c", product_id or label.lower(), color, size)
                 if key in seen_item:
                     raise InvalidEntryData(f"{label}: a variação {color or ''} {size or ''} aparece mais de uma vez".replace("  ", " "))
                 seen_item.add(key)
-                if key in seen_variants:
-                    raise InvalidEntryData(f"{label}: a variação {color or ''} {size or ''} já está em outro produto desta compra".replace("  ", " "))
-                seen_variants.add(key)
+                if (item_key, key) in seen_variants:
+                    raise InvalidEntryData(f"{label}: a variação {color or ''} {size or ''} já está em outra linha desta compra com o mesmo fornecedor".replace("  ", " "))
+                seen_variants.add((item_key, key))
                 clean_lines.append({"variant_id": int(variant_id) if variant_id else None, "color": color, "size": size,
                                     "quantity": _qty(ln.get("quantity"), f"{label} {color or ''} {size or ''}".strip())})
             clean_items.append({
@@ -179,7 +188,7 @@ class PurchaseReceiveService(StockEntryService):
                     "gender": normalize_gender(new_product.get("gender")) if new_product.get("gender") else None,
                     "description": new_product.get("description") or None,
                 } if new_product else None),
-                "supplier": _supplier_ref(it.get("supplier")), "unit_cost": cost, "list_unit_cost": list_cost, "price": price,
+                "supplier": item_sup, "unit_cost": cost, "list_unit_cost": list_cost, "price": price,
                 "lines": clean_lines, "label": label,
             })
 
@@ -269,10 +278,20 @@ class PurchaseReceiveService(StockEntryService):
             total = Decimal("0.00")
             acc: Dict[Any, Any] = {}
             product_ids: List[int] = []
+            new_products: Dict[str, Any] = {}   # produto novo já criado nesta compra, pelo nome (segunda linha, de outro fornecedor)
             for it in plan["items"]:
                 supplier = (await supplier_of(it["supplier"], required=False)) if (it["supplier"].get("id") or it["supplier"].get("name")) else default_supplier
                 supplier = supplier or default_supplier
-                if it["new_product"]:
+                if it["new_product"] and it["new_product"]["name"].lower() in new_products:
+                    np_ = it["new_product"]
+                    product = new_products[np_["name"].lower()]
+                    for ln in it["lines"]:
+                        variant, _created = await self._get_or_create_variant(
+                            product, ln["color"], ln["size"], price=it["price"] if it["price"] is not None else np_["base_price"],
+                            cost=it["unit_cost"], sku=None, tenant_id=tenant_id)
+                        await self.db.flush()
+                        ln["_variant"] = variant
+                elif it["new_product"]:
                     np_ = it["new_product"]
                     await self._assert_category(np_["category_id"], tenant_id)
                     product = await self.product_repo.create({
@@ -291,6 +310,7 @@ class PurchaseReceiveService(StockEntryService):
                         self.db.add(variant)
                         await self.db.flush()
                         ln["_variant"] = variant
+                    new_products[np_["name"].lower()] = product
                 else:
                     product = await self.product_repo.get(self.db, it["product_id"], tenant_id=tenant_id)
                     if product is None:

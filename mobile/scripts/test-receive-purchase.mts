@@ -1,7 +1,7 @@
 // Receber compra: lógica pura do rascunho. Rodar: node scripts/test-receive-purchase.mts
 import assert from 'node:assert/strict';
 import {
-  addGrade, buildPayload, colorTotal, discountTotal, emptyDraft, extraPerPiece, gradePresets, gridOfProduct, groupsBySupplier,
+  addGrade, buildPayload, cleanSize, colorTotal, discountTotal, emptyDraft, extraPerPiece, gradePresets, gridOfProduct, groupsBySupplier,
   itemPieces, linesToQuantities, matchesName, quantitiesToLines, quantitiesTotal, removeItem, setQuantity, sheetProblem,
   similarByTypo, sortSizes, suggestCategory, totals, upsertItem, supplierKey, type ReceiveItem,
 } from '../utils/receivePurchase.ts';
@@ -33,6 +33,28 @@ t('tamanhos em ordem natural e grade do produto cadastrado', () => {
   const g = gridOfProduct([{ id: 1, color: 'Preto', size: 'M' }, { id: 2, color: 'Rosa', size: 'XG' }], 'Conjuntos');
   assert.deepEqual(g.colors, ['Preto', 'Rosa']);
   assert.deepEqual(g.sizes, ['P', 'M', 'G', 'GG', 'XG']);
+});
+t('a família de tamanhos vem do produto, não da categoria (M em Calçados não vira 35 a 40)', () => {
+  // caso real do teste na tela: produto com tamanho M cadastrado na categoria Calçados
+  assert.deepEqual(gridOfProduct([{ id: 1, color: 'Preto', size: 'M' }], 'Calçados').sizes, ['P', 'M', 'G', 'GG']);
+  assert.equal(gradePresets(gridOfProduct([{ id: 1, color: 'Preto', size: 'M' }], 'Calçados').sizes).length, 2);
+  // produto numerado fica com os números dele (calça 38 e 42 não ganha 35 a 40)
+  assert.deepEqual(gridOfProduct([{ id: 1, color: 'Azul', size: '42' }, { id: 2, color: 'Azul', size: '38' }], 'Calças').sizes, ['38', '42']);
+  // produto ainda sem variação com tamanho usa a categoria
+  assert.deepEqual(gridOfProduct([], 'Calçados').sizes, ['35', '36', '37', '38', '39', '40']);
+  assert.equal(cleanSize('  xg '), 'XG');
+  assert.equal(cleanSize('44'), '44');
+});
+t('produto cadastrado sem cor e sem tamanho: grade "Sem cor" x "Único" e a peça entra na variação que já existe', () => {
+  const variants = [{ id: 7, color: null, size: null }];
+  const g = gridOfProduct(variants, 'Camisetas');
+  assert.deepEqual(g, { colors: [''], sizes: [''] });
+  assert.deepEqual(quantitiesToLines({ '': { '': 3 } }, variants), [{ variantId: 7, color: null, size: null, quantity: 3 }]);
+  // produto com cor mas tamanho único continua só com "Único"
+  assert.deepEqual(gridOfProduct([{ id: 8, color: 'Preto', size: null }], 'Camisetas'), { colors: ['Preto'], sizes: [''] });
+  // peça nova de tamanho único: cor escolhida, sem tamanho
+  assert.deepEqual(quantitiesToLines({ Preto: { '': 2 } }, []), [{ variantId: undefined, color: 'Preto', size: null, quantity: 2 }]);
+  assert.deepEqual(sortSizes(['M', '', 'P']), ['', 'P', 'M']);
 });
 t('grade fechada soma uma caixa por toque, por cor', () => {
   const sizes = ['P', 'M', 'G', 'GG'];

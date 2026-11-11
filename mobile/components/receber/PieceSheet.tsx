@@ -15,7 +15,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { moneyInput, parseMoneyBr, toMoneyField } from '@/utils/cashMoney';
 import { formatCurrency } from '@/utils/format';
 import {
-  COLORS, defaultSizesFor, gridOfProduct, linesToQuantities, norm, quantitiesToLines, quantitiesTotal, sheetProblem, suggestCategory,
+  COLORS, cleanSize, defaultSizesFor, gridOfProduct, sortSizes, linesToQuantities, norm, quantitiesToLines, quantitiesTotal, sheetProblem, suggestCategory,
   type Quantities, type ReceiveItem, type SupplierRef, type VariantInfo,
 } from '@/utils/receivePurchase';
 
@@ -54,6 +54,9 @@ export default function PieceSheet({ model, categories, supplier, onPickSupplier
   const [cost, setCost] = useState('');
   const [price, setPrice] = useState('');
   const [custom, setCustom] = useState('');
+  const [oneSize, setOneSize] = useState(false);
+  const [extraSizes, setExtraSizes] = useState<string[]>([]);
+  const [customSize, setCustomSize] = useState('');
 
   useEffect(() => {
     if (!model) return;
@@ -64,36 +67,43 @@ export default function PieceSheet({ model, categories, supplier, onPickSupplier
     setCategoryId(cat?.id ?? null);
     setSuggestedId(model.kind === 'new' && !it ? (cat?.id ?? null) : null);
     setCatTouched(!!it);
-    const known = [...new Set(model.variants.map((v) => v.color ?? '').filter((c) => c !== ''))];
+    const known = model.variants.length ? gridOfProduct(model.variants, model.categoryName).colors : [];
     const inItem = it ? Object.keys(linesToQuantities(it.lines)) : [];
     setColors([...new Set([...known, ...inItem])]);
     setQ(it ? linesToQuantities(it.lines) : {});
     setCost(toMoneyField(it?.unitCost ?? model.lastCost ?? 0));
     setPrice(toMoneyField(it?.newProduct?.basePrice ?? it?.price ?? model.basePrice ?? 0));
     setCustom('');
+    setOneSize(!!it && model.kind === 'new' && it.lines.length > 0 && it.lines.every((l) => !l.size));
+    setExtraSizes(it ? [...new Set(it.lines.map((l) => l.size ?? '').filter((s) => s !== ''))] : []);
+    setCustomSize('');
     // só reinicia ao abrir outra peça
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model]);
 
   const isNew = model?.kind === 'new';
   const category = categories.find((c) => c.id === categoryId);
-  const sizes = useMemo(
-    () => (isNew ? defaultSizesFor(category?.name) : gridOfProduct(model?.variants ?? [], model?.categoryName).sizes),
-    [isNew, category?.name, model],
-  );
+  const sizes = useMemo(() => {
+    if (isNew && oneSize) return [''];
+    const base = isNew ? defaultSizesFor(category?.name) : gridOfProduct(model?.variants ?? [], model?.categoryName).sizes;
+    return sortSizes([...base, ...extraSizes]);
+  }, [isNew, oneSize, category?.name, model, extraSizes]);
   const lines = useMemo(() => quantitiesToLines(q, model?.variants ?? []), [q, model]);
   const costNum = parseMoneyBr(cost) ?? 0;
   const priceNum = parseMoneyBr(price) ?? 0;
   const needsPrice = isNew || lines.some((l) => !l.variantId);
   const pieces = quantitiesTotal(q);
 
-  const colorList = useMemo(() => [...new Set([...COLORS, ...colors])], [colors]);
+  const colorList = useMemo(() => [...new Set([...(isNew ? [''] : []), ...COLORS, ...colors])], [colors, isNew]);
   const visibleColors = colors.filter((c) => colorList.includes(c));
 
   const problemBase = model
     ? sheetProblem({ mode: model.kind, name, categoryId, q, cost: costNum, price: isNew ? priceNum : 1, supplier })
     : '';
-  const problem = problemBase || (!isNew && needsPrice && !(priceNum > 0) ? 'Falta o preço das variações novas' : '');
+  const loneBlank = lines.length > 1 && lines.some((l) => !l.variantId && !l.color && !l.size);
+  const problem = problemBase
+    || (loneBlank ? 'Peça sem cor e de tamanho único não combina com outras: escolha a cor de cada uma' : '')
+    || (!isNew && needsPrice && !(priceNum > 0) ? 'Falta o preço das variações novas' : '');
   const costError = pieces > 0 && !(costNum > 0) ? 'Falta o custo por peça' : '';
   const priceError = pieces > 0 && needsPrice && !(priceNum > 0) ? (isNew ? 'Falta o preço de venda' : 'Falta o preço das variações novas') : '';
 
@@ -107,6 +117,13 @@ export default function PieceSheet({ model, categories, supplier, onPickSupplier
     const label = c[0].toUpperCase() + c.slice(1);
     setColors((cur) => (cur.some((x) => norm(x) === norm(label)) ? cur : [...cur, label]));
     setCustom('');
+  };
+
+  const addSize = () => {
+    const s = cleanSize(customSize);
+    if (!s) return;
+    setExtraSizes((cur) => (cur.includes(s) ? cur : [...cur, s]));
+    setCustomSize('');
   };
 
   const save = () => {
@@ -185,7 +202,7 @@ export default function PieceSheet({ model, categories, supplier, onPickSupplier
               {colorList.map((c) => (
                 <TouchableOpacity key={c} style={[styles.chip, colors.includes(c) && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}
                   onPress={() => toggleColor(c)} accessibilityRole="checkbox" accessibilityState={{ checked: colors.includes(c) }}>
-                  <Text style={[styles.chipText, colors.includes(c) && { color: brand.primary }]}>{c}</Text>
+                  <Text style={[styles.chipText, colors.includes(c) && { color: brand.primary }]}>{c || 'Sem cor'}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -198,9 +215,26 @@ export default function PieceSheet({ model, categories, supplier, onPickSupplier
             </View>
           </View>
 
+          {isNew && (
+            <TouchableOpacity style={[styles.chip, { alignSelf: 'flex-start' }, oneSize && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}
+              onPress={() => { setOneSize((v) => !v); setQ({}); }} accessibilityRole="checkbox" accessibilityState={{ checked: oneSize }}
+              accessibilityLabel="Peça de tamanho único">
+              <Text style={[styles.chipText, oneSize && { color: brand.primary }]}>Tamanho único</Text>
+            </TouchableOpacity>
+          )}
+
           <View>
             <Text style={styles.label}>Quantas peças de cada tamanho</Text>
             <QuantityGrid colors={visibleColors} sizes={sizes} q={q} onChange={setQ} />
+            {!(isNew && oneSize) && (
+              <View style={[styles.rowBetween, { marginTop: 8, gap: 8 }]}>
+                <RNTextInput style={styles.customInput} value={customSize} onChangeText={setCustomSize} placeholder="Outro tamanho (ex.: XG, 44)"
+                  placeholderTextColor={Colors.light.textTertiary} onSubmitEditing={addSize} autoCapitalize="characters" accessibilityLabel="Outro tamanho" />
+                <TouchableOpacity style={styles.chip} onPress={addSize} accessibilityRole="button" accessibilityLabel="Adicionar tamanho">
+                  <Text style={styles.chipText}>Adicionar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           <View style={styles.pair}>

@@ -106,6 +106,7 @@ export const SIZES_SHOE = ['35', '36', '37', '38', '39', '40'];
 const SIZE_ORDER = ['UNICO', 'PP', 'P', 'P/M', 'M', 'M/G', 'G', 'G/GG', 'GG', 'XG', 'XGG'];
 export function sortSizes(sizes: string[]): string[] {
   const rank = (s: string) => {
+    if (s === '') return -1;   // "Único" (sem tamanho) vem primeiro
     const i = SIZE_ORDER.indexOf(s.toUpperCase());
     if (i >= 0) return i;
     const n = Number(s);
@@ -143,12 +144,25 @@ export function setQuantity(q: Quantities, color: string, size: string, value: n
   return { ...q, [color]: { ...(q[color] ?? {}), [size]: v } };
 }
 
-/** Cores e tamanhos de um produto já cadastrado: o que ele tem + os tamanhos padrão da categoria. */
+/**
+ * Cores e tamanhos de um produto já cadastrado. '' = sem cor / tamanho único (a variação que o produto tem sem cor ou sem tamanho).
+ * Produto que só tem peça de tamanho único fica só com "Único"; os outros ganham também os tamanhos padrão da categoria.
+ */
 export function gridOfProduct(variants: VariantInfo[], categoryName?: string | null): { colors: string[]; sizes: string[] } {
-  const colors = [...new Set(variants.map((v) => v.color).filter(Boolean) as string[])];
-  const sizes = sortSizes([...(variants.map((v) => v.size).filter(Boolean) as string[]), ...defaultSizesFor(categoryName)]);
-  return { colors, sizes };
+  const colors = [...new Set(variants.map((v) => v.color ?? ''))];
+  const own = variants.map((v) => v.size ?? '');
+  const ownSized = own.filter((s) => s !== '');
+  if (variants.length && !ownSized.length) return { colors, sizes: [''] };
+  // A família de tamanhos vem do que o produto JÁ TEM, não da categoria: produto com P/M/G ganha a grade de letras; produto
+  // numerado (calça 38 a 46, tênis) fica com os números dele (tamanho que falta entra por "Outro tamanho"). Misturar M com
+  // 35 a 40 só porque a categoria é Calçados deixava 7 tamanhos na tela e sumia com a grade fechada.
+  const numeric = ownSized.length > 0 && ownSized.every((s) => /^\d+([.,]\d+)?$/.test(s));
+  const defaults = !ownSized.length ? defaultSizesFor(categoryName) : numeric ? [] : SIZES_APPAREL;
+  return { colors, sizes: sortSizes([...own, ...defaults]) };
 }
+
+/** Tamanho digitado à mão: sem espaço sobrando e em maiúsculas (xg -> XG, 44 -> 44). */
+export const cleanSize = (raw: string): string => raw.trim().replace(/\s+/g, ' ').toUpperCase();
 
 /** Quantidades da grade viram linhas do envio: peça que já existe leva o id da variação, a nova leva cor e tamanho. */
 export function quantitiesToLines(q: Quantities, variants: VariantInfo[] = []): ReceiveLine[] {

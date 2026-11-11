@@ -209,3 +209,57 @@ async def test_fila_cheia_recusa_a_compra_inteira_e_nada_fica_gravado(test_clien
     await async_session.rollback()
     assert await _estado(async_session, t_id) == antes                                                   # nem entrada, nem produto, nem etiqueta
     assert (await test_client.get("/api/v1/labels/queue", headers=h)).json()["total"] == fila_antes
+
+
+async def test_produto_novo_de_peca_unica_sem_cor_nem_tamanho(test_client, async_session, test_user):
+    """Acessório, por exemplo: uma linha só, sem cor e sem tamanho. Com mais de uma linha, cada uma precisa de cor ou tamanho."""
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    nome = f"Garrafa Teste {next(_n)}"
+    base = {"client_request_id": str(uuid.uuid4()), "entry_date": date.today().isoformat(), "supplier": {"name": "Fornecedor A"}}
+    r = await test_client.post(f"{API}/receive", headers=h, json={**base, "items": [
+        {"new_product": {"name": nome, "category_id": cat, "base_price": "40"}, "unit_cost": "15", "lines": [{"quantity": 4}]}]})
+    assert r.status_code == 201, r.text
+    it = r.json()["items"]
+    assert len(it) == 1 and it[0]["color"] is None and it[0]["size"] is None and it[0]["quantity"] == 4 and it[0]["sku"]
+    r = await test_client.post(f"{API}/receive", headers=h, json={**base, "client_request_id": str(uuid.uuid4()), "items": [
+        {"new_product": {"name": nome + " B", "category_id": cat, "base_price": "40"}, "unit_cost": "15",
+         "lines": [{"quantity": 1}, {"color": "Preto", "quantity": 1}]}]})
+    assert r.status_code == 400 and "cor ou o tamanho" in r.json()["detail"], r.text
+
+
+async def test_mesma_peca_comprada_em_dois_fornecedores_na_mesma_compra(test_client, async_session, test_user):
+    """Regra do Victor (10/11/2026): a mesma peça pode vir de lojas diferentes na mesma viagem; cada fornecedor tem a linha e o custo dele."""
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    pid, vid = await _produto_existente(test_client, async_session, h, cat, f"Calca Dupla {next(_n)}")
+    novo = f"Body Duplo {next(_n)}"
+    antes = await _estado(async_session, t_id)
+    pay = {
+        "client_request_id": str(uuid.uuid4()), "entry_date": date.today().isoformat(), "supplier": {"name": "Barraca Um"},
+        "items": [
+            {"product_id": pid, "unit_cost": "20", "lines": [{"variant_id": vid, "quantity": 2}]},                              # Barraca Um
+            {"product_id": pid, "supplier": {"name": "Barraca Dois"}, "unit_cost": "23", "lines": [{"variant_id": vid, "quantity": 3}]},
+            {"new_product": {"name": novo, "category_id": cat, "base_price": "80"}, "unit_cost": "30", "lines": [{"color": "Preto", "size": "P", "quantity": 1}]},
+            {"new_product": {"name": novo, "category_id": cat, "base_price": "80"}, "supplier": {"name": "Barraca Dois"}, "unit_cost": "28",
+             "lines": [{"color": "Preto", "size": "P", "quantity": 2}, {"color": "Preto", "size": "M", "quantity": 1}]},
+        ],
+    }
+    r = await test_client.post(f"{API}/receive", headers=h, json=pay)
+    assert r.status_code == 201, r.text
+    j = r.json()
+    assert j["total_pieces"] == 9 and j["products"] == 2 and j["labels_queued"] == 9
+    await async_session.rollback()
+    depois = await _estado(async_session, t_id)
+    assert depois["produtos"] == antes["produtos"] + 1                          # o produto novo foi criado UMA vez
+    assert depois["variacoes"] == antes["variacoes"] + 2                        # Preto P (usada pelos dois) e Preto M
+    assert depois["itens"] == antes["itens"] + 5                                # uma linha por fornecedor e variação
+    itens = (await async_session.execute(select(EntryItem).where(EntryItem.entry_id == j["entry_id"]).order_by(EntryItem.id))).scalars().all()
+    da_peca = [(i.supplier_id, i.quantity_received, float(i.unit_cost)) for i in itens if i.variant_id == vid]
+    assert len(da_peca) == 2 and da_peca[0][0] != da_peca[1][0]                 # dois fornecedores diferentes
+    assert sorted((q, c) for _, q, c in da_peca) == [(2, 20.0), (3, 23.0)]      # cada um com a quantidade e o custo dele
+    assert float(j["total_cost"]) == 2 * 20 + 3 * 23 + 1 * 30 + 2 * 28 + 1 * 28
+    # a mesma peça duas vezes com o MESMO fornecedor é recusada (o app junta numa linha só)
+    pay2 = {**pay, "client_request_id": str(uuid.uuid4()), "items": [pay["items"][0], pay["items"][0]]}
+    r2 = await test_client.post(f"{API}/receive", headers=h, json=pay2)
+    assert r2.status_code == 400 and "mesmo fornecedor" in r2.json()["detail"], r2.text

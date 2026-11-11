@@ -32,6 +32,7 @@ export default function QuantityGrid({ colors, sizes, q, onChange }: Props) {
     <View style={styles.wrap}>
       {colors.map((color) => {
         const total = colorTotal(q, color);
+        const colorLabel = color || 'Sem cor';
         return (
           <View key={color} style={styles.card}>
             <View style={styles.head}>
@@ -41,15 +42,16 @@ export default function QuantityGrid({ colors, sizes, q, onChange }: Props) {
             <View style={styles.tiles}>
               {sizes.map((size) => {
                 const v = q[color]?.[size] ?? 0;
+                const sizeLabel = size || 'Único';
                 return (
                   <View key={size} style={styles.tile}>
-                    <Text style={styles.size}>{size}</Text>
+                    <Text style={styles.size}>{sizeLabel}</Text>
                     <View style={[styles.step, v > 0 && { borderColor: brand.primary, backgroundColor: brand.primary + '12' }]}>
                       <TouchableOpacity
                         style={styles.stepSide}
                         onPress={() => onChange(setQuantity(q, color, size, v - 1))}
                         accessibilityRole="button"
-                        accessibilityLabel={`Menos uma peça, ${color} tamanho ${size}`}
+                        accessibilityLabel={`Menos uma peça, ${colorLabel} tamanho ${sizeLabel}`}
                       >
                         <Text style={[styles.stepIcon, { color: brand.primary }]}>−</Text>
                       </TouchableOpacity>
@@ -62,13 +64,13 @@ export default function QuantityGrid({ colors, sizes, q, onChange }: Props) {
                         selectTextOnFocus
                         maxLength={3}
                         onChangeText={(t) => onChange(setQuantity(q, color, size, parseInt(t.replace(/\D/g, ''), 10) || 0))}
-                        accessibilityLabel={`${color} tamanho ${size}`}
+                        accessibilityLabel={`${colorLabel} tamanho ${sizeLabel}`}
                       />
                       <TouchableOpacity
                         style={styles.stepSide}
                         onPress={() => onChange(setQuantity(q, color, size, v + 1))}
                         accessibilityRole="button"
-                        accessibilityLabel={`Mais uma peça, ${color} tamanho ${size}`}
+                        accessibilityLabel={`Mais uma peça, ${colorLabel} tamanho ${sizeLabel}`}
                       >
                         <Text style={[styles.stepIcon, { color: brand.primary }]}>+</Text>
                       </TouchableOpacity>
@@ -85,7 +87,7 @@ export default function QuantityGrid({ colors, sizes, q, onChange }: Props) {
                   style={styles.chip}
                   onPress={() => onChange(addGrade(q, color, sizes, p.per))}
                   accessibilityRole="button"
-                  accessibilityLabel={`Somar uma caixa ${p.label} de ${color}`}
+                  accessibilityLabel={`Somar uma caixa ${p.label} de ${colorLabel}`}
                 >
                   <Text style={styles.chipText}>+ grade {p.label}</Text>
                 </TouchableOpacity>
@@ -95,7 +97,7 @@ export default function QuantityGrid({ colors, sizes, q, onChange }: Props) {
                   style={styles.chip}
                   onPress={() => onChange({ ...q, [color]: {} })}
                   accessibilityRole="button"
-                  accessibilityLabel={`Zerar ${color}`}
+                  accessibilityLabel={`Zerar ${colorLabel}`}
                 >
                   <Text style={styles.chipText}>Zerar</Text>
                 </TouchableOpacity>
