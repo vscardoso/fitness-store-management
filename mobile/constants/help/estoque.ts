@@ -670,13 +670,14 @@ const RECEBER_COMPRA: HelpEntry[] = [
     purpose: 'Lança numa tela só a mercadoria que chegou: produto novo ou já cadastrado, de vários fornecedores, com cores e tamanhos.',
     steps: [
       'Em “Comprando de”, escolha o fornecedor. Para um novo, digite o nome e cadastre ali mesmo.',
-      'Digite o nome da peça. Se ela já existe, toque nela; se não, toque na opção “Cadastrar” com o nome digitado.',
+      'Logo abaixo aparecem as peças que você já comprou desse fornecedor: toque na que chegou. Para outra peça, digite o nome; se ela não existe, toque em “Cadastrar” com o nome digitado.',
       'Escolha as cores na paleta, marque os tamanhos e digite as quantidades de cada um, com as setas de mais e menos ou a grade fechada. Informe o custo.',
       'Toque em “Adicionar à compra” e siga com a próxima peça. Trocou de barraca? Troque o fornecedor.',
-      'Quando terminar, toque em “Concluir compra”, confira o total por fornecedor e toque em “Lançar no estoque”.',
+      'Quando terminar, toque em “Concluir compra”, confira o total por fornecedor, ajuste os “Dados da compra” (nome da entrada, data, compra no local ou online, observação) e toque em “Lançar no estoque”.',
     ],
     parts: [
       { label: 'Nesta compra', text: 'as peças já lançadas, com o fornecedor de cada uma. Toque para corrigir.' },
+      { label: 'Dados da compra', text: 'o nome da entrada (sem nome, o sistema usa COMPRA e a data), a data, se foi no local ou online e uma observação.' },
       { label: 'Grade de variações', text: 'é a mesma do cadastro de produto: tamanhos, paleta de cores e um bloco por cor com a quantidade de cada tamanho.' },
       { label: 'Grade fechada', text: 'cada toque soma uma caixa (por exemplo 1, 2, 2 e 1 peças) na cor escolhida.' },
     ],

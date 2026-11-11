@@ -263,3 +263,28 @@ async def test_mesma_peca_comprada_em_dois_fornecedores_na_mesma_compra(test_cli
     pay2 = {**pay, "client_request_id": str(uuid.uuid4()), "items": [pay["items"][0], pay["items"][0]]}
     r2 = await test_client.post(f"{API}/receive", headers=h, json=pay2)
     assert r2.status_code == 400 and "mesmo fornecedor" in r2.json()["detail"], r2.text
+
+
+async def test_dados_da_compra_nome_data_tipo_e_observacao(test_client, async_session, test_user):
+    """O que a tela 'Concluir compra' manda: nome da entrada, data (retroativa vale, futura não), tipo e observação."""
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    pid, vid = await _produto_existente(test_client, async_session, h, cat, f"Short Dados {next(_n)}")
+    ontem = (date.today() - timedelta(days=3)).isoformat()
+    r = await test_client.post(f"{API}/receive", headers=h, json=_compra(
+        cat, pid, vid, entry_code=f"SP-NOV-{next(_n)}", entry_date=ontem, entry_type="online", notes="Chegou pelo correio"))
+    assert r.status_code == 201, r.text
+    e = (await async_session.execute(select(StockEntry).where(StockEntry.id == r.json()["entry_id"]))).scalar_one()
+    assert e.entry_code.startswith("SP-NOV-") and e.entry_date.isoformat() == ontem
+    assert e.entry_type == "online" and "Chegou pelo correio" in (e.notes or "")
+    # sem nome: o servidor gera COMPRA-AAAAMMDD; sem tipo: local
+    r2 = await test_client.post(f"{API}/receive", headers=h, json=_compra(cat, pid, vid))
+    assert r2.status_code == 201, r2.text
+    assert r2.json()["entry_code"].startswith(f"COMPRA-{date.today():%Y%m%d}")
+    e2 = (await async_session.execute(select(StockEntry).where(StockEntry.id == r2.json()["entry_id"]))).scalar_one()
+    assert e2.entry_type == "local"
+    # data no futuro: recusa e nada novo é gravado
+    antes = await _estado(async_session, t_id)
+    r3 = await test_client.post(f"{API}/receive", headers=h, json=_compra(cat, pid, vid, entry_date=(date.today() + timedelta(days=2)).isoformat()))
+    assert r3.status_code == 400, r3.text
+    assert await _estado(async_session, t_id) == antes

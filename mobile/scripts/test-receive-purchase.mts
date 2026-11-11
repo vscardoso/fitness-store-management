@@ -135,6 +135,18 @@ t('envio: produto cadastrado leva o id, produto novo leva os dados, fornecedor n
   assert.equal(p.items[1].price, '95.00');
   assert.equal((buildPayload({ ...d, freight: 0 }) as any).freight, undefined);
 });
+t('envio: nome da entrada, tipo e observação só vão quando preenchidos', () => {
+  const d = emptyDraft(A, '2026-11-10');
+  const vazio = buildPayload(d) as any;
+  assert.equal(vazio.entry_code, undefined);
+  assert.equal(vazio.entry_type, undefined);
+  assert.equal(vazio.notes, undefined);
+  const p = buildPayload({ ...d, entryCode: ' SP-NOV-22 ', entryType: 'online', notes: '  Chegou pelo correio ' }) as any;
+  assert.equal(p.entry_code, 'SP-NOV-22');
+  assert.equal(p.entry_type, 'online');
+  assert.equal(p.notes, 'Chegou pelo correio');
+  assert.equal((buildPayload({ ...d, entryType: 'local', entryCode: '   ' }) as any).entry_code, undefined);
+});
 t('identificador do envio é único por compra e vem no formato que o servidor aceita', () => {
   const a = emptyDraft(A, '2026-11-10').requestId;
   const b = emptyDraft(A, '2026-11-10').requestId;

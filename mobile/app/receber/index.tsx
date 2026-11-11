@@ -25,20 +25,22 @@ import { Colors, theme } from '@/constants/Colors';
 import { useAuth } from '@/hooks/useAuth';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { getCategories } from '@/services/categoryService';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { getGroupedProducts } from '@/services/productService';
 import { receivePurchase, type ReceivePurchaseResult } from '@/services/purchaseService';
-import { getSuppliers } from '@/services/supplierService';
+import { getSupplierProducts, getSuppliers } from '@/services/supplierService';
 import { useBrandingColors } from '@/store/brandingStore';
 import { parseApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr, toMoneyField } from '@/utils/cashMoney';
-import { dateToIso, todayBr } from '@/utils/dateBr';
+import { brToIso, dateToIso, maskDate, todayBr } from '@/utils/dateBr';
+import { cleanEntryCode, formatEntryCodeInput } from '@/utils/entryCode';
 import { formatCurrency } from '@/utils/format';
 import { clearReceiveDraft, loadReceiveDraft, saveReceiveDraft } from '@/utils/receiveDraftStore';
 import {
   buildPayload, discountTotal, emptyDraft, extraPerPiece, groupsBySupplier, itemPieces, matchesName, norm, removeItem, similarByTypo,
   supplierKey, totals, upsertItem, type ReceiveDraft, type ReceiveItem, type SupplierRef,
 } from '@/utils/receivePurchase';
-import type { ProductGrouped } from '@/types';
+import type { ProductGrouped, SupplierProduct } from '@/types';
 
 type Step = 'home' | 'review' | 'done';
 type Picker = { target: 'purchase' | 'piece'; after?: (s: SupplierRef) => void } | null;
@@ -76,6 +78,8 @@ function ReceberCompra() {
   const [submitError, setSubmitError] = useState('');
   const [freightText, setFreightText] = useState('');
   const [discountText, setDiscountText] = useState<Record<string, string>>({});
+  const [dateText, setDateText] = useState('');       // data da compra em DD/MM/AAAA (a tela "Concluir compra" deixa mudar)
+  const [opening, setOpening] = useState<number | null>(null);   // peça do fornecedor que está abrindo
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── rascunho: volta o que ficou no aparelho; salva a cada mudança
@@ -85,6 +89,7 @@ function ReceberCompra() {
       if (!alive) return;
       const d = saved ?? emptyDraft({ name: '' }, dateToIso(new Date()));
       setDraft(d);
+      setDateText(d.date.split('-').reverse().join('/'));
       setFreightText(d.freight > 0 ? toMoneyField(d.freight) : '');
       setDiscountText(Object.fromEntries(Object.entries(d.discounts).map(([k, v]) => [k, toMoneyField(v)])));
     });
@@ -102,6 +107,18 @@ function ReceberCompra() {
 
   // ── dados do servidor
   const { data: serverSuppliers = [] } = useQuery({ queryKey: ['suppliers'], queryFn: getSuppliers });
+  // o que já foi comprado do fornecedor escolhido: aparece na tela sem precisar digitar
+  const supplierId = draft?.supplier.id;
+  const { data: boughtRaw = [] } = useQuery({
+    queryKey: ['receber-fornecedor', supplierId],
+    queryFn: () => getSupplierProducts(supplierId!),
+    enabled: !!supplierId,
+    staleTime: 60_000,
+  });
+  const bought = useMemo(
+    () => [...boughtRaw].sort((a, b) => (b.purchase_count - a.purchase_count) || String(b.last_purchase_date).localeCompare(String(a.last_purchase_date))).slice(0, 20),
+    [boughtRaw],
+  );
   const { data: categoriesRaw = [] } = useQuery({ queryKey: ['categories'], queryFn: getCategories });
   const categories = useMemo(() => categoriesRaw.filter((c) => c.is_active !== false), [categoriesRaw]);
   const { data: found = [], isFetching } = useQuery({
@@ -174,6 +191,18 @@ function ReceberCompra() {
       setModel(existingModel(g));
     });
   };
+  const openBought = async (sp: SupplierProduct) => {
+    setOpening(sp.product_id);
+    try {
+      const list = await getGroupedProducts({ search: sp.product_name, limit: 30 }, SKIP);
+      const g = list.find((x) => x.id === sp.product_id);
+      if (g) openExisting(g); else showToast('Esta peça não está mais no catálogo.');
+    } catch {
+      showToast('Não consegui abrir a peça. Tente de novo.');
+    } finally {
+      setOpening(null);
+    }
+  };
   const addOtherSupplier = () => {
     const cur = model?.item;
     if (!cur || !cur.productId) return;
@@ -233,6 +262,21 @@ function ReceberCompra() {
     onError: (e) => setSubmitError(parseApiError(e) || 'Não consegui lançar a compra. Nada foi gravado. Tente de novo.'),
   });
 
+  // ── dados da compra (tela "Concluir compra")
+  const dateIso = brToIso(dateText);
+  const dateError = !dateIso ? 'Data inválida. Use DD/MM/AAAA.' : dateIso > dateToIso(new Date()) ? 'A data da compra não pode ser no futuro.' : '';
+  const onDateText = (v: string) => {
+    const m = maskDate(v);
+    setDateText(m);
+    setSubmitError('');
+    const iso = brToIso(m);
+    if (iso && iso <= dateToIso(new Date())) setDraft((d) => (d ? { ...d, date: iso } : d));
+  };
+  const tryLaunch = () => {
+    if (dateError) { setSubmitError(dateError); return; }
+    submit.mutate();
+  };
+
   const restart = () => {
     setResult(null);
     setLabelNote('');
@@ -241,6 +285,7 @@ function ReceberCompra() {
     setFreightText('');
     setDiscountText({});
     setDraft(emptyDraft(draft?.supplier ?? { name: '' }, dateToIso(new Date())));
+    setDateText(todayBr());
     setStep('home');
   };
 
@@ -324,6 +369,29 @@ function ReceberCompra() {
           </View>
 
           <View style={styles.card}>
+            <Text style={styles.cardTitle}>Dados da compra</Text>
+            <TextInput mode="outlined" dense label="Nome da entrada (opcional)" value={draft.entryCode ?? ''} autoCapitalize="characters"
+              placeholder={`COMPRA-${draft.date.replace(/-/g, '')}`} activeOutlineColor={brand.primary}
+              onChangeText={(v) => setDraft((d) => (d ? { ...d, entryCode: formatEntryCodeInput(v) } : d))}
+              onBlur={() => setDraft((d) => (d ? { ...d, entryCode: cleanEntryCode(d.entryCode ?? '') } : d))} />
+            <TextInput mode="outlined" dense label="Data da compra" value={dateText} keyboardType="number-pad" placeholder="DD/MM/AAAA"
+              activeOutlineColor={brand.primary} error={!!dateError} onChangeText={onDateText} />
+            {!!dateError && <Text style={[styles.muted, { color: Colors.light.error }]}>{dateError}</Text>}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <AppButton variant={draft.entryType === 'online' ? 'outlined' : 'primary'} size="md" fullWidth label="Compra no local"
+                  onPress={() => setDraft((d) => (d ? { ...d, entryType: 'local' } : d))} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppButton variant={draft.entryType === 'online' ? 'primary' : 'outlined'} size="md" fullWidth label="Compra online"
+                  onPress={() => setDraft((d) => (d ? { ...d, entryType: 'online' } : d))} />
+              </View>
+            </View>
+            <TextInput mode="outlined" dense label="Observação (opcional)" value={draft.notes ?? ''} multiline activeOutlineColor={brand.primary}
+              onChangeText={(v) => setDraft((d) => (d ? { ...d, notes: v } : d))} />
+          </View>
+
+          <View style={styles.card}>
             <Text style={styles.cardTitle}>Etiquetas</Text>
             <Text style={styles.muted}>As peças chegaram sem etiqueta: ao lançar, o app põe uma etiqueta para cada peça, com o código dela, na fila de impressão.</Text>
           </View>
@@ -333,7 +401,7 @@ function ReceberCompra() {
               <Text style={[styles.cardText, { color: Colors.light.error }]}>{submitError}</Text>
             </View>
           )}
-          <AppButton variant="primary" size="lg" fullWidth label="Lançar no estoque" loading={submit.isPending} onPress={() => submit.mutate()} />
+          <AppButton variant="primary" size="lg" fullWidth label="Lançar no estoque" loading={submit.isPending} onPress={tryLaunch} />
           <Text style={styles.hint}>Nada entra no estoque antes deste botão. Se der erro, nada fica gravado e você pode tentar de novo.</Text>
         </ScrollView>
       </View>
@@ -343,7 +411,7 @@ function ReceberCompra() {
   // ════════════════════════════ início ════════════════════════════
   return (
     <View style={styles.container}>
-      <PageHeader title="Receber compra" subtitle={`Hoje, ${todayBr().slice(0, 5)}`} showBackButton backFallback="/(tabs)/more" />
+      <PageHeader title="Receber compra" subtitle={draft.date === dateToIso(new Date()) ? `Hoje, ${todayBr().slice(0, 5)}` : draft.date.split('-').reverse().join('/')} showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktop, { paddingBottom: 130 }]} keyboardShouldPersistTaps="handled">
         <View>
           <Text style={styles.label}>Comprando de</Text>
@@ -415,8 +483,38 @@ function ReceberCompra() {
           </View>
         )}
 
+        {!showResults && bought.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Já comprou de {draft.supplier.name}</Text>
+            <Text style={styles.muted}>Toque na peça que chegou. Para outra peça, digite o nome acima.</Text>
+            {bought.map((sp) => {
+              const inPurchase = draft.items.filter((i) => i.productId === sp.product_id);
+              return (
+                <TouchableOpacity key={sp.product_id} style={styles.line} disabled={opening !== null} onPress={() => openBought(sp)}
+                  accessibilityRole="button" accessibilityLabel={`Peça ${sp.product_name}`}>
+                  <View style={[styles.thumb, { backgroundColor: brand.primary + '14' }]}>
+                    <Text style={[styles.thumbText, { color: brand.primary }]}>{sp.product_name.trim()[0]?.toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.name} numberOfLines={1}>{sp.product_name}</Text>
+                    <Text style={styles.muted} numberOfLines={1}>
+                      Último custo {formatCurrency(Number(sp.last_unit_cost))} · {sp.purchase_count} compra{sp.purchase_count === 1 ? '' : 's'}
+                    </Text>
+                    {inPurchase.length > 0 && (
+                      <Text style={[styles.muted, { color: brand.primary }]} numberOfLines={1}>Já está nesta compra ({inPurchase.reduce((n, i) => n + itemPieces(i), 0)} un)</Text>
+                    )}
+                  </View>
+                  {opening === sp.product_id ? <ActivityIndicator size="small" color={brand.primary} /> : <Ionicons name="add-circle-outline" size={22} color={brand.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {!draft.items.length ? (
-          <View style={styles.card}><Text style={[styles.cardText, { textAlign: 'center', color: Colors.light.textSecondary }]}>Nada lançado ainda. Digite o nome da primeira peça que chegou.</Text></View>
+          <View style={styles.card}><Text style={[styles.cardText, { textAlign: 'center', color: Colors.light.textSecondary }]}>
+            {bought.length > 0 ? 'Nada lançado ainda. Toque numa peça acima ou digite o nome.' : 'Nada lançado ainda. Digite o nome da primeira peça que chegou.'}
+          </Text></View>
         ) : (
           <View style={styles.card}>
             <View style={styles.rowBetween}>

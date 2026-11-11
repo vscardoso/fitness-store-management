@@ -50,6 +50,11 @@ export interface ReceiveDraft {
   /** desconto por fornecedor, pela chave de `supplierKey` */
   discounts: Record<string, number>;
   labels: boolean;
+  /** Nome (código) da entrada; vazio = o servidor gera COMPRA-AAAAMMDD. */
+  entryCode?: string;
+  /** De onde veio a compra; padrão local. */
+  entryType?: 'local' | 'online';
+  notes?: string;
   savedAt?: number;
 }
 
@@ -353,6 +358,9 @@ export function buildPayload(d: ReceiveDraft): Record<string, unknown> {
   return {
     client_request_id: d.requestId,
     entry_date: d.date,
+    entry_code: d.entryCode?.trim() ? d.entryCode.trim() : undefined,
+    entry_type: d.entryType === 'online' ? 'online' : undefined,
+    notes: d.notes?.trim() ? d.notes.trim() : undefined,
     supplier: refOf(d.supplier),
     freight: d.freight > 0 ? d.freight.toFixed(2) : undefined,
     supplier_discounts: groupsBySupplier(d)
