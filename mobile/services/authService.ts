@@ -5,6 +5,7 @@
 
 import api from './api';
 import { saveAccessToken, saveRefreshToken, saveUser, clearAuthData, getAccessToken } from './storage';
+import { resetActivity } from './sessionActivity';
 import type { 
   LoginCredentials, 
   RegisterData, 
@@ -28,6 +29,7 @@ export const login = async (credentials: LoginCredentials): Promise<User> => {
     await saveAccessToken(authData.access_token);
     // refresh_token pode não existir no response do backend
     await saveRefreshToken(authData.refresh_token);
+    resetActivity(); // sessão nova: a contagem de 2 horas sem uso começa agora
     
     // Buscar dados do usuário
     const { data: user } = await api.get<User>('/auth/me');
@@ -140,6 +142,7 @@ export const signup = async (signupData: SignupData): Promise<User> => {
     // Salvar tokens
     await saveAccessToken(signupResponse.access_token);
     await saveRefreshToken(signupResponse.refresh_token);
+    resetActivity();
     
     // Buscar dados completos do usuário
     const { data: user } = await api.get<User>('/auth/me');

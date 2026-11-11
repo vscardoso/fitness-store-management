@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User
@@ -17,7 +17,15 @@ logger = logging.getLogger(__name__)
 # Regras de sessao
 ACCESS_TOKEN_MINUTES = 60       # access_token valido por 60 min
 SESSION_MAX_HOURS = 0           # 0 desativa expiracao absoluta (expira por inatividade)
-INACTIVITY_HOURS = 12           # inatividade: 12h sem usar o refresh_token
+# Inatividade: o app derruba a sessão com 2 h sem toque do usuário (regra do Victor, 10/11/2026). O servidor é só a rede de
+# segurança: conta desde a última RENOVAÇÃO, que acontece até 60 min depois do último uso (validade do access_token). Por isso
+# 2 h de ausência + 60 min de access_token = 3 h; com menos que isso o servidor derrubaria quem esteve ativo.
+INACTIVITY_HOURS = 3
+# Tolerância na troca do refresh_token: quem reapresenta um token trocado há poucos segundos (duas abas abertas ao mesmo tempo,
+# resposta perdida na rede) recebe um par novo em vez de 401. Antes disso, qualquer segunda tentativa derrubava a sessão.
+ROTATION_GRACE_SECONDS = 30
+# last_used_at de token revogado de propósito (logout, conta desativada): fica fora da tolerância acima
+REVOKED_MARK = datetime(2000, 1, 1)
 
 
 class AuthService:
@@ -111,17 +119,22 @@ class AuthService:
         )
         token_record = result.scalar_one_or_none()
 
-        if not token_record or token_record.revoked:
+        if not token_record:
             return "", "", "INVALID"
 
         now = datetime.utcnow()
+
+        # Token já trocado: aceita de novo só dentro da tolerância (corrida entre abas / resposta perdida). Passou disso é reuso.
+        reused = bool(token_record.revoked)
+        if reused and (now - token_record.last_used_at) > timedelta(seconds=ROTATION_GRACE_SECONDS):
+            return "", "", "INVALID"
 
         # Checar sessao absoluta apenas se habilitada
         if SESSION_MAX_HOURS > 0 and now > token_record.expires_at:
             await self._revoke_token(token_record)
             return "", "", "SESSION_EXPIRED"
 
-        # Checar inatividade (1h)
+        # Checar inatividade
         inactivity_limit = token_record.last_used_at + timedelta(hours=INACTIVITY_HOURS)
         if now > inactivity_limit:
             await self._revoke_token(token_record)
@@ -136,8 +149,21 @@ class AuthService:
             await self._revoke_token(token_record)
             return "", "", "INVALID"
 
-        # Token rotation: revogar atual, emitir novo
-        token_record.revoked = True
+        # Token rotation: revogar atual, emitir novo. last_used_at marca a hora da troca (é ela que abre a tolerância).
+        # Na tolerância o token já está revogado e os irmãos (par emitido pela outra aba) continuam válidos.
+        if not reused:
+            token_record.revoked = True
+            token_record.last_used_at = now
+            await self.db.execute(
+                update(RefreshToken)
+                .where(
+                    RefreshToken.user_id == token_record.user_id,
+                    RefreshToken.created_at == token_record.created_at,
+                    RefreshToken.revoked == False,  # noqa: E712
+                    RefreshToken.id != token_record.id,
+                )
+                .values(revoked=True, last_used_at=now)
+            )
         await self.db.flush()
 
         new_raw = RefreshToken.generate_raw_token()
@@ -181,6 +207,7 @@ class AuthService:
 
     async def _revoke_token(self, token_record: RefreshToken) -> None:
         token_record.revoked = True
+        token_record.last_used_at = REVOKED_MARK
         await self.db.commit()
 
     async def _cleanup_expired_tokens(self, user_id: int) -> None:

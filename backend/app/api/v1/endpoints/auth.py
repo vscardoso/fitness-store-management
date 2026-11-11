@@ -294,7 +294,7 @@ async def refresh_token(
 
         if reason:
             detail_map = {
-                "INACTIVITY": "Sessão expirada por inatividade (60 min). Faça login novamente.",
+                "INACTIVITY": "Sessão expirada por inatividade. Faça login novamente.",
                 "SESSION_EXPIRED": "Sessão expirada. Faça login novamente.",
                 "INVALID": "Refresh token inválido.",
             }

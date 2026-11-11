@@ -15,6 +15,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
 from app.services.audit_service import AuditService
+from app.services.auth_service import REVOKED_MARK
 from app.services.team_limit import ensure_can_add_user, user_slot_lock
 from app.schemas.user import (
     TeamMemberCreate,
@@ -286,7 +287,8 @@ async def reset_member_password(
     await db.execute(
         update(RefreshToken)
         .where(RefreshToken.user_id == user_id, RefreshToken.revoked == False)  # noqa: E712
-        .values(revoked=True)
+        # REVOKED_MARK: revogado de propósito, fora da tolerância de troca de token (senão passaria nos 30 s seguintes)
+        .values(revoked=True, last_used_at=REVOKED_MARK)
     )
     await db.commit()
     await AuditService.log(db, "PASSWORD_RESET",
