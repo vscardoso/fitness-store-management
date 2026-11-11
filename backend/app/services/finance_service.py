@@ -1140,7 +1140,9 @@ class FinanceService:
         changed: List[int] = []
         # com a gaveta: ela paga, compra por compra, o que ainda tiver (o que estas compras já tinham tirado dela volta antes)
         cash_left = await self.cash_available(tenant_id, ids) if with_cash else D0
-        goods_by = await lot_cost_service.goods_paid_by_entry(self.db, ids) if with_cash else {}
+        cash_before = cash_left if with_cash else None
+        goods_by = await lot_cost_service.goods_paid_by_entry(self.db, ids)
+        result_items: List[Dict[str, Any]] = []
         try:
             for e in sorted(entries, key=lambda x: (x.entry_date, x.id)):
                 if e.entry_type not in (EntryType.ONLINE, EntryType.LOCAL):
@@ -1159,6 +1161,13 @@ class FinanceService:
                     new_cash = take if take > 0 else None
                 if e.paid_account_id != (acc.id if acc else None) or (e.paid_cash_amount or None) != new_cash:
                     changed.append(e.id)
+                total_e = _q(goods_by.get(e.id, D0))
+                from_cash_e = min(new_cash or D0, total_e)
+                result_items.append({
+                    "id": e.id, "entry_code": e.entry_code, "entry_date": e.entry_date.isoformat(), "supplier_name": e.supplier_name,
+                    "total": float(total_e), "from_cash": float(from_cash_e),
+                    "from_account": 0.0 if (outside or acc is None) else float(total_e - from_cash_e),
+                })
                 e.paid_account_id = acc.id if acc else None
                 e.paid_outside = bool(outside)
                 e.paid_cash_amount = new_cash
@@ -1187,7 +1196,21 @@ class FinanceService:
         except FinanceError:
             await self.db.rollback()
             raise
-        return await self.balances(tenant_id)
+        out = await self.balances(tenant_id)
+        # Resumo do que aconteceu, compra por compra: a tela mostra de onde saiu cada real (e o que ficou na gaveta)
+        cash_acc = await self._cash_account(tenant_id)
+        cash_now = next((a["balance"] for a in out["accounts"] if cash_acc is not None and a["id"] == cash_acc.id), None)
+        out["purchases_result"] = {
+            "mode": "outside" if outside else ("with_cash" if with_cash else ("account" if acc else "undone")),
+            "account_name": acc.name if acc else None,
+            "cash_before": float(cash_before) if cash_before is not None else None,
+            "cash_after": cash_now,
+            "items": result_items,
+            "total": float(sum((Decimal(str(i["total"])) for i in result_items), D0)),
+            "from_cash": float(sum((Decimal(str(i["from_cash"])) for i in result_items), D0)),
+            "from_account": float(sum((Decimal(str(i["from_account"])) for i in result_items), D0)),
+        }
+        return out
 
     async def purchases_pending(self, tenant_id: int) -> Dict[str, Any]:
         """Compras de mercadoria de depois do começo da contagem que ainda não disseram de onde saiu o dinheiro: enquanto

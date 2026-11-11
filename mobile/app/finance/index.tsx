@@ -15,6 +15,7 @@ import CashStatusCard from '@/components/cash/CashStatusCard';
 import FiadoProjectionCard from '@/components/finance/FiadoProjectionCard';
 import CardScheduleCard from '@/components/finance/CardScheduleCard';
 import PendingPurchasesCard from '@/components/finance/PendingPurchasesCard';
+import PurchasePaymentResultCard from '@/components/finance/PurchasePaymentResultCard';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
@@ -95,6 +96,7 @@ export default function FinanceHomeScreen() {
               ))}
               <AppButton variant="outlined" size="md" fullWidth icon="swap-horizontal-outline" label="Ver contas e transferir" onPress={() => go('/finance/accounts')} />
             </View>
+            <PurchasePaymentResultCard />
             {!!data.purchases_pending && data.purchases_pending.count > 0 && <PendingPurchasesCard pending={data.purchases_pending} />}
             {!!data.card_schedule && <CardScheduleCard schedule={data.card_schedule} />}
             {!!p && <FiadoProjectionCard projection={p} />}

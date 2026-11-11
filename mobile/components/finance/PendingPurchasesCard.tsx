@@ -14,6 +14,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { payPurchases, type PurchasesPending } from '@/services/financeService';
+import { PURCHASE_RESULT_KEY } from '@/components/finance/PurchasePaymentResultCard';
 
 const FIRST_ROWS = 5;
 
@@ -39,7 +40,9 @@ export default function PendingPurchasesCard({ pending }: { pending: PurchasesPe
 
   const save = useMutation({
     mutationFn: () => payPurchases(chosen.map((e) => e.id), { accountId: target.accountId, outside: target.outside, withCash: !!target.withCash }),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // guarda o resumo para a tela mostrar o que foi descontado de cada conta (o cartão some quando não sobra compra pendente)
+      queryClient.setQueryData(PURCHASE_RESULT_KEY, data.purchases_result ?? null);
       setTarget(NO_PURCHASE_PAYMENT);
       queryClient.invalidateQueries({ queryKey: ['finance'] });
       queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
@@ -80,6 +83,9 @@ export default function PendingPurchasesCard({ pending }: { pending: PurchasesPe
         )}
       </View>
       <PurchasePaidFrom value={target} onChange={(v) => { setError(''); setTarget(v); }} amount={chosenTotal} />
+      {target.withCash && chosen.length > 1 && (
+        <Text style={styles.text}>A gaveta paga primeiro a compra mais antiga; quando ela acaba, as outras saem do banco.</Text>
+      )}
       {!!error && <Text style={styles.error}>{error}</Text>}
       <AppButton
         variant="primary" size="md" fullWidth

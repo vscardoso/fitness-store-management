@@ -60,6 +60,14 @@ async def test_compra_ja_lancada_pelo_cartao_compras_sem_conta(test_client, asyn
     assert n["breakdown"]["purchases_paid"] == 150.0 and n["balance"] == 850.0         # 150 da segunda
     # total que saiu = 300 = valor das duas compras
     assert g["breakdown"]["purchases_paid"] + n["breakdown"]["purchases_paid"] == 300.0
+    # a resposta conta, compra por compra, de onde saiu o dinheiro (a gaveta paga a compra mais antiga primeiro)
+    res = r.json()["purchases_result"]
+    assert res["mode"] == "with_cash" and res["account_name"] == "Nubank"
+    assert res["cash_before"] == 150.0 and res["cash_after"] == 0.0
+    por_id = {i["id"]: i for i in res["items"]}
+    assert (por_id[e1]["total"], por_id[e1]["from_cash"], por_id[e1]["from_account"]) == (100.0, 100.0, 0.0)
+    assert (por_id[e2]["total"], por_id[e2]["from_cash"], por_id[e2]["from_account"]) == (200.0, 50.0, 150.0)
+    assert (res["total"], res["from_cash"], res["from_account"]) == (300.0, 150.0, 150.0)
 
 
 async def test_mudar_para_so_banco_devolve_o_dinheiro_a_gaveta_e_excluir_devolve_tudo(test_client, async_session, test_user):

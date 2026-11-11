@@ -16,6 +16,7 @@ import CashStatusCard from '@/components/cash/CashStatusCard';
 import FiadoProjectionCard from '@/components/finance/FiadoProjectionCard';
 import CardScheduleCard from '@/components/finance/CardScheduleCard';
 import PendingPurchasesCard from '@/components/finance/PendingPurchasesCard';
+import PurchasePaymentResultCard from '@/components/finance/PurchasePaymentResultCard';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors } from '@/constants/Colors';
@@ -167,6 +168,7 @@ export default function AccountsScreen() {
           </View>
         </View>
 
+        <PurchasePaymentResultCard />
         {!!data.purchases_pending && data.purchases_pending.count > 0 && <PendingPurchasesCard pending={data.purchases_pending} />}
         {!!data.card_schedule && <CardScheduleCard schedule={data.card_schedule} />}
         {!!data.projection && <FiadoProjectionCard projection={data.projection} />}
