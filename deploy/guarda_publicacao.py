@@ -4,9 +4,9 @@
 Roda NO VPS, antes do deploy (chamado pelo GitHub Actions). Lê o access.log do nginx e olha, em tempo real:
 - escritas (POST/PUT/PATCH/DELETE na API) nos últimos 120 s: alguém está lançando entrada, venda, cadastro...
   reiniciar agora derrubaria a gravação no meio;
-- pessoas conectadas (IPs diferentes) nos últimos 5 min. Sem --estrita só informa; COM --estrita conta como ocupado: publicar
+- pessoas conectadas (IPs diferentes) nos últimos 2 min. Sem --estrita só informa; COM --estrita conta como ocupado: publicar
   recarrega o app de quem está usando (o app web troca de versão) e reinicia o backend, e a loja não pode ser interrompida.
-  Quem só está com o app aberto e parado, sem pedir nada ao servidor por 5 min, não conta.
+  Quem só está com o app aberto e parado, sem pedir nada ao servidor por 2 min, não conta.
 
 Uso:
     guarda_publicacao.py --status              # só mostra a situação; sai com 0 (livre) ou 10 (ocupado)
@@ -30,6 +30,7 @@ WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 IGNORED_PREFIXES = ("/api/v1/auth/refresh", "/api/v1/client-logs", "/api/v1/webhooks", "/webhooks", "/health")
 IGNORED_AGENTS = ("curl", "python-requests", "python-httpx", "GitHub", "UptimeRobot", "kube-probe")
 BUSY, FREE = 10, 0
+PESSOAS_JANELA = 120  # segundos sem chamada à API para a pessoa deixar de contar como "usando o app" (era 300)
 # À noite (20h às 6h, horário de Brasília) a loja está fechada: a guarda deixa de exigir "ninguém usando o app" (modo estrito)
 # e só espera ninguém estar GRAVANDO. Pedido do Victor em 11/11/2026. Brasília é UTC-3 fixo (sem horário de verão).
 NOITE_INICIO, NOITE_FIM = 20, 6
@@ -53,7 +54,7 @@ def read_tail(path: str, max_bytes: int = 4_000_000) -> list:
     return data.splitlines()
 
 
-def activity(lines: list, now: float, write_window: int = 120, people_window: int = 300) -> dict:
+def activity(lines: list, now: float, write_window: int = 120, people_window: int = PESSOAS_JANELA) -> dict:
     writes, ips = [], set()
     for line in lines:
         m = LINE.match(line)
@@ -80,13 +81,13 @@ def activity(lines: list, now: float, write_window: int = 120, people_window: in
 def report(info: dict, write_window: int, estrita: bool = False) -> str:
     n = len(info["writes"])
     if not n and estrita and info["people"]:
-        return (f"OCUPADO: {info['people']} pessoa(s) usando o app nos últimos 5 min (publicação estrita: só com o app parado); "
+        return (f"OCUPADO: {info['people']} pessoa(s) usando o app nos últimos 2 min (publicação estrita: só com o app parado); "
                 f"nenhuma gravação nos últimos {write_window}s.")
     if n:
         ultimo = info["writes"][0]
         return (f"OCUPADO: {n} gravação(ões) nos últimos {write_window}s (a última há {ultimo[0]}s: {ultimo[1]} {ultimo[2]}); "
-                f"{info['people']} pessoa(s) conectada(s) nos últimos 5 min.")
-    return f"LIVRE: nenhuma gravação nos últimos {write_window}s; {info['people']} pessoa(s) conectada(s) nos últimos 5 min."
+                f"{info['people']} pessoa(s) conectada(s) nos últimos 2 min.")
+    return f"LIVRE: nenhuma gravação nos últimos {write_window}s; {info['people']} pessoa(s) conectada(s) nos últimos 2 min."
 
 
 def check(log: str, write_window: int, estrita: bool = False, now: float = None) -> tuple:
@@ -104,7 +105,7 @@ def main() -> int:
     p.add_argument("--esperar", type=int, default=0, metavar="MINUTOS")
     p.add_argument("--log", default="/var/log/nginx/access.log")
     p.add_argument("--janela-escrita", type=int, default=120)
-    p.add_argument("--estrita", action="store_true", help="também espera ninguém estar usando o app (últimos 5 min)")
+    p.add_argument("--estrita", action="store_true", help="também espera ninguém estar usando o app (últimos 2 min)")
     a = p.parse_args()
     force = os.environ.get("FORCAR") == "1"
     estrita = a.estrita or os.environ.get("GUARDA_ESTRITA") == "1"

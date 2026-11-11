@@ -52,9 +52,9 @@ def test_gravando_bloqueia_nos_dois_modos(tmp_path):
     assert guarda.check(log, 120, True)[0] == guarda.BUSY
 
 
-def test_quem_parou_ha_mais_de_5_minutos_nao_conta_e_robos_nao_contam(tmp_path):
+def test_quem_parou_ha_mais_de_2_minutos_nao_conta_e_robos_nao_contam(tmp_path):
     log = _log(tmp_path, [
-        _linha("200.1.1.1", "GET", "/api/v1/products", 400),                                   # parou há 6 min
+        _linha("200.1.1.1", "GET", "/api/v1/products", 200),                                   # parou há 200 s (fora da janela de 120 s)
         _linha("200.2.2.2", "GET", "/api/v1/products", 10, agente="curl/8.0"),                  # verificação
         _linha("200.3.3.3", "POST", "/api/v1/auth/refresh", 10),                                # renovação de sessão
         _linha("200.4.4.4", "POST", "/api/v1/client-logs", 10),                                 # registro de erro do app
