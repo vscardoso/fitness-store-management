@@ -783,6 +783,7 @@ export default function AddStockEntryScreen() {
           discount_amount: unmaskCurrency(discountText) || undefined,
           paid_account_id: purchasePay.accountId ?? undefined,
           paid_outside: purchasePay.outside || undefined,
+          paid_with_cash: purchasePay.withCash || undefined,
           notes: notes.trim() || undefined,
           extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
         },
@@ -850,6 +851,7 @@ export default function AddStockEntryScreen() {
           discount_amount: unmaskCurrency(discountText) || undefined,
           paid_account_id: purchasePay.accountId ?? undefined,
           paid_outside: purchasePay.outside || undefined,
+          paid_with_cash: purchasePay.withCash || undefined,
           notes: notes.trim() || undefined,
           extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
         }
@@ -1191,6 +1193,7 @@ export default function AddStockEntryScreen() {
       discount_amount: unmaskCurrency(discountText) || undefined,
       paid_account_id: purchasePay.accountId ?? undefined,
       paid_outside: purchasePay.outside || undefined,
+          paid_with_cash: purchasePay.withCash || undefined,
       notes: notes.trim() || undefined,
       extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
       items: items.filter(item => item.quantity_received > 0).map(item => ({

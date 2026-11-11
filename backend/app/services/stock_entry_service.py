@@ -276,12 +276,12 @@ class StockEntryService:
         return variant
 
     async def _check_entry_payment(self, *, account_id, outside, entry_type, entry_date, discount, base: Decimal,
-                                   tenant_id: int) -> Dict[str, Any]:
+                                   tenant_id: int, with_cash: bool = False) -> Dict[str, Any]:
         """De onde sai o dinheiro da compra, conferido ANTES de gravar a entrada (o repositório faz commit ao criar, então
         um erro depois deixaria a entrada gravada sem o pagamento). `base` = peças x custo; o desconto abate. Devolve os
         campos a gravar. Compra de antes de o app começar a contar não tira de conta (já está no saldo de partida)."""
         if outside or not account_id:
-            return {"paid_account_id": None, "paid_outside": bool(outside)}
+            return {"paid_account_id": None, "paid_outside": bool(outside), "paid_cash_amount": None}
         from app.services.finance_service import FinanceService
         kind = getattr(entry_type, "value", entry_type) or "local"
         if kind not in (EntryType.ONLINE.value, EntryType.LOCAL.value):
@@ -289,8 +289,9 @@ class StockEntryService:
                              "doação não).")
         goods = max(Decimal("0"), Decimal(str(base or 0)) - Decimal(str(discount or 0)))
         day = entry_date or today_brazil()
-        effective = await FinanceService(self.db).check_purchase_payment(tenant_id, account_id, day, goods)
-        return {"paid_account_id": effective, "paid_outside": False}
+        effective, cash_part = await FinanceService(self.db).check_purchase_payment(
+            tenant_id, account_id, day, goods, with_cash=bool(with_cash))
+        return {"paid_account_id": effective, "paid_outside": False, "paid_cash_amount": cash_part}
 
     async def check_code_exists(self, entry_code: str, tenant_id: int) -> bool:
         """
@@ -423,12 +424,14 @@ class StockEntryService:
             # Criar entrada (o fornecedor do cadastro é a fonte do nome exibido)
             entry_dict = entry_data.model_dump(exclude_unset=True)
             extra_costs = entry_dict.pop('extra_costs', None) or []
+            entry_dict.pop('paid_with_cash', None)    # só vale para calcular a parte da gaveta; não é coluna da entrada
             entry_dict['supplier_id'] = default_supplier.id if default_supplier else None
             entry_dict['supplier_name'] = default_supplier.name if default_supplier else MULTI_SUPPLIER_LABEL
             entry_dict['total_cost'] = Decimal('0.00')  # Será calculado depois
             entry_dict.update(await self._check_entry_payment(
                 account_id=entry_data.paid_account_id, outside=entry_data.paid_outside, entry_type=entry_data.entry_type,
                 entry_date=entry_data.entry_date, discount=entry_data.discount_amount, tenant_id=tenant_id,
+                with_cash=getattr(entry_data, 'paid_with_cash', False),
                 base=sum((Decimal(str(i['quantity_received'])) * Decimal(str(i.get('unit_cost') or 0)) for i in prepared_items),
                          Decimal("0")),
             ))
@@ -1043,12 +1046,17 @@ class StockEntryService:
         entry_dict = entry_data.model_dump(exclude_unset=True)
         supplier_discounts = entry_dict.pop('supplier_discounts', None)
         # De onde saiu o dinheiro: passa pelo Financeiro (confere conta, mês fechado e gaveta negativa) e desfaz com null
-        if 'paid_account_id' in entry_dict or 'paid_outside' in entry_dict:
+        if 'paid_account_id' in entry_dict or 'paid_outside' in entry_dict or 'paid_with_cash' in entry_dict:
             from app.services.finance_service import FinanceService
             account_id = entry_dict.pop('paid_account_id', entry.paid_account_id)
             outside = bool(entry_dict.pop('paid_outside', entry.paid_outside))
-            if (account_id or None) != entry.paid_account_id or outside != bool(entry.paid_outside):
-                await FinanceService(self.db).set_purchase_account(tenant_id, user, [entry_id], account_id, outside)
+            with_cash = entry_dict.pop('paid_with_cash', None)
+            if with_cash is None:
+                with_cash = bool(entry.paid_cash_amount)      # sem dizer, mantém como estava
+            if ((account_id or None) != entry.paid_account_id or outside != bool(entry.paid_outside)
+                    or bool(with_cash) != bool(entry.paid_cash_amount)):
+                await FinanceService(self.db).set_purchase_account(
+                    tenant_id, user, [entry_id], account_id, outside, with_cash=bool(with_cash))
         updated = await self.entry_repo.update(self.db, entry_id, entry_dict, tenant_id=tenant_id)
         if supplier_discounts is not None:
             await self._set_supplier_discounts(entry_id, supplier_discounts, tenant_id)
@@ -2260,7 +2268,7 @@ class StockEntryService:
             paid = await self._check_entry_payment(
                 account_id=entry_data.get('paid_account_id'), outside=entry_data.get('paid_outside'),
                 entry_type=entry_data.get('entry_type'), entry_date=entry_data.get('entry_date'),
-                discount=entry_data.get('discount_amount'), tenant_id=tenant_id,
+                discount=entry_data.get('discount_amount'), tenant_id=tenant_id, with_cash=bool(entry_data.get('paid_with_cash')),
                 base=Decimal(str(quantity or 0)) * Decimal(str(product_data.get('cost_price') or 0)),
             )
 
@@ -2444,7 +2452,7 @@ class StockEntryService:
             paid = await self._check_entry_payment(
                 account_id=entry_data.get('paid_account_id'), outside=entry_data.get('paid_outside'),
                 entry_type=entry_data.get('entry_type'), entry_date=entry_data.get('entry_date'),
-                discount=entry_data.get('discount_amount'), tenant_id=tenant_id,
+                discount=entry_data.get('discount_amount'), tenant_id=tenant_id, with_cash=bool(entry_data.get('paid_with_cash')),
                 base=sum((Decimal(str(v.get('quantity') or 0)) * Decimal(str(v.get('cost_price') or 0))
                           for v in variants_data), Decimal("0")),
             )

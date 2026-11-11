@@ -11,14 +11,17 @@ import { useQuery } from '@tanstack/react-query';
 import { getFinanceOverview } from '@/services/financeService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import { splitPurchase } from '@/utils/purchaseSplit';
 
 export interface PurchasePayment {
   accountId: number | null;
   /** Pago por fora das contas do app (ex.: dinheiro pessoal): não tira de nenhuma conta. */
   outside: boolean;
+  /** Gaveta + banco: a gaveta paga tudo o que tiver e `accountId` (um banco) paga o resto. */
+  withCash?: boolean;
 }
 
-export const NO_PURCHASE_PAYMENT: PurchasePayment = { accountId: null, outside: false };
+export const NO_PURCHASE_PAYMENT: PurchasePayment = { accountId: null, outside: false, withCash: false };
 
 interface Props {
   value: PurchasePayment;
@@ -37,6 +40,9 @@ export default function PurchasePaidFrom({ value, onChange, amount, entryDate }:
   const beforeStart = !!entryDate && !!finance.start_date && entryDate < finance.start_date;
 
   const chosen = accounts.find((a) => a.id === value.accountId) || null;
+  const cash = accounts.find((a) => a.kind === 'cash') || null;
+  const withCash = !!value.withCash && !!chosen && chosen.kind === 'bank';
+  const split = withCash && cash ? splitPurchase(amount, cash.balance, chosen!.balance) : null;
   const left = chosen ? chosen.balance - amount : 0;
   const tooMuch = !!chosen && chosen.kind === 'cash' && amount > 0 && left < 0;
 
@@ -47,13 +53,13 @@ export default function PurchasePaidFrom({ value, onChange, amount, entryDate }:
       <Text style={styles.label}>De onde saiu o dinheiro</Text>
       <View style={styles.chips}>
         {accounts.map((a) => {
-          const on = value.accountId === a.id && !value.outside;
+          const on = value.accountId === a.id && !value.outside && !value.withCash;
           return (
             <Chip
               key={a.id}
               selected={on}
               mode={on ? 'flat' : 'outlined'}
-              onPress={() => pick(on ? NO_PURCHASE_PAYMENT : { accountId: a.id, outside: false })}
+              onPress={() => pick(on ? NO_PURCHASE_PAYMENT : { accountId: a.id, outside: false, withCash: false })}
               style={styles.chip}
               accessibilityLabel={`Pago com ${a.name}, saldo ${formatCurrency(a.balance)}`}
             >
@@ -61,10 +67,25 @@ export default function PurchasePaidFrom({ value, onChange, amount, entryDate }:
             </Chip>
           );
         })}
+        {cash && cash.balance > 0 && accounts.filter((a) => a.kind === 'bank').map((b) => {
+          const on = value.accountId === b.id && !!value.withCash && !value.outside;
+          return (
+            <Chip
+              key={`cash-${b.id}`}
+              selected={on}
+              mode={on ? 'flat' : 'outlined'}
+              onPress={() => pick(on ? NO_PURCHASE_PAYMENT : { accountId: b.id, outside: false, withCash: true })}
+              style={styles.chip}
+              accessibilityLabel={`Pago com a gaveta e o resto de ${b.name}`}
+            >
+              {`Gaveta + ${b.name}`}
+            </Chip>
+          );
+        })}
         <Chip
           selected={value.outside}
           mode={value.outside ? 'flat' : 'outlined'}
-          onPress={() => pick(value.outside ? NO_PURCHASE_PAYMENT : { accountId: null, outside: true })}
+          onPress={() => pick(value.outside ? NO_PURCHASE_PAYMENT : { accountId: null, outside: true, withCash: false })}
           style={styles.chip}
         >
           Não saiu das contas do app
@@ -74,6 +95,12 @@ export default function PurchasePaidFrom({ value, onChange, amount, entryDate }:
         <Text style={styles.help}>
           Esta compra é de antes de o app começar a contar: o dinheiro dela já está dentro do saldo de partida, então
           nada é descontado.
+        </Text>
+      ) : split && cash ? (
+        <Text style={styles.help}>
+          {split.cash > 0
+            ? `Sai ${formatCurrency(split.cash)} da Gaveta (tudo o que ela tem para esta compra) e ${formatCurrency(split.bank)} de ${chosen!.name}. A gaveta fica em ${formatCurrency(split.cashLeft)} e ${chosen!.name} em ${formatCurrency(split.bankLeft)}. Se precisar, lance dinheiro no caixa depois.`
+            : `A gaveta está sem dinheiro: sai tudo de ${chosen!.name} (${formatCurrency(split.bank)}).`}
         </Text>
       ) : tooMuch ? (
         <Text style={[styles.help, { color: Colors.light.error }]}>

@@ -190,7 +190,7 @@ def _run_alembic_upgrade() -> None:
 _SQLITE_EXTRA_COLUMNS = {
     "sales": [("idempotency_key", "VARCHAR(80)"), ("idempotency_hash", "VARCHAR(64)")],
     "stock_entries": [("supplier_id", "INTEGER"), ("discount_amount", "NUMERIC(10,2) NOT NULL DEFAULT 0"),
-                      ("paid_account_id", "INTEGER"), ("paid_outside", "BOOLEAN NOT NULL DEFAULT 0")],
+                      ("paid_account_id", "INTEGER"), ("paid_outside", "BOOLEAN NOT NULL DEFAULT 0"), ("paid_cash_amount", "NUMERIC(10,2)")],
     "entry_items": [("supplier_id", "INTEGER"), ("list_unit_cost", "NUMERIC(10,2)"), ("extra_unit_cost", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
     "expenses": [("stock_entry_id", "INTEGER"), ("account_id", "INTEGER"), ("payable_id", "INTEGER")],
     "payables": [("counts_as_expense", "BOOLEAN NOT NULL DEFAULT 0"), ("expense_category_id", "INTEGER")],

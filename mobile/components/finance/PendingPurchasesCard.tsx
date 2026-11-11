@@ -38,7 +38,7 @@ export default function PendingPurchasesCard({ pending }: { pending: PurchasesPe
   const rows = showAll ? pending.entries : pending.entries.slice(0, FIRST_ROWS);
 
   const save = useMutation({
-    mutationFn: () => payPurchases(chosen.map((e) => e.id), { accountId: target.accountId, outside: target.outside }),
+    mutationFn: () => payPurchases(chosen.map((e) => e.id), { accountId: target.accountId, outside: target.outside, withCash: !!target.withCash }),
     onSuccess: () => {
       setTarget(NO_PURCHASE_PAYMENT);
       queryClient.invalidateQueries({ queryKey: ['finance'] });

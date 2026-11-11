@@ -124,6 +124,11 @@ class StockEntry(BaseModel):
         index=True,
         comment="Conta do Financeiro de onde saiu o dinheiro da compra (gaveta ou banco)"
     )
+    paid_cash_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        comment="Parte da compra que saiu da GAVETA (o resto sai da conta em paid_account_id). Gravada na hora de confirmar: a gaveta paga o que tinha"
+    )
     paid_outside: Mapped[bool] = mapped_column(
         nullable=False,
         default=False,

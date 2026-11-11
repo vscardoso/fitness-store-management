@@ -50,7 +50,8 @@ async def purchases_pay(data: Dict[str, Any] = Body(...), db: AsyncSession = Dep
                         tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
         return await FinanceService(db).set_purchase_account(
-            tenant_id, current_user, data.get("entry_ids"), data.get("account_id"), bool(data.get("outside")))
+            tenant_id, current_user, data.get("entry_ids"), data.get("account_id"), bool(data.get("outside")),
+            with_cash=bool(data.get("with_cash")))
     except FinanceError as e:
         raise _http(e)
 

@@ -23,14 +23,14 @@ export default function EntryPaidFromCard({ entry }: { entry: StockEntry }) {
   const queryClient = useQueryClient();
   const brand = useBrandingColors();
   const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
-  const current: PurchasePayment = { accountId: entry.paid_account_id ?? null, outside: !!entry.paid_outside };
+  const current: PurchasePayment = { accountId: entry.paid_account_id ?? null, outside: !!entry.paid_outside, withCash: Number(entry.paid_cash_amount || 0) > 0 };
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<PurchasePayment>(current);
   const [error, setError] = useState('');
-  useEffect(() => { if (!open) { setDraft({ accountId: entry.paid_account_id ?? null, outside: !!entry.paid_outside }); setError(''); } }, [open, entry.paid_account_id, entry.paid_outside]);
+  useEffect(() => { if (!open) { setDraft({ accountId: entry.paid_account_id ?? null, outside: !!entry.paid_outside, withCash: Number(entry.paid_cash_amount || 0) > 0 }); setError(''); } }, [open, entry.paid_account_id, entry.paid_outside, entry.paid_cash_amount]);
 
   const save = useMutation({
-    mutationFn: () => updateStockEntry(entry.id, { paid_account_id: draft.accountId, paid_outside: draft.outside }),
+    mutationFn: () => updateStockEntry(entry.id, { paid_account_id: draft.accountId, paid_outside: draft.outside, paid_with_cash: !!draft.withCash }),
     onSuccess: () => {
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ['finance'] });
@@ -47,12 +47,15 @@ export default function EntryPaidFromCard({ entry }: { entry: StockEntry }) {
 
   const account = finance.accounts.find((a) => a.id === current.accountId);
   const goods = Math.max(0, Number(entry.total_cost || 0) - Number(entry.discount_amount || 0));
-  const text = account
+  const cashPart = Number(entry.paid_cash_amount || 0);
+  const text = account && cashPart > 0
+    ? `Pago com a Gaveta (${formatCurrency(cashPart)}) e ${account.name} (o resto). O valor da mercadoria já saiu desses saldos.`
+    : account
     ? `Pago com ${account.name}. O valor da mercadoria já saiu desse saldo.`
     : current.outside
       ? 'Pago por fora das contas do app. Não desconta de nenhuma conta.'
       : 'Ainda não saiu de nenhuma conta: o saldo do Financeiro não desconta esta compra.';
-  const unchanged = draft.accountId === current.accountId && draft.outside === current.outside;
+  const unchanged = draft.accountId === current.accountId && draft.outside === current.outside && !!draft.withCash === !!current.withCash;
 
   return (
     <View style={styles.card} testID="entry-paid-from">

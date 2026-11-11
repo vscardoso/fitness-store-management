@@ -76,6 +76,8 @@ class StockEntryBase(BaseModel):
     discount_amount: Decimal = Field(Decimal("0"), ge=0, description="Desconto do fornecedor no total da compra (R$)")
     paid_account_id: Optional[int] = Field(None, description="Conta do Financeiro (gaveta ou banco) de onde saiu o dinheiro")
     paid_outside: bool = Field(False, description="Pago por fora das contas do app: não tira de nenhuma conta")
+    paid_with_cash: bool = Field(False, description="A gaveta paga primeiro tudo o que tiver e a conta de paid_account_id paga o resto (só no pedido)")
+    paid_cash_amount: Optional[float] = Field(None, description="Quanto da compra saiu da gaveta (resposta)")
     notes: Optional[str] = Field(None, max_length=1000, description="Observações")
 
     @field_validator('supplier_cnpj')
@@ -151,6 +153,7 @@ class StockEntryUpdate(BaseModel):
     discount_amount: Optional[Decimal] = Field(None, ge=0)
     paid_account_id: Optional[int] = Field(None, description="Conta de onde saiu o dinheiro; null desfaz")
     paid_outside: Optional[bool] = None
+    paid_with_cash: Optional[bool] = None
     supplier_discounts: Optional[List[SupplierDiscountIn]] = Field(
         None, description="Desconto por fornecedor da entrada (substitui o valor de cada fornecedor informado)"
     )

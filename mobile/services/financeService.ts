@@ -41,8 +41,8 @@ export interface PendingPurchase { id: number; entry_code: string; entry_date: s
 export interface PurchasesPending { started: boolean; count: number; total: number; entries: PendingPurchase[] }
 
 /** Diz de onde saiu o dinheiro de compras já lançadas (conta vazia e outside falso desfaz). */
-export const payPurchases = async (entryIds: number[], target: { accountId?: number | null; outside?: boolean }): Promise<FinanceOverview> =>
-  (await api.post('/finance/purchases-pay', { entry_ids: entryIds, account_id: target.accountId ?? null, outside: !!target.outside })).data;
+export const payPurchases = async (entryIds: number[], target: { accountId?: number | null; outside?: boolean; withCash?: boolean }): Promise<FinanceOverview> =>
+  (await api.post('/finance/purchases-pay', { entry_ids: entryIds, account_id: target.accountId ?? null, outside: !!target.outside, with_cash: !!target.withCash })).data;
 
 export interface CardScheduleItem { expected_on: string; weekday: string; amount: number; status: 'overdue' | 'today' | 'future' }
 export interface CardSchedule {

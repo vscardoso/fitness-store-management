@@ -649,6 +649,8 @@ export interface StockEntry {
   paid_account_id?: number | null;
   /** Pago por fora das contas do app (ex.: dinheiro pessoal). */
   paid_outside?: boolean;
+  /** Parte da compra que saiu da gaveta (o resto saiu da conta em paid_account_id). */
+  paid_cash_amount?: number | null;
   notes?: string;
   total_cost: number;
   /** Frete e despesas do lote, rateadas nas peças. */
@@ -688,6 +690,7 @@ export interface StockEntryCreate {
   /** De onde saiu o dinheiro da compra (o saldo da conta cai sozinho). */
   paid_account_id?: number | null;
   paid_outside?: boolean;
+  paid_with_cash?: boolean;
   /** Desconto de cada fornecedor da entrada (valor 0 remove). */
   supplier_discounts?: Array<{ supplier_id: number; amount: number }>;
   notes?: string;
