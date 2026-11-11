@@ -1,7 +1,7 @@
 """Compra paga com a Gaveta e o resto de uma conta: guarda quanto saiu da gaveta
 
 Revision ID: 20261202_purchase_cash_part
-Revises: 20261201_discount_mode
+Revises: 20261130_entry_paid_account
 
 Aditiva: uma coluna nova, vazia, em stock_entries (nada existente muda).
 """
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20261202_purchase_cash_part"
-down_revision = "20261201_discount_mode"
+down_revision = "20261130_entry_paid_account"
 branch_labels = None
 depends_on = None
 

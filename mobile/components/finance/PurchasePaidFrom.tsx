@@ -104,7 +104,7 @@ export default function PurchasePaidFrom({ value, onChange, amount, entryDate }:
         </Text>
       ) : tooMuch ? (
         <Text style={[styles.help, { color: Colors.light.error }]}>
-          {`A gaveta tem ${formatCurrency(chosen!.balance)} e esta compra custa ${formatCurrency(amount)}. Escolha o banco de onde saiu o dinheiro.`}
+          {`A gaveta tem ${formatCurrency(chosen!.balance)} e esta compra custa ${formatCurrency(amount)}. Escolha "Gaveta + banco" (a gaveta paga o que tiver e o banco paga o resto) ou só o banco.`}
         </Text>
       ) : chosen ? (
         <Text style={styles.help}>
