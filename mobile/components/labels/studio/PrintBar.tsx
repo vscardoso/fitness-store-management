@@ -65,7 +65,7 @@ export default function PrintBar({ p, summary }: Props) {
             PDF gerado e salvo{p.printedTotal > 0 ? `: ${p.printedTotal} etiqueta${p.printedTotal !== 1 ? 's' : ''}` : ''}
           </Text>
           <Text style={styles.sub}>
-            As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir”. Quando o iPhone mostrar o download, toque no arquivo: ele abre como PDF. Aí use Compartilhar e escolha o app da impressora.
+            As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir”. Depois abra o app Arquivos, entre em Downloads, segure o dedo no PDF, toque em Compartilhar e escolha o app da impressora (Label Expert).
           </Text>
           <PdfActions pdf={p.pdf} showSave saveFirst showOpen saveLabel="Baixar o PDF e imprimir" openLabel="Abrir o PDF" shareLabel="Compartilhar o arquivo PDF" />
           <View style={styles.row}>
