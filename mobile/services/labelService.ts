@@ -38,5 +38,5 @@ export async function printLabelsSaved(input: {
   const { data } = await api.post<{ url: string; filename: string }>('/labels/prints/pdf', body, {
     headers: { 'X-Loading-Message': 'Gerando etiquetas...' },
   });
-  return pdfFromUrl(data.url, data.filename, 'Etiquetas', 'file');
+  return pdfFromUrl(data.url, data.filename, 'Etiquetas');
 }
