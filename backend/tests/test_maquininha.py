@@ -99,3 +99,24 @@ async def test_gaveta_e_dinheiro_nao_entram_na_previsao_do_cartao(test_client, a
     await _pagar_com(test_client, h, p, vb, "pix", "50.00")
     c = await _cartao(test_client, h)
     assert c["balance"] == 300 and c["items"] == []
+
+
+async def test_ajuste_avulso_ja_repassado_nao_come_a_venda_de_hoje(test_client, async_session, test_user):
+    """Caso real: a loja corrigiu o saldo da maquininha para cima (ajuste avulso), repassou tudo ao banco e vendeu R$ 100 hoje no cartão.
+    A previsão mostra a venda de hoje inteira (cai amanhã) e nenhum "saldo anterior": o ajuste já foi repassado."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _zerar_implantacao(async_session, t_id)
+    d = (await _implantar(test_client, h)).json()                            # maquininha começa com R$ 300
+    maq = _conta(d, "Maquininha a receber")["id"]
+    r = await test_client.post(f"{API}/accounts/{maq}/adjust", headers=h, json={"target_balance": "634.36", "reason": "Entrada fiado"})
+    assert r.status_code == 200, r.text                                     # ajuste avulso de +334,36
+    r = await test_client.post(f"{API}/card-settlement", headers=h, json={"gross": "634.36", "received": "634.36"})
+    assert r.status_code == 200, r.text                                     # repasse de tudo (saldo de partida + ajuste)
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    assert _conta(d, "Maquininha a receber")["balance"] == 0
+    await _pagar_com(test_client, h, p, va, "credit_card", "100.00")        # venda de hoje no cartão
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    c = d["card_schedule"]
+    assert c["balance"] == 100 and c["previous"] == 0, c
+    assert len(c["items"]) == 1 and c["items"][0]["amount"] == 100
+    assert c["items"][0]["expected_on"] == card_expected_date(today_brazil()).isoformat()

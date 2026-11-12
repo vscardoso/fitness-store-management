@@ -722,7 +722,10 @@ class FinanceService:
                 auto_cut += cut
         # o que já saiu da linha (repasse, taxa, outras saídas) abate primeiro o saldo anterior e depois os dias mais antigos
         out = _q(b["transfers_out"] + b["expenses_paid"] + b["payables_paid"] + b["other_out"]) - auto_cut
-        previous = _q(card.opening_balance)
+        # o que NÃO veio de venda e entrou na linha (saldo de partida e ajustes avulsos, como "Corrigir saldo" para cima) também é
+        # "anterior": o repasse quita isso primeiro. Sem isso o repasse que já levou o ajuste ao banco comia o dia da venda de hoje
+        # (caso real: ajuste de R$ 334,36, repasse de tudo, venda de R$ 700 hoje: a tela dizia anterior 334,36 + quinta 365,64).
+        previous = _q(card.opening_balance) + max(D0, _q(b["other_in"]) + _q(b["closing_adjustments"]))
         cut = min(previous, out)
         previous -= cut
         out -= cut
