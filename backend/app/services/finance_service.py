@@ -363,6 +363,188 @@ class FinanceService:
             "total": float(_q(sum((Decimal(str(x["balance"])) for x in out), D0))),
         }
 
+    # ── extrato passo a passo ───────────────────────────────────────────────
+    async def _statement_details(self, tenant_id: int, day: date, accounts: List[FinancialAccount],
+                                 cash_acc: Optional[FinancialAccount]) -> Dict[str, Any]:
+        """Os movimentos de UM dia, um a um, para o extrato. Mesmos filtros de `flows`, só que sem somar."""
+        start, end = day_start_utc(day), day_start_utc(day + timedelta(days=1))
+        ids = [a.id for a in accounts]
+        det: Dict[str, Any] = {}
+        det["sale_counts"] = {getattr(m, "value", m): int(c) for m, c in (await self.db.execute(
+            select(Payment.payment_method, func.count(Payment.id)).join(Sale, Sale.id == Payment.sale_id).where(
+                Sale.tenant_id == tenant_id, Sale.status.in_(VALID_STATUS), Payment.created_at >= start, Payment.created_at < end,
+                Payment.status == "confirmed", Payment.is_active == True,  # noqa: E712
+            ).group_by(Payment.payment_method))).all()}
+        det["transfers"] = list((await self.db.execute(
+            select(AccountTransfer).where(
+                AccountTransfer.tenant_id == tenant_id, AccountTransfer.is_active == True,  # noqa: E712
+                or_(AccountTransfer.from_account_id.in_(ids), AccountTransfer.to_account_id.in_(ids)),
+                AccountTransfer.occurred_on == day).order_by(AccountTransfer.id))).scalars().all()) if ids else []
+        det["cash"] = list((await self.db.execute(
+            select(CashMovement).where(
+                CashMovement.tenant_id == tenant_id, CashMovement.is_active == True,  # noqa: E712
+                CashMovement.transfer_id.is_(None), CashMovement.created_at >= start, CashMovement.created_at < end,
+            ).order_by(CashMovement.id))).scalars().all())
+        det["payables"] = list((await self.db.execute(
+            select(Payable).where(
+                Payable.tenant_id == tenant_id, Payable.status == PAYABLE_PAID, Payable.is_active == True,  # noqa: E712
+                Payable.paid_account_id.is_not(None), Payable.paid_on == day).order_by(Payable.id))).scalars().all())
+        det["expenses"] = list((await self.db.execute(
+            select(Expense).where(
+                Expense.tenant_id == tenant_id, Expense.is_active == True, Expense.account_id.is_not(None),  # noqa: E712
+                Expense.payable_id.is_(None), Expense.expense_date == day).order_by(Expense.id))).scalars().all())
+        det["entries"] = list((await self.db.execute(
+            select(AccountEntry).where(
+                AccountEntry.tenant_id == tenant_id, AccountEntry.is_active == True,  # noqa: E712
+                AccountEntry.occurred_on == day).order_by(AccountEntry.id))).scalars().all())
+        entries = (await self.db.execute(
+            select(StockEntry.id, StockEntry.entry_code, StockEntry.supplier_name, StockEntry.paid_account_id, StockEntry.paid_cash_amount)
+            .where(StockEntry.tenant_id == tenant_id, StockEntry.is_active == True,  # noqa: E712
+                   StockEntry.paid_account_id.is_not(None), StockEntry.entry_date == day).order_by(StockEntry.id))).all()
+        purchases: List[Dict[str, Any]] = []
+        if entries:
+            goods = await lot_cost_service.goods_paid_by_entry(self.db, [e[0] for e in entries])
+            for entry_id, code, supplier, account_id, cash_part in entries:
+                total = goods.get(entry_id, D0)
+                from_cash = min(_q(cash_part or 0), total) if cash_acc is not None and (cash_part or 0) > 0 else D0
+                if from_cash > 0:
+                    purchases.append({"id": entry_id, "code": code, "supplier": supplier, "account_id": cash_acc.id, "amount": from_cash})
+                purchases.append({"id": entry_id, "code": code, "supplier": supplier, "account_id": account_id, "amount": total - from_cash})
+        det["purchases"] = purchases
+        return det
+
+    def _statement_lines(self, a: FinancialAccount, comp: Dict[str, Decimal], det: Dict[str, Any],
+                         names: Dict[int, str]) -> List[Dict[str, Any]]:
+        """As linhas do dia de UMA conta, em português claro. A soma das linhas é sempre `net(comp)`."""
+        lines: List[Dict[str, Any]] = []
+
+        def add(kind: str, label: str, amount: Decimal, count: Optional[int] = None, items: Optional[List[Dict[str, Any]]] = None):
+            amount = _q(amount)
+            if amount == 0:
+                return
+            items = items or []
+            if items:
+                rest = amount - sum((Decimal(str(i["amount"])) for i in items), D0)
+                if _q(rest) != 0:   # não deveria acontecer (os testes provam); se acontecer, a linha continua fechando com o saldo
+                    logger.warning("extrato: itens de %s não fecham com a linha (conta %s, diferença %s)", kind, a.id, rest)
+                    items = items + [{"label": "Outros movimentos não detalhados", "amount": float(_q(rest)), "ref": None}]
+            lines.append({"kind": kind, "label": label, "amount": float(amount), "count": count, "items": items})
+
+        key = "pix" if a.receives_pix else a.kind
+        methods = [m for m, k in METHOD_TO_KIND.items() if k == (KIND_CASH if a.kind == KIND_CASH else key)]
+        n_sales = sum(det["sale_counts"].get(m, 0) for m in methods)
+        sales_name = ("Vendas em dinheiro" if a.kind == KIND_CASH else "Vendas no cartão (a receber da maquininha)" if a.kind == KIND_CARD
+                      else "Vendas no PIX e transferência" if a.receives_pix else "Vendas")
+        add("sales", f"{sales_name} ({n_sales} venda{'s' if n_sales != 1 else ''})" if n_sales else sales_name, comp["sales"], n_sales or None)
+        add("receivables", "Fiado recebido de clientes", comp["receivables_received"])
+        add("refunds", "Devoluções e trocas pagas ao cliente", -comp["refunds"])
+        if a.kind == KIND_CASH:
+            items = [{"label": ("Colocado no caixa" if m.kind == KIND_SUPPLY else "Tirado do caixa") + f" ({m.reason})" + (f": {m.note}" if m.note else ""),
+                      "amount": float(_q(m.amount) if m.kind == KIND_SUPPLY else -_q(m.amount)), "ref": f"cash:{m.id}"} for m in det["cash"]]
+            add("cash_register", "Caixa da gaveta (colocado menos tirado)", comp["cash_register"], len(items) or None, items)
+        for t in det["transfers"]:
+            amt = _q(t.amount)
+            if t.to_account_id == a.id:
+                add("transfer_in", f"Transferência recebida de {names.get(t.from_account_id, 'outra conta')}" + (f" ({t.description})" if t.description else ""),
+                    amt, 1, [{"label": f"Transferência #{t.id}", "amount": float(amt), "ref": f"transfer:{t.id}"}])
+            if t.from_account_id == a.id:
+                add("transfer_out", f"Transferência enviada para {names.get(t.to_account_id, 'outra conta')}" + (f" ({t.description})" if t.description else ""),
+                    -amt, 1, [{"label": f"Transferência #{t.id}", "amount": float(-amt), "ref": f"transfer:{t.id}"}])
+        pay = [{"label": p.description, "amount": float(-_q(p.amount)), "ref": f"payable:{p.id}"} for p in det["payables"] if p.paid_account_id == a.id]
+        add("payables", "Contas pagas", -comp["payables_paid"], len(pay) or None, pay)
+        exp = [{"label": e.description or "Despesa", "amount": float(-_q(e.amount)), "ref": f"expense:{e.id}"} for e in det["expenses"] if e.account_id == a.id]
+        add("expenses", "Despesas pagas", -comp["expenses_paid"], len(exp) or None, exp)
+        pur = [{"label": f"{p['code']} · {p['supplier']}", "amount": float(-_q(p["amount"])), "ref": f"entry:{p['id']}"}
+               for p in det["purchases"] if p["account_id"] == a.id and _q(p["amount"]) != 0]
+        add("purchases", "Compras de mercadoria", -comp["purchases_paid"], len(pur) or None, pur)
+        mine = [e for e in det["entries"] if e.account_id == a.id]
+
+        def entry_items(kinds):
+            out = []
+            for e in mine:
+                if e.kind in kinds:
+                    sign = 1 if e.kind in ENTRY_IN_KINDS else -1
+                    who = f" · {e.person}" if e.person else ""
+                    out.append({"label": f"{ENTRY_KIND_LABELS.get(e.kind, e.kind)}{who}", "amount": float(sign * _q(e.amount)), "ref": f"entry-adjust:{e.id}"})
+            return out
+        oi, oo = entry_items(ENTRY_IN_KINDS), entry_items(ENTRY_OUT_KINDS)
+        add("other_in", "Outras entradas (sócio, empréstimo)", comp["other_in"], len(oi) or None, oi)
+        add("other_out", "Retiradas, empréstimos e fatura", -comp["other_out"], len(oo) or None, oo)
+        adj = [{"label": ENTRY_KIND_LABELS[ENTRY_CLOSING_ADJUSTMENT], "amount": float(_q(e.amount)), "ref": f"entry-adjust:{e.id}"}
+               for e in mine if e.kind == ENTRY_CLOSING_ADJUSTMENT]
+        add("closing", "Ajuste do fechamento (diferença do caixa)", comp["closing_adjustments"], len(adj) or None, adj)
+        return lines
+
+    async def statement(self, tenant_id: int, account_id: Any = None, before: Any = None, days: Any = 7) -> Dict[str, Any]:
+        """Extrato passo a passo: dia a dia, tudo que entrou e saiu de uma conta (ou de todas) e o saldo no começo e no fim do dia.
+
+        Usa as MESMAS funções do saldo (`balances_at` para o começo da janela e `flows` para cada dia), então o extrato nunca
+        discorda do saldo da conta. `reconciliation` compara o saldo de agora com o fechamento do dia mais recente."""
+        store = await self._store(tenant_id)
+        if store.finance_start_date is None:
+            return {"started": False, "start_date": None, "account": None, "days": [], "next_before": None, "reconciliation": None}
+        try:
+            n_days = int(days)
+        except Exception:
+            raise FinanceError("Dias: use um número de 1 a 14.")
+        if n_days < 1 or n_days > 14:
+            raise FinanceError("Dias: use um número de 1 a 14.")
+        acc = await self._account(tenant_id, as_int(account_id, "a conta")) if account_id not in (None, "", 0) else None
+        today = today_brazil()
+        tomorrow = today + timedelta(days=1)
+        before_d = min(parse_day(before, "Data", allow_future=True), tomorrow) if before not in (None, "") else tomorrow
+        start = store.finance_start_date
+        accounts = await self._accounts(tenant_id)
+        shown = [acc] if acc else accounts
+        head = {"started": True, "start_date": start.isoformat(),
+                "account": {"id": acc.id, "name": acc.name, "kind": acc.kind} if acc else None}
+        if before_d <= start or not shown:
+            return {**head, "days": [], "next_before": None, "reconciliation": None}
+        oldest = max(start, before_d - timedelta(days=n_days))
+        names = {a.id: a.name for a in accounts}
+        cash_acc = next((a for a in accounts if a.kind == KIND_CASH), None)
+        running = await self.balances_at(tenant_id, oldest)
+        out_days: List[Dict[str, Any]] = []
+        closing_latest = D0
+        d = oldest
+        while d < before_d:
+            f = await self.flows(tenant_id, d, d + timedelta(days=1))
+            by = f["by_account"]
+            comps = {a.id: by[a.id] for a in shown}
+            nets = {a.id: self.net(comps[a.id]) for a in shown}
+            opening = sum((_q(running.get(a.id, 0)) for a in shown), D0)
+            net = sum(nets.values(), D0)
+            closing = opening + net
+            for a in shown:
+                running[a.id] = _q(running.get(a.id, 0)) + nets[a.id]
+            closing_latest = closing
+            moved = any(any(v != 0 for v in comps[a.id].values()) for a in shown)
+            if moved:
+                det = await self._statement_details(tenant_id, d, accounts, cash_acc)
+                per_account = {a.id: self._statement_lines(a, comps[a.id], det, names) for a in shown}
+                if acc is not None:
+                    lines = per_account[acc.id]
+                else:
+                    lines = []
+                    for a in shown:
+                        if per_account[a.id]:
+                            items = [it for ln in per_account[a.id] for it in (ln["items"] or [{"label": ln["label"], "amount": ln["amount"], "ref": None}])]
+                            lines.append({"kind": "account", "label": a.name, "amount": float(nets[a.id]), "count": None, "items": items})
+                if lines:
+                    out_days.append({"date": d.isoformat(), "opening": float(opening), "closing": float(closing), "net": float(net), "lines": lines})
+            d += timedelta(days=1)
+        out_days.reverse()
+        bal = await self.balances(tenant_id)
+        balance_now = Decimal(str(next((x["balance"] for x in bal["accounts"] if x["id"] == acc.id), 0))) if acc else Decimal(str(bal["total"]))
+        reaches_today = before_d > today
+        return {
+            **head, "days": out_days, "next_before": oldest.isoformat() if oldest > start else None,
+            "reconciliation": {
+                "balance_now": float(_q(balance_now)), "closing_of_latest_day": float(_q(closing_latest)),
+                "difference": float(_q(balance_now - closing_latest)) if reaches_today else None,
+            },
+        }
+
     async def projection(self, tenant_id: int, balances: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """"E se eu receber todo o fiado?": dinheiro de hoje nas contas + fiado a receber - despesas e contas a pagar em aberto.
         Só suposição (nada é gravado): o fiado real entra nas contas quando a cliente paga."""

@@ -1,21 +1,25 @@
 /**
  * Fechamento do mês: a planilha da dona em forma de tela (docs/ESTUDO_FECHAMENTO_DO_MES.md).
- * começo do mês + entrou - saiu = deveria ter; ela digita o que tem (gaveta contada, extrato do banco) e vê a
- * diferença (quebra). "Fechar o mês" grava a fotografia; o saldo contado vira o começo do mês seguinte.
+ * A pergunta da tela é "o dinheiro bate?": o cartão do topo reúne o resultado (sobrou, faltou ou bateu), a contagem de cada
+ * conta e o botão de fechar, tudo no mesmo lugar. A conta completa (começo + entrou - saiu = deveria ter) e as outras
+ * informações do mês ficam em blocos recolhidos. "Fechar o mês" grava a fotografia; o saldo contado vira o começo do mês seguinte.
  * Tudo calculado pelo servidor (backend/app/services/month_closing_service.py).
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import PageHeader from '@/components/layout/PageHeader';
+import AppButton from '@/components/ui/AppButton';
+import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { Colors } from '@/constants/Colors';
+import FoldSection from '@/components/finance/FoldSection';
+import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole } from '@/utils/roles';
 import { formatCurrency } from '@/utils/format';
@@ -39,6 +43,7 @@ export default function ClosingScreen() {
   const queryClient = useQueryClient();
   const brand = useBrandingColors();
   const desktop = useDesktopContentStyle();
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const admin = isAdminRole(user?.role);
   const months = useQuery({ queryKey: ['finance-closings'], queryFn: listClosingMonths });
@@ -106,9 +111,7 @@ export default function ClosingScreen() {
           <View style={styles.card}>
             <Text style={styles.title}>Implante o financeiro primeiro</Text>
             <Text style={styles.note}>O fechamento parte do saldo de cada conta no dia da implantação.</Text>
-            <Button mode="contained" buttonColor={brand.primary} style={styles.left} onPress={() => router.push('/finance' as any)}>
-              Ir para Caixa e contas
-            </Button>
+            <AppButton variant="primary" size="md" label="Ir para Caixa e contas" onPress={() => router.push('/finance' as any)} style={styles.left} />
           </View>
         </ScrollView>
       </View>
@@ -122,177 +125,196 @@ export default function ClosingScreen() {
   const totalDiff = closed ? closed.difference : diffs?.total ?? 0;
   const dt = differenceText(totalDiff, formatCurrency);
   const needNotes = !closed && Math.abs(totalDiff) >= 50 && !notes.trim();
+  const dtColor = dt.kind === 'ok' ? Colors.light.success : dt.kind === 'short' ? Colors.light.error : Colors.light.warning;
+
+  // quanto foi contado no total (só para mostrar ao lado do que deveria ter)
+  const countedTotal = !data ? 0
+    : closed ? closed.counted_total
+    : Math.round((diffs?.per ?? []).reduce((s, p) => s + (p.value ?? 0), 0) * 100) / 100;
+
+  const monthBar = (
+    <View style={styles.monthBar}>
+      {/* a lista vem do mais novo para o mais antigo: "mês anterior" é o próximo item */}
+      <TouchableOpacity onPress={() => go(1)} disabled={idx >= list.length - 1} hitSlop={10} accessibilityRole="button" accessibilityLabel="Mês anterior">
+        <Ionicons name="chevron-back" size={24} color={idx >= list.length - 1 ? Colors.light.border : brand.primary} />
+      </TouchableOpacity>
+      <View style={{ alignItems: 'center', flex: 1, gap: 4 }}>
+        <Text style={styles.monthTitle}>{data?.label ?? ''}</Text>
+        <Badge size="sm" variant={closed ? 'success' : data?.month_finished ? 'warning' : 'info'}
+          label={closed ? 'Fechado' : data?.month_finished ? 'Aberto' : 'Mês em andamento'} />
+      </View>
+      <TouchableOpacity onPress={() => go(-1)} disabled={idx <= 0} hitSlop={10} accessibilityRole="button" accessibilityLabel="Próximo mês">
+        <Ionicons name="chevron-forward" size={24} color={idx <= 0 ? Colors.light.border : brand.primary} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Cartão central: resultado, contagem de cada conta, observação e a ação de fechar
+  const hero = !!data && (
+    <View style={[styles.hero, { borderColor: dtColor }]} testID="closing-hero">
+      <Text style={styles.eyebrow}>O DINHEIRO BATE?</Text>
+      <Text style={[styles.diff, { color: dtColor }]}>{dt.text}</Text>
+      <Text style={styles.note}>
+        {`Deveria ter ${formatCurrency(data.expected_total)} · ${closed ? 'contado' : 'você contou'} ${formatCurrency(countedTotal)}`}
+      </Text>
+
+      <Text style={styles.sub}>{closed ? 'O que foi contado no fechamento' : 'Conte o dinheiro'}</Text>
+      {!closed && <Text style={styles.small}>Conte a gaveta e olhe o extrato de cada banco. Corrija só o que for diferente.</Text>}
+      {data.accounts.map((a) => {
+        const p = diffs?.per.find((x) => x.id === a.id);
+        const d = closed ? a.difference ?? 0 : p?.diff ?? 0;
+        return (
+          <View key={a.id} style={styles.countRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{a.name}</Text>
+              <Text style={styles.small}>Deveria ter {formatCurrency(a.expected)}</Text>
+              {d !== 0 && <Text style={[styles.small, { color: d < 0 ? Colors.light.error : Colors.light.success }]}>{differenceText(d, formatCurrency).text}</Text>}
+            </View>
+            {closed ? (
+              <Text style={styles.rowValue}>{formatCurrency(a.counted ?? a.expected)}</Text>
+            ) : (
+              <TextInput mode="outlined" dense style={styles.input} value={counted[a.id] ?? ''} keyboardType="numbers-and-punctuation"
+                left={<TextInput.Affix text="R$" />} accessibilityLabel={`Quanto tem em ${a.name}`}
+                onChangeText={(t) => setCounted({ ...counted, [a.id]: signedMoneyInput(t, a.kind !== 'cash') })}
+                activeOutlineColor={brand.primary} />
+            )}
+          </View>
+        );
+      })}
+
+      {closed ? (
+        <>
+          {!!closed.notes && <Text style={styles.note}>Observação: {closed.notes}</Text>}
+          <Text style={styles.small}>
+            Fechado {closed.closed_by_name ? `por ${closed.closed_by_name} ` : ''}em {new Date(closed.closed_at).toLocaleString('pt-BR')}.
+          </Text>
+          {admin && closed.is_latest && (
+            <AppButton variant="outlined" size="md" label="Reabrir o mês" onPress={() => setConfirm('reopen')} style={styles.left} />
+          )}
+        </>
+      ) : (
+        <>
+          <TextInput mode="outlined" label={Math.abs(totalDiff) >= 50 ? 'Observação (obrigatória)' : 'Observação (opcional)'}
+            value={notes} onChangeText={setNotes} multiline activeOutlineColor={brand.primary}
+            placeholder="Ex.: troco que faltou, compra paga em dinheiro sem lançar" />
+          {!!formError && <Text style={styles.error}>{formError}</Text>}
+          {data.month_finished ? (
+            <AppButton variant="primary" size="lg" fullWidth label="Fechar o mês" disabled={!diffs?.ok || needNotes}
+              onPress={() => { setFormError(''); setConfirm('close'); }} />
+          ) : (
+            <Text style={styles.small}>O mês ainda não terminou. Dá para conferir agora e fechar no último dia.</Text>
+          )}
+        </>
+      )}
+    </View>
+  );
+
+  const warnings = !!data && !!closed && (
+    <>
+      {!!closed.expenses_without_account_changed && (
+        <View style={[styles.card, styles.warn]}>
+          <Text style={styles.warnText}>Uma despesa sem conta foi lançada depois do fechamento deste mês.</Text>
+        </View>
+      )}
+      {closed.changed_since_close !== 0 && (
+        <View style={[styles.card, styles.warn]}>
+          <Text style={styles.warnText}>
+            Depois do fechamento entrou lançamento com data deste mês: o que deveria ter mudou {formatCurrency(closed.changed_since_close)}.
+            {admin && closed.is_latest ? ' Para corrigir, reabra o mês e feche de novo.' : ''}
+          </Text>
+        </View>
+      )}
+    </>
+  );
+
+  // Conta completa e outras informações do mês: recolhidas
+  const details = !!data && (
+    <>
+      <FoldSection title="Como chegamos ao que deveria ter" summary={formatCurrency(data.expected_total)} testID="closing-how">
+        <Block title="Começo do mês" total={data.start_total} note={data.partial_start ? 'Começa no dia da implantação.' : undefined}>
+          {data.accounts.map((a) => <Row key={a.id} label={a.name} value={a.start} />)}
+        </Block>
+        <Block title="Entrou" total={data.entered.total} positive>
+          {data.entered.sales.map((s) => <Row key={s.method} label={`Vendas em ${s.label.toLowerCase()}`} value={s.amount} />)}
+          <Row label="Fiado recebido" value={data.entered.receivables_received} />
+          {data.entered.other.map((o) => <Row key={o.kind} label={o.label} value={o.amount} />)}
+          <Row label="Colocado no caixa" value={data.entered.cash_register_in} />
+          {!!data.entered.sales_on_account && (
+            <Text style={styles.small}>Vendido no fiado no mês: {formatCurrency(data.entered.sales_on_account)} (entra quando ela pagar).</Text>
+          )}
+        </Block>
+        <Block title="Saiu" total={-data.left.total}>
+          {data.left.expenses.map((e) => <Row key={e.label} label={`Despesas: ${e.label}`} value={-e.amount} />)}
+          <Row label="Compras e dívidas pagas" value={-data.left.purchases_and_debts} />
+          <Row label="Devoluções em dinheiro" value={-data.left.refunds} />
+          {data.left.other.map((o) => <Row key={o.kind} label={o.label} value={-o.amount} />)}
+          <Row label="Tirado do caixa" value={-data.left.cash_register_out} />
+          {!!data.left.expenses_without_account.count && (
+            <Text style={styles.small}>
+              {data.left.expenses_without_account.count} despesa(s) sem dizer de onde saiu o dinheiro ({formatCurrency(data.left.expenses_without_account.amount)}):
+              não entram aqui. Se saíram de uma conta, edite a despesa e escolha “Pago com”.
+            </Text>
+          )}
+        </Block>
+        <Row label="Deveria ter (começo + entrou - saiu)" value={data.expected_total} plain bold />
+        {!!data.transfers_between_accounts && (
+          <Text style={styles.small}>Transferências entre as contas no mês: {formatCurrency(data.transfers_between_accounts)} (não mudam o total).</Text>
+        )}
+      </FoldSection>
+
+      <Text style={styles.eyebrow}>OUTRAS CONTAS</Text>
+      {idx === 0 && (
+        <FoldSection title="Total geral de hoje" summary={formatCurrency(data.expected_total + data.to_receive.fiado_open + data.to_receive.loans - data.to_pay.payables_open - data.to_pay.loans)}>
+          <Row label="Dinheiro nas contas (gaveta, bancos e maquininha)" value={data.expected_total} plain />
+          <Row label="Fiado e empréstimos a receber" value={data.to_receive.fiado_open + data.to_receive.loans} plain />
+          <Row label="Despesas e empréstimos a pagar" value={-(data.to_pay.payables_open + data.to_pay.loans)} plain />
+          <Row label="Sobraria se tudo fosse recebido e pago"
+            value={data.expected_total + data.to_receive.fiado_open + data.to_receive.loans - data.to_pay.payables_open - data.to_pay.loans} plain bold />
+          <Text style={styles.small}>
+            O estoque (R$ {data.stock.cost_value.toFixed(2).replace('.', ',')} a preço de custo) não entra: não é dinheiro. Isto é só uma conta de hoje, nada é lançado.
+          </Text>
+        </FoldSection>
+      )}
+      <FoldSection title="Ainda vai entrar e sair" summary={formatCurrency(data.to_receive.fiado_open + data.to_receive.loans - data.to_pay.payables_open - data.to_pay.loans)}>
+        <Row label="Fiado a receber" value={data.to_receive.fiado_open} plain />
+        {!!data.to_receive.fiado_overdue && <Row label="  ...já vencido" value={data.to_receive.fiado_overdue} plain />}
+        <Row label="Empréstimos a receber" value={data.to_receive.loans} plain />
+        <Row label="Despesas a pagar" value={-data.to_pay.payables_open} plain />
+        <Row label="Empréstimos que a loja deve" value={-data.to_pay.loans} plain />
+      </FoldSection>
+      <FoldSection title="Resultado do mês" summary={`lucro ${formatCurrency(data.result.profit)}`} summaryColor={data.result.profit < 0 ? Colors.light.error : undefined}>
+        <Row label={`Vendas (${data.result.sales_count})`} value={data.result.revenue} plain />
+        <Row label="Custo das peças vendidas" value={-data.result.cost} plain />
+        <Row label="Despesas" value={-data.result.expenses} plain />
+        <Row label="Sobrou (lucro)" value={data.result.profit} bold plain />
+        <Text style={styles.small}>Retirada de sócio, empréstimo e fatura do cartão não entram aqui.</Text>
+      </FoldSection>
+      <FoldSection title="Estoque hoje" summary={`${data.stock.pieces} peças`}>
+        <Row label="Peças" value={data.stock.pieces} count plain />
+        <Row label="A preço de venda" value={data.stock.sale_value} plain />
+        <Row label="A preço de custo" value={data.stock.cost_value} plain />
+      </FoldSection>
+    </>
+  );
 
   return (
     <View style={styles.container}>
       <PageHeader title="Fechamento do mês" subtitle="O dinheiro bate?" showBackButton backFallback="/finance" />
       <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}>
-        <View style={styles.monthBar}>
-          {/* a lista vem do mais novo para o mais antigo: "mês anterior" é o próximo item */}
-          <TouchableOpacity onPress={() => go(1)} disabled={idx >= list.length - 1} hitSlop={10} accessibilityRole="button" accessibilityLabel="Mês anterior">
-            <Ionicons name="chevron-back" size={24} color={idx >= list.length - 1 ? Colors.light.border : brand.primary} />
-          </TouchableOpacity>
-          <View style={{ alignItems: 'center', flex: 1 }}>
-            <Text style={styles.monthTitle}>{data?.label ?? ''}</Text>
-            <Text style={[styles.badge, { color: closed ? Colors.light.success : Colors.light.warning }]}>
-              {closed ? 'Fechado' : data?.month_finished ? 'Aberto' : 'Mês em andamento'}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={() => go(-1)} disabled={idx <= 0} hitSlop={10} accessibilityRole="button" accessibilityLabel="Próximo mês">
-            <Ionicons name="chevron-forward" size={24} color={idx <= 0 ? Colors.light.border : brand.primary} />
-          </TouchableOpacity>
-        </View>
-
+        {monthBar}
         {!!q.error && <Text style={styles.error}>{parseApiError(q.error)}</Text>}
-        {!!data && (
+        {!!data && (isDesktop ? (
+          <View style={styles.columns}>
+            <View style={styles.col}>{warnings}{hero}</View>
+            <View style={styles.col}>{details}</View>
+          </View>
+        ) : (
           <>
-            {!!closed && !!closed.expenses_without_account_changed && (
-              <View style={[styles.card, styles.warn]}>
-                <Text style={styles.warnText}>Uma despesa sem conta foi lançada depois do fechamento deste mês.</Text>
-              </View>
-            )}
-            {!!closed && closed.changed_since_close !== 0 && (
-              <View style={[styles.card, styles.warn]}>
-                <Text style={styles.warnText}>
-                  Depois do fechamento entrou lançamento com data deste mês: o que deveria ter mudou {formatCurrency(closed.changed_since_close)}.
-                  {admin && closed.is_latest ? ' Para corrigir, reabra o mês e feche de novo.' : ''}
-                </Text>
-              </View>
-            )}
-
-            {idx === 0 && (
-              <View style={styles.card}>
-                <Text style={styles.title}>Total geral de hoje</Text>
-                <Row label="Dinheiro nas contas (gaveta, bancos e maquininha)" value={data.expected_total} plain />
-                <Row label="Fiado e empréstimos a receber" value={data.to_receive.fiado_open + data.to_receive.loans} plain />
-                <Row label="Despesas e empréstimos a pagar" value={-(data.to_pay.payables_open + data.to_pay.loans)} plain />
-                <Row label="Sobraria se tudo fosse recebido e pago"
-                  value={data.expected_total + data.to_receive.fiado_open + data.to_receive.loans - data.to_pay.payables_open - data.to_pay.loans} plain bold />
-                <Text style={styles.small}>
-                  O estoque (R$ {data.stock.cost_value.toFixed(2).replace('.', ',')} a preço de custo) não entra: não é dinheiro. Isto é só uma conta de hoje, nada é lançado.
-                </Text>
-              </View>
-            )}
-
-            <Section title="1. Começo do mês" total={data.start_total}
-              note={data.partial_start ? 'Começa no dia da implantação.' : undefined}>
-              {data.accounts.map((a) => <Row key={a.id} label={a.name} value={a.start} />)}
-            </Section>
-
-            <Section title="2. Entrou" total={data.entered.total} positive>
-              {data.entered.sales.map((s) => <Row key={s.method} label={`Vendas em ${s.label.toLowerCase()}`} value={s.amount} />)}
-              <Row label="Fiado recebido" value={data.entered.receivables_received} />
-              {data.entered.other.map((o) => <Row key={o.kind} label={o.label} value={o.amount} />)}
-              <Row label="Colocado no caixa" value={data.entered.cash_register_in} />
-              {!!data.entered.sales_on_account && (
-                <Text style={styles.small}>Vendido no fiado no mês: {formatCurrency(data.entered.sales_on_account)} (entra quando ela pagar).</Text>
-              )}
-            </Section>
-
-            <Section title="3. Saiu" total={-data.left.total}>
-              {data.left.expenses.map((e) => <Row key={e.label} label={`Despesas: ${e.label}`} value={-e.amount} />)}
-              <Row label="Compras e dívidas pagas" value={-data.left.purchases_and_debts} />
-              <Row label="Devoluções em dinheiro" value={-data.left.refunds} />
-              {data.left.other.map((o) => <Row key={o.kind} label={o.label} value={-o.amount} />)}
-              <Row label="Tirado do caixa" value={-data.left.cash_register_out} />
-              {!!data.left.expenses_without_account.count && (
-                <Text style={styles.small}>
-                  {data.left.expenses_without_account.count} despesa(s) sem dizer de onde saiu o dinheiro ({formatCurrency(data.left.expenses_without_account.amount)}):
-                  não entram aqui. Se saíram de uma conta, edite a despesa e escolha “Pago com”.
-                </Text>
-              )}
-            </Section>
-
-            <View style={styles.card}>
-              <Text style={styles.title}>4. Deveria ter</Text>
-              <Text style={styles.total}>{formatCurrency(data.expected_total)}</Text>
-              {!!data.transfers_between_accounts && (
-                <Text style={styles.small}>Transferências entre as contas no mês: {formatCurrency(data.transfers_between_accounts)} (não mudam o total).</Text>
-              )}
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.title}>5. Quanto tem</Text>
-              <Text style={styles.note}>
-                {closed ? 'O que foi contado no fechamento.' : 'Conte a gaveta e olhe o extrato de cada banco. Corrija só o que for diferente.'}
-              </Text>
-              {data.accounts.map((a) => {
-                const p = diffs?.per.find((x) => x.id === a.id);
-                const d = closed ? a.difference ?? 0 : p?.diff ?? 0;
-                return (
-                  <View key={a.id} style={styles.countRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowLabel}>{a.name}</Text>
-                      <Text style={styles.small}>Deveria ter {formatCurrency(a.expected)}</Text>
-                      {d !== 0 && <Text style={[styles.small, { color: d < 0 ? Colors.light.error : Colors.light.success }]}>{differenceText(d, formatCurrency).text}</Text>}
-                    </View>
-                    {closed ? (
-                      <Text style={styles.rowValue}>{formatCurrency(a.counted ?? a.expected)}</Text>
-                    ) : (
-                      <TextInput mode="outlined" dense style={styles.input} value={counted[a.id] ?? ''} keyboardType="numbers-and-punctuation"
-                        left={<TextInput.Affix text="R$" />} accessibilityLabel={`Quanto tem em ${a.name}`}
-                        onChangeText={(t) => setCounted({ ...counted, [a.id]: signedMoneyInput(t, a.kind !== 'cash') })}
-                        activeOutlineColor={brand.primary} />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-
-            <View style={[styles.card, { borderColor: dt.kind === 'ok' ? Colors.light.success : dt.kind === 'short' ? Colors.light.error : Colors.light.warning }]}>
-              <Text style={styles.title}>6. Diferença</Text>
-              <Text style={[styles.total, { color: dt.kind === 'ok' ? Colors.light.success : dt.kind === 'short' ? Colors.light.error : Colors.light.warning }]}>{dt.text}</Text>
-              {closed ? (
-                <>
-                  {!!closed.notes && <Text style={styles.note}>Observação: {closed.notes}</Text>}
-                  <Text style={styles.small}>
-                    Fechado {closed.closed_by_name ? `por ${closed.closed_by_name} ` : ''}em {new Date(closed.closed_at).toLocaleString('pt-BR')}.
-                  </Text>
-                  {admin && closed.is_latest && (
-                    <Button mode="outlined" style={styles.left} onPress={() => setConfirm('reopen')}>Reabrir o mês</Button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <TextInput mode="outlined" label={Math.abs(totalDiff) >= 50 ? 'Observação (obrigatória)' : 'Observação (opcional)'}
-                    value={notes} onChangeText={setNotes} multiline activeOutlineColor={brand.primary}
-                    placeholder="Ex.: troco que faltou, compra paga em dinheiro sem lançar" />
-                  {!!formError && <Text style={styles.error}>{formError}</Text>}
-                  {data.month_finished ? (
-                    <Button mode="contained" buttonColor={brand.primary} style={styles.left} disabled={!diffs?.ok || needNotes}
-                      onPress={() => { setFormError(''); setConfirm('close'); }}>
-                      Fechar o mês
-                    </Button>
-                  ) : (
-                    <Text style={styles.small}>O mês ainda não terminou. Dá para conferir agora e fechar no último dia.</Text>
-                  )}
-                </>
-              )}
-            </View>
-
-            <Section title="Ainda vai entrar e sair">
-              <Row label="Fiado a receber" value={data.to_receive.fiado_open} plain />
-              {!!data.to_receive.fiado_overdue && <Row label="  ...já vencido" value={data.to_receive.fiado_overdue} plain />}
-              <Row label="Empréstimos a receber" value={data.to_receive.loans} plain />
-              <Row label="Despesas a pagar" value={-data.to_pay.payables_open} plain />
-              <Row label="Empréstimos que a loja deve" value={-data.to_pay.loans} plain />
-            </Section>
-
-            <Section title="Resultado do mês">
-              <Row label={`Vendas (${data.result.sales_count})`} value={data.result.revenue} plain />
-              <Row label="Custo das peças vendidas" value={-data.result.cost} plain />
-              <Row label="Despesas" value={-data.result.expenses} plain />
-              <Row label="Sobrou (lucro)" value={data.result.profit} bold plain />
-              <Text style={styles.small}>Retirada de sócio, empréstimo e fatura do cartão não entram aqui.</Text>
-            </Section>
-
-            <Section title="Estoque hoje">
-              <Row label="Peças" value={data.stock.pieces} count plain />
-              <Row label="A preço de venda" value={data.stock.sale_value} plain />
-              <Row label="A preço de custo" value={data.stock.cost_value} plain />
-            </Section>
+            {warnings}
+            {hero}
+            {details}
           </>
-        )}
+        ))}
       </ScrollView>
 
       <ConfirmDialog visible={confirm === 'close'} title={`Fechar ${data?.label ?? ''}?`} type="warning" confirmText="Fechar o mês" cancelText="Voltar"
@@ -305,15 +327,15 @@ export default function ClosingScreen() {
   );
 }
 
-function Section({ title, total, positive, note, children }: {
+function Block({ title, total, positive, note, children }: {
   title: string; total?: number; positive?: boolean; note?: string; children: React.ReactNode;
 }) {
   return (
-    <View style={styles.card}>
-      <View style={styles.sectionHead}>
-        <Text style={[styles.title, { flex: 1 }]}>{title}</Text>
+    <View style={styles.block}>
+      <View style={styles.blockHead}>
+        <Text style={[styles.sub, { flex: 1 }]}>{title}</Text>
         {total !== undefined && (
-          <Text style={[styles.sectionTotal, total < 0 && { color: Colors.light.error }, positive && total > 0 && { color: Colors.light.success }]}>
+          <Text style={[styles.blockTotal, total < 0 && { color: Colors.light.error }, positive && total > 0 && { color: Colors.light.success }]}>
             {formatCurrency(total)}
           </Text>
         )}
@@ -328,8 +350,8 @@ function Row({ label, value, plain, bold, count }: { label: string; value: numbe
   if (!value && !plain) return null;
   return (
     <View style={styles.row}>
-      <Text style={[styles.rowLabel, bold && { fontWeight: '800' }]} numberOfLines={2}>{label}</Text>
-      <Text style={[styles.rowValue, value < 0 && { color: Colors.light.error }, bold && { fontWeight: '800' }]}>
+      <Text style={[styles.rowLabel, bold && { fontWeight: theme.fontWeight.extrabold }]} numberOfLines={2}>{label}</Text>
+      <Text style={[styles.rowValue, value < 0 && { color: Colors.light.error }, bold && { fontWeight: theme.fontWeight.extrabold }]}>
         {count ? String(value) : formatCurrency(value)}
       </Text>
     </View>
@@ -338,26 +360,30 @@ function Row({ label, value, plain, bold, count }: { label: string; value: numbe
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.light.background },
   content: { padding: 16, paddingBottom: 48, gap: 12 },
+  columns: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  col: { flex: 1, gap: 12, minWidth: 0 },
   card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 8 },
+  hero: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 2, gap: 8 },
+  eyebrow: { fontSize: 11, fontWeight: theme.fontWeight.extrabold, letterSpacing: 1, color: Colors.light.textSecondary },
+  diff: { fontSize: 32, fontWeight: theme.fontWeight.extrabold },
   warn: { borderColor: Colors.light.warning, backgroundColor: Colors.light.warningLight },
-  warnText: { fontSize: 13, lineHeight: 19, color: Colors.light.text, fontWeight: '600' },
-  title: { fontSize: 16, fontWeight: '800', color: Colors.light.text },
+  warnText: { fontSize: 13, lineHeight: 19, color: Colors.light.text, fontWeight: theme.fontWeight.semibold },
+  title: { fontSize: 16, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  sub: { fontSize: 14, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text, marginTop: 4 },
   note: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary },
   small: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary },
-  total: { fontSize: 26, fontWeight: '800', color: Colors.light.text },
   left: { alignSelf: 'flex-start' },
   monthBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.light.card, borderRadius: 16, padding: 12,
     borderWidth: 1, borderColor: Colors.light.border },
-  monthTitle: { fontSize: 17, fontWeight: '800', color: Colors.light.text },
-  badge: { fontSize: 12, fontWeight: '800' },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTotal: { fontSize: 16, fontWeight: '800', color: Colors.light.text },
+  monthTitle: { fontSize: 17, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  block: { gap: 6, paddingBottom: 6 },
+  blockHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  blockTotal: { fontSize: 14, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   rowLabel: { flex: 1, fontSize: 14, color: Colors.light.text },
-  rowValue: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
+  rowValue: { fontSize: 14, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   input: { width: 150, backgroundColor: Colors.light.card },
-  error: { color: Colors.light.error, fontWeight: '600' },
+  error: { color: Colors.light.error, fontWeight: theme.fontWeight.semibold },
 });

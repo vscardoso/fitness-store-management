@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
 import BottomSheet from '@/components/ui/BottomSheet';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Line, ClosedSummary, diffColor } from '@/components/cash/CashParts';
@@ -28,7 +28,7 @@ import {
   type CashSession,
   type MovementKind,
 } from '@/services/cashService';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
 import { getFinanceOverview } from '@/services/financeService';
 import { goBackOr } from '@/utils/navBack';
 
@@ -58,6 +58,7 @@ const METHOD_LABEL: Record<string, string> = {
 
 export default function CashScreen() {
   const desktopContent = useDesktopContentStyle();
+  const isDesktop = useIsDesktop();
   const router = useRouter();
   const brand = useBrandingColors();
   const queryClient = useQueryClient();
@@ -139,11 +140,90 @@ export default function CashScreen() {
   const liveDiff = session && countedValue !== null ? differenceText(countedValue - session.expected_amount, formatCurrency) : null;
   const others = useMemo(() => Object.entries(session?.other_methods ?? {}), [session]);
 
+  const sheetOpen = moveKind !== null || closing;
+  const subtitle = session
+    ? `Aberto desde ${formatDateTime(session.opened_at)}${session.opened_by ? ` por ${session.opened_by}` : ''}`
+    : 'Fechado';
+
+  // Com o caixa aberto: o que deve ter na gaveta e as ações do turno (esquerda) e de onde veio o valor (direita)
+  const hero = session && (
+    <View style={styles.card} testID="cash-expected">
+      <Text style={styles.eyebrow}>DEVE TER NA GAVETA AGORA</Text>
+      <Text style={styles.big}>{formatCurrency(session.expected_amount)}</Text>
+      <Text style={styles.small}>{session.sales_count} venda{session.sales_count === 1 ? '' : 's'} no turno</Text>
+      <View style={styles.actions}>
+        <AppButton label="Colocar dinheiro" variant="secondary" icon="add" onPress={() => startMove('supply')} style={styles.flex} />
+        <AppButton label="Retirar dinheiro" variant="secondary" icon="remove" onPress={() => startMove('withdrawal')} style={styles.flex} />
+      </View>
+      <AppButton
+        label="Fechar caixa"
+        variant="outlined"
+        icon="lock-closed-outline"
+        onPress={() => {
+          setClosing(true);
+          setCounted('');
+          setCloseNote('');
+          setError('');
+        }}
+        fullWidth
+        style={styles.btn}
+      />
+    </View>
+  );
+  const details = session && (
+    <>
+      <View style={styles.card}>
+        <Text style={styles.eyebrow}>DE ONDE VEM ESTE VALOR</Text>
+        <Line label="Dinheiro ao abrir" value={session.opening_amount} />
+        <Line label="Vendas em dinheiro" value={session.cash_sales} plus />
+        <Line label="Devoluções pagas em dinheiro" value={session.cash_refunds} minus />
+        <Line label="Dinheiro colocado" value={session.supplies} plus />
+        <Line label="Dinheiro retirado" value={session.withdrawals} minus />
+      </View>
+
+      {others.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.eyebrow}>RECEBIDO DE OUTRAS FORMAS</Text>
+          <Text style={styles.small}>Não vai para a gaveta: use para conferir com a maquininha e o banco.</Text>
+          {others.map(([k, v]) => (
+            <View key={k} style={styles.line}>
+              <Text style={styles.lineLabel}>
+                {METHOD_LABEL[k] ?? k} ({v.sales})
+              </Text>
+              <Text style={styles.lineValue}>{formatCurrency(v.amount)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {session.movements.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.eyebrow}>DINHEIRO COLOCADO E RETIRADO</Text>
+          {session.movements.map((m) => (
+            <View key={m.id} style={styles.line}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lineLabel}>{m.reason_label}</Text>
+                <Text style={styles.small}>
+                  {formatDateTime(m.created_at)}
+                  {m.created_by ? ` · ${m.created_by}` : ''}
+                  {m.note ? ` · ${m.note}` : ''}
+                </Text>
+              </View>
+              <Text style={[styles.lineValue, { color: m.kind === 'supply' ? Colors.light.success : Colors.light.error }]}>
+                {m.kind === 'supply' ? '+' : '-'} {formatCurrency(m.amount)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </>
+  );
+
   return (
     <View style={styles.container}>
       <PageHeader
         title="Caixa da gaveta"
-        subtitle={session ? 'Aberto' : 'Fechado'}
+        subtitle={subtitle}
         showBackButton
         onBack={() => goBackOr(router, manager ? '/finance' : '/(tabs)/more')}
         rightActions={manager ? [{ icon: 'time-outline', onPress: () => router.push('/cash/history' as any) }] : undefined}
@@ -153,7 +233,7 @@ export default function CashScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >
-        {!!error && <Text style={styles.error}>{error}</Text>}
+        {!!error && !sheetOpen && <Text style={styles.error}>{error}</Text>}
 
         {closed && !session && (
           <View style={styles.card}>
@@ -164,13 +244,10 @@ export default function CashScreen() {
         {!isLoading && !session && (
           <View style={styles.card}>
             <Text style={styles.title}>Abrir o caixa</Text>
-            <Text style={styles.note}>
-              Conte o dinheiro que está na gaveta agora e informe abaixo. É o saldo de partida: o app soma as vendas em dinheiro
-              a partir daqui e diz quanto deve ter quando você fechar.
-            </Text>
+            <Text style={styles.note}>Conte o dinheiro da gaveta e informe. Dali em diante o app soma as vendas em dinheiro.</Text>
             {data?.last_closed && (
-              <Text style={styles.note}>
-                O último caixa fechou com {formatCurrency(data.last_closed.counted_amount)} na gaveta ({formatDateTime(data.last_closed.closed_at)}).
+              <Text style={styles.small}>
+                Último caixa fechou com {formatCurrency(data.last_closed.counted_amount)} ({formatDateTime(data.last_closed.closed_at)}).
               </Text>
             )}
             <TextInput
@@ -183,13 +260,6 @@ export default function CashScreen() {
               style={styles.input}
             />
             <TextInput mode="outlined" label="Observação (opcional)" value={openNote} onChangeText={setOpenNote} style={styles.input} />
-            {manager && finance && !finance.started && (
-              <TouchableOpacity onPress={() => router.push('/finance' as any)} accessibilityRole="link" style={styles.financeLink}>
-                <Text style={[styles.note, { color: brand.primary, fontWeight: '700' }]}>
-                  A loja já funcionava? Lance também os bancos, a maquininha e as contas a pagar em Caixa e contas.
-                </Text>
-              </TouchableOpacity>
-            )}
             <AppButton
               label="Abrir caixa"
               onPress={() => open.mutate()}
@@ -198,81 +268,27 @@ export default function CashScreen() {
               fullWidth
               style={styles.btn}
             />
+            {manager && finance && !finance.started && (
+              <TouchableOpacity onPress={() => router.push('/finance' as any)} accessibilityRole="link" style={styles.financeLink}>
+                <Text style={[styles.small, { color: brand.primary, fontWeight: theme.fontWeight.bold }]}>
+                  A loja já funcionava? Lance também os bancos, a maquininha e as contas a pagar em Caixa e contas.
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
-        {session && (
+        {session && (isDesktop ? (
+          <View style={styles.columns}>
+            <View style={styles.col}>{hero}</View>
+            <View style={styles.col}>{details}</View>
+          </View>
+        ) : (
           <>
-            <View style={styles.card}>
-              <Text style={styles.small}>
-                Aberto {formatDateTime(session.opened_at)}
-                {session.opened_by ? ` por ${session.opened_by}` : ''}
-              </Text>
-              <Text style={styles.big}>{formatCurrency(session.expected_amount)}</Text>
-              <Text style={styles.note}>
-                Dinheiro que deve ter na gaveta agora · {session.sales_count} venda{session.sales_count === 1 ? '' : 's'} no turno
-              </Text>
-
-              <Line label="Dinheiro ao abrir" value={session.opening_amount} />
-              <Line label="Vendas em dinheiro" value={session.cash_sales} plus />
-              <Line label="Devoluções pagas em dinheiro" value={session.cash_refunds} minus />
-              <Line label="Dinheiro colocado" value={session.supplies} plus />
-              <Line label="Dinheiro retirado" value={session.withdrawals} minus />
-
-              <View style={styles.actions}>
-                <AppButton label="Colocar dinheiro" variant="secondary" icon="add" onPress={() => startMove('supply')} style={styles.flex} />
-                <AppButton label="Retirar dinheiro" variant="secondary" icon="remove" onPress={() => startMove('withdrawal')} style={styles.flex} />
-              </View>
-              <AppButton
-                label="Fechar caixa"
-                onPress={() => {
-                  setClosing(true);
-                  setCounted('');
-                  setCloseNote('');
-                  setError('');
-                }}
-                fullWidth
-                style={styles.btn}
-              />
-            </View>
-
-            {others.length > 0 && (
-              <View style={styles.card}>
-                <Text style={styles.title}>Recebido de outras formas</Text>
-                <Text style={styles.note}>Não vai para a gaveta. Use para conferir com a maquininha e o banco.</Text>
-                {others.map(([k, v]) => (
-                  <View key={k} style={styles.line}>
-                    <Text style={styles.lineLabel}>
-                      {METHOD_LABEL[k] ?? k} ({v.sales})
-                    </Text>
-                    <Text style={styles.lineValue}>{formatCurrency(v.amount)}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {session.movements.length > 0 && (
-              <View style={styles.card}>
-                <Text style={styles.title}>Dinheiro colocado e retirado</Text>
-                {session.movements.map((m) => (
-                  <View key={m.id} style={styles.line}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.lineLabel}>{m.reason_label}</Text>
-                      <Text style={styles.small}>
-                        {formatDateTime(m.created_at)}
-                        {m.created_by ? ` · ${m.created_by}` : ''}
-                        {m.note ? ` · ${m.note}` : ''}
-                      </Text>
-                    </View>
-                    <Text style={[styles.lineValue, { color: m.kind === 'supply' ? Colors.light.success : Colors.light.error }]}>
-                      {m.kind === 'supply' ? '+' : '-'} {formatCurrency(m.amount)}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
+            {hero}
+            {details}
           </>
-        )}
+        ))}
       </ScrollView>
 
       <BottomSheet
@@ -300,7 +316,7 @@ export default function CashScreen() {
           placeholder="0,00"
           style={styles.input}
         />
-        <Text style={styles.note}>Motivo</Text>
+        <Text style={styles.label}>Motivo</Text>
         <View style={styles.chips}>
           {(moveKind ? REASONS[moveKind] : []).map((r) => (
             <TouchableOpacity
@@ -314,7 +330,7 @@ export default function CashScreen() {
         </View>
         {otherAccounts.length > 0 && (
           <>
-            <Text style={styles.note}>{moveKind === 'supply' ? 'De onde veio o dinheiro?' : 'Para onde foi o dinheiro?'}</Text>
+            <Text style={styles.label}>{moveKind === 'supply' ? 'De onde veio o dinheiro?' : 'Para onde foi o dinheiro?'}</Text>
             <View style={styles.chips}>
               {[{ id: null as number | null, name: moveKind === 'supply' ? 'De fora (ex.: do bolso)' : 'Saiu da loja (pagamento, outro)' },
                 ...otherAccounts.map((a) => ({ id: a.id as number | null, name: a.name }))].map((o) => (
@@ -370,14 +386,17 @@ export default function CashScreen() {
 }
 
 const styles = StyleSheet.create({
-  financeLink: { paddingVertical: 4 },
+  financeLink: { paddingVertical: 8 },
   container: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: 16, paddingBottom: 48 },
+  columns: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  col: { flex: 1, minWidth: 0 },
   card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.light.border },
-  title: { fontSize: 16, fontWeight: '700', color: Colors.light.text },
-  big: { fontSize: 34, fontWeight: '800', color: Colors.light.text, marginTop: 4 },
+  title: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
+  eyebrow: { fontSize: 11, fontWeight: theme.fontWeight.extrabold, letterSpacing: 1, color: Colors.light.textSecondary },
+  big: { fontSize: 34, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text, marginTop: 4 },
   note: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary, marginTop: 6 },
-  small: { fontSize: 12, color: Colors.light.textSecondary },
+  small: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 4 },
   error: { color: Colors.light.error, marginTop: 6, marginBottom: 6, lineHeight: 19 },
   input: { marginTop: 10, backgroundColor: Colors.light.card },
   btn: { marginTop: 12 },
@@ -385,9 +404,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, borderTopWidth: 1, borderTopColor: Colors.light.border },
   lineLabel: { flex: 1, fontSize: 14, color: Colors.light.text },
-  lineValue: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
+  lineValue: { fontSize: 14, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
   chipText: { fontSize: 13, color: Colors.light.text },
-  diff: { fontSize: 20, fontWeight: '800', marginTop: 10, marginBottom: 4 },
+  diff: { fontSize: 20, fontWeight: theme.fontWeight.extrabold, marginTop: 10, marginBottom: 4 },
+  label: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.text, marginTop: 10 },
 });

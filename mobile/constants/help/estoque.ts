@@ -429,7 +429,7 @@ const CATEGORIAS_E_ESTOQUE: HelpEntry[] = [
     steps: [
       'Escolha o período no filtro.',
       'Toque num lançamento para ver os detalhes.',
-      'Para lançar uma perda, toque no “+” do alto.',
+      'Para lançar uma perda, toque em “Registrar prejuízo”, no pé da tela.',
     ],
     goodToKnow: ['Prejuízo fica separado das despesas gerais, mas entra no resultado do mês.'],
     roles: ['manager'],
@@ -443,9 +443,9 @@ const CATEGORIAS_E_ESTOQUE: HelpEntry[] = [
     routes: ['/stock-losses/register'],
     purpose: 'Lança como gasto da loja o custo de peças perdidas ou estragadas.',
     steps: [
-      'Busque e escolha o produto.',
-      'Informe quantas peças perdeu e o custo de cada uma.',
-      'Confira o valor em “Impacto Financeiro” e toque em “Confirmar Prejuízo”.',
+      'Busque e escolha a peça.',
+      'Informe quantas peças perdeu, o custo de cada uma e o dia.',
+      'Confira o valor da perda no pé da tela e toque em “Confirmar Prejuízo”. Se faltar algo, o pé da tela diz o quê.',
     ],
     goodToKnow: [
       'Este lançamento é só o gasto: ele não tira a peça do estoque.',
@@ -462,7 +462,7 @@ const CATEGORIAS_E_ESTOQUE: HelpEntry[] = [
     title: 'Detalhe do prejuízo',
     routes: ['/stock-losses/[id]'],
     purpose: 'Mostra um prejuízo lançado: valor, data, peça e observações.',
-    steps: ['Confira o valor e a data no alto.', 'Em “Contexto Operacional”, veja a peça, a quantidade e o custo.'],
+    steps: ['Confira o valor perdido e a data no alto.', 'Em “O que foi perdido”, veja as peças, o custo de cada uma e, se houver, o cliente e o item do envio.'],
     roles: ['manager'],
     related: ['prejuizos'],
     sources: ['app/(tabs)/stock-losses/[id].tsx'],

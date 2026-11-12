@@ -36,6 +36,43 @@ async def accounts(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(
         raise _http(e)
 
 
+@router.get("/statement", summary="Extrato passo a passo: dia a dia o que entrou e saiu de cada conta (confere com o saldo)")
+async def statement(account_id: Optional[int] = Query(None), before: Optional[str] = Query(None),
+                    days: int = Query(7), db: AsyncSession = Depends(get_db),
+                    tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).statement(tenant_id, account_id, before, days)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.get("/statement/pdf", summary="Extrato financeiro COMPLETO em PDF (do começo da contagem até hoje, dia a dia)")
+async def statement_pdf(account_id: Optional[int] = Query(None), link: bool = Query(False), db: AsyncSession = Depends(get_db),
+                        tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    from app.models.store import Store
+    from app.services.pdf_delivery import pdf_response
+    from app.services.statement_pdf_service import build_statement_pdf, merge_pages
+
+    svc = FinanceService(db)
+    pages: List[Dict[str, Any]] = []
+    before: Optional[str] = None
+    try:
+        for _ in range(80):   # 80 páginas de 14 dias = mais de 3 anos; trava de segurança
+            page = await svc.statement(tenant_id, account_id, before, 14)
+            pages.append(page)
+            before = page.get("next_before")
+            if not before:
+                break
+    except FinanceError as e:
+        raise _http(e)
+    store = await db.get(Store, tenant_id)
+    data = merge_pages(pages)
+    label = (data.get("account") or {}).get("name") or "todas-as-contas"
+    safe = "".join(c if c.isalnum() else "-" for c in str(label).lower()).strip("-") or "contas"
+    return pdf_response(build_statement_pdf(data, getattr(store, "name", "") or ""), f"extrato-{safe}.pdf",
+                        link=link, tenant_id=tenant_id, no_store=True)
+
+
 @router.get("/purchases-pending", summary="Compras de mercadoria que ainda não disseram de onde saiu o dinheiro")
 async def purchases_pending(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
                             current_user: User = Depends(get_current_active_user)):
@@ -130,9 +167,11 @@ async def set_pix(account_id: int, db: AsyncSession = Depends(get_db),
 
 
 @router.get("/transfers", summary="Transferências entre contas")
-async def transfers(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+async def transfers(limit: int = Query(300, ge=1, le=1000), db: AsyncSession = Depends(get_db),
+                    tenant_id: int = Depends(get_current_tenant_id),
                     current_user: User = Depends(get_current_active_user)) -> List[Dict[str, Any]]:
-    return await FinanceService(db).list_transfers(tenant_id)
+    """Todas as transferências da loja, da mais nova para a mais antiga (até `limit`; o app mostra de 5 em 5)."""
+    return await FinanceService(db).list_transfers(tenant_id, limit)
 
 
 @router.post("/transfers", summary="Transferir (depósito da gaveta, repasse da maquininha)")

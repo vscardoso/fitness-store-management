@@ -257,6 +257,7 @@ export const VENDER: HelpEntry[] = [
     open: '/cash/history',
     purpose: 'Mostra cada abertura e fechamento de caixa, com o que era esperado e o que foi contado.',
     steps: [
+      'No topo, veja quantos caixas bateram, sobraram ou faltaram. Toque em “Só com diferença” para ver só os que não bateram.',
       'Veja na lista se cada caixa bateu, sobrou ou faltou dinheiro.',
       'Toque num caixa para ver o fechamento completo e cada dinheiro colocado ou retirado.',
     ],

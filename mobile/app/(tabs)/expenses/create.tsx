@@ -1,19 +1,20 @@
+/**
+ * Nova despesa. Ordem pensada para o lançamento comum (um gasto da loja, pago hoje):
+ *  1. O gasto: valor, descrição, categoria e dia do pagamento.
+ *  2. Como foi pago: a conta de onde saiu o dinheiro, ou "Vou pagar depois" com o vencimento (só com o Financeiro implantado).
+ *  3. Mais opções (recolhidas): observação, gasto fixo e gasto de lote.
+ * O botão Salvar fica num rodapé fixo, com o resumo do que vai ser gravado.
+ */
 import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { TextInput, Button, Text, Switch } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { TextInput, Text, Switch } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
+import { ChoiceChip, FormFooter, FormSection, MoreOptions } from '@/components/expenses/FormParts';
 import { createExpense, getExpenseCategories } from '@/services/expenseService';
 import { getStockEntries } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
@@ -47,6 +48,7 @@ export default function CreateExpenseScreen() {
   // "Vou pagar depois": vira despesa a pagar (entra no resultado do mês quando for paga)
   const [payLater, setPayLater] = useState(false);
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const [moreOpen, setMoreOpen] = useState(false);
   const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
   const payAccounts = (finance?.accounts ?? []).filter((a) => a.kind !== 'card');
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
@@ -146,32 +148,33 @@ export default function CreateExpenseScreen() {
     createMutation.mutate(payload);
   };
 
+  // O que vai ser gravado, por extenso (aparece no rodapé)
+  const parsedNow = unmaskCurrency(amount);
+  const accountName = payAccounts.find((a) => a.id === accountId)?.name;
+  const summary = [
+    parsedNow > 0 ? formatCurrency(parsedNow) : null,
+    description.trim() || null,
+    payLater ? (dueDate ? `a pagar em ${dueDate.toLocaleDateString('pt-BR')}` : 'a pagar depois') : accountName ? `sai de ${accountName}` : null,
+  ].filter(Boolean).join(' · ');
+  const moreFilled = [
+    notes.trim() ? 'observação' : null,
+    isRecurring ? 'gasto fixo' : null,
+    scope === 'lot' ? 'gasto de lote' : null,
+  ].filter(Boolean).join(', ');
+  const saving = createMutation.isPending || laterMutation.isPending;
+
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Nova Despesa"
-        showBackButton
-       
-      />
+      <PageHeader title="Nova Despesa" showBackButton />
 
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           contentContainerStyle={[styles.content, desktopContent]}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={true}
         >
-
           <FormGrid>
-{/* Valor e Descrição */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="receipt-outline" size={20} color={brandingColors.primary} />
-              <Text style={styles.cardTitle}>Dados da Despesa</Text>
-            </View>
-            <View style={styles.cardContent}>
+            <FormSection title="O gasto">
               <TextInput
                 label="Valor *"
                 value={amount}
@@ -182,7 +185,6 @@ export default function CreateExpenseScreen() {
                 left={<TextInput.Affix text="R$" />}
                 style={styles.input}
               />
-
               <TextInput
                 label="Descrição *"
                 value={description}
@@ -191,7 +193,6 @@ export default function CreateExpenseScreen() {
                 placeholder="Ex: Aluguel do mês, Conta de luz..."
                 style={styles.input}
               />
-
               {/* vai pagar depois: a data é a do pagamento, informada ao pagar */}
               {!payLater && (
                 <DateTimeInput
@@ -202,7 +203,62 @@ export default function CreateExpenseScreen() {
                   maximumDate={new Date()}
                 />
               )}
+              {(categories ?? []).length > 0 && (
+                <>
+                  <Text style={styles.fieldLabel}>Categoria</Text>
+                  <View style={styles.chips}>
+                    {(categories ?? []).map((cat) => {
+                      const selected = selectedCategory?.id === cat.id;
+                      return (
+                        <ChoiceChip
+                          key={cat.id}
+                          label={cat.name}
+                          icon={cat.icon as any}
+                          color={cat.color}
+                          selected={selected}
+                          onPress={() => setSelectedCategory(selected ? null : cat)}
+                        />
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </FormSection>
 
+            {/* Pago com: tira da conta escolhida (só com o financeiro implantado) */}
+            {finance?.started && payAccounts.length > 0 && (
+              <FormSection title="Pago com" subtitle="De onde saiu o dinheiro">
+                <View style={styles.chips}>
+                  {[...payAccounts.map((a) => ({ id: a.id as number | null, name: a.name, later: false })),
+                    { id: null as number | null, name: 'Vou pagar depois', later: true }].map((a) => {
+                    const on = a.later ? payLater : !payLater && accountId === a.id;
+                    return (
+                      <ChoiceChip
+                        key={a.later ? 'depois' : String(a.id)}
+                        label={a.name}
+                        selected={on}
+                        onPress={() => { setPayLater(a.later); setAccountId(a.later ? null : a.id); }}
+                      />
+                    );
+                  })}
+                </View>
+                {payLater ? (
+                  <>
+                    <DateTimeInput label="Vencimento" value={dueDate} onChange={setDueDate} mode="date" />
+                    <Text style={styles.help}>Fica em Despesas a pagar; quando você pagar, entra no resultado do mês e sai da conta escolhida.</Text>
+                  </>
+                ) : accountId === null ? (
+                  <Text style={styles.help}>Escolha a conta, ou “Vou pagar depois”. Sem escolher, o saldo das contas não muda.</Text>
+                ) : null}
+              </FormSection>
+            )}
+
+            <MoreOptions
+              title="Mais opções"
+              filled={moreFilled || 'observação, gasto fixo, gasto de lote'}
+              open={moreOpen}
+              onToggle={() => setMoreOpen((v) => !v)}
+            >
               <TextInput
                 label="Observações"
                 value={notes}
@@ -211,156 +267,15 @@ export default function CreateExpenseScreen() {
                 placeholder="Notas adicionais (opcional)"
                 multiline
                 numberOfLines={3}
-                style={[styles.input, { marginBottom: 0 }]}
+                style={styles.input}
               />
-            </View>
-          </View>
 
-          {/* Pago com: tira da conta escolhida (só com o financeiro implantado) */}
-          {finance?.started && payAccounts.length > 0 && (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Ionicons name="wallet-outline" size={20} color={brandingColors.primary} />
-                <Text style={styles.cardTitle}>Pago com</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <View style={styles.categoryGrid}>
-                  {[...payAccounts.map((a) => ({ id: a.id as number | null, name: a.name, later: false })),
-                    { id: null as number | null, name: 'Vou pagar depois', later: true }].map((a) => {
-                    const on = a.later ? payLater : !payLater && accountId === a.id;
-                    return (
-                      <TouchableOpacity
-                        key={a.later ? 'depois' : String(a.id)}
-                        style={[styles.categoryChip, { borderColor: brandingColors.primary }, on && { backgroundColor: brandingColors.primary }]}
-                        onPress={() => { setPayLater(a.later); setAccountId(a.later ? null : a.id); }}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: on }}
-                      >
-                        <Text style={[styles.categoryChipText, { color: on ? Colors.light.white : Colors.light.text }]}>{a.name}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                {payLater ? (
-                  <>
-                    <DateTimeInput label="Vencimento" value={dueDate} onChange={setDueDate} mode="date" />
-                    <Text style={styles.scopeHelp}>Fica em Despesas a pagar; quando você pagar, entra no resultado do mês e sai da conta escolhida.</Text>
-                  </>
-                ) : accountId === null ? (
-                  <Text style={styles.scopeHelp}>Escolha de onde saiu o dinheiro, ou "Vou pagar depois".</Text>
-                ) : null}
-              </View>
-            </View>
-          )}
-
-          {/* De onde vem a despesa */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="git-branch-outline" size={20} color={brandingColors.primary} />
-              <Text style={styles.cardTitle}>De onde vem este gasto?</Text>
-            </View>
-            <View style={styles.cardContent}>
-              <View style={styles.categoryGrid}>
-                {([
-                  ['general', 'Da loja', 'storefront-outline'],
-                  ['lot', 'De um lote', 'layers-outline'],
-                ] as const).map(([key, label, icon]) => {
-                  const on = scope === key;
-                  return (
-                    <TouchableOpacity
-                      key={key}
-                      style={[styles.categoryChip, { borderColor: brandingColors.primary }, on && { backgroundColor: brandingColors.primary }]}
-                      onPress={() => setScope(key)}
-                      activeOpacity={0.75}
-                    >
-                      <Ionicons name={icon} size={16} color={on ? Colors.light.white : brandingColors.primary} />
-                      <Text style={[styles.categoryChipText, { color: on ? Colors.light.white : Colors.light.text }]}>{label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={styles.scopeHelp}>
-                {scope === 'general' &&
-                  'Gastos do dia a dia da loja, como aluguel, luz, internet e salários. Eles aparecem no resultado do mês em que você pagou.'}
-                {scope === 'lot' &&
-                  'Gasto de uma compra específica, como frete, embalagem ou taxa. Ele soma no custo das peças daquele lote e só pesa no resultado quando as peças forem vendidas.'}
-              </Text>
-
-              {scope === 'lot' &&
-                (lots ?? []).map((l) => (
-                  <TouchableOpacity key={l.id} style={styles.pickRow} onPress={() => setSelectedEntryId(l.id)} activeOpacity={0.75}>
-                    <Ionicons
-                      name={selectedEntryId === l.id ? 'radio-button-on' : 'radio-button-off'}
-                      size={20}
-                      color={brandingColors.primary}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.pickTitle}>{l.entry_code}</Text>
-                      <Text style={styles.pickSub}>
-                        {l.supplier_name} · {formatCurrency(Number(l.total_cost) || 0)}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              {scope === 'lot' && lots && lots.length === 0 && (
-                <Text style={styles.scopeHelp}>Você ainda não tem nenhum lote cadastrado.</Text>
-              )}
-            </View>
-          </View>
-
-          {/* Categoria */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="list-outline" size={20} color={brandingColors.primary} />
-              <Text style={styles.cardTitle}>Categoria</Text>
-            </View>
-            <View style={styles.cardContent}>
-              <View style={styles.categoryGrid}>
-                {(categories ?? []).map((cat) => {
-                  const selected = selectedCategory?.id === cat.id;
-                  return (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={[
-                        styles.categoryChip,
-                        { borderColor: cat.color },
-                        selected && { backgroundColor: cat.color },
-                      ]}
-                      onPress={() => setSelectedCategory(selected ? null : cat)}
-                      activeOpacity={0.75}
-                    >
-                      <Ionicons
-                        name={cat.icon as any}
-                        size={16}
-                        color={selected ? Colors.light.white : cat.color}
-                      />
-                      <Text style={[styles.categoryChipText, { color: selected ? Colors.light.white : Colors.light.text }]}>
-                        {cat.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          {/* Recorrência */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="repeat-outline" size={20} color={brandingColors.primary} />
-              <Text style={styles.cardTitle}>Recorrência</Text>
-            </View>
-            <View style={styles.cardContent}>
               <View style={styles.switchRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.switchLabel}>Despesa Recorrente</Text>
-                  <Text style={styles.switchSubtitle}>Marca como gasto fixo do mês. O app não lança o próximo sozinho.</Text>
+                  <Text style={styles.help}>Marca como gasto fixo do mês. O app não lança o próximo sozinho.</Text>
                 </View>
-                <Switch
-                  value={isRecurring}
-                  onValueChange={setIsRecurring}
-                  color={brandingColors.primary}
-                />
+                <Switch value={isRecurring} onValueChange={setIsRecurring} color={brandingColors.primary} />
               </View>
               {isRecurring && (
                 <TextInput
@@ -370,39 +285,47 @@ export default function CreateExpenseScreen() {
                   mode="outlined"
                   keyboardType="numeric"
                   placeholder="Ex: 5"
-                  style={[styles.input, { marginTop: theme.spacing.md, marginBottom: 0 }]}
+                  style={styles.input}
                 />
               )}
-            </View>
-          </View>
 
-</FormGrid>
-
-          {/* Botões de ação */}
-          <View style={styles.actions}>
-            <Button
-              mode="outlined"
-              onPress={() => router.back()}
-              style={[styles.button, { borderColor: brandingColors.primary }]}
-              textColor={brandingColors.primary}
-              disabled={createMutation.isPending || laterMutation.isPending}
-            >
-              Cancelar
-            </Button>
-
-            <Button
-              mode="contained"
-              onPress={handleSave}
-              style={[styles.button, { backgroundColor: brandingColors.primary }]}
-              loading={createMutation.isPending || laterMutation.isPending}
-              disabled={createMutation.isPending || laterMutation.isPending}
-              icon="check"
-            >
-              Salvar Despesa
-            </Button>
-          </View>
-
+              <Text style={styles.fieldLabel}>De onde vem este gasto?</Text>
+              <View style={styles.chips}>
+                <ChoiceChip label="Da loja" icon="storefront-outline" selected={scope === 'general'} onPress={() => setScope('general')} />
+                <ChoiceChip label="De um lote" icon="layers-outline" selected={scope === 'lot'} onPress={() => setScope('lot')} />
+              </View>
+              {scope === 'lot' && (
+                <Text style={styles.help}>
+                  Gasto de uma compra, como frete, embalagem ou taxa. Soma no custo das peças daquele lote e só pesa no resultado quando elas forem vendidas.
+                </Text>
+              )}
+              {scope === 'lot' &&
+                (lots ?? []).map((l) => (
+                  <View key={l.id} style={styles.pickRow}>
+                    <ChoiceChip
+                      label={`${l.entry_code} · ${l.supplier_name} · ${formatCurrency(Number(l.total_cost) || 0)}`}
+                      selected={selectedEntryId === l.id}
+                      onPress={() => setSelectedEntryId(l.id)}
+                    />
+                  </View>
+                ))}
+              {scope === 'lot' && lots && lots.length === 0 && (
+                <View style={styles.emptyLots}>
+                  <Ionicons name="information-circle-outline" size={18} color={Colors.light.textSecondary} />
+                  <Text style={styles.help}>Você ainda não tem nenhum lote cadastrado.</Text>
+                </View>
+              )}
+            </MoreOptions>
+          </FormGrid>
         </ScrollView>
+
+        <FormFooter
+          summary={summary}
+          primaryLabel="Salvar Despesa"
+          onPrimary={handleSave}
+          loading={saving}
+          onSecondary={() => router.back()}
+        />
       </KeyboardAvoidingView>
 
       <ConfirmDialog
@@ -420,96 +343,15 @@ export default function CreateExpenseScreen() {
 }
 
 const styles = StyleSheet.create({
-  scopeHelp: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary, marginTop: 10 },
-  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.light.border },
-  pickTitle: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
-  pickSub: { fontSize: 12, color: Colors.light.textSecondary },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
-  },
-  keyboardView: {
-    flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
-  },
-  content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
-  },
-  card: {
-    backgroundColor: Colors.light.white,
-    borderRadius: 16,
-    marginBottom: theme.spacing.md,
-    elevation: 3,
-    shadowColor: Colors.light.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  cardContent: {
-    padding: theme.spacing.md,
-  },
-  input: {
-    marginBottom: theme.spacing.sm,
-    backgroundColor: Colors.light.white,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 99,
-    borderWidth: 1.5,
-    backgroundColor: Colors.light.white,
-  },
-  categoryChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  switchLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.light.text,
-  },
-  switchSubtitle: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.md,
-  },
-  button: {
-    flex: 1,
-    borderRadius: 12,
-  },
+  container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+  keyboardView: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+  content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
+  input: { backgroundColor: Colors.light.white },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  fieldLabel: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: Colors.light.textSecondary, marginTop: theme.spacing.xs },
+  help: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  switchLabel: { fontSize: 15, fontWeight: theme.fontWeight.semibold, color: Colors.light.text },
+  pickRow: { flexDirection: 'row' },
+  emptyLots: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 });

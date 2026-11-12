@@ -2,22 +2,28 @@
  * Fiado (a receber): quanto as clientes devem, vencidas em destaque, por cliente. Receber (valor parcial permitido,
  * das parcelas mais antigas para as mais novas), ver e desfazer recebimentos (gerente), lançar fiado antigo e
  * cancelar lançamento errado (gerente). O dinheiro recebido cai na conta da forma (backend: /receivables).
+ *
+ * Organização: resumo (a receber, vencido, vence em 7 dias), faixa "Cobrar agora" só quando há vencido, filtros em chips
+ * e a lista por cliente com uma ação principal (Receber). No notebook: resumo e filtros à esquerda, lista à direita.
  */
 import React, { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { TextInput } from 'react-native-paper';
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import PageHeader from '@/components/layout/PageHeader';
+import AppButton from '@/components/ui/AppButton';
+import Badge from '@/components/ui/Badge';
+import EmptyState from '@/components/ui/EmptyState';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { isManagerRole } from '@/utils/roles';
 import { formatCurrency, formatDate } from '@/utils/format';
@@ -40,6 +46,7 @@ export default function ReceivablesScreen() {
   const queryClient = useQueryClient();
   const brand = useBrandingColors();
   const desktop = useDesktopContentStyle();
+  const isDesktop = useIsDesktop();
   const { user } = useAuth();
   const manager = isManagerRole(user?.role);
   const params = useLocalSearchParams<{ customer?: string }>();
@@ -113,6 +120,11 @@ export default function ReceivablesScreen() {
 
   const s = data?.summary;
   const today = new Date();
+  const overdueTotal = s?.overdue_total ?? 0;
+  const startOpening = () => {
+    setSheetError('');
+    setOpening({ customer: null, amount: '', count: 1, interval: 30, first: defaultFirstDue(30), description: '' });
+  };
 
   const label = (r: Receivable) => {
     const part = r.installments_total > 1 ? `Parcela ${r.installment_number} de ${r.installments_total}` : 'Parcela única';
@@ -126,85 +138,108 @@ export default function ReceivablesScreen() {
     return r.received_amount > 0 || r.abated_amount > 0 ? `${when} · falta ${formatCurrency(r.outstanding)}` : when;
   };
 
-  return (
-    <View style={styles.container}>
-      <PageHeader title="Fiado" subtitle="Quanto as clientes devem e quando vence" showBackButton backFallback="/(tabs)/more" />
-      <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
-        <View style={styles.card}>
-          <View style={styles.summary}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>A receber</Text>
-              <Text style={styles.big}>{formatCurrency(s?.open_total ?? 0)}</Text>
-              <Text style={styles.itemSub}>{s?.customers ?? 0} cliente(s) · {s?.installments ?? 0} parcela(s)</Text>
+  // Resumo: o que as clientes devem, o que já venceu e o que vence nos próximos 7 dias
+  const hero = (
+    <View style={styles.hero} testID="fiado-resumo">
+      <Text style={styles.eyebrow}>A RECEBER</Text>
+      <Text style={styles.big}>{formatCurrency(s?.open_total ?? 0)}</Text>
+      <Text style={styles.itemSub}>{s?.customers ?? 0} cliente(s) · {s?.installments ?? 0} parcela(s) em aberto</Text>
+      {(overdueTotal > 0 || !!s?.due_this_week) && (
+        <View style={styles.pills}>
+          {overdueTotal > 0 && <Badge label={`Vencido ${formatCurrency(overdueTotal)}`} variant="error" size="md" />}
+          {!!s?.due_this_week && <Badge label={`Vence em 7 dias ${formatCurrency(s.due_this_week)}`} variant="warning" size="md" />}
+        </View>
+      )}
+      {manager && !customerFilter && (
+        <AppButton variant="outlined" size="sm" icon="add" label="Lançar fiado antigo" onPress={startOpening} />
+      )}
+    </View>
+  );
+
+  // "Cobrar agora" só existe quando há parcela vencida e a lista não está só nas vencidas
+  const todo = overdueTotal > 0 && filter !== 'overdue' ? (
+    <View style={styles.todo} testID="fiado-cobrar">
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={styles.todoTitle}>Cobrar agora</Text>
+        <Text style={styles.itemSub}>{`${formatCurrency(overdueTotal)} de parcelas que já venceram`}</Text>
+      </View>
+      <AppButton variant="outlined" size="sm" label="Ver vencidas" onPress={() => setFilter('overdue')} />
+    </View>
+  ) : null;
+
+  const filters = (
+    <View style={styles.filters}>
+      {FILTERS.map((f) => (
+        <Chip key={f.id} text={f.label} on={filter === f.id} color={brand.primary} role="tab" onPress={() => setFilter(f.id)} />
+      ))}
+    </View>
+  );
+
+  const list = isLoading ? <ScreenLoader inline /> : groups.length === 0 ? (
+    <EmptyState
+      icon="book-outline"
+      title={filter === 'open' ? 'Ninguém deve nada agora' : 'Nada por aqui'}
+      description={filter === 'open' ? 'Quando uma venda for no fiado, ela aparece aqui com o vencimento de cada parcela.' : 'Troque o filtro para ver outras parcelas.'}
+      actionLabel={filter === 'open' && manager && !customerFilter ? 'Lançar fiado antigo' : undefined}
+      onAction={startOpening}
+    />
+  ) : (
+    <>
+      {groups.map((g) => (
+        <View key={g.id} style={[styles.group, g.overdue && styles.itemOverdue]}>
+          <View style={styles.groupHead}>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={styles.itemTitle}>{g.name}</Text>
+              {g.owed > 0 && <Text style={styles.itemSub}>{`Deve ${formatCurrency(g.owed)}`}</Text>}
+              {g.overdue && <View style={styles.pills}><Badge label="Tem parcela vencida" variant="error" size="sm" /></View>}
             </View>
-            {!!s?.overdue_total && (
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { color: Colors.light.error }]}>Vencido</Text>
-                <Text style={[styles.big, { color: Colors.light.error }]}>{formatCurrency(s.overdue_total)}</Text>
-              </View>
+            {g.owed > 0 && (
+              <AppButton variant="primary" size="sm" label="Receber"
+                onPress={() => { setSheetError(''); setReceiving({ customerId: g.id, name: g.name, owed: g.owed, amount: moneyInput(g.owed.toFixed(2)), method: 'pix', day: today }); }} />
             )}
           </View>
-          {!!s?.due_this_week && <Text style={styles.itemSub}>Vence nos próximos 7 dias: {formatCurrency(s.due_this_week)}</Text>}
-          {manager && !customerFilter && (
-            <Button mode="outlined" icon="plus" textColor={brand.primary} style={styles.left}
-              onPress={() => { setSheetError(''); setOpening({ customer: null, amount: '', count: 1, interval: 30, first: defaultFirstDue(30), description: '' }); }}>
-              Lançar fiado antigo
-            </Button>
-          )}
-        </View>
-
-        <View style={styles.filters}>
-          {FILTERS.map((f) => (
-            <TouchableOpacity key={f.id} onPress={() => setFilter(f.id)} style={[styles.chip, filter === f.id && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}
-              accessibilityRole="tab" accessibilityState={{ selected: filter === f.id }}>
-              <Text style={[styles.chipText, filter === f.id && { color: brand.primary }]}>{f.label}</Text>
-            </TouchableOpacity>
+          {g.items.map((r) => (
+            <View key={r.id} style={styles.row}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.rowTitle}>{label(r)}</Text>
+                <Text style={[styles.itemSub, r.overdue && { color: Colors.light.error, fontWeight: theme.fontWeight.bold }]}>{statusText(r)}</Text>
+                <View style={styles.itemActions}>
+                  {r.received_amount > 0 && (
+                    <AppButton variant="text" size="sm" label="Recebimentos" onPress={() => setHistory(r)} />
+                  )}
+                  {manager && r.origin === 'opening' && r.received_amount === 0 && r.status !== 'canceled' && (
+                    <AppButton variant="text" size="sm" label="Cancelar lançamento" textColor={Colors.light.textSecondary} onPress={() => setCanceling(r)} />
+                  )}
+                </View>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.amount}>{formatCurrency(r.amount)}</Text>
+                <Text style={styles.caption}>da parcela</Text>
+              </View>
+            </View>
           ))}
         </View>
+      ))}
+    </>
+  );
 
-        {isLoading ? <ScreenLoader inline /> : groups.length === 0 ? (
-          <Text style={styles.empty}>{filter === 'open' ? 'Ninguém deve nada agora.' : 'Nada por aqui.'}</Text>
-        ) : groups.map((g) => (
-          <View key={g.id} style={[styles.group, g.overdue && styles.itemOverdue]}>
-            <View style={styles.groupHead}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemTitle}>{g.name}</Text>
-                {g.owed > 0 && <Text style={[styles.itemSub, g.overdue && { color: Colors.light.error, fontWeight: '700' }]}>
-                  Deve {formatCurrency(g.owed)}{g.overdue ? ' · tem parcela vencida' : ''}
-                </Text>}
-              </View>
-              {g.owed > 0 && (
-                <Button mode="contained" compact buttonColor={brand.primary}
-                  onPress={() => { setSheetError(''); setReceiving({ customerId: g.id, name: g.name, owed: g.owed, amount: moneyInput(g.owed.toFixed(2)), method: 'pix', day: today }); }}>
-                  Receber
-                </Button>
-              )}
-            </View>
-            {g.items.map((r) => (
-              <View key={r.id} style={styles.row}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={styles.rowTitle}>{label(r)}</Text>
-                  <Text style={[styles.itemSub, r.overdue && { color: Colors.light.error, fontWeight: '700' }]}>{statusText(r)}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                  <Text style={styles.amount}>{formatCurrency(r.amount)}</Text>
-                  <View style={styles.itemActions}>
-                    {r.received_amount > 0 && (
-                      <TouchableOpacity onPress={() => setHistory(r)} hitSlop={6} accessibilityLabel={`Recebimentos da parcela ${r.installment_number}`}>
-                        <Text style={[styles.link, { color: brand.primary }]}>Recebimentos</Text>
-                      </TouchableOpacity>
-                    )}
-                    {manager && r.origin === 'opening' && r.received_amount === 0 && r.status !== 'canceled' && (
-                      <TouchableOpacity onPress={() => setCanceling(r)} hitSlop={6} accessibilityLabel={`Cancelar parcela ${r.installment_number}`}>
-                        <Ionicons name="close-circle-outline" size={20} color={Colors.light.textTertiary} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              </View>
-            ))}
+  return (
+    <View style={styles.container}>
+      <PageHeader title="Fiado" subtitle="Quem deve e quando vence" showBackButton backFallback="/(tabs)/more" />
+      <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
+        {isDesktop ? (
+          <View style={styles.columns}>
+            <View style={styles.sideCol}>{hero}{todo}{filters}</View>
+            <View style={styles.listCol}>{list}</View>
           </View>
-        ))}
+        ) : (
+          <>
+            {hero}
+            {todo}
+            {filters}
+            {list}
+          </>
+        )}
       </ScrollView>
 
       <BottomSheet visible={!!receiving} onDismiss={() => setReceiving(null)} title="Receber fiado"
@@ -221,11 +256,7 @@ export default function ReceivablesScreen() {
             <Text style={styles.label}>Como ela pagou</Text>
             <View style={styles.filters}>
               {RECEIVE_METHODS.map((m) => (
-                <TouchableOpacity key={m.value} onPress={() => setReceiving({ ...receiving, method: m.value })}
-                  style={[styles.chip, receiving.method === m.value && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}
-                  accessibilityRole="radio" accessibilityState={{ selected: receiving.method === m.value }}>
-                  <Text style={[styles.chipText, receiving.method === m.value && { color: brand.primary }]}>{m.label}</Text>
-                </TouchableOpacity>
+                <Chip key={m.value} text={m.label} on={receiving.method === m.value} color={brand.primary} onPress={() => setReceiving({ ...receiving, method: m.value })} />
               ))}
             </View>
             <DateTimeInput label="Dia do recebimento" value={receiving.day} onChange={(d) => setReceiving({ ...receiving, day: d })} mode="date" maximumDate={today} />
@@ -237,13 +268,13 @@ export default function ReceivablesScreen() {
         subtitle={history ? `${history.customer_name ?? ''} · ${label(history)}` : undefined} icon="time-outline">
         <View style={{ gap: 8 }}>
           {(payments ?? []).map((p) => (
-            <View key={p.id} style={styles.row}>
+            <View key={p.id} style={styles.payRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>{formatCurrency(p.amount)} · {p.method_label}</Text>
                 <Text style={styles.itemSub}>{formatDate(p.received_on)}{p.created_by_name ? ` · ${p.created_by_name}` : ''}</Text>
               </View>
               {manager && (
-                <Button mode="text" compact textColor={Colors.light.textSecondary} onPress={() => setUndoing(p.id)}>Desfazer</Button>
+                <AppButton variant="text" size="sm" label="Desfazer" textColor={Colors.light.textSecondary} onPress={() => setUndoing(p.id)} />
               )}
             </View>
           ))}
@@ -271,19 +302,13 @@ export default function ReceivablesScreen() {
               <Text style={styles.label}>Em quantas vezes</Text>
               <View style={styles.filters}>
                 {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <TouchableOpacity key={n} onPress={() => setOpening({ ...opening, count: n })}
-                    style={[styles.chip, opening.count === n && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}>
-                    <Text style={[styles.chipText, opening.count === n && { color: brand.primary }]}>{n === 1 ? '1 vez' : `${n}x`}</Text>
-                  </TouchableOpacity>
+                  <Chip key={n} text={n === 1 ? '1 vez' : `${n}x`} on={opening.count === n} color={brand.primary} onPress={() => setOpening({ ...opening, count: n })} />
                 ))}
               </View>
               {opening.count > 1 && (
                 <View style={styles.filters}>
                   {FIADO_INTERVALS.map((iv) => (
-                    <TouchableOpacity key={iv.value} onPress={() => setOpening({ ...opening, interval: iv.value })}
-                      style={[styles.chip, opening.interval === iv.value && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}>
-                      <Text style={[styles.chipText, opening.interval === iv.value && { color: brand.primary }]}>{iv.label}</Text>
-                    </TouchableOpacity>
+                    <Chip key={iv.value} text={iv.label} on={opening.interval === iv.value} color={brand.primary} onPress={() => setOpening({ ...opening, interval: iv.value })} />
                   ))}
                 </View>
               )}
@@ -315,28 +340,42 @@ export default function ReceivablesScreen() {
   );
 }
 
+function Chip({ text, on, color, onPress, role = 'radio' }: { text: string; on: boolean; color: string; onPress: () => void; role?: 'radio' | 'tab' }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.chip, on && { borderColor: color, backgroundColor: color + '14' }]}
+      accessibilityRole={role} accessibilityState={{ selected: on }}>
+      <Text style={[styles.chipText, on && { color }]}>{text}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: 16, paddingBottom: 48, gap: 12 },
-  card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 10 },
-  summary: { flexDirection: 'row', gap: 12 },
-  label: { fontSize: 13, fontWeight: '700', color: Colors.light.textSecondary },
-  big: { fontSize: 22, fontWeight: '800', color: Colors.light.text },
-  left: { alignSelf: 'flex-start' },
+  columns: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  sideCol: { width: 360, gap: 12 },
+  listCol: { flex: 1, gap: 12, minWidth: 0 },
+  hero: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 8 },
+  eyebrow: { fontSize: 11, fontWeight: theme.fontWeight.extrabold, letterSpacing: 1, color: Colors.light.textSecondary },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  todo: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.light.warningLight, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.light.warning },
+  todoTitle: { fontSize: 14, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  label: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.textSecondary },
+  big: { fontSize: 28, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: Colors.light.card },
-  chipText: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
+  chipText: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
-  empty: { textAlign: 'center', color: Colors.light.textSecondary, marginTop: 24 },
   group: { backgroundColor: Colors.light.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.light.border, gap: 10 },
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  row: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  row: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  payRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   itemOverdue: { borderColor: Colors.light.error + '66' },
-  itemTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
-  rowTitle: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
+  itemTitle: { fontSize: 15, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
+  rowTitle: { fontSize: 13, fontWeight: theme.fontWeight.semibold, color: Colors.light.text },
   itemSub: { fontSize: 12, color: Colors.light.textSecondary },
-  amount: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
-  itemActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  link: { fontSize: 12, fontWeight: '700' },
-  error: { color: Colors.light.error, fontWeight: '600' },
+  amount: { fontSize: 15, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  caption: { fontSize: 11, color: Colors.light.textSecondary },
+  itemActions: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  error: { color: Colors.light.error, fontWeight: theme.fontWeight.semibold },
 });

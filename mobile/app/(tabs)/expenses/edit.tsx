@@ -1,32 +1,36 @@
+/**
+ * Editar despesa. O gasto (valor, descrição, dia, categoria) vem primeiro; observação e gasto fixo ficam em "Mais opções".
+ * Conta de onde saiu o dinheiro e vínculo com lote não mudam aqui: aparecem só para leitura, com a saída (excluir e lançar de novo).
+ * Salvar fica num rodapé fixo; Excluir (só admin) fica separado no fim, longe do botão principal.
+ */
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { TextInput, Button, Text, Switch } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { TextInput, Text, Switch } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
+import AppButton from '@/components/ui/AppButton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
+import { ChoiceChip, FormFooter, FormSection, MoreOptions } from '@/components/expenses/FormParts';
+import FormGrid from '@/components/layout/FormGrid';
 import {
   getExpense,
   updateExpense,
   deleteExpense,
   getExpenseCategories,
 } from '@/services/expenseService';
+import { getFinanceOverview } from '@/services/financeService';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency, toBRNumber } from '@/utils/priceFormatter';
+import { formatCurrency } from '@/utils/format';
 import type { ExpenseCategory, ExpenseUpdate } from '@/types/expense';
 import { parseApiError } from '@/utils/apiError';
 import { dateToIso } from '@/utils/dateBr';
 import { useAuth } from '@/hooks/useAuth';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { isAdminRole } from '@/utils/roles';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 
@@ -38,6 +42,7 @@ const isoToDate = (iso: string): Date => {
 
 export default function EditExpenseScreen() {
   const brandingColors = useBrandingColors();
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const expenseId = Number(id);
@@ -53,6 +58,7 @@ export default function EditExpenseScreen() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceDay, setRecurrenceDay] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const [errorDialog, setErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -68,6 +74,10 @@ export default function EditExpenseScreen() {
     queryKey: ['expense-categories'],
     queryFn: getExpenseCategories,
   });
+
+  // só para dizer, por extenso, de qual conta saiu o dinheiro (leitura)
+  const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview, enabled: !!expense?.account_id });
+  const paidWith = finance?.accounts.find((a) => a.id === expense?.account_id)?.name;
 
   useEffect(() => {
     if (expense) {
@@ -148,32 +158,25 @@ export default function EditExpenseScreen() {
     );
   }
 
+  const parsedNow = unmaskCurrency(amount);
+  const summary = [parsedNow > 0 ? formatCurrency(parsedNow) : null, description.trim() || null].filter(Boolean).join(' · ');
+  const moreFilled = [notes.trim() ? 'observação' : null, isRecurring ? 'gasto fixo' : null].filter(Boolean).join(', ');
+  const locked: string[] = [];
+  if (expense?.stock_entry_id) locked.push('Gasto de um lote: soma no custo das peças dele');
+  if (expense?.account_id) locked.push(paidWith ? `Pago com ${paidWith}` : 'Pago com uma conta do Financeiro');
+
   return (
     <View style={styles.container}>
-      <PageHeader
-        title={description || 'Editar Despesa'}
-        subtitle={expense?.category?.name}
-        showBackButton
-       
-      />
+      <PageHeader title={description || 'Editar Despesa'} subtitle={expense?.category?.name} showBackButton />
 
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, desktopContent]}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={true}
         >
-
-          {/* Valor e Descrição */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="receipt-outline" size={20} color={brandingColors.primary} />
-              <Text style={styles.cardTitle}>Dados da Despesa</Text>
-            </View>
-            <View style={styles.cardContent}>
+          <FormGrid>
+            <FormSection title="O gasto">
               <TextInput
                 label="Valor *"
                 value={amount}
@@ -183,7 +186,6 @@ export default function EditExpenseScreen() {
                 left={<TextInput.Affix text="R$" />}
                 style={styles.input}
               />
-
               <TextInput
                 label="Descrição *"
                 value={description}
@@ -191,7 +193,6 @@ export default function EditExpenseScreen() {
                 mode="outlined"
                 style={styles.input}
               />
-
               <DateTimeInput
                 label="Data do pagamento *"
                 value={expenseDate}
@@ -199,7 +200,46 @@ export default function EditExpenseScreen() {
                 mode="date"
                 maximumDate={new Date()}
               />
+              {(categories ?? []).length > 0 && (
+                <>
+                  <Text style={styles.fieldLabel}>Categoria</Text>
+                  <View style={styles.chips}>
+                    {(categories ?? []).map((cat) => {
+                      const selected = selectedCategory?.id === cat.id;
+                      return (
+                        <ChoiceChip
+                          key={cat.id}
+                          label={cat.name}
+                          icon={cat.icon as any}
+                          color={cat.color}
+                          selected={selected}
+                          onPress={() => setSelectedCategory(selected ? null : cat)}
+                        />
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </FormSection>
 
+            {locked.length > 0 && (
+              <FormSection title="Não muda aqui">
+                {locked.map((line) => (
+                  <View key={line} style={styles.lockedRow}>
+                    <Ionicons name="lock-closed-outline" size={16} color={Colors.light.textSecondary} />
+                    <Text style={styles.lockedText}>{line}</Text>
+                  </View>
+                ))}
+                <Text style={styles.help}>Para trocar, exclua a despesa e lance de novo.</Text>
+              </FormSection>
+            )}
+
+            <MoreOptions
+              title="Mais opções"
+              filled={moreFilled || 'observação, gasto fixo'}
+              open={moreOpen}
+              onToggle={() => setMoreOpen((v) => !v)}
+            >
               <TextInput
                 label="Observações"
                 value={notes}
@@ -207,64 +247,14 @@ export default function EditExpenseScreen() {
                 mode="outlined"
                 multiline
                 numberOfLines={3}
-                style={[styles.input, { marginBottom: 0 }]}
+                style={styles.input}
               />
-            </View>
-          </View>
-
-          {/* Categoria */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="list-outline" size={20} color={brandingColors.primary} />
-              <Text style={styles.cardTitle}>Categoria</Text>
-            </View>
-            <View style={styles.cardContent}>
-              <View style={styles.categoryGrid}>
-                {(categories ?? []).map((cat) => {
-                  const selected = selectedCategory?.id === cat.id;
-                  return (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={[
-                        styles.categoryChip,
-                        { borderColor: cat.color },
-                        selected && { backgroundColor: cat.color },
-                      ]}
-                      onPress={() => setSelectedCategory(selected ? null : cat)}
-                      activeOpacity={0.75}
-                    >
-                      <Ionicons
-                        name={cat.icon as any}
-                        size={16}
-                        color={selected ? Colors.light.white : cat.color}
-                      />
-                      <Text style={[styles.categoryChipText, { color: selected ? Colors.light.white : Colors.light.text }]}>
-                        {cat.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          {/* Recorrência */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="repeat-outline" size={20} color={brandingColors.primary} />
-              <Text style={styles.cardTitle}>Recorrência</Text>
-            </View>
-            <View style={styles.cardContent}>
               <View style={styles.switchRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.switchLabel}>Despesa Recorrente</Text>
-                  <Text style={styles.switchSubtitle}>Marca como gasto fixo do mês. O app não lança o próximo sozinho.</Text>
+                  <Text style={styles.help}>Marca como gasto fixo do mês. O app não lança o próximo sozinho.</Text>
                 </View>
-                <Switch
-                  value={isRecurring}
-                  onValueChange={setIsRecurring}
-                  color={brandingColors.primary}
-                />
+                <Switch value={isRecurring} onValueChange={setIsRecurring} color={brandingColors.primary} />
               </View>
               {isRecurring && (
                 <TextInput
@@ -274,49 +264,27 @@ export default function EditExpenseScreen() {
                   mode="outlined"
                   keyboardType="numeric"
                   placeholder="Ex: 5"
-                  style={[styles.input, { marginTop: theme.spacing.md, marginBottom: 0 }]}
+                  style={styles.input}
                 />
               )}
-            </View>
-          </View>
+            </MoreOptions>
+          </FormGrid>
 
-          {/* Botões de ação */}
-          <View style={styles.actions}>
-            <Button
-              mode="outlined"
-              onPress={() => router.back()}
-              style={[styles.button, { borderColor: brandingColors.primary }]}
-              textColor={brandingColors.primary}
-              disabled={updateMutation.isPending}
-            >
-              Cancelar
-            </Button>
-
-            <Button
-              mode="contained"
-              onPress={handleSave}
-              style={[styles.button, { backgroundColor: brandingColors.primary }]}
-              loading={updateMutation.isPending}
-              disabled={updateMutation.isPending}
-              icon="check"
-            >
-              Salvar Alterações
-            </Button>
-          </View>
-
-          {/* Excluir */}
           {canDelete && (
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => setDeleteConfirm(true)}
-            disabled={deleteMutation.isPending}
-          >
-            <Ionicons name="trash-outline" size={20} color={Colors.light.error} />
-            <Text style={styles.deleteText}>Excluir Despesa</Text>
-          </TouchableOpacity>
+            <AppButton
+              variant="danger-outline" size="md" fullWidth icon="trash-outline" label="Excluir Despesa"
+              onPress={() => setDeleteConfirm(true)} disabled={deleteMutation.isPending}
+            />
           )}
-
         </ScrollView>
+
+        <FormFooter
+          summary={summary}
+          primaryLabel="Salvar Alterações"
+          onPrimary={handleSave}
+          loading={updateMutation.isPending}
+          onSecondary={() => router.back()}
+        />
       </KeyboardAvoidingView>
 
       <ConfirmDialog
@@ -347,118 +315,15 @@ export default function EditExpenseScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-  },
-  keyboardView: {
-    flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
-  },
-  content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
-  },
-  card: {
-    backgroundColor: Colors.light.white,
-    borderRadius: 16,
-    marginBottom: theme.spacing.md,
-    elevation: 3,
-    shadowColor: Colors.light.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  cardContent: {
-    padding: theme.spacing.md,
-  },
-  input: {
-    marginBottom: theme.spacing.sm,
-    backgroundColor: Colors.light.white,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 99,
-    borderWidth: 1.5,
-    backgroundColor: Colors.light.white,
-  },
-  categoryChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  switchLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.light.text,
-  },
-  switchSubtitle: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
-  },
-  button: {
-    flex: 1,
-    borderRadius: 12,
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.light.error + '12',
-    borderWidth: 1,
-    borderColor: Colors.light.error + '30',
-    padding: theme.spacing.md,
-    borderRadius: 12,
-    marginTop: theme.spacing.md,
-  },
-  deleteText: {
-    color: Colors.light.error,
-    fontWeight: '700',
-    fontSize: 15,
-  },
+  container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+  keyboardView: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+  content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl, gap: theme.spacing.sm },
+  input: { backgroundColor: Colors.light.white },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  fieldLabel: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: Colors.light.textSecondary, marginTop: theme.spacing.xs },
+  help: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary },
+  lockedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  lockedText: { fontSize: theme.fontSize.md, color: Colors.light.text, flex: 1 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  switchLabel: { fontSize: 15, fontWeight: theme.fontWeight.semibold, color: Colors.light.text },
 });

@@ -1,3 +1,4 @@
+import { getServerPdf } from './pdfDelivery';
 /**
  * Financeiro: implantação da loja em andamento, contas (gaveta, bancos, maquininha a receber) com saldo calculado
  * pelo servidor, transferências e contas a pagar. Regras em backend/app/models/finance.py.
@@ -289,3 +290,29 @@ export const updatePayable = async (
 export const updateEntry = async (
   id: number, body: { amount?: string; occurred_on?: string; account_id?: number; person?: string; description?: string },
 ): Promise<AccountEntry> => (await api.patch<AccountEntry>(`/finance/entries/${id}`, body)).data;
+
+// ── Extrato passo a passo (dia a dia, com o saldo no começo e no fim) ────────────────────────────────────────────────
+export interface StatementItem { label: string; amount: number; ref: string | null }
+export interface StatementLine { kind: string; label: string; amount: number; count: number | null; items: StatementItem[] }
+export interface StatementDay { date: string; opening: number; closing: number; net: number; lines: StatementLine[] }
+export interface Statement {
+  started: boolean;
+  start_date: string | null;
+  account: { id: number; name: string; kind: string } | null;
+  days: StatementDay[];
+  /** Passe como `before` para ver os dias anteriores; vazio quando já chegou ao começo da contagem. */
+  next_before: string | null;
+  /** Confere o saldo de agora com o fim do dia mais recente. `difference` só vem na primeira página (a que chega até hoje). */
+  reconciliation: { balance_now: number; closing_of_latest_day: number; difference: number | null } | null;
+}
+
+/** Extrato de uma conta (ou de todas) por 7 dias antes de `before` (padrão: até hoje). Só gerente e administrador. */
+export const getStatement = async (params: { accountId?: number | null; before?: string; days?: number } = {}): Promise<Statement> =>
+  (await api.get<Statement>('/finance/statement', {
+    params: { ...(params.accountId ? { account_id: params.accountId } : {}), ...(params.before ? { before: params.before } : {}), days: params.days ?? 7 },
+    headers: { 'X-Skip-Loading': 'true' },
+  })).data;
+
+/** Extrato COMPLETO em PDF (do começo da contagem até hoje, dia a dia). Objeto para o <PdfActions />. Só gerente e administrador. */
+export const getStatementPdf = (accountId?: number | null) =>
+  getServerPdf('/finance/statement/pdf', { params: accountId ? { account_id: accountId } : {}, title: 'Extrato financeiro' });

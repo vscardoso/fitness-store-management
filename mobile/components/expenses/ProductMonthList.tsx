@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   row: { borderTopWidth: 1, borderTopColor: Colors.light.border, paddingTop: 10, gap: 6 },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   name: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.light.text },
-  profit: { fontSize: 16, fontWeight: '800' },
+  profit: { fontSize: 16, fontWeight: theme.fontWeight.extrabold },
   small: { fontSize: 11, color: Colors.light.textSecondary },
   detail: { fontSize: 12, color: Colors.light.textSecondary, lineHeight: 17 },
   numbers: { flexDirection: 'row', gap: 8 },

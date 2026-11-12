@@ -1,29 +1,34 @@
+/**
+ * Despesas: o que a loja gastou no período.
+ *  - Resumo no topo: gastos da loja no período (o que entra no resultado do mês) e o atalho para o resultado do mês.
+ *  - "A pagar": aparece só se houver despesa a pagar (vencida em destaque) e leva à tela de despesas a pagar.
+ *  - Lista com filtro: da loja (o total do resumo), de lotes (já no custo das peças) ou todas.
+ *  - "Lançar despesa" fica fixo no rodapé, sempre à mão.
+ * No notebook: resumo e pendência à esquerda, lista à direita.
+ */
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  RefreshControl,
-  TouchableOpacity,
-} from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
+import Badge from '@/components/ui/Badge';
+import AppButton from '@/components/ui/AppButton';
+import ScreenLoader from '@/components/ui/ScreenLoader';
+import { ChoiceChip, FormFooter } from '@/components/expenses/FormParts';
 import { getExpenses } from '@/services/expenseService';
 import { getFinanceOverview, listPayables } from '@/services/financeService';
 import { formatDateOnly } from '@/utils/dateOnly';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import AppButton from '@/components/ui/AppButton';
 import type { Expense } from '@/types/expense';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
-
 import { Money } from '@/components/ui/PriceDisplay';
-import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
+
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -44,13 +49,15 @@ function useDateRange(period: PeriodFilterValue) {
   }, [period]);
 }
 
+type Scope = 'store' | 'lot' | 'all';
+
 export default function ExpenseListScreen() {
-  // no PC a lista vira grade de cartões (no celular continua uma coluna)
-  const listGrid = useListGrid(340, 12, 16);
   const desktopColumn = useDesktopContentStyle();
+  const isDesktop = useIsDesktop();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const [period, setPeriod] = useState<PeriodFilterValue>('this_month');
+  const [scope, setScope] = useState<Scope>('store');
   const [refreshing, setRefreshing] = useState(false);
   const dateRange = useDateRange(period);
 
@@ -74,288 +81,166 @@ export default function ExpenseListScreen() {
 
   // Só despesa da loja: a de lote já está no custo das peças e não conta de novo no mês
   const storeExpenses = useMemo(() => (expenses ?? []).filter((e) => !e.stock_entry_id), [expenses]);
+  const lotExpenses = useMemo(() => (expenses ?? []).filter((e) => !!e.stock_entry_id), [expenses]);
   const total = useMemo(() => storeExpenses.reduce((s, e) => s + Number(e.amount), 0), [storeExpenses]);
+  const shown = scope === 'store' ? storeExpenses : scope === 'lot' ? lotExpenses : (expenses ?? []);
+
+  const payOverdue = (payables?.overdue_count ?? 0) > 0;
+  const hasPayables = !!finance?.started && ((payables?.open_total ?? 0) > 0 || payOverdue);
+  const goCreate = () => router.push('/(tabs)/expenses/create');
 
   const renderItem = ({ item }: { item: Expense }) => {
     const cat = item.category;
     const dateStr = formatDateOnly(item.expense_date) ?? item.expense_date;
+    const isLot = !!item.stock_entry_id;
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={styles.row}
         activeOpacity={0.75}
         onPress={() => router.push({ pathname: '/(tabs)/expenses/edit', params: { id: item.id } })}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.description}, ${formatCurrency(item.amount)}, ${dateStr}`}
       >
-        <View
-          style={[styles.categoryDot, { backgroundColor: cat?.color ?? '#95a5a6' }]}
-        >
-          <Ionicons
-            name={(cat?.icon ?? 'ellipsis-horizontal-outline') as any}
-            size={20}
-            color={Colors.light.white}
-          />
+        <View style={[styles.categoryDot, { backgroundColor: cat?.color ?? Colors.light.textTertiary }]}>
+          <Ionicons name={(cat?.icon ?? 'ellipsis-horizontal-outline') as any} size={20} color={Colors.light.white} />
         </View>
-        <View style={styles.cardContent}>
-          <Text variant="bodyLarge" style={styles.description} numberOfLines={1}>
-            {item.description}
-          </Text>
-          <View style={styles.cardMeta}>
-            <Text variant="bodySmall" style={styles.categoryLabel}>
-              {cat?.name ?? 'Sem categoria'}
-            </Text>
-            <Text variant="bodySmall" style={styles.dateLabel}>
-              {dateStr}
-            </Text>
-            {!!item.stock_entry_id && (
-              <View style={[styles.recurringBadge, { backgroundColor: Colors.light.backgroundSecondary }]}>
-                <Ionicons name="layers-outline" size={11} color={Colors.light.textSecondary} />
-                <Text style={[styles.recurringText, { color: Colors.light.textSecondary }]}>
-                  Custo de um lote
-                </Text>
-              </View>
-            )}
-            {item.is_recurring && (
-              <View style={[styles.recurringBadge, { backgroundColor: brandingColors.primary + '20' }]}>
-                <Ionicons name="repeat" size={11} color={brandingColors.primary} />
-                <Text style={[styles.recurringText, { color: brandingColors.primary }]}>Recorrente</Text>
-              </View>
-            )}
-          </View>
+        <View style={styles.rowContent}>
+          <Text variant="bodyLarge" style={styles.description} numberOfLines={1}>{item.description}</Text>
+          <Text style={styles.rowMeta} numberOfLines={1}>{`${cat?.name ?? 'Sem categoria'} · ${dateStr}`}</Text>
+          {(isLot || item.is_recurring) && (
+            <View style={styles.badges}>
+              {isLot && <Badge label="Custo de um lote" variant="neutral" size="sm" icon="layers-outline" />}
+              {item.is_recurring && <Badge label="Recorrente" variant="primary" size="sm" icon="repeat" />}
+            </View>
+          )}
         </View>
-        <Text variant="titleMedium" style={styles.amount}>
-          {formatCurrency(item.amount)}
-        </Text>
+        <View style={styles.amountCol}>
+          <Text style={[styles.amount, isLot && { color: Colors.light.textSecondary }]}>{formatCurrency(item.amount)}</Text>
+          <Text style={styles.amountNote}>{isLot ? 'no custo do lote' : 'pago'}</Text>
+        </View>
       </TouchableOpacity>
     );
   };
 
-  return (
-    <View style={styles.container}>
-      <PageHeader
-        title="Despesas"
-        subtitle={`${expenses?.length ?? 0} registros`}
-        showBackButton
-        rightActions={[
-          { icon: 'add', onPress: () => router.push('/(tabs)/expenses/create') },
-        ]}
-      />
-      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
-      <View style={[{ flex: 1 }, desktopColumn]}>
-
-      {/* Card totalizador + filtro integrado */}
+  const summary = (
+    <View style={styles.side}>
       <View style={styles.summaryCard}>
-        {/* Header: label + PeriodFilter */}
         <View style={styles.summaryHeader}>
-          <View style={styles.summaryHeaderLeft}>
-            <View style={styles.summaryIcon}>
-              <Ionicons name="trending-down-outline" size={16} color={Colors.light.error} />
-            </View>
-            <Text style={styles.summaryLabel}>Total no período</Text>
-          </View>
+          <Text style={styles.eyebrow}>GASTOS DA LOJA NO PERÍODO</Text>
           <PeriodFilter value={period} onChange={setPeriod} compact />
         </View>
-
-        {/* Valor em destaque */}
-        <View style={styles.summaryBody}>
-          <Money style={styles.summaryValue} value={Number(total)} />
-          <Text style={styles.summaryMeta}>
-            {storeExpenses.length} {storeExpenses.length === 1 ? 'despesa da loja' : 'despesas da loja'}
-          </Text>
-        </View>
-
-        {/* Resultado do mês */}
-        <View style={styles.plButton}>
-          <AppButton
-            variant="primary"
-            size="md"
-            fullWidth
-            icon="stats-chart-outline"
-            label="Ver resultado do mês"
-            onPress={() => router.push('/(tabs)/expenses/resultado')}
-          />
-        </View>
+        <Money style={styles.summaryValue} value={Number(total)} />
+        <Text style={styles.summaryMeta}>
+          {`${storeExpenses.length} ${storeExpenses.length === 1 ? 'despesa' : 'despesas'}`}
+          {lotExpenses.length > 0 ? ` · ${lotExpenses.length} de lote, já no custo das peças` : ''}
+        </Text>
+        <AppButton variant="text" size="sm" icon="stats-chart-outline" label="Ver resultado do mês" onPress={() => router.push('/(tabs)/expenses/resultado')} />
       </View>
 
-      {!!finance?.started && (
-        <TouchableOpacity
-          style={styles.payablesCard}
-          onPress={() => router.push('/finance/payables' as any)}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Abrir despesas a pagar"
-        >
-          <Ionicons name="time-outline" size={20} color={payables?.overdue_count ? Colors.light.error : brandingColors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.payablesTitle}>A pagar: {formatCurrency(payables?.open_total ?? 0)}</Text>
-            <Text style={[styles.summaryMeta, !!payables?.overdue_count && { color: Colors.light.error, fontWeight: '700' }]}>
-              {payables?.overdue_count
-                ? `${payables.overdue_count} vencida(s): ${formatCurrency(payables.overdue_total)}`
-                : 'Despesas que ainda vão ser pagas'}
+      {hasPayables && (
+        <View style={[styles.todo, payOverdue && styles.todoOverdue]}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.todoTitle}>{payOverdue ? 'Despesas vencidas' : 'Despesas a pagar'}</Text>
+            <Text style={[styles.todoNote, payOverdue && { color: Colors.light.error, fontWeight: theme.fontWeight.bold }]}>
+              {payOverdue
+                ? `${payables!.overdue_count} vencida(s), ${formatCurrency(payables!.overdue_total)} · total a pagar ${formatCurrency(payables?.open_total ?? 0)}`
+                : `${formatCurrency(payables?.open_total ?? 0)} ainda vão ser pagas`}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-        </TouchableOpacity>
+          <AppButton variant="outlined" size="sm" label={payOverdue ? 'Pagar' : 'Ver'} onPress={() => router.push('/finance/payables' as any)} />
+        </View>
       )}
+    </View>
+  );
 
-      {/* Spacer antes da lista */}
-      <View style={{ height: theme.spacing.sm }} />
+  const filters = (
+    <View style={styles.filters}>
+      <ChoiceChip label={`Da loja (${storeExpenses.length})`} selected={scope === 'store'} onPress={() => setScope('store')} />
+      {lotExpenses.length > 0 && <ChoiceChip label={`De lotes (${lotExpenses.length})`} selected={scope === 'lot'} onPress={() => setScope('lot')} />}
+      {lotExpenses.length > 0 && <ChoiceChip label="Todas" selected={scope === 'all'} onPress={() => setScope('all')} />}
+    </View>
+  );
 
-      <FlatList
-          key={listGrid.listKey}
-          style={listGrid.bleedStyle}
-          {...listGrid.listProps}
-        data={expenses ?? []}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={listGrid.wrap(renderItem)}
-        contentContainerStyle={[expenses?.length === 0 ? styles.emptyContainer : styles.listContent, listGrid.bleedContent]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[brandingColors.primary]} />}
-        ListEmptyComponent={
-          isLoading ? null : (
-            <EmptyState
-              icon="receipt-outline"
-              title="Nenhuma despesa"
-              description="Anote aluguel, luz e outros gastos para ver quanto sobrou no mês."
-              actionLabel="Registrar Despesa"
-              onAction={() => router.push('/(tabs)/expenses/create')}
-            />
-          )
-        }
-      />
+  const list = (
+    <FlatList
+      data={shown}
+      keyExtractor={(item) => String(item.id)}
+      renderItem={renderItem}
+      ListHeaderComponent={isDesktop ? filters : (
+        <View style={{ gap: theme.spacing.sm }}>
+          {summary}
+          {filters}
+        </View>
+      )}
+      contentContainerStyle={shown.length === 0 ? styles.emptyContainer : styles.listContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[brandingColors.primary]} />}
+      ListEmptyComponent={
+        isLoading ? (
+          <ScreenLoader inline message="Carregando despesas..." />
+        ) : (
+          <EmptyState
+            icon="receipt-outline"
+            title={scope === 'lot' ? 'Nenhuma despesa de lote' : 'Nenhuma despesa no período'}
+            description="Anote aluguel, luz e outros gastos para ver quanto sobrou no mês."
+            actionLabel="Lançar despesa"
+            onAction={goCreate}
+          />
+        )
+      }
+    />
+  );
+
+  return (
+    <View style={styles.container}>
+      <PageHeader title="Despesas" subtitle="O que a loja gastou" showBackButton />
+      <View style={[{ flex: 1 }, desktopColumn]}>
+        {isDesktop ? (
+          <View style={styles.columns}>
+            <View style={styles.leftCol}>{summary}</View>
+            <View style={{ flex: 1, minWidth: 0 }}>{list}</View>
+          </View>
+        ) : (
+          list
+        )}
       </View>
+      <FormFooter primaryLabel="Lançar despesa" primaryIcon="add" onPrimary={goCreate} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
-
-  // ── Card totalizador ──────────────────────────────────────────────────────
-  payablesCard: {
-    marginHorizontal: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    backgroundColor: Colors.light.card,
-  },
-  payablesTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
+  columns: { flex: 1, flexDirection: 'row', gap: theme.spacing.lg, padding: theme.spacing.md },
+  leftCol: { width: 360 },
+  side: { gap: theme.spacing.sm },
+  eyebrow: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.extrabold, letterSpacing: 1, color: Colors.light.textSecondary, flex: 1 },
   summaryCard: {
-    marginHorizontal: theme.spacing.md,
-    marginTop: theme.spacing.md,
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    elevation: 3,
-    shadowColor: Colors.light.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
-    overflow: 'hidden',
+    backgroundColor: Colors.light.card, borderRadius: theme.borderRadius.xl, borderWidth: 1, borderColor: Colors.light.border,
+    padding: theme.spacing.md, gap: 4,
   },
-  summaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
+  summaryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  summaryValue: { fontSize: theme.fontSize.xxxl, fontWeight: theme.fontWeight.extrabold, color: Colors.light.error, letterSpacing: -0.5 },
+  summaryMeta: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
+  todo: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.light.card, borderRadius: theme.borderRadius.lg,
+    padding: 12, borderWidth: 1, borderColor: Colors.light.border,
   },
-  summaryHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  todoOverdue: { backgroundColor: Colors.light.warningLight, borderColor: Colors.light.warning },
+  todoTitle: { fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  todoNote: { fontSize: theme.fontSize.sm, lineHeight: 17, color: Colors.light.textSecondary },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: theme.spacing.sm },
+  listContent: { paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xl, paddingTop: theme.spacing.sm },
+  emptyContainer: { flexGrow: 1, paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.sm },
+  row: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.light.card, borderRadius: theme.borderRadius.lg, padding: 14,
+    marginBottom: theme.spacing.sm, borderWidth: 1, borderColor: Colors.light.border, gap: theme.spacing.md,
   },
-  summaryIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: Colors.light.error + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.light.textSecondary,
-  },
-  summaryBody: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 10,
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
-  },
-  summaryValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: Colors.light.error,
-    letterSpacing: -0.5,
-  },
-  summaryMeta: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-    fontWeight: '500',
-  },
-  plButton: {
-    marginHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-  },
-  listContent: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: 80,
-  },
-  emptyContainer: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.md,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.light.background,
-    borderRadius: theme.borderRadius.lg,
-    padding: 14,
-    marginTop: theme.spacing.md,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    gap: theme.spacing.md,
-  },
-  categoryDot: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardContent: { flex: 1 },
-  description: { fontWeight: '600', color: Colors.light.text },
-  cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginTop: 3,
-    flexWrap: 'wrap',
-  },
-  categoryLabel: { color: Colors.light.textSecondary, fontSize: 12 },
-  dateLabel: { color: Colors.light.textTertiary, fontSize: 12 },
-  recurringBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 99,
-  },
-  recurringText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  amount: {
-    fontWeight: '700',
-    color: Colors.light.error,
-  },
+  categoryDot: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  rowContent: { flex: 1, minWidth: 0, gap: 2 },
+  description: { fontWeight: theme.fontWeight.semibold, color: Colors.light.text },
+  rowMeta: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+  amountCol: { alignItems: 'flex-end', gap: 2 },
+  amount: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: Colors.light.error },
+  amountNote: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary },
 });

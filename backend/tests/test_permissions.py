@@ -119,6 +119,7 @@ def test_matriz_nunca_e_mais_frouxa_que_o_guard_da_rota():
     ("GET", "/api/v1/team", ["manager", "admin"]),
     ("POST", "/api/v1/team", ["admin"]),
     ("GET", "/api/v1/store/pix", ["admin"]),
+    ("GET", "/api/v1/finance/statement", ["manager", "admin"]),
     ("GET", "/api/v1/audit/", ["admin"]),
     ("POST", "/api/v1/auth/register", ["admin"]),
     ("GET", "/api/v1/auth/me", ROLES),

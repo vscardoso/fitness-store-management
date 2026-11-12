@@ -19,9 +19,9 @@ import PendingPurchasesCard from '@/components/finance/PendingPurchasesCard';
 import PurchasePaymentResultCard from '@/components/finance/PurchasePaymentResultCard';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole } from '@/utils/roles';
 import { formatCurrency, formatDate } from '@/utils/format';
@@ -35,6 +35,8 @@ import {
   transferBetweenAccounts, type AccountTransfer, type FinanceAccount,
 } from '@/services/financeService';
 
+/** Quantas transferências aparecem por vez na lista (cada rolagem até o fim, ou "Mostrar mais", traz mais 5). */
+const TRANSFERS_PAGE = 5;
 const ICON: Record<string, keyof typeof Ionicons.glyphMap> = { cash: 'cash-outline', bank: 'business-outline', card: 'card-outline' };
 // o que cada conta é, sem repetir o nome dela
 const SUBTITLE = (a: FinanceAccount) =>
@@ -58,6 +60,13 @@ export default function AccountsScreen() {
   const [sheetError, setSheetError] = useState('');
   const [transferWarning, setTransferWarning] = useState('');
   const [detail, setDetail] = useState<FinanceAccount | null>(null);
+  // "Transferências": todas, de 5 em 5; a lista rola dentro do cartão e carrega mais ao chegar no fim
+  const [transfersShown, setTransfersShown] = useState(TRANSFERS_PAGE);
+  // toque numa transferência: escolher Corrigir ou Apagar (antes eram dois ícones em cada linha)
+  const [selTransfer, setSelTransfer] = useState<AccountTransfer | null>(null);
+  const [openTodo, setOpenTodo] = useState<'purchases' | 'card' | null>(null);
+  const [showForecast, setShowForecast] = useState(false);
+  const isDesktop = useIsDesktop();
   // Corrigir saldo (admin): 'adjust' leva o saldo de hoje ao valor real; 'opening' corrige o saldo de partida
   const [fix, setFix] = useState<{ acc: FinanceAccount; mode: 'adjust' | 'opening'; amount: string; reason: string } | null>(null);
 
@@ -164,78 +173,183 @@ export default function AccountsScreen() {
     setEditing({ t, amount: moneyInput(Math.round(t.amount * 100).toString()), day: isoToDate(t.occurred_on), note: t.description ?? '' });
   };
 
+  const pending = data.purchases_pending;
+  const card = data.card_schedule ?? null;
+  const cardDue = !!card && card.due_now > 0.004;
+  const todoCount = (pending && pending.count > 0 ? 1 : 0) + (cardDue ? 1 : 0);
+
+  const warning = !!transferWarning && (
+    <View style={[styles.card, styles.warn]}>
+      <Text style={styles.warnText}>{transferWarning}</Text>
+      <AppButton variant="text" size="sm" label="Entendi" onPress={() => setTransferWarning('')} />
+    </View>
+  );
+
+  // Esquerda no notebook: o total, a ação (Transferir) e o que precisa de você
+  const hero = (
+    <View style={styles.hero} testID="accounts-total">
+      <Text style={styles.eyebrow}>DINHEIRO AGORA</Text>
+      <Text style={[styles.total, data.total < 0 && { color: Colors.light.error }]}>{formatCurrency(data.total)}</Text>
+      <Text style={styles.note}>Gaveta, bancos e o que a maquininha ainda vai pagar, somados.</Text>
+      <AppButton variant="primary" size="md" fullWidth icon="swap-horizontal-outline" label="Transferir" onPress={() => openTransfer(null, null)} />
+      <AppButton variant="outlined" size="md" fullWidth icon="list-outline" label="Ver extrato passo a passo" onPress={() => router.push('/finance/statement' as any)} />
+    </View>
+  );
+
+  const todos = todoCount > 0 && (
+    <View style={styles.section} testID="accounts-todo">
+      <Text style={styles.eyebrow}>{`PRECISA DE VOCÊ · ${todoCount}`}</Text>
+      {!!pending && pending.count > 0 && (
+        <>
+          <TodoRow title="Compras sem conta" note={`${pending.count} compra(s), ${formatCurrency(pending.total)}, ainda não saíram de nenhuma conta`}
+            action="Descontar" open={openTodo === 'purchases'} onPress={() => setOpenTodo(openTodo === 'purchases' ? null : 'purchases')} />
+          {openTodo === 'purchases' && <PendingPurchasesCard pending={pending} />}
+        </>
+      )}
+      {cardDue && !!card && (
+        <>
+          <TodoRow title="Repasse da maquininha" note={`${formatCurrency(card.due_now)} já pode ir para ${card.bank_name ?? 'o banco'}`}
+            action="Fazer repasse" open={openTodo === 'card'} onPress={() => setOpenTodo(openTodo === 'card' ? null : 'card')} />
+          {openTodo === 'card' && <CardScheduleCard schedule={card} />}
+        </>
+      )}
+    </View>
+  );
+
+  const forecast = (!!data.projection || (!!card && !cardDue)) && (
+    <View style={styles.section}>
+      <TouchableOpacity style={styles.forecastHead} onPress={() => setShowForecast((v) => !v)} accessibilityRole="button"
+        accessibilityState={{ expanded: showForecast }}>
+        <Text style={styles.forecastTitle}>Previsão e maquininha</Text>
+        <Ionicons name={showForecast ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.light.textSecondary} />
+      </TouchableOpacity>
+      {showForecast && (
+        <>
+          {!!card && !cardDue && <CardScheduleCard schedule={card} />}
+          {!!data.projection && <FiadoProjectionCard projection={data.projection} />}
+        </>
+      )}
+    </View>
+  );
+
+  const accountsGrid = (
+    <View style={styles.section}>
+      <Text style={styles.eyebrow}>CONTAS</Text>
+      <Text style={styles.small}>Toque numa conta para ver de onde veio o saldo.</Text>
+      <View style={styles.grid}>
+        {accounts.map((a) => (
+          <TouchableOpacity key={a.id} style={styles.account} onPress={() => setDetail(a)} activeOpacity={0.8}
+            accessibilityRole="button" accessibilityLabel={`${a.name}: ${formatCurrency(a.balance)}`}>
+            <View style={styles.accountHead}>
+              <View style={[styles.icon, { backgroundColor: brand.primary + '14' }]}>
+                <Ionicons name={ICON[a.kind]} size={18} color={brand.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.accountName} numberOfLines={1}>{a.name}</Text>
+                <Text style={styles.accountKind}>{SUBTITLE(a)}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
+            </View>
+            <Text style={[styles.balance, a.balance < 0 && { color: Colors.light.error }]}>{formatCurrency(a.balance)}</Text>
+          </TouchableOpacity>
+        ))}
+        {admin && (
+          <TouchableOpacity style={[styles.account, styles.newAccount]} onPress={() => { setSheetError(''); setNewBank({ name: '', amount: '' }); }}
+            activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Nova conta de banco">
+            <Ionicons name="add" size={22} color={brand.primary} />
+            <Text style={[styles.accountName, { color: brand.primary }]}>Nova conta de banco</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
+  const transfersList = !!transfers?.length && (
+    <View style={styles.section}>
+      <Text style={[styles.eyebrow, { textTransform: 'uppercase' }]}>{`Transferências · ${transfers.length}`}</Text>
+      <View style={styles.card}>
+        <ScrollView style={styles.transfersScroll} nestedScrollEnabled showsVerticalScrollIndicator
+          scrollEventThrottle={100}
+          onScroll={(e) => {
+            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+            if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 24) setTransfersShown((n) => Math.min(transfers.length, n + TRANSFERS_PAGE));
+          }}>
+        {transfers.slice(0, transfersShown).map((t) => (
+          <TouchableOpacity key={t.id} style={styles.transferRow} onPress={() => { setSheetError(''); setSelTransfer(t); }} activeOpacity={0.7}
+            accessibilityRole="button" accessibilityLabel={`Transferência de ${formatCurrency(t.amount)}: corrigir ou apagar`}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.transferText} numberOfLines={1}>{name(t.from_account_id)} → {name(t.to_account_id)}</Text>
+              <Text style={styles.accountKind} numberOfLines={1}>
+                {formatDate(t.occurred_on)}{t.description ? ` · ${t.description}` : ''}{t.is_auto ? ' · lançado pelo sistema' : ''}
+              </Text>
+            </View>
+            <Text style={styles.transferText}>{formatCurrency(t.amount)}</Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
+          </TouchableOpacity>
+        ))}
+        </ScrollView>
+        {transfersShown < transfers.length ? (
+          <AppButton variant="text" size="sm" label={`Mostrar mais ${Math.min(TRANSFERS_PAGE, transfers.length - transfersShown)} (${transfersShown} de ${transfers.length})`}
+            onPress={() => setTransfersShown((n) => Math.min(transfers.length, n + TRANSFERS_PAGE))} />
+        ) : (
+          <Text style={styles.small}>{`Todas as ${transfers.length} transferências estão na lista.`}</Text>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <PageHeader title="Contas e saldos" subtitle={`Contando desde ${formatDate(data.start_date!)}`} showBackButton backFallback="/finance" />
       <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
-        <CashStatusCard />
-        <View style={styles.card}>
-          <Text style={styles.label}>Total em todas as contas</Text>
-          <Text style={[styles.total, data.total < 0 && { color: Colors.light.error }]}>{formatCurrency(data.total)}</Text>
-          <View style={styles.actions}>
-            <AppButton variant="primary" size="md" fullWidth icon="swap-horizontal-outline" label="Transferir" onPress={() => openTransfer(null, null)} />
+        {warning}
+        {isDesktop ? (
+          <View style={styles.columns}>
+            <View style={styles.col}>
+              <CashStatusCard />
+              {hero}
+              <PurchasePaymentResultCard />
+              {todos}
+              {forecast}
+            </View>
+            <View style={styles.col}>
+              {accountsGrid}
+              {transfersList}
+            </View>
           </View>
-        </View>
-
-        <PurchasePaymentResultCard />
-        {!!data.purchases_pending && data.purchases_pending.count > 0 && <PendingPurchasesCard pending={data.purchases_pending} />}
-        {!!data.card_schedule && <CardScheduleCard schedule={data.card_schedule} />}
-        {!!data.projection && <FiadoProjectionCard projection={data.projection} />}
-
-        <View style={styles.grid}>
-          {accounts.map((a) => (
-            <TouchableOpacity key={a.id} style={styles.account} onPress={() => setDetail(a)} activeOpacity={0.8}
-              accessibilityRole="button" accessibilityLabel={`${a.name}: ${formatCurrency(a.balance)}`}>
-              <View style={styles.accountHead}>
-                <View style={[styles.icon, { backgroundColor: brand.primary + '14' }]}>
-                  <Ionicons name={ICON[a.kind]} size={18} color={brand.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.accountName} numberOfLines={1}>{a.name}</Text>
-                  <Text style={styles.accountKind}>{SUBTITLE(a)}</Text>
-                </View>
-              </View>
-              <Text style={[styles.balance, a.balance < 0 && { color: Colors.light.error }]}>{formatCurrency(a.balance)}</Text>
-              {admin && (
-                <TouchableOpacity onPress={() => openFix(a)} hitSlop={8} style={styles.fixBtn} accessibilityRole="button"
-                  accessibilityLabel={`Corrigir saldo de ${a.name}`}>
-                  <Ionicons name="pencil" size={14} color={brand.primary} />
-                  <Text style={[styles.fixText, { color: brand.primary }]}>Corrigir saldo</Text>
-                </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-        {admin && (
-          <AppButton variant="outlined" size="md" fullWidth icon="add" label="Nova conta de banco"
-            onPress={() => { setSheetError(''); setNewBank({ name: '', amount: '' }); }} />
-        )}
-
-        {!!transfers?.length && (
-          <View style={styles.card}>
-            <Text style={styles.title}>Últimas transferências</Text>
-            {transfers.slice(0, 10).map((t) => (
-              <View key={t.id} style={styles.transferRow}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={styles.transferText} numberOfLines={1}>{name(t.from_account_id)} → {name(t.to_account_id)}</Text>
-                  <Text style={styles.accountKind} numberOfLines={1}>
-                    {formatDate(t.occurred_on)}{t.description ? ` · ${t.description}` : ''}{t.is_auto ? ' · lançado pelo sistema' : ''}
-                  </Text>
-                </View>
-                <Text style={styles.transferText}>{formatCurrency(t.amount)}</Text>
-                <TouchableOpacity onPress={() => openEditTransfer(t)} hitSlop={8} accessibilityRole="button"
-                  accessibilityLabel={`Corrigir transferência de ${formatCurrency(t.amount)}`}>
-                  <Ionicons name="pencil-outline" size={18} color={brand.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setRemoving(t)} hitSlop={8} accessibilityRole="button"
-                  accessibilityLabel={`Apagar transferência de ${formatCurrency(t.amount)}`}>
-                  <Ionicons name="trash-outline" size={18} color={Colors.light.textTertiary} />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
+        ) : (
+          <>
+            <CashStatusCard />
+            {hero}
+            {accountsGrid}
+            <PurchasePaymentResultCard />
+            {todos}
+            {forecast}
+            {transfersList}
+          </>
         )}
       </ScrollView>
+
+      <BottomSheet
+        visible={!!selTransfer}
+        onDismiss={() => setSelTransfer(null)}
+        title="Transferência"
+        subtitle={selTransfer ? `${name(selTransfer.from_account_id)} → ${name(selTransfer.to_account_id)}` : undefined}
+        icon="swap-horizontal"
+        actions={selTransfer ? [
+          { label: 'Corrigir', variant: 'secondary', onPress: () => { const t = selTransfer; setSelTransfer(null); openEditTransfer(t); } },
+          { label: 'Apagar', variant: 'danger', onPress: () => { const t = selTransfer; setSelTransfer(null); setRemoving(t); } },
+        ] : undefined}
+      >
+        {!!selTransfer && (
+          <View style={{ gap: 6 }}>
+            <Line label="Valor" value={selTransfer.amount} />
+            <Text style={styles.note}>
+              {formatDate(selTransfer.occurred_on)}{selTransfer.description ? ` · ${selTransfer.description}` : ''}{selTransfer.is_auto ? ' · lançado pelo sistema' : ''}
+            </Text>
+          </View>
+        )}
+      </BottomSheet>
 
       <ConfirmDialog visible={!!removing} title="Apagar esta transferência?" type="warning" confirmText="Apagar" cancelText="Voltar"
         message={removing ? `${formatCurrency(removing.amount)} de ${name(removing.from_account_id)} para ${name(removing.to_account_id)}. As duas contas voltam ao saldo de antes.${removing.is_auto ? ' Foi um repasse automático: se você apagar, o sistema não o lança de novo (o dia volta para a lista da maquininha e você faz o repasse à mão).' : ''}` : ''}
@@ -398,9 +512,15 @@ export default function AccountsScreen() {
         title={detail?.name ?? ''}
         subtitle={detail ? `Saldo: ${formatCurrency(detail.balance)}` : undefined}
         icon={detail ? ICON[detail.kind] : undefined}
-        actions={detail && admin && detail.kind === 'bank' && !detail.receives_pix
-          ? [{ label: 'Receber o PIX nesta conta', variant: 'secondary', loading: doPix.isPending, onPress: () => doPix.mutate(detail.id) }]
-          : undefined}
+        actions={detail ? [
+          { label: 'Ver extrato desta conta', variant: 'primary' as const, onPress: () => { const id = detail.id; setDetail(null); router.push(`/finance/statement?account=${id}` as any); } },
+          ...(admin ? [
+            ...(detail.kind === 'bank' && !detail.receives_pix
+              ? [{ label: 'Receber o PIX nesta conta', variant: 'secondary' as const, loading: doPix.isPending, onPress: () => doPix.mutate(detail.id) }]
+              : []),
+            { label: 'Corrigir saldo', variant: 'secondary' as const, onPress: () => openFix(detail) },
+          ] : []),
+        ] : undefined}
       >
         {!!detail && (
           <View style={{ gap: 6 }}>
@@ -420,6 +540,19 @@ export default function AccountsScreen() {
           </View>
         )}
       </BottomSheet>
+    </View>
+  );
+}
+
+/** Linha de "Precisa de você": resumo e uma ação; abre o cartão completo no mesmo lugar. */
+function TodoRow({ title, note, action, onPress, open }: { title: string; note: string; action: string; onPress: () => void; open?: boolean }) {
+  return (
+    <View style={styles.todo}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={styles.todoTitle}>{title}</Text>
+        <Text style={styles.todoNote}>{note}</Text>
+      </View>
+      <AppButton variant="outlined" size="sm" label={open ? 'Fechar' : action} onPress={onPress} />
     </View>
   );
 }
@@ -445,35 +578,43 @@ function Line({ label, value }: { label: string; value: number }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.light.background },
-  content: { padding: 16, paddingBottom: 48, gap: 12 },
+  content: { padding: 16, paddingBottom: 48, gap: 16 },
+  columns: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  col: { flex: 1, gap: 16, minWidth: 0 },
+  section: { gap: 8 },
+  eyebrow: { fontSize: 11, fontWeight: theme.fontWeight.extrabold, letterSpacing: 1, color: Colors.light.textSecondary },
+  hero: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 8 },
   card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 8 },
   warn: { borderColor: Colors.light.warning, backgroundColor: Colors.light.warningLight },
-  warnText: { fontSize: 14, lineHeight: 20, color: Colors.light.text, fontWeight: '700' },
-  title: { fontSize: 16, fontWeight: '800', color: Colors.light.text },
+  warnText: { fontSize: 14, lineHeight: 20, color: Colors.light.text, fontWeight: theme.fontWeight.bold },
+  title: { fontSize: 16, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
   note: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary },
-  label: { fontSize: 13, fontWeight: '700', color: Colors.light.textSecondary },
-  total: { fontSize: 28, fontWeight: '800', color: Colors.light.text },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  small: { fontSize: 12, color: Colors.light.textSecondary },
+  label: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.textSecondary },
+  total: { fontSize: 30, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
   left: { alignSelf: 'flex-start' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  account: { flexGrow: 1, flexBasis: 160, backgroundColor: Colors.light.card, borderRadius: 16, padding: 14, borderWidth: 1,
+  account: { flexGrow: 1, flexBasis: 160, minWidth: 0, backgroundColor: Colors.light.card, borderRadius: 16, padding: 14, borderWidth: 1,
     borderColor: Colors.light.border, gap: 10 },
+  newAccount: { borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 },
   accountHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   icon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  accountName: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
+  accountName: { fontSize: 15, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
   accountKind: { fontSize: 12, color: Colors.light.textSecondary },
-  fixBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, alignSelf: 'flex-start' },
-  fixText: { fontSize: 12, fontWeight: '700' },
-  balance: { fontSize: 20, fontWeight: '800', color: Colors.light.text },
-  transferRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  transferText: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
-  overdue: { fontSize: 13, fontWeight: '700', color: Colors.light.error },
+  balance: { fontSize: 20, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  todo: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.light.warningLight, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.light.warning },
+  todoTitle: { fontSize: 14, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  todoNote: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary },
+  forecastHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderStyle: 'dashed', borderColor: Colors.light.border, borderRadius: 12, padding: 12 },
+  forecastTitle: { fontSize: 14, fontWeight: theme.fontWeight.bold, color: Colors.light.textSecondary },
+  transfersScroll: { maxHeight: 320 },
+  transferRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  transferText: { fontSize: 14, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  chipText: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
+  chipText: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
   line: { flexDirection: 'row', justifyContent: 'space-between' },
   lineLabel: { fontSize: 14, color: Colors.light.textSecondary },
-  lineValue: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
-  error: { color: Colors.light.error, fontWeight: '600' },
+  lineValue: { fontSize: 14, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
+  error: { color: Colors.light.error, fontWeight: theme.fontWeight.semibold },
 });
