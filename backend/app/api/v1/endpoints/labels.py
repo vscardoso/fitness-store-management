@@ -1,7 +1,7 @@
 """Etiqueta do verso da tag em PDF (folha A4 adesiva ou rolo da térmica)."""
 from typing import List, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -240,7 +240,7 @@ public_router = APIRouter(prefix="/public", tags=["Etiquetas (link do PDF)"])
 
 
 @public_router.get("/label-files/{token}/{filename}", include_in_schema=False)
-async def public_label_pdf(token: str, filename: str, db: AsyncSession = Depends(get_db_unscoped)):
+async def public_label_pdf(token: str, filename: str, download: bool = Query(False), db: AsyncSession = Depends(get_db_unscoped)):
     """PDF de uma das 3 últimas impressões, num link https comum (o que o iPhone compartilha de verdade).
 
     O token é assinado pelo servidor; só abre enquanto a impressão for uma das 3 últimas; o nome no fim do endereço só dá nome ao arquivo.
@@ -255,4 +255,5 @@ async def public_label_pdf(token: str, filename: str, db: AsyncSession = Depends
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF não encontrado ou vencido.")
     return Response(content=content, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{fname}"', "Cache-Control": "private, max-age=300"})
+                    headers={"Content-Disposition": f'{"attachment" if download else "inline"}; filename="{fname}"',
+                             "Cache-Control": "private, max-age=300"})

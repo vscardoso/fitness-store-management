@@ -18,6 +18,11 @@ interface Props extends UsePdfDeliveryOptions {
   openLabel?: string;
   /** "Abrir o PDF" vem primeiro e é o botão principal. Etiqueta: o Label Expert só aparece na lista de apps quando o PDF é aberto no Safari e compartilhado de lá (a folha de compartilhar do app não o mostra). */
   openFirst?: boolean;
+  /** Mostra "Salvar no celular" (baixa o PDF para Arquivos: é o caminho que a impressora aceita no iPhone). */
+  showSave?: boolean;
+  saveLabel?: string;
+  /** "Salvar no celular" vem primeiro e é o botão principal (etiquetas). */
+  saveFirst?: boolean;
   /** Estilo do botão principal */
   variant?: 'primary' | 'secondary' | 'outlined';
   size?: 'sm' | 'md' | 'lg';
@@ -28,17 +33,18 @@ interface Props extends UsePdfDeliveryOptions {
 }
 
 export default function PdfActions({
-  shareLabel = 'Enviar o PDF para a impressora', showOpen = false, openLabel = 'Abrir o PDF numa aba', openFirst = false,
+  shareLabel = 'Enviar o PDF para a impressora', showOpen = false, openLabel = 'Abrir o PDF numa aba', openFirst = false, showSave = false, saveLabel = 'Salvar no celular', saveFirst = false,
   variant = 'primary', size = 'lg', fullWidth = true, iconOnly = false, onDelivered, ...source
 }: Props) {
   const p = usePdfDelivery(source);
   const doShare = async () => { if ((await p.share()) && onDelivered) onDelivered(); };
   const doOpen = async () => { if ((await p.open()) && onDelivered) onDelivered(); };
+  const doSave = async () => { if ((await p.save()) && onDelivered) onDelivered(); };
   const shareBtn = (
     <AppButton
       key="share"
-      variant={p.needsAnotherTap ? 'primary' : openFirst && showOpen ? 'outlined' : variant}
-      size={openFirst && showOpen && !iconOnly ? 'md' : size}
+      variant={p.needsAnotherTap ? 'primary' : (openFirst && showOpen) || saveFirst ? 'outlined' : variant}
+      size={((openFirst && showOpen) || saveFirst) && !iconOnly ? 'md' : size}
       fullWidth={fullWidth && !iconOnly}
       icon={iconOnly ? 'share-outline' : 'print-outline'}
       iconOnly={iconOnly && !p.needsAnotherTap}
@@ -48,11 +54,24 @@ export default function PdfActions({
       onPress={doShare}
     />
   );
+  const saveBtn = showSave ? (
+    <AppButton
+      key="save"
+      variant={saveFirst ? variant : 'outlined'}
+      size={saveFirst && !iconOnly ? size : 'md'}
+      fullWidth={fullWidth && !iconOnly}
+      icon="download-outline"
+      label={p.busy === 'save' ? 'Salvando...' : saveLabel}
+      loading={p.busy === 'save'}
+      disabled={!!p.busy}
+      onPress={doSave}
+    />
+  ) : null;
   const openBtn = showOpen ? (
     <AppButton
       key="open"
-      variant={openFirst ? variant : 'outlined'}
-      size={openFirst && !iconOnly ? size : iconOnly ? 'sm' : 'md'}
+      variant={openFirst && !saveFirst ? variant : 'outlined'}
+      size={openFirst && !saveFirst && !iconOnly ? size : iconOnly ? 'sm' : 'md'}
       fullWidth={fullWidth && !iconOnly}
       icon="document-text-outline"
       label={p.busy === 'open' ? 'Abrindo...' : openLabel}
@@ -63,7 +82,7 @@ export default function PdfActions({
   ) : null;
   return (
     <View style={iconOnly ? styles.inline : styles.box}>
-      {openFirst ? [openBtn, shareBtn] : [shareBtn, openBtn]}
+      {saveFirst ? [saveBtn, openBtn, shareBtn] : openFirst ? [openBtn, shareBtn, saveBtn] : [shareBtn, openBtn, saveBtn]}
       {p.error ? <Text style={styles.error} accessibilityLiveRegion="polite">{p.error}</Text> : null}
     </View>
   );

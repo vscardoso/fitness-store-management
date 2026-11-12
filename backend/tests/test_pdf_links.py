@@ -52,6 +52,11 @@ async def test_link_do_comprovante_abre_sem_login_e_o_pdf_direto_continua_igual(
     assert sem_login.status_code == 200 and sem_login.content.startswith(b"%PDF")
     assert sem_login.headers["content-type"] == "application/pdf"
     assert j["filename"] in sem_login.headers["content-disposition"]
+    assert sem_login.headers["content-disposition"].startswith("inline")             # abrir: mostra no visualizador
+    # ?download=1: o MESMO PDF como arquivo para baixar (o iPhone salva em Arquivos, de onde o app da impressora abre)
+    baixar = await test_client.get(f"{API}{_caminho(j['url'])}?download=1", headers={"Authorization": ""})
+    assert baixar.status_code == 200 and baixar.content == sem_login.content
+    assert baixar.headers["content-disposition"].startswith("attachment") and j["filename"] in baixar.headers["content-disposition"]
 
 
 async def test_link_adulterado_vencido_ou_de_arquivo_apagado_e_recusado(test_client, async_session, test_user):

@@ -174,9 +174,9 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
       await refresh();
       onGenerated?.();
       onPrinted?.();
-      // Como na terça (10/11/2026, quando funcionava direto): gerou, o PDF ABRE sozinho, sem segundo toque. De lá o Compartilhar do Safari
-      // entrega ao Label Expert. Os botões "Abrir o PDF e imprimir" e "Compartilhar o arquivo PDF" ficam para abrir de novo.
-      printed.deliver('open').catch(() => undefined);
+      // O PDF NÃO abre sozinho: no iPhone a aba aberta sem toque vinha PRETA (12/11/2026). O caminho que a impressora (Label Expert) aceita
+      // é o arquivo salvo no celular: o botão "Baixar o PDF e imprimir" baixa o arquivo (Content-Disposition: attachment) e o app
+      // da impressora abre dali. "Abrir o PDF" e "Compartilhar o arquivo PDF" ficam como botões de apoio.
     });
   }, [total, run, paper, start, lines, size, fromQueue, entryId, refresh, onGenerated, onPrinted]);
 

@@ -78,5 +78,7 @@ export function usePdfDelivery({ pdf, getPdf, cacheKey = 'default', prefetch = f
     needsAnotherTap: delivery === 'blocked',
     share: () => run('share'),
     open: () => run('open'),
+    /** baixa o PDF para o celular (Arquivos), de onde o app da impressora abre */
+    save: () => run('save'),
   };
 }

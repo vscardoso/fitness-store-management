@@ -14,8 +14,8 @@ import api from './api';
 /** O que aconteceu ao entregar o PDF: compartilhado, aberto/baixado, a pessoa fechou, ou o iPhone exigiu um toque novo. */
 export type PdfDelivery = 'shared' | 'opened' | 'cancelled' | 'blocked';
 
-/** open = abre o PDF no visualizador do navegador (dali o compartilhar manda o PDF de verdade); share = manda o arquivo direto para outro app. */
-export type PdfMode = 'open' | 'share';
+/** open = abre o PDF no visualizador do navegador (dali o compartilhar manda o PDF de verdade); share = manda o arquivo direto para outro app; save = baixa o arquivo para o celular (iPhone: download do Safari; tocar nele abre o PDF e o Compartilhar lista a impressora). */
+export type PdfMode = 'open' | 'share' | 'save';
 
 export interface PrintedPdf {
   filename: string;
@@ -39,6 +39,18 @@ export function pdfFromUrl(url: string, filename: string, title = 'Documento', o
     let objectUrl: string | null = null;
     fetch(url).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) cached = b; }).catch(() => undefined);
     const deliver = async (mode: PdfMode = 'open'): Promise<PdfDelivery> => {
+      if (mode === 'save') {
+        // SALVAR: o servidor devolve o mesmo PDF como arquivo (?download=1, Content-Disposition: attachment). No iPhone o Safari baixa
+        // para Arquivos e a impressora (Label Expert) abre esse arquivo; o Compartilhar do app não lista a impressora. Sem await antes.
+        const a = document.createElement('a');
+        a.href = url + (url.includes('?') ? '&' : '?') + 'download=1';
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return 'opened';
+      }
       if (mode === 'share') {
         try {
           if (!cached) cached = await (await fetch(url)).blob();

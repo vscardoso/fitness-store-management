@@ -45,8 +45,7 @@ t('nenhum arquivo monta blob: de PDF nem compartilha application/pdf por conta p
 });
 
 t('só o hook e o serviço entregam PDF (.deliver): telas usam <PdfActions /> ou usePdfDelivery', () => {
-  // useLabelPrint: gerar a etiqueta ABRE o PDF sozinho (fluxo da terça 10/11/2026, que funcionava direto); travado no teste abaixo.
-  const DELIVER_OK = new Set(['services/pdfDelivery.ts', 'hooks/usePdfDelivery.ts', 'components/labels/studio/useLabelPrint.ts']);
+  const DELIVER_OK = new Set(['services/pdfDelivery.ts', 'hooks/usePdfDelivery.ts']);
   const bad: string[] = [];
   for (const f of files) {
     const r = rel(f);
@@ -68,9 +67,12 @@ t('o hook entrega o PDF já pronto SEM await antes (o iPhone só abre aba e comp
   const body = src.slice(src.indexOf('const run = useCallback'), src.indexOf('pdf ?? hit')).replace(/\/\/.*$/gm, '');   // sem os comentários
   assert.ok(!/await/.test(body), 'nada pode ser esperado (await) antes de escolher o PDF pronto dentro de run()');
 });
-t('etiquetas: gerar o PDF já ABRE o PDF sozinho, como na terça (10/11/2026, "funcionava direto"), sem segundo toque', () => {
-  const src = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/useLabelPrint.ts'), 'utf8').replace(/\/\/.*$/gm, '');
-  const gen = src.slice(src.indexOf('const generate = useCallback'), src.indexOf('const undo = useCallback'));
-  assert.ok(/printed\.deliver\('open'\)/.test(gen), 'generate() deve chamar printed.deliver(open) logo após salvar a impressão');
+t('etiquetas: o botão principal é SALVAR o PDF no celular (o arquivo que a impressora aceita) e gerar não abre aba sozinha (vinha preta)', () => {
+  const bar = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/PrintBar.tsx'), 'utf8');
+  assert.ok(/<PdfActions[^>]*showSave[^>]*saveFirst/.test(bar) || /<PdfActions[^>]*saveFirst[^>]*showSave/.test(bar), 'PrintBar deve usar PdfActions com showSave e saveFirst');
+  const gen = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/useLabelPrint.ts'), 'utf8').replace(/\/\/.*$/gm, '');
+  assert.ok(!/printed\.deliver\(/.test(gen), 'generate() não pode abrir o PDF sozinho (a aba abria preta no iPhone)');
+  const svc = fs.readFileSync(path.join(MOBILE, 'services/pdfDelivery.ts'), 'utf8');
+  assert.ok(/download=1/.test(svc) && /mode === 'save'/.test(svc), "pdfFromUrl deve tratar o modo 'save' com ?download=1");
 });
 console.log(`${n} testes ok`);
