@@ -107,11 +107,14 @@ def _ellipsize(text: str, font: str, size: float, max_w: float) -> str:
 def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: LabelData) -> None:
     """Desenha uma etiqueta com o canto inferior esquerdo em (x, y)."""
     k = scale_for(w / mm, h / mm)
-    pad = max(2.0, 3 * k) * mm
+    # margem: foto da etiqueta impressa (11/11/2026) mostrou texto e QR colados na borda do adesivo (a impressora e o corte
+    # comem ~1 mm); lateral maior e uma folga em cima e embaixo, que antes não existia
+    pad = max(2.5, 3.6 * k) * mm
+    vpad = max(1.6, 2.0 * k) * mm
     inner_w = w - 2 * pad
-    unit = h / sum(ZONES)
+    unit = (h - 2 * vpad) / sum(ZONES)
     tops = []
-    acc = y + h
+    acc = y + h - vpad
     for z in ZONES:
         tops.append(acc)
         acc -= z * unit

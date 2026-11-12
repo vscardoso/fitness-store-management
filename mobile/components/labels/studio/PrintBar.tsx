@@ -1,7 +1,7 @@
 /**
  * Barra fixa de baixo: UM botão principal que muda conforme a etapa.
  *   edit       "Gerar PDF e imprimir" (gerar o PDF já salva a impressão: tira da fila e anda a folha)
- *   done       "Enviar o PDF para a impressora" (compartilha o arquivo, sem salvar outra vez)   [Abrir o PDF numa aba]   [Não saiu? Desfazer]   [Imprimir mais]
+ *   done       "Abrir o PDF e imprimir" (abre no Safari; de lá o Compartilhar entrega ao Label Expert)   [Compartilhar o arquivo PDF]   [Não saiu? Desfazer]   [Imprimir mais]
  */
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -65,9 +65,9 @@ export default function PrintBar({ p, summary }: Props) {
             PDF gerado e salvo{p.printedTotal > 0 ? `: ${p.printedTotal} etiqueta${p.printedTotal !== 1 ? 's' : ''}` : ''}
           </Text>
           <Text style={styles.sub}>
-            As etiquetas já estão marcadas como impressas. Toque em “Enviar o PDF para a impressora” e escolha o app da impressora na lista do iPhone.
+            As etiquetas já estão marcadas como impressas. Toque em “Abrir o PDF e imprimir”; com o PDF aberto, use o Compartilhar do Safari e escolha o app da impressora.
           </Text>
-          <PdfActions pdf={p.pdf} showOpen shareLabel="Enviar o PDF para a impressora" openLabel="Abrir o PDF numa aba" />
+          <PdfActions pdf={p.pdf} showOpen openFirst openLabel="Abrir o PDF e imprimir" shareLabel="Compartilhar o arquivo PDF" />
           <View style={styles.row}>
             {p.lastJob ? (
               <TouchableOpacity style={styles.secondary} onPress={p.undo} disabled={busy} accessibilityRole="button" accessibilityLabel="Não saiu, desfazer">

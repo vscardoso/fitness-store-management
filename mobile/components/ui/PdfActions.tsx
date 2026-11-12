@@ -1,5 +1,5 @@
 /**
- * Botões de PDF, iguais em todo o app: "Enviar o PDF para a impressora" (compartilha o arquivo) e, se quiser, "Abrir o PDF numa aba".
+ * Botões de PDF, iguais em todo o app: "Enviar o PDF para a impressora" (compartilha o arquivo) e, se quiser, "Abrir o PDF numa aba" (com openFirst, ordem trocada).
  * Usado pelas etiquetas, comprovante, brinde e relatórios. A lógica fica em `usePdfDelivery` + `services/pdfDelivery.ts`: tela nova
  * que gera PDF usa este componente, não copia a entrega.
  */
@@ -16,6 +16,8 @@ interface Props extends UsePdfDeliveryOptions {
   /** Mostra também "Abrir o PDF numa aba" */
   showOpen?: boolean;
   openLabel?: string;
+  /** "Abrir o PDF" vem primeiro e é o botão principal. Etiqueta: o Label Expert só aparece na lista de apps quando o PDF é aberto no Safari e compartilhado de lá (a folha de compartilhar do app não o mostra). */
+  openFirst?: boolean;
   /** Estilo do botão principal */
   variant?: 'primary' | 'secondary' | 'outlined';
   size?: 'sm' | 'md' | 'lg';
@@ -26,29 +28,42 @@ interface Props extends UsePdfDeliveryOptions {
 }
 
 export default function PdfActions({
-  shareLabel = 'Enviar o PDF para a impressora', showOpen = false, openLabel = 'Abrir o PDF numa aba',
+  shareLabel = 'Enviar o PDF para a impressora', showOpen = false, openLabel = 'Abrir o PDF numa aba', openFirst = false,
   variant = 'primary', size = 'lg', fullWidth = true, iconOnly = false, onDelivered, ...source
 }: Props) {
   const p = usePdfDelivery(source);
   const doShare = async () => { if ((await p.share()) && onDelivered) onDelivered(); };
   const doOpen = async () => { if ((await p.open()) && onDelivered) onDelivered(); };
+  const shareBtn = (
+    <AppButton
+      key="share"
+      variant={p.needsAnotherTap ? 'primary' : openFirst && showOpen ? 'outlined' : variant}
+      size={openFirst && showOpen && !iconOnly ? 'md' : size}
+      fullWidth={fullWidth && !iconOnly}
+      icon={iconOnly ? 'share-outline' : 'print-outline'}
+      iconOnly={iconOnly && !p.needsAnotherTap}
+      label={p.busy === 'share' ? 'Abrindo...' : p.needsAnotherTap ? 'Toque de novo para enviar' : shareLabel}
+      loading={p.busy === 'share'}
+      disabled={!!p.busy}
+      onPress={doShare}
+    />
+  );
+  const openBtn = showOpen ? (
+    <AppButton
+      key="open"
+      variant={openFirst ? variant : 'outlined'}
+      size={openFirst && !iconOnly ? size : iconOnly ? 'sm' : 'md'}
+      fullWidth={fullWidth && !iconOnly}
+      icon="document-text-outline"
+      label={p.busy === 'open' ? 'Abrindo...' : openLabel}
+      loading={p.busy === 'open'}
+      disabled={!!p.busy}
+      onPress={doOpen}
+    />
+  ) : null;
   return (
     <View style={iconOnly ? styles.inline : styles.box}>
-      <AppButton
-        variant={p.needsAnotherTap ? 'primary' : variant}
-        size={size}
-        fullWidth={fullWidth && !iconOnly}
-        icon={iconOnly ? 'share-outline' : 'print-outline'}
-        iconOnly={iconOnly && !p.needsAnotherTap}
-        label={p.busy === 'share' ? 'Abrindo...' : p.needsAnotherTap ? 'Toque de novo para enviar' : shareLabel}
-        loading={p.busy === 'share'}
-        disabled={!!p.busy}
-        onPress={doShare}
-      />
-      {showOpen ? (
-        <AppButton variant="outlined" size={iconOnly ? 'sm' : 'md'} fullWidth={fullWidth && !iconOnly} icon="document-text-outline" label={openLabel}
-          loading={p.busy === 'open'} disabled={!!p.busy} onPress={doOpen} />
-      ) : null}
+      {openFirst ? [openBtn, shareBtn] : [shareBtn, openBtn]}
       {p.error ? <Text style={styles.error} accessibilityLiveRegion="polite">{p.error}</Text> : null}
     </View>
   );
