@@ -54,9 +54,9 @@ function AccountTile({ account, hint, onPress }: { account: FinanceAccount; hint
   return (
     <TouchableOpacity style={styles.account} onPress={onPress} activeOpacity={0.8} accessibilityRole="button"
       accessibilityLabel={`${account.name}, ${formatCurrency(account.balance)}, ${hint}`}>
-      <Text style={styles.accountName} numberOfLines={1}>{account.name}</Text>
+      <Text style={styles.accountName} numberOfLines={2}>{account.name}</Text>
       <Text style={[styles.accountValue, account.balance < 0 && { color: Colors.light.error }]}>{formatCurrency(account.balance)}</Text>
-      <Text style={[styles.accountHint, { color: brand.primary }]} numberOfLines={1}>{hint}</Text>
+      <Text style={[styles.accountHint, { color: brand.primary }]} numberOfLines={2}>{hint}</Text>
     </TouchableOpacity>
   );
 }
@@ -67,7 +67,7 @@ function TodoRow({ title, note, action, onPress, open }: { title: string; note: 
     <View style={styles.todo}>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={styles.todoTitle}>{title}</Text>
-        <Text style={styles.todoNote}>{note}</Text>
+        {!open && <Text style={styles.todoNote}>{note}</Text>}
       </View>
       <AppButton variant="outlined" size="sm" label={open ? 'Fechar' : action} onPress={onPress} />
     </View>
@@ -122,7 +122,7 @@ export default function FinanceHomeScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.accountsRow}>
-        {data!.accounts.map((a) => (
+        {(data?.accounts ?? []).map((a) => (
           <AccountTile key={a.id} account={a} hint={accountHint(a)} onPress={() => go(a.kind === 'cash' ? '/cash' : '/finance/accounts')} />
         ))}
       </View>
@@ -209,7 +209,16 @@ export default function FinanceHomeScreen() {
       <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
         {!!error && <Text style={styles.error}>{parseApiError(error)}</Text>}
 
-        {!data?.started ? (
+        {!data ? (
+          // sem dados do financeiro (sem permissão, sessão vencida ou servidor fora do ar): o erro já está no topo; o que o papel pode usar continua à mão
+          <>
+            <CashStatusCard />
+            <View style={styles.tiles}>
+              <Tile icon="book-outline" color={Colors.light.warningDark} title="Fiado" note="receber e lançar fiado antigo" onPress={() => go('/finance/receivables')} />
+              <Tile icon="reader-outline" color={brand.primary} title="Relatório mensal" note="vendas, lucro e estoque do mês, com PDF" onPress={() => go('/reports/monthly')} />
+            </View>
+          </>
+        ) : !data.started ? (
           <>
             <CashStatusCard />
             <View style={styles.card}>
