@@ -45,7 +45,8 @@ t('nenhum arquivo monta blob: de PDF nem compartilha application/pdf por conta p
 });
 
 t('só o hook e o serviço entregam PDF (.deliver): telas usam <PdfActions /> ou usePdfDelivery', () => {
-  const DELIVER_OK = new Set(['services/pdfDelivery.ts', 'hooks/usePdfDelivery.ts']);
+  // useLabelPrint: gerar a etiqueta ABRE o PDF sozinho (fluxo da terça 10/11/2026, que funcionava direto); travado no teste abaixo.
+  const DELIVER_OK = new Set(['services/pdfDelivery.ts', 'hooks/usePdfDelivery.ts', 'components/labels/studio/useLabelPrint.ts']);
   const bad: string[] = [];
   for (const f of files) {
     const r = rel(f);
@@ -66,5 +67,10 @@ t('o hook entrega o PDF já pronto SEM await antes (o iPhone só abre aba e comp
   assert.ok(/pdf \?\? hit \?\? \(await resolve\(\)\)/.test(src), 'run() deve usar `pdf ?? hit ?? (await resolve())`: só espera quando o PDF ainda não existe');
   const body = src.slice(src.indexOf('const run = useCallback'), src.indexOf('pdf ?? hit')).replace(/\/\/.*$/gm, '');   // sem os comentários
   assert.ok(!/await/.test(body), 'nada pode ser esperado (await) antes de escolher o PDF pronto dentro de run()');
+});
+t('etiquetas: gerar o PDF já ABRE o PDF sozinho, como na terça (10/11/2026, "funcionava direto"), sem segundo toque', () => {
+  const src = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/useLabelPrint.ts'), 'utf8').replace(/\/\/.*$/gm, '');
+  const gen = src.slice(src.indexOf('const generate = useCallback'), src.indexOf('const undo = useCallback'));
+  assert.ok(/printed\.deliver\('open'\)/.test(gen), 'generate() deve chamar printed.deliver(open) logo após salvar a impressão');
 });
 console.log(`${n} testes ok`);

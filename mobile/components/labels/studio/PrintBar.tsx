@@ -65,7 +65,7 @@ export default function PrintBar({ p, summary }: Props) {
             PDF gerado e salvo{p.printedTotal > 0 ? `: ${p.printedTotal} etiqueta${p.printedTotal !== 1 ? 's' : ''}` : ''}
           </Text>
           <Text style={styles.sub}>
-            As etiquetas já estão marcadas como impressas. Toque em “Abrir o PDF e imprimir”; com o PDF aberto, use o Compartilhar do Safari e escolha o app da impressora.
+            As etiquetas já estão marcadas como impressas. O PDF abre sozinho: use o Compartilhar do Safari e escolha o app da impressora. Se não abriu, toque em “Abrir o PDF e imprimir”.
           </Text>
           <PdfActions pdf={p.pdf} showOpen openFirst openLabel="Abrir o PDF e imprimir" shareLabel="Compartilhar o arquivo PDF" />
           <View style={styles.row}>

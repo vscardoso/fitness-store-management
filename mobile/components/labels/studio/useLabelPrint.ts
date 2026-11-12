@@ -174,7 +174,9 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
       await refresh();
       onGenerated?.();
       onPrinted?.();
-      // o PDF não abre mais sozinho numa aba: o botão "Abrir o PDF e imprimir" abre o PDF e "Compartilhar o arquivo PDF" manda só o arquivo (sem link)
+      // Como na terça (10/11/2026, quando funcionava direto): gerou, o PDF ABRE sozinho, sem segundo toque. De lá o Compartilhar do Safari
+      // entrega ao Label Expert. Os botões "Abrir o PDF e imprimir" e "Compartilhar o arquivo PDF" ficam para abrir de novo.
+      printed.deliver('open').catch(() => undefined);
     });
   }, [total, run, paper, start, lines, size, fromQueue, entryId, refresh, onGenerated, onPrinted]);
 
