@@ -25,7 +25,7 @@ function when(iso: string): string {
 
 /** Uma linha: o PDF vira objeto UMA vez (arquivo baixado e reaproveitado pelos toques) e usa os mesmos botões do resto do app. */
 function JobRow({ job }: { job: RecentPrint }) {
-  const pdf = useMemo(() => pdfFromUrl(job.url, job.filename, 'Etiquetas', 'file'), [job.url, job.filename]);
+  const pdf = useMemo(() => pdfFromUrl(job.url, job.filename, 'Etiquetas'), [job.url, job.filename]);
   return (
     <View style={styles.row}>
       <View style={{ flex: 1, minWidth: 0 }}>
