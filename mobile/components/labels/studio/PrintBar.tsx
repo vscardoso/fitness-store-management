@@ -69,7 +69,9 @@ export default function PrintBar({ p, summary }: Props) {
             PDF gerado e salvo{p.printedTotal > 0 ? `: ${p.printedTotal} etiqueta${p.printedTotal !== 1 ? 's' : ''}` : ''}
           </Text>
           <Text style={styles.sub}>
-            As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir” e depois em “Abrir o app Arquivos”. Em Downloads, segure o dedo no PDF, toque em Compartilhar e escolha o app da impressora (Label Expert).
+            {isIphone
+              ? 'As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir” e depois em “Abrir o app Arquivos”. Em Downloads, segure o dedo no PDF, toque em Compartilhar e escolha o app da impressora (Label Expert).'
+              : 'As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir” e abra o arquivo baixado para imprimir.'}
           </Text>
           <PdfActions pdf={p.pdf} showSave saveFirst showOpen saveLabel="Baixar o PDF e imprimir" openLabel="Abrir o PDF" shareLabel="Compartilhar o arquivo PDF" />
           {isIphone ? (
