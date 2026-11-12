@@ -26,11 +26,17 @@ export interface PrintedPdf {
 }
 
 /** PDF a partir do link https do servidor. */
-export function pdfFromUrl(url: string, filename: string, title = 'Documento'): PrintedPdf {
+/**
+ * `openAs`: o que "Abrir o PDF" abre no navegador. 'link' = o link https (comprovante, relatórios: no WhatsApp o que vai é o arquivo
+ * pelo botão Compartilhar). 'file' = o arquivo já baixado, num endereço blob: (ETIQUETAS: o visualizador do Safari compartilha um
+ * blob: como arquivo PDF, que é o que o Label Expert e a impressora recebem; um link https só mandaria o endereço).
+ */
+export function pdfFromUrl(url: string, filename: string, title = 'Documento', openAs: 'link' | 'file' = 'link'): PrintedPdf {
   if (Platform.OS === 'web') {
     // O arquivo já é baixado AGORA, antes de qualquer toque: o iPhone só abre a folha de compartilhar se ela for chamada logo no
     // toque, sem esperar rede (esperar fazia o 1º toque falhar e exigia um 2º). Sem isso a pessoa salvava e mandava de novo.
     let cached: Blob | null = null;
+    let objectUrl: string | null = null;
     fetch(url).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) cached = b; }).catch(() => undefined);
     const deliver = async (mode: PdfMode = 'open'): Promise<PdfDelivery> => {
       if (mode === 'share') {
@@ -47,10 +53,23 @@ export function pdfFromUrl(url: string, filename: string, title = 'Documento'): 
           if (e?.name === 'NotAllowedError') return 'blocked';   // passou o tempo do toque: precisa de um toque novo
         }
       }
-      const win = window.open(url, '_blank');
+      // ABRIR: o PDF já baixado vai num endereço blob: do navegador, não no link https. O visualizador do Safari compartilha um
+      // blob: como ARQUIVO (é assim que o Label Expert e a impressora recebem o PDF; era assim que funcionava até 10/11/2026); um
+      // https vira só o LINK no compartilhar, que a impressora não lê. Sem await antes: o iPhone só abre a aba dentro do toque.
+      // Se o arquivo ainda não terminou de baixar, abre o link https (melhor que nada).
+      let target = url;
+      if (openAs === 'file' && cached) {
+        if (!objectUrl) {
+          objectUrl = URL.createObjectURL(new Blob([cached], { type: 'application/pdf' }));
+          const made = objectUrl;
+          setTimeout(() => { URL.revokeObjectURL(made); if (objectUrl === made) objectUrl = null; }, 10 * 60_000);
+        }
+        target = objectUrl;
+      }
+      const win = window.open(target, '_blank');
       if (!win) {
         const a = document.createElement('a');
-        a.href = url;
+        a.href = target;
         a.target = '_blank';
         a.rel = 'noopener';
         document.body.appendChild(a);
