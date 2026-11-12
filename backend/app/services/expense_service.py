@@ -249,8 +249,18 @@ class ExpenseService:
         if not exp:
             return None
         changes = data.model_dump(exclude_unset=True)
-        if exp.payable_id and set(changes) & {"amount", "expense_date", "account_id"}:
-            raise ValueError("Esta despesa veio de uma conta paga: para mudar valor, data ou conta, desfaça o pagamento em Despesas a pagar.")
+        if exp.payable_id:
+            # o app manda o formulário inteiro (valor e data inclusive): só é mudança de verdade se o valor, a data ou a conta DIFEREM
+            # do que está gravado. Mudar só categoria, descrição ou observação é livre.
+            def _differs(field: str) -> bool:
+                if field not in changes:
+                    return False
+                new, cur = changes[field], getattr(exp, field)
+                if field == "amount":
+                    return Decimal(str(new)).quantize(Decimal("0.01")) != Decimal(str(cur)).quantize(Decimal("0.01"))
+                return new != cur
+            if any(_differs(f) for f in ("amount", "expense_date", "account_id")):
+                raise ValueError("Esta despesa veio de uma conta paga: para mudar valor, data ou conta, desfaça o pagamento em Despesas a pagar.")
         if "category_id" in changes:
             await self._validate_category(changes["category_id"], tenant_id)
         if "account_id" in changes:
@@ -269,7 +279,9 @@ class ExpenseService:
         await self.db.flush()
         await self._reallocate({old_entry, exp.stock_entry_id}, tenant_id)
         await self.db.commit()
+        # recarrega com a categoria (trocar a categoria deixa a relação velha e a resposta falhava ao ler o nome dela)
         await self.db.refresh(exp)
+        await self.db.refresh(exp, attribute_names=["category"])
         return exp
 
     async def delete_expense(

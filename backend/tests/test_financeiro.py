@@ -258,6 +258,7 @@ async def test_despesa_a_pagar_vira_despesa_ao_pagar_sem_contar_duas_vezes(test_
     assert _conta(d, "Nubank")["balance"] == 1000.0 - 1200 - 500 - 300   # cada pagamento sai uma vez só
     gerada = (await async_session.execute(select(Expense).where(Expense.payable_id == aluguel["id"], Expense.is_active == True))).scalars().all()  # noqa: E712
     assert len(gerada) == 1 and float(gerada[0].amount) == 1200.0 and gerada[0].category_id == cat_id
+    gid = gerada[0].id   # guarda o id agora: depois do commit de uma troca de categoria o objeto da sessão compartilhada do teste expira
     assert (await async_session.execute(select(Expense).where(Expense.payable_id.in_([boleto["id"], antiga["id"]])))).scalars().all() == []
 
     # resultado do mês: o aluguel pago entra como despesa
@@ -266,9 +267,24 @@ async def test_despesa_a_pagar_vira_despesa_ao_pagar_sem_contar_duas_vezes(test_
     assert float(res.json()["total_expenses"]) >= 1200.0
 
     # a despesa gerada não se apaga nem muda de valor por fora: desfaz pelo pagamento
-    r = await test_client.delete(f"/api/v1/expenses/{gerada[0].id}", headers=h)
+    r = await test_client.delete(f"/api/v1/expenses/{gid}", headers=h)
     assert r.status_code == 409 and "desfaça o pagamento" in r.json()["detail"]
-    r = await test_client.put(f"/api/v1/expenses/{gerada[0].id}", headers=h, json={"amount": "10"})
+    # mudar SÓ a categoria (o app manda o formulário inteiro, com o valor e a data iguais) é livre; valor ou data diferentes, não
+    cat2 = (await test_client.post("/api/v1/expenses/categories", headers=h, json={"name": "Imóvel teste", "color": "#654321", "icon": "home"}))
+    cat2_id = cat2.json()["id"] if cat2.status_code in (200, 201) else None
+    corpo_igual = {"amount": 1200.0, "description": "Aluguel", "expense_date": date.today().isoformat(), "category_id": cat2_id,
+                   "notes": None, "is_recurring": False, "recurrence_day": None}
+    r = await test_client.put(f"/api/v1/expenses/{gid}", headers=h, json=corpo_igual)
+    assert r.status_code == 200, r.text
+    assert r.json()["category_id"] == cat2_id
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    assert _conta(d, "Nubank")["balance"] == 1000.0 - 1200 - 500 - 300   # trocar a categoria não mexe no dinheiro
+    r = await test_client.put(f"/api/v1/expenses/{gid}", headers=h, json={**corpo_igual, "amount": 1300.0})
+    assert r.status_code == 400 and "desfaça o pagamento" in r.json()["detail"]
+    r = await test_client.put(f"/api/v1/expenses/{gid}", headers=h,
+                              json={**corpo_igual, "expense_date": (date.today() - timedelta(days=1)).isoformat()})
+    assert r.status_code == 400
+    r = await test_client.put(f"/api/v1/expenses/{gid}", headers=h, json={"amount": "10"})
     assert r.status_code == 400
     assert (await test_client.post(f"{API}/payables/{aluguel['id']}/unpay", headers=h)).status_code == 200
     async_session.expire_all()
