@@ -7,7 +7,6 @@ import { Colors } from '@/constants/Colors';
 import React, { ReactNode, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useBrandingColors } from '@/store/brandingStore';
 
 export interface DataColumn<T> {
   key: string;
@@ -42,9 +41,13 @@ const LINE = '#E6E3EE';
 export default function DataTable<T>({
   columns, rows, rowKey, onRowPress, defaultSort, pageSize = 25, emptyTitle = 'Nada por aqui', emptyHint, resetKey,
 }: Props<T>) {
-  const colors = useBrandingColors();
   const [sort, setSort] = useState(defaultSort ?? null);
   const [page, setPage] = useState(0);
+  // Largura real do cartão: a tabela ocupa EXATAMENTE essa largura (as colunas dividem o espaço) e só rola de lado se a soma das
+  // larguras mínimas não couber. Antes o conteúdo passava do cartão e a última coluna (Situação) saía cortada, sem barra de rolagem.
+  const [boxW, setBoxW] = useState(0);
+  const minTotal = columns.reduce((t, c) => t + (c.minWidth ?? 80), 0);
+  const innerW = boxW > 0 ? Math.max(boxW, minTotal) : undefined;
 
   useEffect(() => setPage(0), [resetKey, sort?.key, sort?.dir]);
 
@@ -73,15 +76,15 @@ export default function DataTable<T>({
 
   const cellStyle = (col: DataColumn<T>) => [
     styles.cell,
-    { flexGrow: col.flex ?? 1, flexBasis: 0, minWidth: col.minWidth ?? 80 },
+    { flexGrow: col.flex ?? 1, flexShrink: 1, flexBasis: 0, minWidth: col.minWidth ?? 80, overflow: 'hidden' as const },
     col.align === 'right' && styles.right,
     col.align === 'center' && styles.center,
   ];
 
   return (
-    <View style={styles.card}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-        <View style={{ flexGrow: 1, minWidth: '100%' as any }}>
+    <View style={styles.card} onLayout={(e) => setBoxW(Math.floor(e.nativeEvent.layout.width))}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={minTotal > boxW && boxW > 0}>
+        <View style={innerW ? { width: innerW } : { minWidth: '100%' as any }}>
           <View style={styles.headRow}>
             {columns.map((col) => {
               const active = sort?.key === col.key;
@@ -95,12 +98,12 @@ export default function DataTable<T>({
                   accessibilityLabel={col.sortValue ? `Ordenar por ${col.title}` : undefined}
                 >
                   <View style={[styles.headInner, col.align === 'right' && { justifyContent: 'flex-end' }, col.align === 'center' && { justifyContent: 'center' }]}>
-                    <Text style={[styles.headText, active && { color: colors.primary }]} numberOfLines={1}>{col.title.toUpperCase()}</Text>
+                    <Text style={[styles.headText, active && { color: INK }]} numberOfLines={1}>{col.title.toUpperCase()}</Text>
                     {col.sortValue ? (
                       <Ionicons
                         name={active ? (sort!.dir === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'}
                         size={12}
-                        color={active ? colors.primary : '#B3ADC4'}
+                        color={active ? INK : '#B3ADC4'}
                       />
                     ) : null}
                   </View>

@@ -151,7 +151,7 @@ export default function DesktopSalesTable() {
     {
       key: 'total', title: 'Total', flex: 1.2, minWidth: 90, align: 'right',
       sortValue: (s) => Number(s.total_amount),
-      render: (s) => <Text style={[styles.total, { color: colors.primary }]}>{formatCurrency(Number(s.total_amount))}</Text>,
+      render: (s) => <Text style={styles.total}>{formatCurrency(Number(s.total_amount))}</Text>,
     },
     {
       key: 'status', title: 'Situação', flex: 1.2, minWidth: 96, align: 'center',
