@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { AppState, LogBox } from 'react-native';
+import { AppState, LogBox, View } from 'react-native';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 
 LogBox.ignoreLogs([
@@ -263,8 +263,11 @@ function AppLayout() {
                   {error}
                 </Snackbar>
 
-                {/* Toast global para notificações */}
-                <Toast />
+                {/* Toast global para notificações. O quadro do toast (340 px, invisível quando parado) passava 10 px da borda em telas de 320 px
+                    e fazia a página inteira rolar para o lado: o contêiner recorta no tamanho da tela e deixa os toques passarem. */}
+                <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }}>
+                  <Toast />
+                </View>
 
                 {/* Intercepta Alert.alert e renderiza modal padronizado */}
                 <GlobalConfirmModalHost />

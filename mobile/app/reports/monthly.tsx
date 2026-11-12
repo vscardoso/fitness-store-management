@@ -14,6 +14,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
 import FoldSection from '@/components/finance/FoldSection';
 import { BarRow, DeltaBadge, StackedBar } from '@/components/reports/ReportParts';
+import { FitText } from '@/components/ui/PriceDisplay';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
@@ -48,7 +49,7 @@ function Stat({ label, value, note, warn, onPress }: { label: string; value: str
   const body = (
     <>
       <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, warn && { color: Colors.light.error }]}>{value}</Text>
+      <FitText style={[styles.statValue, warn && { color: Colors.light.error }]} minSize={11}>{value}</FitText>
       {!!note && <Text style={[styles.small, warn && { color: Colors.light.error }]}>{note}</Text>}
     </>
   );
@@ -90,10 +91,8 @@ export default function MonthlyReportScreen() {
   // dia do mês (só no mês em andamento): "dia 12 de 30"
   const dayInfo = (() => {
     if (!d || d.month_finished) return null;
-    const start = new Date(`${d.period_start.slice(0, 10)}T12:00:00`);
-    const end = new Date(`${d.period_end.slice(0, 10)}T12:00:00`);
-    const total = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
-    const day = Math.min(total, Math.max(1, Math.round((Date.now() - start.getTime()) / 86400000) + 1));
+    const total = new Date(sel.year, sel.month, 0).getDate();   // dias do mês (o fim do período do servidor é hoje, não o último dia)
+    const day = Math.min(total, Math.max(1, new Date().getDate()));
     return { day, total };
   })();
 

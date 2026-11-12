@@ -81,7 +81,10 @@ def _day_movements(d: Dict[str, Any], all_mode: bool):
                 text = ln["label"] + (f" ({ln['count']})" if ln.get("count") else "")
                 movs.append({"account": "", "text": text, "amount": float(ln["amount"])})
             for it in items:
-                text = ln["label"] if str(it["label"]).startswith("Transferência #") else f"{ln['label']} · {it['label']}"
+                if ln.get("kind") in ("sales", "receivables", "refunds"):
+                    text = it["label"]                      # "18:06 · Venda #11 · Maria · PIX · 2x Legging": já diz tudo
+                else:
+                    text = ln["label"] if str(it["label"]).startswith("Transferência #") else f"{ln['label']} · {it['label']}"
                 movs.append({"account": "", "text": text, "amount": float(it["amount"])})
     trs = [{"text": f"{t['text']}: {t['from'] or '?'} para {t['to'] or '?'}", "amount": t["amount"]} for t in transfers.values()]
     return movs, trs
@@ -172,9 +175,27 @@ def build_statement_pdf(data: Dict[str, Any], store_name: str = "", generated_at
         split = _available_vs_card(d) if all_mode else None
         note = ([Paragraph(f"No fim do dia: disponível (gaveta e bancos) <b>{brl(split[0])}</b> · a receber da maquininha <b>{brl(split[1])}</b> "
                            f"(o total de {brl(d['closing'])} soma os dois)", small)] if split else [])
-        block = [Paragraph(_day_title(d["date"]), day_style), band, *note, Spacer(1, 2 * mm), table, Spacer(1, 5 * mm)]
-        story.append(KeepTogether(block) if len(rows) <= 22 else block[0])
-        if len(rows) > 22:
+        extra: List[Any] = []
+        if d.get("fiado_launched"):
+            frows = [[Paragraph("<b>Vendas no fiado deste dia (não entrou dinheiro; viram dinheiro a receber)</b>", small), ""]]
+            frows += [[Paragraph(_esc(it["label"]), body), Paragraph(brl(it["amount"]), right)] for it in d["fiado_launched"]]
+            ft = Table(frows, colWidths=[146 * mm, 30 * mm])
+            ft.setStyle(TableStyle([("SPAN", (0, 0), (1, 0)), ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                                    ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor("#E5E7EB"))]))
+            extra += [Spacer(1, 2 * mm), ft]
+        if d.get("by_method"):
+            mrows = [[Paragraph("<b>Resumo das vendas do dia, por forma de pagamento: onde entrou</b>", small), "", ""]]
+            mrows += [[Paragraph(f"{_esc(m['label'])} ({m['count']} venda{'s' if m['count'] != 1 else ''})", body), Paragraph(brl(m["amount"]), right),
+                       Paragraph(_esc(m["account"]), body)] for m in d["by_method"]]
+            total_sold = sum(m["amount"] for m in d["by_method"])
+            mrows.append([Paragraph("<b>Total vendido no dia</b>", body), Paragraph(f"<b>{brl(total_sold)}</b>", right), ""])
+            mt = Table(mrows, colWidths=[62 * mm, 30 * mm, 84 * mm])
+            mt.setStyle(TableStyle([("SPAN", (0, 0), (2, 0)), ("BACKGROUND", (0, 0), (-1, 0), LIGHT), ("TOPPADDING", (0, 0), (-1, -1), 2),
+                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2), ("LINEBELOW", (0, 1), (-1, -2), 0.25, colors.HexColor("#E5E7EB"))]))
+            extra += [Spacer(1, 2 * mm), mt]
+        block = [Paragraph(_day_title(d["date"]), day_style), band, *note, Spacer(1, 2 * mm), table, *extra, Spacer(1, 5 * mm)]
+        story.append(KeepTogether(block) if len(rows) + len(extra) <= 24 else block[0])
+        if len(rows) + len(extra) > 24:
             story += block[1:]
 
     doc.build(story)

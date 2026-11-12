@@ -319,3 +319,31 @@ async def test_extrato_pdf_so_gerente_e_loja_sem_implantacao_nao_quebra(test_cli
     await _zerar_implantacao(async_session, t_id)
     r = await test_client.get(f"{FIN}/statement/pdf", headers=h)
     assert r.status_code == 200 and r.content.startswith(b"%PDF")        # sem implantação: PDF avisa em vez de quebrar
+
+
+async def test_extrato_detalha_cada_venda_cada_fiado_e_diz_onde_entrou(test_client, async_session, test_user):
+    """Vendas, fiado recebido e vendas no fiado aparecem UMA POR UMA (hora, venda, cliente, forma, peças), e o resumo do dia diz
+    quanto entrou de cada forma e em que conta."""
+    t_id, h, ids, _sale = await _vida_financeira(test_client, async_session, test_user)
+    ext = await _extrato(test_client, h)
+    dia = next(d for d in ext["days"] if d["date"] == date.today().isoformat())
+    # resumo por forma: dinheiro na Gaveta, PIX no Nubank, cartão na Maquininha, fiado não entrou
+    por = {m["method"]: m for m in dia["by_method"]}
+    assert por["on_account"]["account"].startswith("A receber do cliente") and por["on_account"]["amount"] == 60.0
+    assert por["pix"]["account"] == "Nubank" and por["cash"]["account"] == "Gaveta" and por["credit_card"]["amount"] == 120.0
+    # a venda no fiado aparece uma por uma, com o número da venda
+    assert len(dia["fiado_launched"]) == 1 and "Venda #" in dia["fiado_launched"][0]["label"] and dia["fiado_launched"][0]["amount"] == 60.0
+    # extrato de uma conta: cada venda em dinheiro vira um item, e a soma dos itens é a linha
+    gaveta = await _extrato(test_client, h, account_id=ids["Gaveta"])
+    dg = next(d for d in gaveta["days"] if d["date"] == date.today().isoformat())
+    vendas = next(ln for ln in dg["lines"] if ln["kind"] == "sales")
+    assert vendas["items"] and all("Venda #" in it["label"] for it in vendas["items"])
+    assert round(sum(it["amount"] for it in vendas["items"]), 2) == round(vendas["amount"], 2)
+    # fiado recebido: um item por recebimento, com o nome do cliente e a forma
+    nu = await _extrato(test_client, h, account_id=ids["Nubank"])
+    dn = next(d for d in nu["days"] if d["date"] == date.today().isoformat())
+    rec = next(ln for ln in dn["lines"] if ln["kind"] == "receivables")
+    assert len(rec["items"]) == 1 and "PIX" in rec["items"][0]["label"] and rec["items"][0]["amount"] == 10.0
+    # devolução em dinheiro: um item, na Gaveta
+    dev = next(ln for ln in dg["lines"] if ln["kind"] == "refunds")
+    assert dev["items"] and "Devolução da venda #" in dev["items"][0]["label"]

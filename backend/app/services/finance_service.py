@@ -48,6 +48,10 @@ METHOD_TO_KIND = {
     PaymentMethod.DEBIT_CARD.value: KIND_CARD,
     PaymentMethod.INSTALLMENTS.value: KIND_CARD,
 }
+METHOD_LABELS = {
+    "cash": "Dinheiro", "pix": "PIX", "bank_transfer": "Transferência", "credit_card": "Cartão de crédito",
+    "debit_card": "Cartão de débito", "installments": "Parcelado", "on_account": "Fiado", "loyalty_points": "Pontos",
+}
 CARD_FEE_CATEGORY = "Taxa da maquininha"
 CARD_AUTO_HOUR = 12      # o repasse do dia só é lançado depois do meio-dia (horário do Brasil); dias anteriores a qualquer hora
 CARD_RULE_TEXT = "Cartão cai no próximo dia útil: venda de segunda a quinta cai no dia seguinte; sexta, sábado e domingo caem na segunda."
@@ -196,21 +200,26 @@ class FinanceService:
             return {PaymentMethod.CASH.value: Decimal("1")}   # venda toda no fiado já paga em parte: devolve em dinheiro
         return {m: Decimal(str(a)) / total for m, a in rows}
 
-    async def _refunds_by_method(self, tenant_id: int, start: datetime, end: Optional[datetime] = None) -> Dict[str, Decimal]:
-        """Dinheiro devolvido ao cliente, por forma (mesma regra do caixa, para todas as formas)."""
+    async def _refund_rows(self, tenant_id: int, start: datetime, end: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Dinheiro devolvido ao cliente, UMA linha por devolução e forma: {return_id, sale_id, method, amount, at}.
+        É a fonte única: `_refunds_by_method` (o saldo) e o extrato (um por um) somam as mesmas linhas."""
         conds = [SaleReturn.tenant_id == tenant_id, SaleReturn.status == "completed", SaleReturn.is_active == True,  # noqa: E712
                  SaleReturn.created_at >= start, Sale.status.in_(VALID_STATUS)]
         if end is not None:
             conds.append(SaleReturn.created_at < end)
         returns = (await self.db.execute(
-            select(SaleReturn, Sale.id).join(Sale, Sale.id == SaleReturn.sale_id).where(*conds)
+            select(SaleReturn, Sale.id).join(Sale, Sale.id == SaleReturn.sale_id).where(*conds).order_by(SaleReturn.id)
         )).all()
-        out: Dict[str, Decimal] = {}
+        rows: List[Dict[str, Any]] = []
+
+        def put(r: SaleReturn, sale_id: int, method: str, amount: Decimal) -> None:
+            rows.append({"return_id": r.id, "sale_id": sale_id, "method": method, "amount": amount, "at": r.created_at})
+
         for r, sale_id in returns:
             if r.exchange_sale_id:
                 net = _q(r.net_amount) if r.net_amount is not None else D0
                 if net < 0 and r.settlement_method:
-                    out[r.settlement_method] = out.get(r.settlement_method, D0) + (-net)
+                    put(r, sale_id, r.settlement_method, -net)
                 continue
             method = (r.refund_method or "original").lower()
             money_back = _q(r.total_refund) - _q(getattr(r, "receivable_abated", 0))
@@ -218,9 +227,16 @@ class FinanceService:
                 continue
             if method == "original":
                 for m, share in (await self._payment_shares(sale_id)).items():
-                    out[m] = out.get(m, D0) + money_back * share
+                    put(r, sale_id, m, money_back * share)
             else:
-                out[method] = out.get(method, D0) + money_back
+                put(r, sale_id, method, money_back)
+        return rows
+
+    async def _refunds_by_method(self, tenant_id: int, start: datetime, end: Optional[datetime] = None) -> Dict[str, Decimal]:
+        """Dinheiro devolvido ao cliente, por forma (mesma regra do caixa, para todas as formas)."""
+        out: Dict[str, Decimal] = {}
+        for row in await self._refund_rows(tenant_id, start, end):
+            out[row["method"]] = out.get(row["method"], D0) + row["amount"]
         return {m: _q(v) for m, v in out.items()}
 
     async def _cash_register_net(self, tenant_id: int, start: datetime, end: Optional[datetime] = None) -> Decimal:
@@ -375,6 +391,44 @@ class FinanceService:
                 Sale.tenant_id == tenant_id, Sale.status.in_(VALID_STATUS), Payment.created_at >= start, Payment.created_at < end,
                 Payment.status == "confirmed", Payment.is_active == True,  # noqa: E712
             ).group_by(Payment.payment_method))).all()}
+        from app.models.customer import Customer
+        from app.models.product import Product
+        from app.models.product_variant import ProductVariant
+        from app.models.receivable import Receivable, ReceivablePayment
+        from app.models.sale import SaleItem
+        pay_rows = (await self.db.execute(
+            select(Payment.payment_method, Payment.amount, Payment.created_at, Sale.id, Customer.full_name)
+            .join(Sale, Sale.id == Payment.sale_id).outerjoin(Customer, Customer.id == Sale.customer_id)
+            .where(Sale.tenant_id == tenant_id, Sale.status.in_(VALID_STATUS), Payment.created_at >= start, Payment.created_at < end,
+                   Payment.status == "confirmed", Payment.is_active == True)  # noqa: E712
+            .order_by(Payment.created_at, Payment.id))).all()
+        det["sale_payments"] = [{"method": getattr(m, "value", m), "amount": _q(a), "at": t, "sale_id": sid, "customer": c}
+                                for m, a, t, sid, c in pay_rows]
+        sale_ids = sorted({r["sale_id"] for r in det["sale_payments"]})
+        names: Dict[int, List[str]] = {}
+        if sale_ids:
+            for sid, qty, pname in (await self.db.execute(
+                    select(SaleItem.sale_id, SaleItem.quantity, Product.name)
+                    .join(ProductVariant, ProductVariant.id == SaleItem.variant_id).join(Product, Product.id == ProductVariant.product_id)
+                    .where(SaleItem.sale_id.in_(sale_ids), SaleItem.is_active == True).order_by(SaleItem.id))).all():  # noqa: E712
+                names.setdefault(sid, []).append(f"{qty}x {pname}")
+        det["sale_products"] = names
+        det["receivable_payments"] = [
+            {"method": m, "amount": _q(a), "at": t, "customer": c, "n": n, "of": tot, "sale_id": sid}
+            for m, a, t, c, n, tot, sid in (await self.db.execute(
+                select(ReceivablePayment.payment_method, ReceivablePayment.amount, ReceivablePayment.created_at, Customer.full_name,
+                       Receivable.installment_number, Receivable.installments_total, Receivable.sale_id)
+                .join(Receivable, Receivable.id == ReceivablePayment.receivable_id).join(Customer, Customer.id == Receivable.customer_id)
+                .where(ReceivablePayment.tenant_id == tenant_id, ReceivablePayment.is_active == True,  # noqa: E712
+                       ReceivablePayment.received_on == day).order_by(ReceivablePayment.id))).all()]
+        refund_rows = await self._refund_rows(tenant_id, start, end)
+        cust_by_sale: Dict[int, Optional[str]] = {}
+        if refund_rows:
+            for sid, cname in (await self.db.execute(
+                    select(Sale.id, Customer.full_name).outerjoin(Customer, Customer.id == Sale.customer_id)
+                    .where(Sale.id.in_({r["sale_id"] for r in refund_rows})))).all():
+                cust_by_sale[sid] = cname
+        det["refund_rows"] = [{**r, "customer": cust_by_sale.get(r["sale_id"])} for r in refund_rows]
         det["transfers"] = list((await self.db.execute(
             select(AccountTransfer).where(
                 AccountTransfer.tenant_id == tenant_id, AccountTransfer.is_active == True,  # noqa: E712
@@ -413,6 +467,41 @@ class FinanceService:
         det["purchases"] = purchases
         return det
 
+    @staticmethod
+    def _by_method(det: Dict[str, Any], accounts: List[FinancialAccount]) -> List[Dict[str, Any]]:
+        """Resumo do dia por forma de pagamento: total, quantas vendas e a conta onde o dinheiro entrou."""
+        def account_for(method: str) -> str:
+            if method == PaymentMethod.ON_ACCOUNT.value:
+                return "A receber do cliente (fiado): não entrou dinheiro"
+            kind = METHOD_TO_KIND.get(method)
+            for a in accounts:
+                if (kind == KIND_CASH and a.kind == KIND_CASH) or (kind == KIND_CARD and a.kind == KIND_CARD) \
+                        or (kind == "pix" and a.kind == KIND_BANK and a.receives_pix):
+                    return a.name
+            return "sem conta"
+        groups: Dict[str, Dict[str, Any]] = {}
+        for r in det["sale_payments"]:
+            g = groups.setdefault(r["method"], {"method": r["method"], "label": METHOD_LABELS.get(r["method"], r["method"]), "count": 0,
+                                                "amount": D0, "account": account_for(r["method"])})
+            g["count"] += 1
+            g["amount"] += r["amount"]
+        return [{**g, "amount": float(_q(g["amount"]))} for g in groups.values()]
+
+    @staticmethod
+    def _hhmm(ts: Any) -> str:
+        from app.core.timezone import to_brazil_tz
+        try:
+            return to_brazil_tz(ts).strftime("%H:%M")
+        except Exception:
+            return ""
+
+    def _pay_label(self, r: Dict[str, Any], det: Dict[str, Any]) -> str:
+        """"18:06 · Venda #11 · Maria · PIX · 2x Legging, 1x Top" (a pessoa reconhece a venda sem abrir nada)."""
+        prods = det["sale_products"].get(r["sale_id"]) or []
+        shown = ", ".join(prods[:3]) + (f" e mais {len(prods) - 3}" if len(prods) > 3 else "")
+        return " · ".join(x for x in (self._hhmm(r["at"]), f"Venda #{r['sale_id']}", r["customer"] or "sem cliente",
+                                      METHOD_LABELS.get(r["method"], r["method"]), shown) if x)
+
     def _statement_lines(self, a: FinancialAccount, comp: Dict[str, Decimal], det: Dict[str, Any],
                          names: Dict[int, str]) -> List[Dict[str, Any]]:
         """As linhas do dia de UMA conta, em português claro. A soma das linhas é sempre `net(comp)`."""
@@ -435,9 +524,19 @@ class FinanceService:
         n_sales = sum(det["sale_counts"].get(m, 0) for m in methods)
         sales_name = ("Vendas em dinheiro" if a.kind == KIND_CASH else "Vendas no cartão (a receber da maquininha)" if a.kind == KIND_CARD
                       else "Vendas no PIX e transferência" if a.receives_pix else "Vendas")
-        add("sales", f"{sales_name} ({n_sales} venda{'s' if n_sales != 1 else ''})" if n_sales else sales_name, comp["sales"], n_sales or None)
-        add("receivables", "Fiado recebido de clientes", comp["receivables_received"])
-        add("refunds", "Devoluções e trocas pagas ao cliente", -comp["refunds"])
+        sale_items = [{"label": self._pay_label(r, det), "amount": float(r["amount"]), "ref": f"sale:{r['sale_id']}"}
+                      for r in det["sale_payments"] if r["method"] in methods]
+        add("sales", f"{sales_name} ({n_sales} venda{'s' if n_sales != 1 else ''})" if n_sales else sales_name, comp["sales"], n_sales or None, sale_items)
+        rec_items = [{"label": f"{self._hhmm(r['at'])} · {r['customer']} · {METHOD_LABELS.get(r['method'], r['method'])}"
+                               + (f" · parcela {r['n']}/{r['of']}" if r.get("of") and r["of"] > 1 else ""),
+                      "amount": float(r["amount"]), "ref": f"receivable:{r['sale_id'] or ''}"}
+                     for r in det["receivable_payments"] if r["method"] in methods]
+        add("receivables", "Fiado recebido de clientes", comp["receivables_received"], len(rec_items) or None, rec_items)
+        ref_items = [{"label": f"{self._hhmm(r['at'])} · Devolução da venda #{r['sale_id']} · {r['customer'] or 'sem cliente'} · "
+                               f"{METHOD_LABELS.get(r['method'], r['method'])}",
+                      "amount": float(-_q(r["amount"])), "ref": f"return:{r['return_id']}"}
+                     for r in det["refund_rows"] if r["method"] in methods]
+        add("refunds", "Devoluções e trocas pagas ao cliente", -comp["refunds"], len(ref_items) or None, ref_items)
         if a.kind == KIND_CASH:
             items = [{"label": ("Colocado no caixa" if m.kind == KIND_SUPPLY else "Tirado do caixa") + f" ({m.reason})" + (f": {m.note}" if m.note else ""),
                       "amount": float(_q(m.amount) if m.kind == KIND_SUPPLY else -_q(m.amount)), "ref": f"cash:{m.id}"} for m in det["cash"]]
@@ -519,8 +618,9 @@ class FinanceService:
                 running[a.id] = _q(running.get(a.id, 0)) + nets[a.id]
             closing_latest = closing
             moved = any(any(v != 0 for v in comps[a.id].values()) for a in shown)
-            if moved:
-                det = await self._statement_details(tenant_id, d, accounts, cash_acc)
+            det = await self._statement_details(tenant_id, d, accounts, cash_acc)
+            fiado = [r for r in det["sale_payments"] if r["method"] == PaymentMethod.ON_ACCOUNT.value]
+            if moved or fiado:
                 per_account = {a.id: self._statement_lines(a, comps[a.id], det, names) for a in shown}
                 if acc is not None:
                     lines = per_account[acc.id]
@@ -530,11 +630,15 @@ class FinanceService:
                         if per_account[a.id]:
                             items = [it for ln in per_account[a.id] for it in (ln["items"] or [{"label": ln["label"], "amount": ln["amount"], "ref": None}])]
                             lines.append({"kind": "account", "label": a.name, "amount": float(nets[a.id]), "count": None, "items": items})
-                if lines:
+                if lines or fiado:
                     out_days.append({"date": d.isoformat(), "opening": float(opening), "closing": float(closing), "net": float(net), "lines": lines,
                                      # saldo de cada conta no fim do dia: o PDF e a tela separam o dinheiro que já está em mãos
                                      # (gaveta e bancos) do que a maquininha ainda vai pagar
-                                     "accounts": [{"id": a.id, "name": a.name, "kind": a.kind, "closing": float(_q(running.get(a.id, 0)))} for a in shown]})
+                                     "accounts": [{"id": a.id, "name": a.name, "kind": a.kind, "closing": float(_q(running.get(a.id, 0)))} for a in shown],
+                                     # vendas no fiado do dia, uma por uma: não entra dinheiro, vira dinheiro a receber do cliente
+                                     "fiado_launched": [{"label": self._pay_label(r, det), "amount": float(r["amount"]), "ref": f"sale:{r['sale_id']}"} for r in fiado],
+                                     # de tudo o que foi vendido no dia: quanto de cada forma de pagamento e em que conta ele entrou
+                                     "by_method": self._by_method(det, accounts)})
             d += timedelta(days=1)
         out_days.reverse()
         bal = await self.balances(tenant_id)

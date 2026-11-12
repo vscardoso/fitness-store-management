@@ -298,6 +298,10 @@ export interface StatementDay {
   date: string; opening: number; closing: number; net: number; lines: StatementLine[];
   /** Saldo de cada conta no fim do dia (separa o disponível do que a maquininha ainda vai pagar). */
   accounts?: { id: number; name: string; kind: string; closing: number }[];
+  /** Vendas no fiado do dia, uma por uma (não entra dinheiro). */
+  fiado_launched?: { label: string; amount: number; ref: string | null }[];
+  /** Vendas do dia por forma de pagamento e a conta onde o dinheiro entrou. */
+  by_method?: { method: string; label: string; count: number; amount: number; account: string }[];
 }
 export interface Statement {
   started: boolean;

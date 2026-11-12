@@ -245,7 +245,7 @@ export default function AccountsScreen() {
                 <Ionicons name={ICON[a.kind]} size={18} color={brand.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.accountName} numberOfLines={1}>{a.name}</Text>
+                <Text style={styles.accountName} numberOfLines={2}>{a.name}</Text>
                 <Text style={styles.accountKind}>{SUBTITLE(a)}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />

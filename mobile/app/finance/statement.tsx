@@ -105,6 +105,29 @@ function DayCard({ day, expanded, toggle }: { day: StatementDay; expanded: Set<s
           {`No fim do dia: disponível (gaveta e bancos) ${formatCurrency((day.accounts ?? []).filter((a) => a.kind !== 'card').reduce((t, a) => t + a.closing, 0))}, a receber da maquininha ${formatCurrency((day.accounts ?? []).filter((a) => a.kind === 'card').reduce((t, a) => t + a.closing, 0))}. O total soma os dois.`}
         </Text>
       )}
+      {!!day.fiado_launched?.length && (
+        <View style={styles.memo}>
+          <Text style={styles.memoTitle}>Vendas no fiado deste dia (não entrou dinheiro)</Text>
+          {day.fiado_launched.map((f, i) => (
+            <View key={i} style={styles.item}>
+              <Text style={styles.itemLabel}>{f.label}</Text>
+              <Text style={styles.itemValue}>{formatCurrency(f.amount)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {!!day.by_method?.length && (
+        <View style={styles.memo}>
+          <Text style={styles.memoTitle}>Vendas do dia por forma de pagamento: onde entrou</Text>
+          {day.by_method.map((m) => (
+            <View key={m.method} style={styles.item}>
+              <Text style={styles.itemLabel}>{`${m.label} (${m.count} venda${m.count === 1 ? '' : 's'}) → ${m.account}`}</Text>
+              <Text style={styles.itemValue}>{formatCurrency(m.amount)}</Text>
+            </View>
+          ))}
+          <Text style={styles.memoTitle}>{`Total vendido no dia: ${formatCurrency(day.by_method.reduce((t, m) => t + m.amount, 0))}`}</Text>
+        </View>
+      )}
       <View style={styles.lines}>
         {day.lines.map((ln, i) => {
           const key = `${day.date}-${i}`;
@@ -252,6 +275,8 @@ const styles = StyleSheet.create({
   balanceBox: { flexGrow: 1, flexBasis: 100, minWidth: 0, backgroundColor: Colors.light.background, borderRadius: 10, padding: 8, gap: 2 },
   balanceLabel: { fontSize: 11, color: Colors.light.textSecondary },
   balanceValue: { fontSize: 14, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  memo: { backgroundColor: Colors.light.background, borderRadius: 10, padding: 10, gap: 4 },
+  memoTitle: { fontSize: 12, fontWeight: theme.fontWeight.bold, color: Colors.light.textSecondary },
   lines: { gap: 2 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   lineLabel: { fontSize: 14, color: Colors.light.text },
