@@ -51,10 +51,39 @@ def merge_pages(pages: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _day_movements(d: Dict[str, Any], all_mode: bool):
+    """Movimentos do dia como linhas simples {account, text, amount}. Em "todas as contas" a transferência aparece UMA vez
+    (de uma conta para a outra), separada, porque entra numa conta e sai da outra e não muda o total."""
+    movs: List[Dict[str, Any]] = []
+    transfers: Dict[str, Dict[str, Any]] = {}
+    for ln in d.get("lines") or []:
+        if all_mode:
+            # cada linha é uma conta (kind "account"): os itens são os movimentos dela
+            for it in ln.get("items") or []:
+                ref = it.get("ref") or ""
+                if ref.startswith("transfer:"):
+                    t = transfers.setdefault(ref, {"text": it["label"], "amount": abs(float(it["amount"])), "from": "", "to": ""})
+                    t["from" if float(it["amount"]) < 0 else "to"] = ln["label"]
+                else:
+                    movs.append({"account": ln["label"], "text": it["label"], "amount": float(it["amount"])})
+        else:
+            items = ln.get("items") or []
+            if not items:
+                text = ln["label"] + (f" ({ln['count']})" if ln.get("count") else "")
+                movs.append({"account": "", "text": text, "amount": float(ln["amount"])})
+            for it in items:
+                text = ln["label"] if str(it["label"]).startswith("Transferência #") else f"{ln['label']} · {it['label']}"
+                movs.append({"account": "", "text": text, "amount": float(it["amount"])})
+    trs = [{"text": f"{t['text']}: {t['from'] or '?'} para {t['to'] or '?'}", "amount": t["amount"]} for t in transfers.values()]
+    return movs, trs
+
+
 def build_statement_pdf(data: Dict[str, Any], store_name: str = "", generated_at: Optional[datetime] = None) -> bytes:
     styles = getSampleStyleSheet()
     body = ParagraphStyle("body", parent=styles["BodyText"], fontSize=9, leading=12)
     small = ParagraphStyle("small", parent=body, fontSize=8, leading=10, textColor=GRAY)
+    right = ParagraphStyle("right", parent=body, alignment=2)
+    right_small = ParagraphStyle("right_small", parent=small, alignment=2)
     day_style = ParagraphStyle("day", parent=styles["Heading3"], fontSize=11, leading=14, spaceAfter=2, textTransform="capitalize")
     account = (data.get("account") or {}).get("name") or "Todas as contas"
     days = data.get("days") or []
@@ -93,25 +122,44 @@ def build_statement_pdf(data: Dict[str, Any], store_name: str = "", generated_at
                                ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 4)]))
         story += [Paragraph("Resumo", styles["Heading2"]), t, Spacer(1, 5 * mm), Paragraph("Dia a dia", styles["Heading2"])]
 
+    all_mode = not data.get("account")
     for d in days:
-        rows: List[List[Any]] = [[Paragraph(f"<b>Começou o dia com</b>", body), "", Paragraph(f"<b>{brl(d['opening'])}</b>", body)]]
-        styles_cmds: List[Any] = [("BACKGROUND", (0, 0), (-1, 0), LIGHT)]
-        for ln in d.get("lines") or []:
-            amount = float(ln["amount"])
-            label = _esc(ln["label"]) + (f" ({ln['count']})" if ln.get("count") and not ln.get("items") else "")
-            rows.append([Paragraph(label, body), "", Paragraph(f'<font color="{"#15803D" if amount >= 0 else "#B91C1C"}">{brl(amount, sign=True)}</font>', body)])
-            for it in ln.get("items") or []:
-                ia = float(it["amount"])
-                rows.append(["", Paragraph(_esc(it["label"]), small), Paragraph(f'<font color="{"#15803D" if ia >= 0 else "#B91C1C"}">{brl(ia, sign=True)}</font>', small)])
-        rows.append([Paragraph(f"<b>Terminou o dia com</b> (resultado do dia {brl(d['net'], sign=True)})", body), "", Paragraph(f"<b>{brl(d['closing'])}</b>", body)])
-        styles_cmds += [("BACKGROUND", (0, len(rows) - 1), (-1, len(rows) - 1), LIGHT), ("ALIGN", (2, 0), (2, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2), ("LEFTPADDING", (1, 0), (1, -1), 10)]
-        table = Table(rows, colWidths=[78 * mm, 66 * mm, 32 * mm], repeatRows=0)
-        table.setStyle(TableStyle(styles_cmds))
-        story.append(KeepTogether([Paragraph(_day_title(d["date"]), day_style), table, Spacer(1, 3 * mm)]) if len(rows) <= 22
-                     else Paragraph(_day_title(d["date"]), day_style))
+        movs, transfers = _day_movements(d, all_mode)
+        entrou = sum(m["amount"] for m in movs if m["amount"] > 0)
+        saiu = -sum(m["amount"] for m in movs if m["amount"] < 0)
+        # faixa do dia: começou, entrou, saiu, terminou (o resultado do dia = entrou - saiu)
+        band = Table([[Paragraph("Começou o dia com", small), Paragraph("Entrou", small), Paragraph("Saiu", small), Paragraph("Terminou o dia com", small)],
+                      [Paragraph(f"<b>{brl(d['opening'])}</b>", body), Paragraph(f'<font color="#15803D"><b>{brl(entrou)}</b></font>', body),
+                       Paragraph(f'<font color="#B91C1C"><b>{brl(saiu)}</b></font>', body), Paragraph(f"<b>{brl(d['closing'])}</b>", body)]],
+                     colWidths=[44 * mm, 44 * mm, 44 * mm, 44 * mm])
+        band.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), LIGHT), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                                  ("LINEAFTER", (0, 0), (-2, -1), 0.5, colors.white)]))
+        head = ["Conta", "O que foi", "Entrou", "Saiu"] if all_mode else ["", "O que foi", "Entrou", "Saiu"]
+        rows: List[List[Any]] = [[Paragraph(f"<b>{h}</b>", right_small if h in ("Entrou", "Saiu") else small) if h else "" for h in head]]
+        last_acc = None
+        for m in movs:
+            acc_cell = Paragraph(f"<b>{_esc(m['account'])}</b>", body) if all_mode and m["account"] != last_acc else ""
+            last_acc = m["account"]
+            pos, neg = m["amount"] > 0, m["amount"] < 0
+            rows.append([acc_cell, Paragraph(_esc(m["text"]), body),
+                         Paragraph(f'<font color="#15803D">{brl(m["amount"])}</font>', right) if pos else "",
+                         Paragraph(f'<font color="#B91C1C">{brl(-m["amount"])}</font>', right) if neg else ""])
+        for t in transfers:
+            rows.append(["", Paragraph(f'<font color="#6B7280">{_esc(t["text"])} <i>(entre contas, não muda o total)</i></font>', body),
+                         Paragraph(f'<font color="#6B7280">{brl(t["amount"])}</font>', right), ""])
+        if all_mode:
+            widths, right_from = [34 * mm, 82 * mm, 30 * mm, 30 * mm], 2
+        else:   # uma conta só: sem a coluna "Conta"
+            rows = [r[1:] for r in rows]
+            widths, right_from = [116 * mm, 30 * mm, 30 * mm], 1
+        table = Table(rows, colWidths=widths, repeatRows=1)
+        table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (right_from, 0), (-1, -1), "RIGHT"), ("TOPPADDING", (0, 0), (-1, -1), 2),
+                                   ("BOTTOMPADDING", (0, 0), (-1, -1), 2), ("LINEBELOW", (0, 0), (-1, 0), 0.5, GRAY),
+                                   ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor("#E5E7EB"))]))
+        block = [Paragraph(_day_title(d["date"]), day_style), band, Spacer(1, 2 * mm), table, Spacer(1, 5 * mm)]
+        story.append(KeepTogether(block) if len(rows) <= 22 else block[0])
         if len(rows) > 22:
-            story += [table, Spacer(1, 3 * mm)]
+            story += block[1:]
 
     doc.build(story)
     return buf.getvalue()

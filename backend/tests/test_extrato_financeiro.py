@@ -287,6 +287,8 @@ async def test_extrato_completo_em_pdf_traz_os_dias_os_750_e_a_conferencia(test_
     if txt:
         assert "Extrato financeiro" in txt and "Começou o dia com" in txt and "Terminou o dia com" in txt
         assert "750,00" in txt                                   # a transferência da gaveta para o Nubank
+        assert txt.count("Gaveta para Nubank") == 1              # entre contas: aparece UMA vez, de uma conta para a outra
+        assert "Entrou" in txt and "Saiu" in txt and "O que foi" in txt
         assert "Bate com o saldo da conta" in txt                # a conferência do fim do extrato
         assert "NÃO BATE" not in txt
     # só uma conta: o nome dela vai no arquivo e no título
