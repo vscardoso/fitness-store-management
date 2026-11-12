@@ -30,6 +30,7 @@ import { parseApiError } from '@/utils/apiError';
 import { getFinanceOverview, listPayables, type FinanceAccount } from '@/services/financeService';
 import { getCashCurrent } from '@/services/cashService';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { FitText } from '@/components/ui/PriceDisplay';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -55,7 +56,7 @@ function AccountTile({ account, hint, onPress }: { account: FinanceAccount; hint
     <TouchableOpacity style={styles.account} onPress={onPress} activeOpacity={0.8} accessibilityRole="button"
       accessibilityLabel={`${account.name}, ${formatCurrency(account.balance)}, ${hint}`}>
       <Text style={styles.accountName} numberOfLines={2}>{account.name}</Text>
-      <Text style={[styles.accountValue, account.balance < 0 && { color: Colors.light.error }]}>{formatCurrency(account.balance)}</Text>
+      <FitText style={[styles.accountValue, account.balance < 0 && { color: Colors.light.error }]} minSize={11}>{formatCurrency(account.balance)}</FitText>
       <Text style={[styles.accountHint, { color: brand.primary }]} numberOfLines={2}>{hint}</Text>
     </TouchableOpacity>
   );
@@ -121,6 +122,11 @@ export default function FinanceHomeScreen() {
           <Text style={[styles.link, { color: brand.primary }]}>Contas e saldos ›</Text>
         </TouchableOpacity>
       </View>
+      {(data?.accounts ?? []).some((a) => a.kind === 'card') && (
+        <Text style={styles.splitNote}>
+          {`Disponível (gaveta e bancos): ${formatCurrency((data?.accounts ?? []).filter((a) => a.kind !== 'card').reduce((t, a) => t + a.balance, 0))}. A receber da maquininha: ${formatCurrency((data?.accounts ?? []).filter((a) => a.kind === 'card').reduce((t, a) => t + a.balance, 0))}. O total soma os dois.`}
+        </Text>
+      )}
       <View style={styles.accountsRow}>
         {(data?.accounts ?? []).map((a) => (
           <AccountTile key={a.id} account={a} hint={accountHint(a)} onPress={() => go(a.kind === 'cash' ? '/cash' : '/finance/accounts')} />
@@ -271,6 +277,7 @@ const styles = StyleSheet.create({
   hero: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 12 },
   heroTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   total: { fontSize: 30, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  splitNote: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary },
   link: { fontSize: 13, fontWeight: theme.fontWeight.bold },
   accountsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   account: { flexGrow: 1, flexBasis: 100, minWidth: 0, backgroundColor: Colors.light.background, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: Colors.light.border, gap: 2 },

@@ -69,7 +69,7 @@ function LineRow({ line, open, onToggle }: { line: StatementLine; open: boolean;
           <Text style={styles.lineLabel}>{line.label}</Text>
           {expandable && <Text style={styles.lineHint}>{open ? 'Esconder movimentos' : `Ver ${line.items.length} movimento${line.items.length > 1 ? 's' : ''}`}</Text>}
         </View>
-        <Text style={[styles.lineValue, { color: tone(line.amount) }]}>{signed(line.amount)}</Text>
+        <Text style={[styles.lineValue, { color: tone(line.amount) }]} numberOfLines={1}>{signed(line.amount)}</Text>
         {expandable && <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.light.textSecondary} />}
       </TouchableOpacity>
       {open && line.items.map((it, i) => (
@@ -100,6 +100,11 @@ function DayCard({ day, expanded, toggle }: { day: StatementDay; expanded: Set<s
           <Text style={styles.balanceValue}>{formatCurrency(day.closing)}</Text>
         </View>
       </View>
+      {(day.accounts ?? []).some((a) => a.kind === 'card') && (
+        <Text style={styles.balanceLabel}>
+          {`No fim do dia: disponível (gaveta e bancos) ${formatCurrency((day.accounts ?? []).filter((a) => a.kind !== 'card').reduce((t, a) => t + a.closing, 0))}, a receber da maquininha ${formatCurrency((day.accounts ?? []).filter((a) => a.kind === 'card').reduce((t, a) => t + a.closing, 0))}. O total soma os dois.`}
+        </Text>
+      )}
       <View style={styles.lines}>
         {day.lines.map((ln, i) => {
           const key = `${day.date}-${i}`;
@@ -204,7 +209,7 @@ export default function StatementScreen() {
       <PageHeader title="Extrato" subtitle="Dia a dia, conta por conta" showBackButton backFallback="/finance" />
       {accounts.length > 0 && (
         <View style={[styles.chipsBar, isDesktop && styles.reading]}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll} contentContainerStyle={styles.chips}>
             <FilterChip text="Todas" on={accountId === null} color={brand.primary} onPress={() => pick(null)} />
             {accounts.map((a) => (
               <FilterChip key={a.id} text={a.name} on={accountId === a.id} color={brand.primary} onPress={() => pick(a.id)} />
@@ -233,6 +238,7 @@ const styles = StyleSheet.create({
   reading: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   chipsBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 16, paddingRight: 16, paddingVertical: 8, backgroundColor: Colors.light.background, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
   pdfBar: { paddingHorizontal: 16, paddingTop: 8, flexDirection: 'row', justifyContent: 'flex-start' },
+  chipsScroll: { flex: 1, minWidth: 0 },   // sem isto a faixa de chips passava por baixo do selo "Bate com o saldo"
   chips: { flexDirection: 'row', gap: 8, paddingRight: 8 },
   chip: { borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   chipText: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
@@ -250,9 +256,9 @@ const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   lineLabel: { fontSize: 14, color: Colors.light.text },
   lineHint: { fontSize: 11, color: Colors.light.textSecondary },
-  lineValue: { fontSize: 14, fontWeight: theme.fontWeight.extrabold },
+  lineValue: { fontSize: 14, fontWeight: theme.fontWeight.extrabold, flexShrink: 0 },   // o valor nunca quebra: quem encolhe é o rótulo
   item: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingLeft: 12, paddingVertical: 4, borderLeftWidth: 2, borderLeftColor: Colors.light.border },
   itemLabel: { flex: 1, fontSize: 13, color: Colors.light.textSecondary },
-  itemValue: { fontSize: 13, fontWeight: theme.fontWeight.bold },
+  itemValue: { fontSize: 13, fontWeight: theme.fontWeight.bold, flexShrink: 0 },
   end: { textAlign: 'center', fontSize: 12, color: Colors.light.textSecondary, paddingVertical: 8 },
 });

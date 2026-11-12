@@ -51,6 +51,15 @@ def merge_pages(pages: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _available_vs_card(day: Dict[str, Any]):
+    """(disponível em gaveta e bancos, a receber da maquininha) no fim do dia; None se não há conta de maquininha no extrato."""
+    accs = day.get("accounts") or []
+    if not any(a.get("kind") == "card" for a in accs):
+        return None
+    card = sum(float(a["closing"]) for a in accs if a.get("kind") == "card")
+    return sum(float(a["closing"]) for a in accs if a.get("kind") != "card"), card
+
+
 def _day_movements(d: Dict[str, Any], all_mode: bool):
     """Movimentos do dia como linhas simples {account, text, amount}. Em "todas as contas" a transferência aparece UMA vez
     (de uma conta para a outra), separada, porque entra numa conta e sai da outra e não muda o total."""
@@ -111,6 +120,10 @@ def build_statement_pdf(data: Dict[str, Any], store_name: str = "", generated_at
             ["Resultado de todos os dias (entrou menos saiu)", brl(total_net, sign=True)],
             ["Saldo no fim do último dia com movimento", brl(last_close)],
         ]
+        split = _available_vs_card(days[-1])
+        if split:
+            summary += [["   deste saldo, disponível (gaveta e bancos)", brl(split[0])],
+                        ["   deste saldo, a receber da maquininha (ainda não está no banco)", brl(split[1])]]
         if rec.get("difference") is not None:
             ok = abs(float(rec["difference"])) < 0.005
             summary += [
@@ -156,7 +169,10 @@ def build_statement_pdf(data: Dict[str, Any], store_name: str = "", generated_at
         table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (right_from, 0), (-1, -1), "RIGHT"), ("TOPPADDING", (0, 0), (-1, -1), 2),
                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2), ("LINEBELOW", (0, 0), (-1, 0), 0.5, GRAY),
                                    ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor("#E5E7EB"))]))
-        block = [Paragraph(_day_title(d["date"]), day_style), band, Spacer(1, 2 * mm), table, Spacer(1, 5 * mm)]
+        split = _available_vs_card(d) if all_mode else None
+        note = ([Paragraph(f"No fim do dia: disponível (gaveta e bancos) <b>{brl(split[0])}</b> · a receber da maquininha <b>{brl(split[1])}</b> "
+                           f"(o total de {brl(d['closing'])} soma os dois)", small)] if split else [])
+        block = [Paragraph(_day_title(d["date"]), day_style), band, *note, Spacer(1, 2 * mm), table, Spacer(1, 5 * mm)]
         story.append(KeepTogether(block) if len(rows) <= 22 else block[0])
         if len(rows) > 22:
             story += block[1:]

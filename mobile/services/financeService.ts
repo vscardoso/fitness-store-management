@@ -294,7 +294,11 @@ export const updateEntry = async (
 // ── Extrato passo a passo (dia a dia, com o saldo no começo e no fim) ────────────────────────────────────────────────
 export interface StatementItem { label: string; amount: number; ref: string | null }
 export interface StatementLine { kind: string; label: string; amount: number; count: number | null; items: StatementItem[] }
-export interface StatementDay { date: string; opening: number; closing: number; net: number; lines: StatementLine[] }
+export interface StatementDay {
+  date: string; opening: number; closing: number; net: number; lines: StatementLine[];
+  /** Saldo de cada conta no fim do dia (separa o disponível do que a maquininha ainda vai pagar). */
+  accounts?: { id: number; name: string; kind: string; closing: number }[];
+}
 export interface Statement {
   started: boolean;
   start_date: string | null;

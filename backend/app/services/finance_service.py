@@ -531,7 +531,10 @@ class FinanceService:
                             items = [it for ln in per_account[a.id] for it in (ln["items"] or [{"label": ln["label"], "amount": ln["amount"], "ref": None}])]
                             lines.append({"kind": "account", "label": a.name, "amount": float(nets[a.id]), "count": None, "items": items})
                 if lines:
-                    out_days.append({"date": d.isoformat(), "opening": float(opening), "closing": float(closing), "net": float(net), "lines": lines})
+                    out_days.append({"date": d.isoformat(), "opening": float(opening), "closing": float(closing), "net": float(net), "lines": lines,
+                                     # saldo de cada conta no fim do dia: o PDF e a tela separam o dinheiro que já está em mãos
+                                     # (gaveta e bancos) do que a maquininha ainda vai pagar
+                                     "accounts": [{"id": a.id, "name": a.name, "kind": a.kind, "closing": float(_q(running.get(a.id, 0)))} for a in shown]})
             d += timedelta(days=1)
         out_days.reverse()
         bal = await self.balances(tenant_id)
