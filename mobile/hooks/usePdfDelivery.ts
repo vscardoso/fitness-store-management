@@ -21,6 +21,7 @@ export interface UsePdfDeliveryOptions {
 
 export function usePdfDelivery({ pdf, getPdf, cacheKey = 'default', prefetch = false }: UsePdfDeliveryOptions) {
   const cache = useRef<{ key: string; ready: Promise<PrintedPdf> } | null>(null);
+  const readyRef = useRef<{ key: string; pdf: PrintedPdf } | null>(null);
   const getRef = useRef(getPdf);
   getRef.current = getPdf;
   const [busy, setBusy] = useState<PdfMode | null>(null);
@@ -30,7 +31,12 @@ export function usePdfDelivery({ pdf, getPdf, cacheKey = 'default', prefetch = f
   const resolve = useCallback((): Promise<PrintedPdf> => {
     if (pdf) return Promise.resolve(pdf);
     if (!getRef.current) return Promise.reject(new Error('PDF indisponível.'));
-    if (!cache.current || cache.current.key !== cacheKey) cache.current = { key: cacheKey, ready: getRef.current() };
+    if (!cache.current || cache.current.key !== cacheKey) {
+      const key = cacheKey;
+      const ready = getRef.current();
+      ready.then((p) => { readyRef.current = { key, pdf: p }; }, () => undefined);   // guarda o PDF pronto para o toque seguinte
+      cache.current = { key, ready };
+    }
     return cache.current.ready;
   }, [pdf, cacheKey]);
 
@@ -47,18 +53,22 @@ export function usePdfDelivery({ pdf, getPdf, cacheKey = 'default', prefetch = f
     setBusy(mode);
     setError(null);
     try {
-      const ready = await resolve();
+      // PDF já pronto: entrega DIRETO, sem nenhum `await` antes. O iPhone só abre a aba e a folha de compartilhar se isso acontecer
+      // dentro do próprio toque; esperar antes fazia o sistema bloquear a abertura e cair na tela preta do app instalado (11/11/2026).
+      const hit = readyRef.current && readyRef.current.key === cacheKey ? readyRef.current.pdf : null;
+      const ready = pdf ?? hit ?? (await resolve());
       const result = await ready.deliver(mode);
       setDelivery(result);
       return result;
     } catch (e: any) {
       cache.current = null;   // pede de novo no próximo toque (o link pode ter vencido)
+      readyRef.current = null;
       setError(parseApiError(e) || e?.message || 'Não foi possível gerar o PDF. Tente de novo.');
       return null;
     } finally {
       setBusy(null);
     }
-  }, [busy, resolve]);
+  }, [busy, resolve, pdf, cacheKey]);
 
   return {
     busy,

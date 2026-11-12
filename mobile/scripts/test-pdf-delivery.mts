@@ -60,4 +60,11 @@ t('as rotas de PDF do app passam pelo pdfDelivery', () => {
     assert.ok(/pdfDelivery/.test(fs.readFileSync(path.join(MOBILE, f), 'utf8')), `${f} deveria usar services/pdfDelivery.ts`);
   }
 });
+
+t('o hook entrega o PDF já pronto SEM await antes (o iPhone só abre aba e compartilhar dentro do toque; esperar caía na tela preta)', () => {
+  const src = fs.readFileSync(path.join(MOBILE, 'hooks/usePdfDelivery.ts'), 'utf8');
+  assert.ok(/pdf \?\? hit \?\? \(await resolve\(\)\)/.test(src), 'run() deve usar `pdf ?? hit ?? (await resolve())`: só espera quando o PDF ainda não existe');
+  const body = src.slice(src.indexOf('const run = useCallback'), src.indexOf('pdf ?? hit')).replace(/\/\/.*$/gm, '');   // sem os comentários
+  assert.ok(!/await/.test(body), 'nada pode ser esperado (await) antes de escolher o PDF pronto dentro de run()');
+});
 console.log(`${n} testes ok`);
