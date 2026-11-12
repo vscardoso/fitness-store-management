@@ -52,6 +52,9 @@ import { registerQueryClient } from '@/utils/queryCache';
 //   enabled: SENTRY_CONFIG.ENABLED,
 // });
 
+// Consultas que mostram dinheiro: recarregam depois de qualquer gravação e sempre que a tela abre (sem esperar os 5 minutos do cache)
+const MONEY_QUERY_ROOTS = ['finance', 'cash', 'monthly-report', 'monthly-result', 'receivables', 'dashboard'];
+
 // Criar QueryClient com tratamento centralizado de erros
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -63,6 +66,12 @@ const queryClient = new QueryClient({
     },
   }),
   mutationCache: new MutationCache({
+    // Qualquer gravação que deu certo (despesa, venda, transferência, fiado, entrada...) pode mexer no dinheiro: as telas do
+    // Financeiro, do caixa e do relatório mensal são marcadas para recarregar. Antes cada tela lembrava de invalidar só o seu
+    // pedaço e o Financeiro ficava com o saldo velho até a pessoa atualizar (caso da despesa de R$ 58 que "não apareceu").
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => MONEY_QUERY_ROOTS.some((r) => String(q.queryKey[0]) === r || String(q.queryKey[0]).startsWith(`${r}-`)) });
+    },
     onError: (error, _variables, _context, mutation) => {
       // Só mostra erro global se a mutation não tem um onError próprio
       if (!mutation.options.onError) {
@@ -80,6 +89,10 @@ const queryClient = new QueryClient({
 });
 
 registerQueryClient(queryClient);
+// dinheiro nunca fica "velho": as telas que mostram saldo, extrato, caixa e relatório recarregam toda vez que abrem
+for (const root of ['finance', 'finance-payables', 'finance-transfers', 'finance-statement', 'finance-loans', 'finance-entries', 'finance-closings', 'finance-closing', 'cash', 'monthly-report', 'receivables']) {
+  queryClient.setQueryDefaults([root], { staleTime: 0 });
+}
 
 /** Mistura a cor com branco (amount 0..1) para tons de fundo suaves. */
 function tintColor(hex: string, amount: number): string {
