@@ -4,7 +4,7 @@
  *   done       "Abrir o PDF e imprimir" (abre no Safari; de lá o Compartilhar entrega ao Label Expert)   [Compartilhar o arquivo PDF]   [Não saiu? Desfazer]   [Imprimir mais]
  */
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 
@@ -24,6 +24,10 @@ export default function PrintBar({ p, summary }: Props) {
   const router = useRouter();
   const styles = useMemo(() => makeStyles(brand.primary), [brand.primary]);
   const busy = !!p.busy;
+  // iPhone: o arquivo baixado só vira "arquivo de verdade" no app Arquivos (o Safari mostra uma cópia convertida que sai em branco no Label Expert).
+  // shareddocuments:// abre o Arquivos direto; de lá Compartilhar lista o Label Expert (testado pelo Victor em 12/11/2026).
+  const isIphone = Platform.OS === 'web' && typeof navigator !== 'undefined' && /iPhone|iPad/i.test(navigator.userAgent || '');
+  const openFilesApp = () => { window.location.href = 'shareddocuments://'; };
 
   return (
     <View style={styles.bar}>
@@ -65,9 +69,14 @@ export default function PrintBar({ p, summary }: Props) {
             PDF gerado e salvo{p.printedTotal > 0 ? `: ${p.printedTotal} etiqueta${p.printedTotal !== 1 ? 's' : ''}` : ''}
           </Text>
           <Text style={styles.sub}>
-            As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir”. Depois abra o app Arquivos, entre em Downloads, segure o dedo no PDF, toque em Compartilhar e escolha o app da impressora (Label Expert).
+            As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir” e depois em “Abrir o app Arquivos”. Em Downloads, segure o dedo no PDF, toque em Compartilhar e escolha o app da impressora (Label Expert).
           </Text>
           <PdfActions pdf={p.pdf} showSave saveFirst showOpen saveLabel="Baixar o PDF e imprimir" openLabel="Abrir o PDF" shareLabel="Compartilhar o arquivo PDF" />
+          {isIphone ? (
+            <TouchableOpacity style={styles.secondary} onPress={openFilesApp} accessibilityRole="button" accessibilityLabel="Abrir o app Arquivos">
+              <Text style={styles.secondaryText}>Abrir o app Arquivos</Text>
+            </TouchableOpacity>
+          ) : null}
           <View style={styles.row}>
             {p.lastJob ? (
               <TouchableOpacity style={styles.secondary} onPress={p.undo} disabled={busy} accessibilityRole="button" accessibilityLabel="Não saiu, desfazer">

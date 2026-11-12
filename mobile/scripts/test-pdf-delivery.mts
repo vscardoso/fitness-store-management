@@ -75,4 +75,8 @@ t('etiquetas: o botão principal é SALVAR o PDF no celular (o arquivo que a imp
   const svc = fs.readFileSync(path.join(MOBILE, 'services/pdfDelivery.ts'), 'utf8');
   assert.ok(/download=1/.test(svc) && /mode === 'save'/.test(svc), "pdfFromUrl deve tratar o modo 'save' com ?download=1");
 });
+t('etiquetas: no iPhone há o botão "Abrir o app Arquivos" (shareddocuments://), de onde o Compartilhar lista o Label Expert com o PDF de verdade', () => {
+  const bar = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/PrintBar.tsx'), 'utf8');
+  assert.ok(/shareddocuments:\/\//.test(bar) && /Abrir o app Arquivos/.test(bar), 'PrintBar deve ter o botão que abre o app Arquivos');
+});
 console.log(`${n} testes ok`);
