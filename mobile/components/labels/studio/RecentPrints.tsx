@@ -34,7 +34,7 @@ function JobRow({ job }: { job: RecentPrint }) {
           {PAPER[job.layout]}{job.layout === 'roll' ? '' : `, começa na posição ${job.start_position}`}{job.by ? ` · ${job.by}` : ''}
         </Text>
       </View>
-      <PdfActions pdf={pdf} iconOnly showOpen openLabel="Abrir" shareLabel="Enviar o PDF para a impressora" />
+      <PdfActions pdf={pdf} iconOnly showOpen openFirst openLabel="Abrir" shareLabel="Compartilhar o arquivo PDF" />
     </View>
   );
 }

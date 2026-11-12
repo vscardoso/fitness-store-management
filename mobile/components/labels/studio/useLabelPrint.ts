@@ -174,7 +174,7 @@ export function useLabelPrint({ items, initialQty, fromQueue, entryId, onGenerat
       await refresh();
       onGenerated?.();
       onPrinted?.();
-      // o PDF não abre mais sozinho numa aba: o botão "Enviar o PDF para a impressora" compartilha o ARQUIVO (sem link) direto
+      // o PDF não abre mais sozinho numa aba: o botão "Abrir o PDF e imprimir" abre o PDF e "Compartilhar o arquivo PDF" manda só o arquivo (sem link)
     });
   }, [total, run, paper, start, lines, size, fromQueue, entryId, refresh, onGenerated, onPrinted]);
 
