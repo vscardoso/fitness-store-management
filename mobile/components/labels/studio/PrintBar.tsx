@@ -69,14 +69,13 @@ export default function PrintBar({ p, summary }: Props) {
             PDF gerado e salvo{p.printedTotal > 0 ? `: ${p.printedTotal} etiqueta${p.printedTotal !== 1 ? 's' : ''}` : ''}
           </Text>
           <Text style={styles.sub}>
-            {isIphone
-              ? 'As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir” e depois em “Abrir o app Arquivos”. Em Downloads, segure o dedo no PDF, toque em Compartilhar e escolha o app da impressora (Label Expert).'
-              : 'As etiquetas já estão marcadas como impressas. Toque em “Baixar o PDF e imprimir” e abra o arquivo baixado para imprimir.'}
+            As etiquetas já estão marcadas como impressas. Toque em “Compartilhar o arquivo PDF”, depois em Imprimir e compartilhe com a impressora.
           </Text>
-          <PdfActions pdf={p.pdf} showSave saveFirst showOpen saveLabel="Baixar o PDF e imprimir" openLabel="Abrir o PDF" shareLabel="Compartilhar o arquivo PDF" />
+          {/* UM botão de PDF: Compartilhar o arquivo PDF (Victor, 12/11/2026). Sem Baixar nem Abrir. */}
+          <PdfActions pdf={p.pdf} shareLabel="Compartilhar o arquivo PDF" />
           {isIphone ? (
-            <TouchableOpacity style={styles.secondary} onPress={openFilesApp} accessibilityRole="button" accessibilityLabel="Abrir o app Arquivos">
-              <Text style={styles.secondaryText}>Abrir o app Arquivos</Text>
+            <TouchableOpacity style={styles.secondary} onPress={openFilesApp} accessibilityRole="button" accessibilityLabel="Abrir o app Arquivos (teste)">
+              <Text style={styles.secondaryText}>Abrir o app Arquivos (teste)</Text>
             </TouchableOpacity>
           ) : null}
           <View style={styles.row}>

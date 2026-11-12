@@ -67,13 +67,18 @@ t('o hook entrega o PDF já pronto SEM await antes (o iPhone só abre aba e comp
   const body = src.slice(src.indexOf('const run = useCallback'), src.indexOf('pdf ?? hit')).replace(/\/\/.*$/gm, '');   // sem os comentários
   assert.ok(!/await/.test(body), 'nada pode ser esperado (await) antes de escolher o PDF pronto dentro de run()');
 });
-t('etiquetas: o botão principal é SALVAR o PDF no celular (o arquivo que a impressora aceita) e gerar não abre aba sozinha (vinha preta)', () => {
-  const bar = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/PrintBar.tsx'), 'utf8');
-  assert.ok(/<PdfActions[^>]*showSave[^>]*saveFirst/.test(bar) || /<PdfActions[^>]*saveFirst[^>]*showSave/.test(bar), 'PrintBar deve usar PdfActions com showSave e saveFirst');
-  const gen = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/useLabelPrint.ts'), 'utf8').replace(/\/\/.*$/gm, '');
+t('etiquetas: o ÚNICO botão de PDF (tela de gerar e lista dos últimos PDFs) é "Compartilhar o arquivo PDF": sem Baixar nem Abrir; gerar não abre aba sozinha', () => {
+  const read = (f: string) => fs.readFileSync(path.join(MOBILE, f), 'utf8');
+  for (const f of ['components/labels/studio/PrintBar.tsx', 'components/labels/studio/RecentPrints.tsx']) {
+    const tags = read(f).replace(/\/\*[\s\S]*?\*\//g, '').match(/<PdfActions[^>]*\/>/g) || [];
+    assert.ok(tags.length >= 1, `${f} deve usar <PdfActions />`);
+    for (const t1 of tags) {
+      assert.ok(!/showOpen|showSave|openFirst|saveFirst/.test(t1), `${f}: só o botão Compartilhar o arquivo PDF (sem Baixar/Abrir): ${t1}`);
+      assert.ok(/shareLabel="Compartilhar o arquivo PDF"/.test(t1), `${f}: o botão deve se chamar "Compartilhar o arquivo PDF"`);
+    }
+  }
+  const gen = read('components/labels/studio/useLabelPrint.ts').replace(/\/\/.*$/gm, '');
   assert.ok(!/printed\.deliver\(/.test(gen), 'generate() não pode abrir o PDF sozinho (a aba abria preta no iPhone)');
-  const svc = fs.readFileSync(path.join(MOBILE, 'services/pdfDelivery.ts'), 'utf8');
-  assert.ok(/download=1/.test(svc) && /mode === 'save'/.test(svc), "pdfFromUrl deve tratar o modo 'save' com ?download=1");
 });
 t('etiquetas: no iPhone há o botão "Abrir o app Arquivos" (shareddocuments://), de onde o Compartilhar lista o Label Expert com o PDF de verdade', () => {
   const bar = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/PrintBar.tsx'), 'utf8');

@@ -34,7 +34,8 @@ function JobRow({ job }: { job: RecentPrint }) {
           {PAPER[job.layout]}{job.layout === 'roll' ? '' : `, começa na posição ${job.start_position}`}{job.by ? ` · ${job.by}` : ''}
         </Text>
       </View>
-      <PdfActions pdf={pdf} iconOnly showOpen openFirst openLabel="Abrir" shareLabel="Compartilhar o arquivo PDF" />
+      {/* só o Compartilhar o arquivo PDF (Victor, 12/11/2026): sem Abrir, sem Baixar */}
+      <PdfActions pdf={pdf} iconOnly shareLabel="Compartilhar o arquivo PDF" />
     </View>
   );
 }
@@ -45,7 +46,7 @@ export default function RecentPrints() {
   return (
     <View style={styles.box}>
       <Text style={styles.title}>Últimos PDFs gerados</Text>
-      <Text style={styles.hint}>Ficam só os 3 últimos. Abrir de novo não marca nada como impresso outra vez.</Text>
+      <Text style={styles.hint}>Ficam só os 3 últimos. Compartilhar de novo não marca nada como impresso outra vez.</Text>
       {data.map((job) => <JobRow key={job.id} job={job} />)}
     </View>
   );
