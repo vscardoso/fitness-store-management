@@ -80,8 +80,8 @@ t('etiquetas: o ÚNICO botão de PDF (tela de gerar e lista dos últimos PDFs) �
   const gen = read('components/labels/studio/useLabelPrint.ts').replace(/\/\/.*$/gm, '');
   assert.ok(!/printed\.deliver\(/.test(gen), 'generate() não pode abrir o PDF sozinho (a aba abria preta no iPhone)');
 });
-t('etiquetas: no iPhone há o botão "Abrir o app Arquivos" (shareddocuments://), de onde o Compartilhar lista o Label Expert com o PDF de verdade', () => {
+t('etiquetas: não há botão de teste do Arquivos: só "Compartilhar o arquivo PDF" (Victor, 12/11/2026)', () => {
   const bar = fs.readFileSync(path.join(MOBILE, 'components/labels/studio/PrintBar.tsx'), 'utf8');
-  assert.ok(/shareddocuments:\/\//.test(bar) && /Abrir o app Arquivos/.test(bar), 'PrintBar deve ter o botão que abre o app Arquivos');
+  assert.ok(!/shareddocuments|Abrir o app Arquivos/.test(bar), 'PrintBar não deve ter o botão de teste do app Arquivos');
 });
 console.log(`${n} testes ok`);

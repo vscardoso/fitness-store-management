@@ -4,7 +4,7 @@
  *   done       "Abrir o PDF e imprimir" (abre no Safari; de lá o Compartilhar entrega ao Label Expert)   [Compartilhar o arquivo PDF]   [Não saiu? Desfazer]   [Imprimir mais]
  */
 import React, { useMemo } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 
@@ -24,10 +24,6 @@ export default function PrintBar({ p, summary }: Props) {
   const router = useRouter();
   const styles = useMemo(() => makeStyles(brand.primary), [brand.primary]);
   const busy = !!p.busy;
-  // iPhone: o arquivo baixado só vira "arquivo de verdade" no app Arquivos (o Safari mostra uma cópia convertida que sai em branco no Label Expert).
-  // shareddocuments:// abre o Arquivos direto; de lá Compartilhar lista o Label Expert (testado pelo Victor em 12/11/2026).
-  const isIphone = Platform.OS === 'web' && typeof navigator !== 'undefined' && /iPhone|iPad/i.test(navigator.userAgent || '');
-  const openFilesApp = () => { window.location.href = 'shareddocuments://'; };
 
   return (
     <View style={styles.bar}>
@@ -73,11 +69,6 @@ export default function PrintBar({ p, summary }: Props) {
           </Text>
           {/* UM botão de PDF: Compartilhar o arquivo PDF (Victor, 12/11/2026). Sem Baixar nem Abrir. */}
           <PdfActions pdf={p.pdf} shareLabel="Compartilhar o arquivo PDF" />
-          {isIphone ? (
-            <TouchableOpacity style={styles.secondary} onPress={openFilesApp} accessibilityRole="button" accessibilityLabel="Abrir o app Arquivos (teste)">
-              <Text style={styles.secondaryText}>Abrir o app Arquivos (teste)</Text>
-            </TouchableOpacity>
-          ) : null}
           <View style={styles.row}>
             {p.lastJob ? (
               <TouchableOpacity style={styles.secondary} onPress={p.undo} disabled={busy} accessibilityRole="button" accessibilityLabel="Não saiu, desfazer">
