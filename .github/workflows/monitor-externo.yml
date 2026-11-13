@@ -1,0 +1,58 @@
+name: Monitor externo da producao
+
+# Roda fora do VPS (nos servidores do GitHub). Se a producao cair, abre uma issue "Producao fora do ar"
+# (o GitHub avisa por e-mail e no app do celular) e fecha sozinha quando voltar.
+# O GitHub atrasa agendamentos em horas de pico: espere de 5 a 15 min para o aviso.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      simular_falha:
+        description: 'Simular falha da API (testa o aviso; sim/nao)'
+        required: false
+        default: 'nao'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: monitor-externo
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Testar a producao
+        id: teste
+        continue-on-error: true
+        run: |
+          if [ "${{ inputs.simular_falha }}" = "sim" ]; then
+            python3 .github/scripts/monitor_externo.py --simular-falha
+          else
+            python3 .github/scripts/monitor_externo.py
+          fi
+
+      - name: Avisar (abre ou atualiza a issue) ou fechar quando voltou
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FALHOU: ${{ steps.teste.outcome == 'failure' }}
+        run: |
+          TITULO="Produção fora do ar"
+          ABERTA=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$TITULO\" in:title" --json number --jq '.[0].number // empty')
+          if [ "$FALHOU" = "true" ]; then
+            if [ -z "$ABERTA" ]; then
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITULO" --body-file monitor_resultado.md
+            fi
+            exit 1   # a run fica vermelha; a issue já avisou, sem repetir comentário a cada 5 minutos
+          elif [ -n "$ABERTA" ]; then
+            gh issue comment "$ABERTA" --repo "$GITHUB_REPOSITORY" --body-file monitor_resultado.md
+            gh issue close "$ABERTA" --repo "$GITHUB_REPOSITORY" --comment "Voltou ao normal."
+          fi
