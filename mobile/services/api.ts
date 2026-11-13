@@ -38,6 +38,16 @@ export function setForceLogoutCallback(callback: (reason: string) => Promise<voi
  */
 let onInvalidateQueriesCallback: (() => void) | null = null;
 
+/**
+ * Chamado SEMPRE que uma resposta 401 encerra a sessão (mesmo que o estado já estivesse "deslogado"): leva ao login.
+ * O layout raiz só redirecionava quando isAuthenticated passava de true para false; com a sessão já inativa
+ * (token sobrando, estado fora de sincronia) o 401 limpava tudo e a pessoa ficava na tela, sem dados.
+ */
+let onSessionEndedCallback: (() => void) | null = null;
+export function setSessionEndedCallback(callback: (() => void) | null) {
+  onSessionEndedCallback = callback;
+}
+
 /** Resultado da renovação: token novo, ou o tipo de falha (só `definitive` encerra a sessão). */
 type RefreshOutcome = { token: string } | { failure: 'definitive' | 'transient' };
 
@@ -73,7 +83,11 @@ const expireSession = (reason: string = 'Sessão expirada. Faça login novamente
   expiringSession = (async () => {
     const { useAuthStore } = await import('@/store/authStore');
     const stillActive = useAuthStore.getState().isAuthenticated || !!(await getAccessToken());
-    if (!stillActive) return;
+    if (!stillActive) {
+      // Já estava deslogado, mas um pedido com 401 chegou numa tela de dentro do app: garante o login.
+      try { onSessionEndedCallback?.(); } catch { /* navegação indisponível */ }
+      return;
+    }
 
     console.log('🔒 Sessão inválida após tentativa de refresh - iniciando logout forçado');
     await clearAuthData();
@@ -87,6 +101,7 @@ const expireSession = (reason: string = 'Sessão expirada. Faça login novamente
     } else {
       await useAuthStore.getState().forceLogout(reason);
     }
+    try { onSessionEndedCallback?.(); } catch { /* o layout raiz também redireciona pelo estado */ }
   })().finally(() => {
     expiringSession = null;
   });

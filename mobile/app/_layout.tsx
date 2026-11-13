@@ -29,7 +29,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
+import { setForceLogoutCallback, setInvalidateQueriesCallback, setSessionEndedCallback } from '@/services/api';
 import { isSessionIdle, markActivity, startActivityTracking } from '@/services/sessionActivity';
 import { IDLE_REASON } from '@/utils/sessionRules';
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
@@ -209,6 +209,18 @@ function AppLayout() {
       sub.remove();
     };
   }, [forceLogout]);
+
+  // 401 em qualquer tela de dentro do app: login, mesmo que o estado já estivesse deslogado (ver setSessionEndedCallback)
+  const segmentsRef = useRef<string[]>(segments as string[]);
+  segmentsRef.current = segments as string[];
+  useEffect(() => {
+    setSessionEndedCallback(() => {
+      const first = segmentsRef.current[0];
+      if (first === '(auth)') return; // já está no login, cadastro ou recuperação
+      router.replace('/(auth)/login');
+    });
+    return () => setSessionEndedCallback(null);
+  }, [router]);
 
   // Sessão caiu (401, logout): volta ao login de qualquer tela, não só das abas
   const wasAuthenticated = useRef(isAuthenticated);
