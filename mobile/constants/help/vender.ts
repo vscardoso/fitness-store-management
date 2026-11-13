@@ -8,10 +8,10 @@ export const VENDER: HelpEntry[] = [
     title: 'Início',
     routes: ['/'],
     open: '/',
-    purpose: 'Painel da loja com atalhos, últimas vendas e os números de vendas, lucro e estoque.',
+    purpose: 'Painel da loja com a venda do dia, atalhos, últimas vendas e os números de vendas, lucro e estoque.',
     steps: [
-      'Use as “Ações Rápidas” para ir direto a venda, consulta de peça, produtos, clientes e condicionais.',
-      'Toque em “Vendas Hoje” para abrir a lista de vendas.',
+      'Toque em “Nova venda” para abrir o ponto de venda; o resultado do dia aparece dentro do cartão.',
+      'Use os quatro atalhos logo abaixo: quem gerencia vê Entradas, Financeiro, Fila de etiquetas e Consultar; quem vende vê Consultar, Produtos, Clientes e Condicionais.',
       'Troque o período no filtro do alto para ver faturamento e lucro de outro intervalo.',
       'Toque no ⓘ de cada número para ler o que ele significa.',
       'Puxe a tela para baixo para atualizar.',

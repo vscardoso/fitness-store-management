@@ -81,7 +81,7 @@ export const RELATORIOS: HelpEntry[] = [
       { label: 'Estornos', text: 'quantas vendas foram canceladas ou devolvidas, e o valor.' },
     ],
     goodToKnow: [
-      'Abre pelo atalho “Relatórios” da tela Início.',
+      'Abre pelo menu Mais, na seção Relatórios (no notebook, pela barra lateral).',
       'Para a conta oficial do mês, use o Relatório de vendas ou o Resultado do mês.',
     ],
     roles: ['manager'],

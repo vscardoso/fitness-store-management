@@ -44,20 +44,12 @@ import PageHeader from '@/components/layout/PageHeader';
 import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
 import { isManagerRole } from '@/utils/roles';
 import SellCard from '@/components/home/SellCard';
+import ShortcutGrid, { type Shortcut } from '@/components/home/ShortcutGrid';
+import { shortcutIds, type ShortcutId } from '@/utils/homeLogic';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
-import HScroll from '@/components/ui/HScroll';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 const { width } = Dimensions.get('window');
-
-// Interface para ações rápidas
-interface QuickAction {
-  id: string;
-  title: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  onPress: () => void;
-}
 
 const EXCLUDED_KEY = '@provador:estoque-sem-categorias';
 
@@ -303,60 +295,17 @@ export default function DashboardScreen() {
     return 'Boa noite';
   };
 
-  // Ações rápidas
-  // Entradas e Relatórios são de gerente: caixa e vendedor não veem o atalho (o servidor recusaria)
-  const allQuickActions: QuickAction[] = [
-    {
-      id: 'new-sale',
-      title: 'Nova Venda',
-      icon: 'cart',
-      color: VALUE_COLORS.positive,
-      onPress: () => router.push('/(tabs)/sale'),
-    },
-    {
-      id: 'consult',
-      title: 'Consultar',
-      icon: 'qr-code',
-      color: '#0EA5E9',
-      onPress: () => router.push('/products/consult' as any),
-    },
-    {
-      id: 'products',
-      title: 'Produtos',
-      icon: 'cube',
-      color: '#8B5CF6',
-      onPress: () => router.push('/(tabs)/products'),
-    },
-    {
-      id: 'customers',
-      title: 'Clientes',
-      icon: 'people',
-      color: Colors.light.info,
-      onPress: () => router.push('/(tabs)/customers'),
-    },
-    {
-      id: 'conditional-shipments',
-      title: 'Condicionais',
-      icon: 'swap-horizontal',
-      color: '#EC4899',
-      onPress: () => router.push('/(tabs)/conditional'),
-    },
-    {
-      id: 'entries',
-      title: 'Entradas',
-      icon: 'albums',
-      color: VALUE_COLORS.warning,
-      onPress: () => router.push('/entries'),
-    },
-    {
-      id: 'reports',
-      title: 'Relatórios',
-      icon: 'bar-chart',
-      color: '#8B5CF6',
-      onPress: () => router.push('/reports/sales-period' as any),
-    },
-  ];
-  const quickActions = canSeeDashboard ? allQuickActions : allQuickActions.filter((a) => a.id !== 'entries' && a.id !== 'reports');
+  // Atalhos fixos (quatro, todos à vista); a lista por papel vem de utils/homeLogic.ts
+  const shortcutDefs: Record<ShortcutId, Shortcut> = {
+    entries: { id: 'entries', title: 'Entradas', icon: 'albums', color: VALUE_COLORS.warning, onPress: () => router.push('/entries') },
+    finance: { id: 'finance', title: 'Financeiro', icon: 'wallet', color: brandingColors.primary, onPress: () => router.push('/finance' as any) },
+    labels: { id: 'labels', title: 'Fila de etiquetas', icon: 'print', color: Colors.light.info, onPress: () => router.push('/etiquetas/fila' as any) },
+    consult: { id: 'consult', title: 'Consultar', icon: 'qr-code', color: Colors.light.info, onPress: () => router.push('/products/consult' as any) },
+    products: { id: 'products', title: 'Produtos', icon: 'cube', color: brandingColors.primary, onPress: () => router.push('/(tabs)/products') },
+    customers: { id: 'customers', title: 'Clientes', icon: 'people', color: Colors.light.info, onPress: () => router.push('/(tabs)/customers') },
+    conditional: { id: 'conditional', title: 'Condicionais', icon: 'swap-horizontal', color: VALUE_COLORS.warning, onPress: () => router.push('/(tabs)/conditional') },
+  };
+  const shortcuts = shortcutIds(canSeeDashboard).map((id) => shortcutDefs[id]);
 
   return (
     <View style={styles.container}>
@@ -425,27 +374,8 @@ export default function DashboardScreen() {
           onPress={() => router.push('/(tabs)/sale')}
         />
 
-        {/* ========== AÇÕES RÁPIDAS ========== */}
-        <Text style={styles.sectionTitle}>Ações Rápidas</Text>
-        <HScroll
-          
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickActionsContainer}
-        >
-          {quickActions.map((action) => (
-            <TouchableOpacity
-              key={action.id}
-              style={styles.quickActionButton}
-              activeOpacity={0.7}
-              onPress={action.onPress}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: action.color + '15' }]}>
-                <Ionicons name={action.icon} size={24} color={action.color} />
-              </View>
-              <Text style={styles.quickActionText}>{action.title}</Text>
-            </TouchableOpacity>
-          ))}
-        </HScroll>
+        {/* ========== ATALHOS ========== */}
+        <ShortcutGrid items={shortcuts} />
 
         {canSeeDashboard && (
 <>

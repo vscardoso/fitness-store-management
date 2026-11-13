@@ -1,6 +1,6 @@
 // node scripts/test-home-logic.mts
 import assert from 'node:assert/strict';
-import { todayLine } from '../utils/homeLogic.ts';
+import { todayLine, shortcutIds, monthLines, monthNameOf } from '../utils/homeLogic.ts';
 
 let ok = 0;
 const t = (nome: string, fn: () => void) => { fn(); ok++; console.log('ok', nome); };
@@ -16,6 +16,36 @@ t('1 venda no singular, várias no plural', () => {
 });
 t('contagem inválida não quebra', () => {
   assert.equal(todayLine(10, NaN as any, money), 'Hoje: nenhuma venda ainda');
+});
+
+t('atalhos: quem gerencia vê Entradas, Financeiro, Etiquetas e Consultar; quem vende não vê dinheiro nem entrada', () => {
+  assert.deepEqual(shortcutIds(true), ['entries', 'finance', 'labels', 'consult']);
+  assert.deepEqual(shortcutIds(false), ['consult', 'products', 'customers', 'conditional']);
+  assert.ok(!shortcutIds(false).includes('finance' as any) && !shortcutIds(false).includes('entries' as any));
+});
+t('são sempre quatro e sem repetir (cabem numa linha, sem rolar de lado)', () => {
+  for (const m of [true, false]) { const l = shortcutIds(m); assert.equal(l.length, 4); assert.equal(new Set(l).size, 4); }
+});
+
+t('conta do mês: as linhas somam o "sobrou" (vendeu - custo - gastos - brindes)', () => {
+  const r = { revenue: 1000, cmv: 400, total_expenses: 150.5, gifts_total: 20 };
+  const l = monthLines(r);
+  assert.deepEqual(l.map((x) => x.id), ['revenue', 'cmv', 'expenses', 'gifts']);
+  const soma = l.reduce((s, x) => s + x.sign * x.value, 0);
+  assert.equal(Math.round(soma * 100), Math.round((1000 - 400 - 150.5 - 20) * 100));
+});
+t('brinde zerado ou ausente não vira linha (só admin tem; para os outros o servidor já soma nos gastos)', () => {
+  assert.equal(monthLines({ revenue: 10, cmv: 4, total_expenses: 1, gifts_total: 0 }).length, 3);
+  assert.equal(monthLines({ revenue: 10, cmv: 4, total_expenses: 1, gifts_total: null }).length, 3);
+  assert.equal(monthLines({ revenue: 10, cmv: 4, total_expenses: 1 }).length, 3);
+});
+t('valor que vem como texto do servidor é lido como número', () => {
+  const l = monthLines({ revenue: '419.60' as any, cmv: '134.50' as any, total_expenses: '0.00' as any });
+  assert.equal(l[0].value, 419.6);
+});
+t('nome do mês em português e minúsculo', () => {
+  assert.equal(monthNameOf(new Date(2026, 10, 12)), 'novembro');
+  assert.equal(monthNameOf(new Date(2026, 2, 3)), 'março');
 });
 
 console.log(`${ok} testes de regras da Home passaram`);
