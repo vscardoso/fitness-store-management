@@ -12,13 +12,13 @@ export const VENDER: HelpEntry[] = [
     steps: [
       'Toque em “Nova venda” para abrir o ponto de venda; o resultado do dia aparece dentro do cartão.',
       'Use os quatro atalhos logo abaixo: quem gerencia vê Entradas, Financeiro, Fila de etiquetas e Consultar; quem vende vê Consultar, Produtos, Clientes e Condicionais.',
-      'Troque o período no filtro do alto para ver faturamento e lucro de outro intervalo.',
+      '“Como está o mês” mostra sempre o mês de hoje. Para ver outro intervalo nos mais vendidos e nas compras, troque o filtro em “Análise do período”.',
       'Toque no ⓘ de cada número para ler o que ele significa.',
       'Puxe a tela para baixo para atualizar.',
     ],
     parts: [
       { label: 'Últimas Vendas', text: 'as 4 vendas mais recentes; “Ver todas” abre a lista completa. Venda com devolução mostra o selo “Devolução parcial”, “Devolvida” ou “Cancelada”, o valor que a loja ficou e uma frase explicando, por exemplo: vendeu R$ 59,80 e devolveu R$ 39,89.' },
-      { label: 'Resultado do Mês', text: 'quanto você vendeu, menos o custo das peças e os gastos da loja: o que sobrou no mês.' },
+      { label: 'Como está o mês', text: 'o que sobrou no mês em destaque e, embaixo, a conta: quanto você vendeu, o custo das peças e os gastos da loja. Toque para abrir o Resultado do Mês completo.' },
       { label: 'Seu Estoque', text: 'quanto você tem investido em peças, quanto entra se vender tudo e o lucro previsto.' },
       { label: 'Saúde do Estoque', text: 'peças que giram, peças paradas e compras que estão dando prejuízo.' },
     ],
@@ -29,7 +29,7 @@ export const VENDER: HelpEntry[] = [
     web: ['O botão “Cadastrar” no canto abre o mesmo menu do “+” do celular.'],
     mobile: ['O “+” no canto abre atalhos para nova venda, cliente, produto, entrada.'],
     related: ['pdv', 'vendas'],
-    sources: ['app/(tabs)/index.tsx', 'components/FAB.tsx', 'utils/saleRefund.ts'],
+    sources: ['app/(tabs)/index.tsx', 'components/FAB.tsx', 'utils/saleRefund.ts', 'components/home/SellCard.tsx', 'components/home/ShortcutGrid.tsx', 'components/home/MonthCard.tsx'],
   },
   {
     id: 'pdv',

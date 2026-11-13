@@ -45,7 +45,8 @@ import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
 import { isManagerRole } from '@/utils/roles';
 import SellCard from '@/components/home/SellCard';
 import ShortcutGrid, { type Shortcut } from '@/components/home/ShortcutGrid';
-import { shortcutIds, type ShortcutId } from '@/utils/homeLogic';
+import MonthCard from '@/components/home/MonthCard';
+import { shortcutIds, monthNameOf, type ShortcutId } from '@/utils/homeLogic';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
@@ -379,149 +380,14 @@ export default function DashboardScreen() {
 
         {canSeeDashboard && (
 <>
-        {/* ========== RESUMO DO PERÍODO ========== */}
-        <View style={styles.periodHeader}>
-          <Text style={styles.sectionTitle}>{periodLabel}</Text>
-          <PeriodFilter
-            value={selectedPeriod}
-            onChange={setSelectedPeriod}
-            compact
-          />
-        </View>
-        <View style={styles.monthGrid}>
-          {/* Faturamento */}
-          <TouchableOpacity
-            style={styles.monthCard}
-            activeOpacity={0.7}
-            onPress={() => router.push('/reports/sales-period' as any)}
-          >
-            <View style={[styles.monthCardIcon, { backgroundColor: brandingColors.primary + '15' }]}>
-              <Ionicons name="wallet-outline" size={22} color={brandingColors.primary} />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={styles.monthCardLabel}>Faturamento</Text>
-              <TouchableOpacity onPress={() => setActiveTooltip('faturamento')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                <Ionicons name="information-circle-outline" size={11} color={Colors.light.textTertiary} />
-              </TouchableOpacity>
-            </View>
-            <Money style={styles.monthCardValue} value={Number(periodTotal)} />
-            <View style={styles.monthCardFooter}>
-              <Text style={styles.monthCardSubtitle}>{formatInt(periodCount)} vendas</Text>
-              {totalChangePercent !== 0 && (
-                <View style={[
-                  styles.changeBadge,
-                  { backgroundColor: totalChangePercent >= 0 ? Colors.light.successSoft : Colors.light.errorSoft }
-                ]}>
-                  <Ionicons
-                    name={totalChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
-                    size={10}
-                    color={totalChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative}
-                  />
-                  <Text style={[
-                    styles.changeText,
-                    { color: totalChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
-                  ]}>
-                    {formatPercent(Math.abs(totalChangePercent))} vs período anterior
-                  </Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
-
-          {/* Lucro */}
-          <TouchableOpacity
-            style={styles.monthCard}
-            activeOpacity={0.7}
-            onPress={() => router.push('/reports/sales-period' as any)}
-          >
-            <View style={[styles.monthCardIcon, { backgroundColor: Colors.light.successSoft }]}>
-              <Ionicons name="cash-outline" size={22} color={VALUE_COLORS.positive} />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={styles.monthCardLabel}>Lucro das vendas</Text>
-              <TouchableOpacity onPress={() => setActiveTooltip('lucro-periodo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                <Ionicons name="information-circle-outline" size={11} color={Colors.light.textTertiary} />
-              </TouchableOpacity>
-            </View>
-            <Money style={[styles.monthCardValue, { color: VALUE_COLORS.positive }]} value={Number(periodProfit)} />
-            <View style={styles.monthCardFooter}>
-              <Text style={styles.monthCardSubtitle}>{formatPercent(periodMargin)} do vendido</Text>
-              {profitChangePercent !== 0 && (
-                <View style={[
-                  styles.changeBadge,
-                  { backgroundColor: profitChangePercent >= 0 ? Colors.light.successSoft : Colors.light.errorSoft }
-                ]}>
-                  <Ionicons
-                    name={profitChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
-                    size={10}
-                    color={profitChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative}
-                  />
-                  <Text style={[
-                    styles.changeText,
-                    { color: profitChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
-                  ]}>
-                    {formatPercent(Math.abs(profitChangePercent))} vs período anterior
-                  </Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ========== CARD RESULTADO DO MÊS (P&L) ========== */}
+        {/* ========== COMO ESTÁ O MÊS (um número do mês, uma conta) ========== */}
         {monthlyResult && (
-          <TouchableOpacity
-            activeOpacity={0.85}
+          <MonthCard
+            monthName={monthNameOf(now)}
+            result={monthlyResult}
+            onInfo={() => setActiveTooltip('resultado')}
             onPress={() => router.push('/(tabs)/expenses/resultado')}
-          >
-            <View style={styles.plSummaryCard}>
-              <View style={styles.plSummaryHeader}>
-                <View style={styles.plSummaryTitleRow}>
-                  <Ionicons name="stats-chart-outline" size={18} color={brandingColors.primary} />
-                  <Text style={styles.plSummaryTitle}>Resultado do Mês</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-              </View>
-              <View style={styles.plSummaryGrid}>
-                <View style={styles.plSummaryItem}>
-                  <Text style={styles.plSummaryLabel}>Você vendeu</Text>
-                  <Text style={[styles.plSummaryValue, { color: Colors.light.success }]}>
-                    {formatCurrency(monthlyResult.revenue)}
-                  </Text>
-                </View>
-                <View style={styles.plSummaryItem}>
-                  <Text style={styles.plSummaryLabel}>Custo das peças</Text>
-                  <Text style={[styles.plSummaryValue, { color: Colors.light.error }]}>
-                    -{formatCurrency(Number(monthlyResult.cmv))}
-                  </Text>
-                </View>
-                <View style={styles.plSummaryItem}>
-                  <Text style={styles.plSummaryLabel}>Gastos da loja</Text>
-                  <Text style={[styles.plSummaryValue, { color: Colors.light.error }]}>
-                    -{formatCurrency(Number(monthlyResult.total_expenses))}
-                  </Text>
-                </View>
-                <View style={[styles.plSummaryItem, styles.plSummaryNet, {
-                  backgroundColor: monthlyResult.net_profit >= 0 ? (Colors.light.successLight ?? '#E8F5E9') : '#FFEBEE',
-                }]}>
-                  <Text style={styles.plSummaryLabel}>Sobrou no mês</Text>
-                  <Text style={[styles.plSummaryValue, styles.plSummaryNetValue, {
-                    color: monthlyResult.net_profit >= 0 ? Colors.light.success : Colors.light.error,
-                  }]}>
-                    {formatCurrency(monthlyResult.net_profit)}
-                  </Text>
-                  <Text style={[styles.plSummaryMargin, {
-                    color: monthlyResult.net_profit >= 0 ? Colors.light.success : Colors.light.error,
-                  }]}>
-                    {formatPercent(Number(monthlyResult.net_margin_pct))} do que vendeu
-                  </Text>
-                </View>
-              </View>
-              <Text style={{ fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, paddingHorizontal: 14, paddingBottom: 12 }}>
-                Você vendeu, menos o que custaram as peças (com as despesas da compra), menos os gastos da loja (aluguel, luz...), é o que sobrou.
-              </Text>
-            </View>
-          </TouchableOpacity>
+          />
         )}
 
         {/* ========== GRÁFICO DE VENDAS 7 DIAS ========== */}
@@ -607,6 +473,12 @@ export default function DashboardScreen() {
             </View>
           </View>
         )}
+
+        {/* ========== PERÍODO DA ANÁLISE (vale para os blocos abaixo, não para o mês acima) ========== */}
+        <View style={styles.periodHeader}>
+          <Text style={styles.sectionTitle}>Análise do período</Text>
+          <PeriodFilter value={selectedPeriod} onChange={setSelectedPeriod} compact />
+        </View>
 
         {/* ========== TOP 5 PRODUTOS ========== */}
         {topProducts && topProducts.products && topProducts.products.length > 0 && (
@@ -1144,16 +1016,18 @@ export default function DashboardScreen() {
                   </Text>
                 </>
               )}
-              {activeTooltip === 'faturamento' && (
+              {activeTooltip === 'resultado' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: brandingColors.primary + '15' }]}>
-                      <Ionicons name="wallet-outline" size={20} color={brandingColors.primary} />
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.successSoft }]}>
+                      <Ionicons name="stats-chart-outline" size={20} color={VALUE_COLORS.positive} />
                     </View>
-                    <Text style={styles.tooltipTitle}>Faturamento</Text>
+                    <Text style={styles.tooltipTitle}>Sobrou no mês</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>Total cobrado dos clientes no período. É a receita bruta — ainda não foram descontados os custos dos produtos.</Text>
+                  <Text style={styles.tooltipText}>{`Você vendeu, menos o que custaram as peças (com as despesas da compra), menos os gastos da loja (aluguel, luz...), é o que sobrou.
+
+É sempre o mês de hoje, de 1º até agora. O filtro de período mais abaixo não muda este bloco.`}</Text>
                 </>
               )}
               {activeTooltip === 'lucro-periodo' && (
