@@ -50,7 +50,7 @@ import AnalysisFold from '@/components/home/AnalysisFold';
 import { shortcutIds, monthNameOf, stockPace, paceLabel, paceAdvice, soldUnitsText, type ShortcutId } from '@/utils/homeLogic';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
-import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed, useLayout } from '@/hooks/useLayout';
 const { width } = Dimensions.get('window');
 
 const EXCLUDED_KEY = '@provador:estoque-sem-categorias';
@@ -60,6 +60,7 @@ export default function DashboardScreen() {
   // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
   const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
+  const { isDesktop } = useLayout();
   const { user } = useAuth();
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
@@ -320,62 +321,8 @@ export default function DashboardScreen() {
   };
   const shortcuts = shortcutIds(canSeeDashboard).map((id) => shortcutDefs[id]);
 
-  return (
-    <View style={styles.container}>
-      <Animated.View style={headerAnimStyle}>
-        <PageHeader
-          title={`${getGreeting()}, ${user?.full_name?.split(' ')[0] || 'Usuário'}!`}
-          subtitle={user?.store_name || 'Provador'}
-          leftVisual={
-            logoUri ? (
-              <Image source={{ uri: logoUri }} style={styles.headerStoreLogoImage} resizeMode="contain" />
-            ) : (
-              <View style={styles.headerStoreLogoFallback}>
-                <FitFlowLogo size={32} />
-              </View>
-            )
-          }
-          rightActions={[
-            { icon: 'person-circle-outline', onPress: () => router.push('/(tabs)/more') },
-          ]}
-        />
-      </Animated.View>
-      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
-      <View style={[{ flex: 1 }, desktopColumn]}>
-
-      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
-      <ScrollView
-        ref={scrollRef}
-        style={[styles.scrollView, bleed.scrollStyle]}
-        contentContainerStyle={[styles.content, bleed.contentStyle]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[brandingColors.primary]}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Alerta de estoque baixo — proeminente quando há itens */}
-        {lowStockCount > 0 && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/products?filter=low_stock' as any)}
-          >
-            <View style={styles.stockAlert}>
-              <Ionicons name="warning" size={20} color={Colors.light.warning} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.stockAlertTitle}>
-                  {formatInt(lowStockCount)} produto{lowStockCount !== 1 ? 's' : ''} com estoque baixo
-                </Text>
-                <Text style={styles.stockAlertSub}>Ver quais</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.light.warning} />
-            </View>
-          </TouchableOpacity>
-        )}
-        {/* ========== AÇÃO PRINCIPAL: NOVA VENDA (com o dia dentro) ========== */}
+  const deskGrid = isDesktop && canSeeDashboard;
+  const sellBlock = (
         <SellCard
           gradient={[brandingColors.primary, brandingColors.secondary]}
           showToday={canSeeDashboard}
@@ -386,24 +333,20 @@ export default function DashboardScreen() {
           trendPercent={Number(salesTrendPercent)}
           onPress={() => router.push('/(tabs)/sale')}
         />
-
-        {/* ========== ATALHOS ========== */}
-        <ShortcutGrid items={shortcuts} />
-
-        {canSeeDashboard && (
-<>
-        {/* ========== COMO ESTÁ O MÊS (um número do mês, uma conta) ========== */}
-        {monthlyResult && (
+  );
+  const shortcutBlock = <ShortcutGrid items={shortcuts} columns={deskGrid ? 2 : 4} />;
+  const monthBlock = (
+        monthlyResult && (
           <MonthCard
             monthName={monthNameOf(now)}
             result={monthlyResult}
             onInfo={() => setActiveTooltip('resultado')}
             onPress={() => router.push('/(tabs)/expenses/resultado')}
           />
-        )}
-
-        {/* ========== GRÁFICO DE VENDAS 7 DIAS ========== */}
-        {dailySales && dailySales.daily && dailySales.daily.length > 0 && (
+        )
+  );
+  const chartBlock = (
+        dailySales && dailySales.daily && dailySales.daily.length > 0 && (
           <View style={styles.chartCard}>
             <View style={styles.chartHeader}>
               <View>
@@ -484,7 +427,76 @@ export default function DashboardScreen() {
               </View>
             </View>
           </View>
+        )
+  );
+
+  return (
+    <View style={styles.container}>
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title={`${getGreeting()}, ${user?.full_name?.split(' ')[0] || 'Usuário'}!`}
+          subtitle={user?.store_name || 'Provador'}
+          leftVisual={
+            logoUri ? (
+              <Image source={{ uri: logoUri }} style={styles.headerStoreLogoImage} resizeMode="contain" />
+            ) : (
+              <View style={styles.headerStoreLogoFallback}>
+                <FitFlowLogo size={32} />
+              </View>
+            )
+          }
+          rightActions={[
+            { icon: 'person-circle-outline', onPress: () => router.push('/(tabs)/more') },
+          ]}
+        />
+      </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
+
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
+      <ScrollView
+        ref={scrollRef}
+        style={[styles.scrollView, bleed.scrollStyle]}
+        contentContainerStyle={[styles.content, bleed.contentStyle]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[brandingColors.primary]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Alerta de estoque baixo — proeminente quando há itens */}
+        {lowStockCount > 0 && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push('/(tabs)/products?filter=low_stock' as any)}
+          >
+            <View style={styles.stockAlert}>
+              <Ionicons name="warning" size={20} color={Colors.light.warning} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stockAlertTitle}>
+                  {formatInt(lowStockCount)} produto{lowStockCount !== 1 ? 's' : ''} com estoque baixo
+                </Text>
+                <Text style={styles.stockAlertSub}>Ver quais</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.light.warning} />
+            </View>
+          </TouchableOpacity>
         )}
+        {/* ========== AÇÃO PRINCIPAL + ATALHOS (celular: em coluna; notebook de gerente: coluna "Agora" à direita) ========== */}
+        {!deskGrid && (<>{sellBlock}{shortcutBlock}</>)}
+
+        {canSeeDashboard && (
+<>
+        {/* ========== COMO ESTÁ O MÊS + 7 DIAS (notebook: coluna da esquerda; "Agora" na direita) ========== */}
+        {deskGrid ? (
+          <View style={styles.deskGrid}>
+            <View style={styles.deskLeft}>{monthBlock}{chartBlock}</View>
+            <View style={styles.deskRight}>{sellBlock}{shortcutBlock}</View>
+          </View>
+        ) : (<>{monthBlock}{chartBlock}</>)}
 
         <AnalysisFold open={analysisOpen} onToggle={toggleAnalysis}>
         {/* ========== PERÍODO DA ANÁLISE (vale para os blocos abaixo, não para o mês acima) ========== */}
@@ -604,8 +616,8 @@ export default function DashboardScreen() {
                     styles.fifoGaugeFill,
                     {
                       width: `${Math.min(fifoPerf.sell_through.rate, 100)}%`,
-                      backgroundColor: fifoPerf.sell_through.rate >= 70 ? VALUE_COLORS.positive :
-                        fifoPerf.sell_through.rate >= 40 ? VALUE_COLORS.warning : VALUE_COLORS.negative
+                      backgroundColor: pace === 'excellent' ? VALUE_COLORS.positive :
+                        pace === 'moderate' ? VALUE_COLORS.warning : pace === 'few' ? Colors.light.textTertiary : VALUE_COLORS.negative
                     }
                   ]} />
                 </View>
@@ -1228,6 +1240,9 @@ export default function DashboardScreen() {
 }
 
 const createStyles = (brand: string) => StyleSheet.create({
+  deskGrid: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  deskLeft: { flex: 3, minWidth: 0, gap: 16 },
+  deskRight: { flex: 2, minWidth: 0, gap: 16 },
   container: {
     flex: 1,
     backgroundColor: Colors.light.surfaceMuted,
