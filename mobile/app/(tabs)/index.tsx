@@ -46,6 +46,7 @@ import { isManagerRole } from '@/utils/roles';
 import SellCard from '@/components/home/SellCard';
 import ShortcutGrid, { type Shortcut } from '@/components/home/ShortcutGrid';
 import MonthCard from '@/components/home/MonthCard';
+import AnalysisFold from '@/components/home/AnalysisFold';
 import { shortcutIds, monthNameOf, type ShortcutId } from '@/utils/homeLogic';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
@@ -53,6 +54,7 @@ import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 const { width } = Dimensions.get('window');
 
 const EXCLUDED_KEY = '@provador:estoque-sem-categorias';
+const ANALYSIS_KEY = '@provador:home-analise-aberta';
 
 export default function DashboardScreen() {
   // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
@@ -76,6 +78,18 @@ export default function DashboardScreen() {
       AsyncStorage.setItem(EXCLUDED_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
+  };
+  // "Estoque e análise" começa recolhido; as consultas dele só rodam depois de aberto. A escolha fica salva neste aparelho.
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const analysisOpenRef = useRef(false);
+  React.useEffect(() => {
+    AsyncStorage.getItem(ANALYSIS_KEY).then((v) => { if (v === '1') { analysisOpenRef.current = true; setAnalysisOpen(true); } }).catch(() => {});
+  }, []);
+  const toggleAnalysis = () => {
+    const next = !analysisOpenRef.current;
+    analysisOpenRef.current = next;
+    setAnalysisOpen(next);
+    AsyncStorage.setItem(ANALYSIS_KEY, next ? '1' : '0').catch(() => {});
   };
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
@@ -141,19 +155,19 @@ export default function DashboardScreen() {
   const { data: valuation, refetch: refetchValuation } = useQuery({
     queryKey: ['inventory-valuation'],
     queryFn: getInventoryValuation,
-    enabled: !!user && canSeeDashboard,
+    enabled: !!user && canSeeDashboard && analysisOpen,
   });
 
   const { data: periodStats, refetch: refetchPeriod } = useQuery({
     queryKey: ['period-sales', selectedPeriod],
     queryFn: () => getPeriodSalesStats(selectedPeriod),
-    enabled: !!user && canSeeDashboard,
+    enabled: !!user && canSeeDashboard && analysisOpen,
   });
 
   const { data: purchasesStats, refetch: refetchPurchases } = useQuery({
     queryKey: ['period-purchases', selectedPeriod],
     queryFn: () => getPeriodPurchases(selectedPeriod),
-    enabled: !!user && canSeeDashboard,
+    enabled: !!user && canSeeDashboard && analysisOpen,
   });
 
   const { data: recentSales, refetch: refetchRecentSales } = useQuery({
@@ -181,14 +195,14 @@ export default function DashboardScreen() {
   const { data: topProducts, refetch: refetchTopProducts } = useQuery({
     queryKey: ['top-products', selectedPeriod],
     queryFn: () => getTopProducts(selectedPeriod, 5),
-    enabled: !!user && canSeeDashboard,
+    enabled: !!user && canSeeDashboard && analysisOpen,
   });
 
   // Query performance FIFO
   const { data: fifoPerf, refetch: refetchFifo } = useQuery({
     queryKey: ['fifo-performance'],
     queryFn: getFifoPerformance,
-    enabled: !!user && canSeeDashboard,
+    enabled: !!user && canSeeDashboard && analysisOpen,
   });
   // Saúde do estoque: peças paradas de verdade (não o estoque inteiro) e margem real (lucro / valor vendido)
   const stagnantUnits = fifoPerf?.stagnant?.units ?? 0;
@@ -198,7 +212,7 @@ export default function DashboardScreen() {
   const { data: yoyData, refetch: refetchYoY } = useQuery({
     queryKey: ['yoy-comparison'],
     queryFn: getYoYComparison,
-    enabled: !!user && canSeeDashboard,
+    enabled: !!user && canSeeDashboard && analysisOpen,
   });
 
   // Query resultado do mês (P&L)
@@ -217,14 +231,9 @@ export default function DashboardScreen() {
       ...(canSeeDashboard
         ? [
             refetchStats(),
-            refetchValuation(),
-            refetchPeriod(),
-            refetchPurchases(),
             refetchDailySales(),
-            refetchTopProducts(),
-            refetchFifo(),
-            refetchYoY(),
             refetchMonthly(),
+            ...(analysisOpenRef.current ? [refetchValuation(), refetchPeriod(), refetchPurchases(), refetchTopProducts(), refetchFifo(), refetchYoY()] : []),
           ]
         : []),
     ]);
@@ -238,14 +247,16 @@ export default function DashboardScreen() {
       refetchRecentSales();
       if (!canSeeDashboard) return;
       refetchStats();
-      refetchValuation();
-      refetchPeriod();
-      refetchPurchases();
       refetchDailySales();
-      refetchTopProducts();
-      refetchFifo();
-      refetchYoY();
       refetchMonthly();
+      if (analysisOpenRef.current) {
+        refetchValuation();
+        refetchPeriod();
+        refetchPurchases();
+        refetchTopProducts();
+        refetchFifo();
+        refetchYoY();
+      }
     }, [canSeeDashboard, refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales, refetchDailySales, refetchTopProducts, refetchFifo, refetchYoY, refetchMonthly])
   );
 
@@ -474,6 +485,7 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        <AnalysisFold open={analysisOpen} onToggle={toggleAnalysis}>
         {/* ========== PERÍODO DA ANÁLISE (vale para os blocos abaixo, não para o mês acima) ========== */}
         <View style={styles.periodHeader}>
           <Text style={styles.sectionTitle}>Análise do período</Text>
@@ -958,6 +970,8 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        </AnalysisFold>
+
         </>
 )}
 
@@ -1131,39 +1145,6 @@ export default function DashboardScreen() {
             </Animated.View>
           </TouchableOpacity>
         </Modal>
-
-        {/* ========== RESUMO RÁPIDO ========== */}
-        <View style={styles.quickStatsRow}>
-          <TouchableOpacity
-            style={styles.quickStatCard}
-            onPress={() => router.push('/(tabs)/products')}
-          >
-            <Ionicons name="cube" size={20} color="#8B5CF6" />
-            <Text style={styles.quickStatValue}>{formatInt(totalSkus)}</Text>
-            <Text style={styles.quickStatLabel}>
-              {totalSkus > totalProducts ? 'Variações' : 'Produtos'}
-            </Text>
-            {totalSkus > totalProducts && (
-              <Text style={styles.quickStatSub}>{formatInt(totalProducts)} modelos</Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickStatCard}
-            onPress={() => router.push('/(tabs)/customers')}
-          >
-            <Ionicons name="people" size={20} color={Colors.light.info} />
-            <Text style={styles.quickStatValue}>{formatInt(totalCustomers)}</Text>
-            <Text style={styles.quickStatLabel}>Clientes</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickStatCard}
-            onPress={() => router.push('/(tabs)/sales')}
-          >
-            <Ionicons name="receipt" size={20} color={Colors.light.success} />
-            <Text style={styles.quickStatValue}>{formatInt(periodCount)}</Text>
-            <Text style={styles.quickStatLabel}>Vendas</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* ========== ÚLTIMAS VENDAS ========== */}
         <View style={styles.recentHeader}>

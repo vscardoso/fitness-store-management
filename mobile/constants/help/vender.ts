@@ -12,7 +12,7 @@ export const VENDER: HelpEntry[] = [
     steps: [
       'Toque em “Nova venda” para abrir o ponto de venda; o resultado do dia aparece dentro do cartão.',
       'Use os quatro atalhos logo abaixo: quem gerencia vê Entradas, Financeiro, Fila de etiquetas e Consultar; quem vende vê Consultar, Produtos, Clientes e Condicionais.',
-      '“Como está o mês” mostra sempre o mês de hoje. Para ver outro intervalo nos mais vendidos e nas compras, troque o filtro em “Análise do período”.',
+      '“Como está o mês” mostra sempre o mês de hoje. Mais vendidos, giro, compras e capital investido ficam recolhidos em “Estoque e análise”: toque para abrir e, lá dentro, troque o intervalo em “Análise do período”.',
       'Toque no ⓘ de cada número para ler o que ele significa.',
       'Puxe a tela para baixo para atualizar.',
     ],
@@ -29,7 +29,7 @@ export const VENDER: HelpEntry[] = [
     web: ['O botão “Cadastrar” no canto abre o mesmo menu do “+” do celular.'],
     mobile: ['O “+” no canto abre atalhos para nova venda, cliente, produto, entrada.'],
     related: ['pdv', 'vendas'],
-    sources: ['app/(tabs)/index.tsx', 'components/FAB.tsx', 'utils/saleRefund.ts', 'components/home/SellCard.tsx', 'components/home/ShortcutGrid.tsx', 'components/home/MonthCard.tsx'],
+    sources: ['app/(tabs)/index.tsx', 'components/FAB.tsx', 'utils/saleRefund.ts', 'components/home/SellCard.tsx', 'components/home/ShortcutGrid.tsx', 'components/home/MonthCard.tsx', 'components/home/AnalysisFold.tsx'],
   },
   {
     id: 'pdv',
