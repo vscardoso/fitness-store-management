@@ -47,7 +47,7 @@ import SellCard from '@/components/home/SellCard';
 import ShortcutGrid, { type Shortcut } from '@/components/home/ShortcutGrid';
 import MonthCard from '@/components/home/MonthCard';
 import AnalysisFold from '@/components/home/AnalysisFold';
-import { shortcutIds, monthNameOf, type ShortcutId } from '@/utils/homeLogic';
+import { shortcutIds, monthNameOf, stockPace, paceLabel, paceAdvice, soldUnitsText, type ShortcutId } from '@/utils/homeLogic';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
@@ -207,6 +207,7 @@ export default function DashboardScreen() {
   // Saúde do estoque: peças paradas de verdade (não o estoque inteiro) e margem real (lucro / valor vendido)
   const stagnantUnits = fifoPerf?.stagnant?.units ?? 0;
   const fifoMargin = fifoPerf?.roi.avg_margin ?? fifoPerf?.roi.avg_roi ?? 0;
+  const pace = stockPace(fifoPerf?.sell_through.rate ?? 0, fifoPerf?.sell_through.total_sold ?? 0);
 
   // Query YoY (ano a ano)
   const { data: yoyData, refetch: refetchYoY } = useQuery({
@@ -414,7 +415,7 @@ export default function DashboardScreen() {
               {dailySales.best_day && dailySales.best_day.total > 0 && (
                 <View style={styles.bestDayBadge}>
                   <Ionicons name="trophy" size={14} color={Colors.light.warning} />
-                  <Text style={styles.bestDayText}>{dailySales.best_day.day_short}</Text>
+                  <Text style={styles.bestDayText}>Melhor dia: {dailySales.best_day.day_short}</Text>
                 </View>
               )}
             </View>
@@ -497,7 +498,7 @@ export default function DashboardScreen() {
           <View style={styles.topProductsCard}>
             <View style={styles.topProductsHeader}>
               <View>
-                <Text style={styles.chartTitle}>🏆 Top Produtos</Text>
+                <Text style={styles.chartTitle}>Top Produtos</Text>
                 <Text style={styles.chartSubtitle}>{periodLabel}</Text>
               </View>
             </View>
@@ -522,7 +523,7 @@ export default function DashboardScreen() {
                       <View style={[styles.topProductBar, { width: `${barWidth}%`, backgroundColor: color }]} />
                     </View>
                     <View style={styles.topProductStats}>
-                      <Text style={styles.topProductStatText}>{product.qty_sold} un vendidas</Text>
+                      <Text style={styles.topProductStatText}>{soldUnitsText(product.qty_sold)}</Text>
                       <Text style={[styles.topProductStatText, { color: valueColor(product.profit, 'profit') }]}>
                         Lucro: {formatCurrency(product.profit)} ({formatPercent(product.margin_percent)})
                       </Text>
@@ -539,7 +540,7 @@ export default function DashboardScreen() {
           <View style={styles.fifoCard}>
             <View style={styles.fifoHeaderSection}>
               <View>
-                <Text style={styles.fifoTitle}>📦 Saúde do Estoque</Text>
+                <Text style={styles.fifoTitle}>Saúde do Estoque</Text>
                 <Text style={styles.fifoSubtitle}>Análise detalhada do seu inventário</Text>
               </View>
               <TouchableOpacity style={styles.fifoInfoButton} activeOpacity={0.6} onPress={() => setActiveTooltip('giro')}>
@@ -557,16 +558,15 @@ export default function DashboardScreen() {
                 </View>
                 <View style={[
                   styles.fifoSellThroughBadge,
-                  { backgroundColor: fifoPerf.sell_through.rate >= 70 ? Colors.light.successSoft :
-                    fifoPerf.sell_through.rate >= 40 ? Colors.light.warningLight : Colors.light.errorSoft }
+                  { backgroundColor: pace === 'excellent' ? Colors.light.successSoft :
+                    pace === 'moderate' ? Colors.light.warningLight : pace === 'few' ? Colors.light.surfaceMuted : Colors.light.errorSoft }
                 ]}>
                   <Text style={[
                     styles.fifoSellThroughBadgeText,
-                    { color: fifoPerf.sell_through.rate >= 70 ? VALUE_COLORS.positive :
-                      fifoPerf.sell_through.rate >= 40 ? VALUE_COLORS.warning : VALUE_COLORS.negative }
+                    { color: pace === 'excellent' ? VALUE_COLORS.positive :
+                      pace === 'moderate' ? VALUE_COLORS.warning : pace === 'few' ? Colors.light.textSecondary : VALUE_COLORS.negative }
                   ]}>
-                    {fifoPerf.sell_through.rate >= 70 ? 'Excelente' :
-                      fifoPerf.sell_through.rate >= 40 ? 'Moderado' : 'Crítico'}
+                    {paceLabel(pace)}
                   </Text>
                 </View>
               </View>
@@ -755,11 +755,7 @@ export default function DashboardScreen() {
             <View style={styles.fifoInsight}>
               <Ionicons name="bulb" size={14} color={Colors.light.warning} />
               <Text style={styles.fifoInsightText}>
-                {fifoPerf.sell_through.rate >= 70
-                  ? 'Excelente! Seu estoque está girando bem. Continue monitorando.'
-                  : fifoPerf.sell_through.rate >= 40
-                  ? 'Giro moderado. Considere promoções para produtos parados.'
-                  : 'Giro crítico. Revise preços e considere promoções agressivas.'}
+                {paceAdvice(pace)}
               </Text>
             </View>
           </View>
@@ -880,7 +876,7 @@ export default function DashboardScreen() {
             {stockCats.length > 1 && (
               <View style={styles.catFilter}>
                 <Text style={styles.catFilterHint}>
-                  {excludedCats.length ? 'Fora da conta (toque para voltar):' : 'Toque numa categoria para tirar da conta:'}
+                  {excludedCats.length ? 'Fora da conta (clique para voltar):' : 'Clique numa categoria para tirar da conta:'}
                 </Text>
                 {/* no navegador não há como arrastar uma fileira: as categorias quebram em linhas e todas ficam à vista */}
                 <ScrollView horizontal={Platform.OS !== 'web'} showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.catFilterRow, Platform.OS === 'web' && { flexDirection: 'row', flexWrap: 'wrap' }]}>

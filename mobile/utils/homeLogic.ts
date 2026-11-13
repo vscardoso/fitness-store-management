@@ -39,3 +39,30 @@ export function monthLines(r: { revenue: number; cmv: number; total_expenses: nu
 export function monthNameOf(d: Date): string {
   return d.toLocaleDateString('pt-BR', { month: 'long' });
 }
+
+/**
+ * Leitura do giro do estoque. Com poucas vendas a taxa é pequena só porque a loja é nova ou acabou de comprar,
+ * então não vira "Crítico" nem recebe conselho de promoção agressiva: fica "Poucas vendas ainda".
+ */
+export type StockPace = 'few' | 'excellent' | 'moderate' | 'critical';
+export const PACE_MIN_SOLD = 10;
+export function stockPace(rate: number, totalSold: number): StockPace {
+  if (!(totalSold >= PACE_MIN_SOLD)) return 'few';
+  if (rate >= 70) return 'excellent';
+  if (rate >= 40) return 'moderate';
+  return 'critical';
+}
+export function paceLabel(p: StockPace): string {
+  return p === 'excellent' ? 'Excelente' : p === 'moderate' ? 'Moderado' : p === 'critical' ? 'Baixo' : 'Poucas vendas';
+}
+export function paceAdvice(p: StockPace): string {
+  return p === 'excellent' ? 'Seu estoque está girando bem.'
+    : p === 'moderate' ? 'Giro moderado. Veja se vale uma promoção nos produtos parados.'
+    : p === 'critical' ? 'Giro baixo. Revise os preços dos produtos parados.'
+    : 'Ainda há poucas vendas para avaliar o giro.';
+}
+
+/** "1 un vendida" / "3 un vendidas". */
+export function soldUnitsText(qty: number): string {
+  return `${qty} un ${qty === 1 ? 'vendida' : 'vendidas'}`;
+}

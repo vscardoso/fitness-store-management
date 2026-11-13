@@ -1,6 +1,6 @@
 // node scripts/test-home-logic.mts
 import assert from 'node:assert/strict';
-import { todayLine, shortcutIds, monthLines, monthNameOf } from '../utils/homeLogic.ts';
+import { todayLine, shortcutIds, monthLines, monthNameOf, stockPace, paceLabel, paceAdvice, soldUnitsText } from '../utils/homeLogic.ts';
 
 let ok = 0;
 const t = (nome: string, fn: () => void) => { fn(); ok++; console.log('ok', nome); };
@@ -46,6 +46,24 @@ t('valor que vem como texto do servidor é lido como número', () => {
 t('nome do mês em português e minúsculo', () => {
   assert.equal(monthNameOf(new Date(2026, 10, 12)), 'novembro');
   assert.equal(monthNameOf(new Date(2026, 2, 3)), 'março');
+});
+
+t('giro com poucas vendas não vira "crítico" nem manda fazer promoção agressiva', () => {
+  assert.equal(stockPace(12, 47), 'critical');
+  assert.equal(stockPace(0.8, 3), 'few');
+  assert.equal(stockPace(0, 0), 'few');
+  assert.equal(paceLabel('few'), 'Poucas vendas');
+  assert.ok(!/agressiv|cr[ií]tic/i.test(paceAdvice('few') + paceAdvice('critical') + paceLabel('critical')));
+});
+t('giro com vendas suficientes segue as faixas 70 e 40', () => {
+  assert.equal(stockPace(80, 100), 'excellent');
+  assert.equal(stockPace(40, 100), 'moderate');
+  assert.equal(stockPace(39.9, 100), 'critical');
+  assert.equal(stockPace(90, 9), 'few');
+});
+t('unidades vendidas no singular e no plural', () => {
+  assert.equal(soldUnitsText(1), '1 un vendida');
+  assert.equal(soldUnitsText(2), '2 un vendidas');
 });
 
 console.log(`${ok} testes de regras da Home passaram`);
