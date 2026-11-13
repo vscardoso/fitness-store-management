@@ -19,8 +19,16 @@ class ReturnItemCreate(BaseModel):
     )
 
 
+class ExtraPieceCreate(BaseModel):
+    """Troca: peça a mais que o cliente leva para completar o valor (a devolvida valia mais que a primeira escolhida)."""
+    variant_id: int
+    quantity: int = Field(1, gt=0)
+    unit_price: Optional[Decimal] = Field(None, gt=0, description="Padrão: preço atual da variação")
+
+
 class SaleReturnCreate(BaseModel):
     """Schema para criar uma devolução."""
+    extra_pieces: List[ExtraPieceCreate] = Field(default_factory=list, max_length=20)
     items: List[ReturnItemCreate] = Field(..., min_length=1, description="Itens a devolver")
     reason: str = Field(..., min_length=3, max_length=500, description="Motivo da devolução")
     refund_method: Optional[str] = Field(

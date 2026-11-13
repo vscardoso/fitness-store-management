@@ -8,6 +8,7 @@ import {
   View,
   StyleSheet,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Text,
@@ -19,7 +20,7 @@ import {
 } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatCurrency } from '@/utils/format';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { haptics } from '@/utils/haptics';
 import BottomSheet from '@/components/ui/BottomSheet';
@@ -37,6 +38,7 @@ import {
 } from '@/services/returnService';
 import ReplacementPicker, { ReplacementChoice } from '@/components/sale/ReplacementPicker';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { plural } from '@/utils/plural';
 
 interface ReturnModalProps {
   visible: boolean;
@@ -66,6 +68,9 @@ export default function ReturnModal({
   const [replacements, setReplacements] = useState<Map<number, ReplacementChoice>>(new Map());
   const [defects, setDefects] = useState<Set<number>>(new Set());
   const [pickerItemId, setPickerItemId] = useState<number | null>(null);
+  // Troca: peças a mais que o cliente leva para completar o valor (a primeira escolhida pode valer menos que a devolvida)
+  const [extras, setExtras] = useState<ReplacementChoice[]>([]);
+  const [pickerExtra, setPickerExtra] = useState(false);
   const [settlement, setSettlement] = useState<'cash' | 'pix' | 'debit_card' | 'credit_card'>('cash');
   const [dialog, setDialog] = useState<{
     visible: boolean;
@@ -75,7 +80,7 @@ export default function ReturnModal({
     confirmText?: string;
     cancelText?: string;
     onConfirm: () => void;
-    /** Cancelar com ação própria (ex.: "Avisar a cliente"); sem isso só fecha o diálogo */
+    /** Cancelar com ação própria (ex.: "Avisar o cliente"); sem isso só fecha o diálogo */
     onCancel?: () => void;
   }>({
     visible: false,
@@ -180,11 +185,13 @@ export default function ReturnModal({
       const r = replacements.get(id);
       if (r) t += r.price * qty;
     });
-    return t;
+    return t + extras.reduce((a, e) => a + e.price, 0);
   })();
-  const hasExchange = replacements.size > 0;
+  const hasExchange = replacements.size > 0 || extras.length > 0;
   const netToPay = hasExchange ? totalNew - totalRefund : 0;
-  const missingReplacement = !allowRefund && Array.from(selectedItems.keys()).some((id) => !replacements.has(id));
+  const missingReplacement = !allowRefund && !hasExchange;
+  // Loja que não devolve dinheiro: com peça marcada e nenhuma peça nova, o próximo passo é escolher a peça
+  const needsPick = missingReplacement && selectedItems.size > 0 && !correction;
   const selectedCount = selectedItems.size;
   const totalItems = eligibility?.items.length || 0;
   const isAllSelected = selectedCount === totalItems && totalItems > 0;
@@ -206,12 +213,12 @@ export default function ReturnModal({
 
     if (missingReplacement) {
       haptics.warning();
-      setDialog({ visible: true, type: 'warning', title: 'Escolha a peça nova', message: 'Esta loja não devolve dinheiro: para cada peça devolvida, escolha a peça que o cliente leva no lugar.', confirmText: 'OK', cancelText: '', onConfirm: closeDialog });
+      setDialog({ visible: true, type: 'warning', title: 'Escolha a peça nova', message: 'Esta loja não devolve dinheiro: escolha a peça que o cliente leva no lugar.', confirmText: 'OK', cancelText: '', onConfirm: closeDialog });
       return;
     }
     if (hasExchange && netToPay < -0.005 && !allowRefund) {
       haptics.warning();
-      setDialog({ visible: true, type: 'warning', title: 'Peça nova vale menos', message: `A peça nova vale ${formatCurrency(-netToPay)} a menos que a devolvida e a loja não devolve dinheiro. Escolha uma peça de valor igual ou maior.`, confirmText: 'OK', cancelText: '', onConfirm: closeDialog });
+      setDialog({ visible: true, type: 'warning', title: 'Falta completar o valor', message: `As peças novas valem ${formatCurrency(-netToPay)} a menos que as devolvidas e a loja não devolve dinheiro. Adicione outra peça para completar (se passar do valor, o cliente paga a diferença).`, confirmText: 'OK', cancelText: '', onConfirm: closeDialog });
       return;
     }
 
@@ -223,11 +230,11 @@ export default function ReturnModal({
     setDialog({
       visible: true,
       type: 'warning',
-      title: isFullReturn ? 'Confirmar Devolução Total' : 'Confirmar Devolução Parcial',
+      title: hasExchange ? 'Confirmar a troca' : isFullReturn ? 'Devolução de toda a venda' : 'Devolução de parte da venda',
       message: hasExchange
-        ? `Confirmar a troca de ${selectedCount} item(ns)?\n\n${netToPay > 0.005 ? `O cliente paga agora ${formatCurrency(netToPay)} de diferença (${settlementLabel(settlement)}).` : 'Sem diferença a pagar.'}\nO estoque será atualizado.`
-        : `Deseja processar a devolução de ${isFullReturn ? 'todos os itens' : `${selectedCount} item(ns)`}?\n\nO reembolso será processado e o estoque será atualizado.`,
-      confirmText: 'Confirmar Devolução',
+        ? `Trocar ${plural(selectedCount, 'peça', 'peças')}?\n\n${netToPay > 0.005 ? `O cliente paga agora ${formatCurrency(netToPay)} de diferença (${settlementLabel(settlement)}).` : 'Sem diferença a pagar.'}\nO estoque será atualizado.`
+        : `Devolver ${isFullReturn ? 'todas as peças' : plural(selectedCount, 'peça', 'peças')} e reembolsar ${formatCurrency(totalRefund)}?\n\nO estoque será atualizado.`,
+      confirmText: hasExchange ? 'Trocar' : 'Devolver',
       cancelText: 'Cancelar',
       onConfirm: executeReturn,
     });
@@ -257,13 +264,14 @@ export default function ReturnModal({
       await processReturn(saleId, {
         items,
         reason: reason.trim(),
+        extra_pieces: extras.length ? extras.map((e) => ({ variant_id: e.variant_id, quantity: 1 })) : undefined,
         refund_method: 'original',
         settlement_method: settlement,
         is_correction: correction || undefined,
       });
       
       haptics.success();
-      // Devolução comum: oferece avisar a cliente pelo WhatsApp da loja (comprovante atualizado, estorno e pontos).
+      // Devolução comum: oferece avisar o cliente pelo WhatsApp da loja (comprovante atualizado, estorno e pontos).
       // Estorno por erro de lançamento não avisa: foi erro da loja.
       let canNotify = false;
       if (!correction) {
@@ -278,13 +286,13 @@ export default function ReturnModal({
         try {
           const r = await sendReceiptViaStoreWhatsapp(saleId);
           setDialog({
-            visible: true, type: 'success', title: 'Cliente avisada',
+            visible: true, type: 'success', title: 'Cliente avisado',
             message: `${r.customer} recebeu o comprovante atualizado pelo WhatsApp da loja.`,
             confirmText: 'OK', cancelText: '', onConfirm: finish,
           });
         } catch (e: any) {
           setDialog({
-            visible: true, type: 'warning', title: 'Não consegui avisar a cliente',
+            visible: true, type: 'warning', title: 'Não consegui avisar o cliente',
             message: `${e?.response?.data?.detail || e?.message || 'Tente de novo pelo botão de comprovante da venda.'}
 
 A devolução já está registrada.`,
@@ -300,7 +308,7 @@ A devolução já está registrada.`,
           ? `Troca concluída.${netToPay > 0.005 ? ` Diferença recebida: ${formatCurrency(netToPay)}.` : ''}\n\nO estoque foi atualizado automaticamente.`
           : `A devolução de ${formatCurrency(totalRefund)} foi processada com sucesso.\n\nO estoque foi atualizado automaticamente.`,
         confirmText: 'OK',
-        cancelText: canNotify ? 'Avisar a cliente' : '',
+        cancelText: canNotify ? 'Avisar o cliente' : '',
         onConfirm: finish,
         onCancel: canNotify ? notify : undefined,
       });
@@ -338,7 +346,7 @@ A devolução já está registrada.`,
         visible={visible}
         onDismiss={onDismiss}
         title={correction ? 'Estorno por erro de lançamento' : 'Troca e devolução'}
-        subtitle={saleNumber}
+        subtitle={`Venda #${saleNumber.split('-').pop() || saleNumber}`}
         icon="return-up-back-outline"
         dismissOnBackdrop={!processing}
         actions={
@@ -351,9 +359,9 @@ A devolução já está registrada.`,
                   disabled: processing,
                 },
                 {
-                  label: hasExchange ? 'Confirmar troca' : (correction ? 'Confirmar estorno' : 'Processar Devolução'),
-                  onPress: handleProcessReturn,
-                  variant: hasExchange ? 'primary' : 'danger',
+                  label: hasExchange ? 'Confirmar troca' : needsPick ? 'Escolher peça nova' : (correction ? 'Confirmar estorno' : 'Processar Devolução'),
+                  onPress: needsPick ? () => setPickerItemId(Array.from(selectedItems.keys())[0]) : handleProcessReturn,
+                  variant: hasExchange || needsPick ? 'primary' : 'danger',
                   loading: processing,
                   disabled: processing || selectedItems.size === 0,
                 },
@@ -375,151 +383,117 @@ A devolução já está registrada.`,
             </View>
           ) : (
             <View>
-            <View style={[
-              styles.infoBanner,
-              { backgroundColor: brandingColors.primary + '12' },
-              isExpired && styles.infoBannerError,
-              isUrgent && !isExpired && styles.infoBannerWarning,
-            ]}>
+            {/* Prazo e regra da loja: uma linha só (quem já usou 50 vezes não precisa reler um parágrafo) */}
+            <View style={styles.deadlineRow}>
               <Ionicons
-                name={isExpired ? 'close-circle' : isUrgent ? 'alert-circle' : 'information-circle'}
-                size={20}
-                color={isExpired ? Colors.light.error : isUrgent ? Colors.light.warning : brandingColors.primary}
+                name={isExpired ? 'close-circle' : isUrgent ? 'alert-circle' : 'time-outline'}
+                size={16}
+                color={isExpired ? Colors.light.error : isUrgent ? Colors.light.warning : Colors.light.textSecondary}
               />
-              <View style={styles.infoBannerText}>
-                <Text style={[
-                  styles.infoBannerTitle,
-                  { color: brandingColors.primary },
-                  isExpired && styles.infoBannerTitleError,
-                  isUrgent && !isExpired && styles.infoBannerTitleWarning,
-                ]}>
-                  {correction
-                    ? 'Estorno do administrador'
-                    : isExpired
-                    ? 'Prazo expirado'
-                    : daysRemaining === 0
-                      ? 'Último dia!'
-                      : `${daysRemaining} dias restantes`}
-                </Text>
-                <Text style={styles.infoBannerSubtext}>
-                  {correction
-                    ? `Venda de ${eligibility.days_since_sale} ${eligibility.days_since_sale === 1 ? 'dia' : 'dias'} atrás: o prazo de troca não vale aqui`
-                    : `Prazo de ${eligibility.max_return_days} dias após a compra`}
-                </Text>
-              </View>
+              <Text style={[styles.deadlineText, isExpired && { color: Colors.light.error }, isUrgent && !isExpired && { color: Colors.light.warning }]}>
+                {correction
+                  ? 'Estorno do administrador: devolve o dinheiro e a peça volta ao estoque. Fica registrado em seu nome.'
+                  : isExpired
+                  ? 'Prazo expirado'
+                  : daysRemaining === 0
+                    ? 'Último dia do prazo'
+                    : `${daysRemaining === 1 ? 'Falta 1 dia' : `Faltam ${daysRemaining} dias`} para o fim do prazo`}
+                {!correction && !allowRefund ? ' · A loja só troca por outra peça' : ''}
+              </Text>
             </View>
 
-            {correction && (
-              <Text style={styles.infoBannerSubtext}>
-                Devolve o dinheiro da peça e ela volta ao estoque. Use só para corrigir um erro de lançamento. Fica registrado em seu nome.
-              </Text>
-            )}
-
-            {!allowRefund && (
-              <Text style={styles.infoBannerSubtext}>
-                Esta loja não devolve dinheiro: para cada peça devolvida, escolha a peça que o cliente leva no lugar.
-              </Text>
-            )}
-
-            {/* Ações Rápidas */}
-            <View style={styles.quickActions}>
-              <AppButton
-                label="Selecionar todos"
-                variant="outlined"
-                size="sm"
-                icon="checkmark-done"
-                onPress={handleSelectAll}
-                disabled={isAllSelected}
-                style={styles.quickActionButton}
-              />
-              <AppButton
-                label="Limpar"
-                variant="outlined"
-                size="sm"
-                icon="close"
-                onPress={handleClearSelection}
-                disabled={selectedCount === 0}
-                style={styles.quickActionButton}
-              />
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitleInline}>O que está voltando</Text>
+              {eligibility.items.length > 1 && (
+                <AppButton
+                  label={isAllSelected ? 'Limpar' : 'Selecionar todos'}
+                  variant="text" size="sm"
+                  onPress={isAllSelected ? handleClearSelection : handleSelectAll}
+                />
+              )}
             </View>
-
-            {/* Itens */}
-            <Text style={styles.sectionTitle}>Itens para Devolução</Text>
 
             {eligibility.items.map((item) => {
               const selectedQuantity = selectedItems.get(item.sale_item_id) || 0;
               const isSelected = selectedQuantity > 0;
+              const rep = replacements.get(item.sale_item_id);
+              const value = (Math.max(selectedQuantity, 1) / item.quantity_available_for_return) * item.max_refund_amount;
+              const valueCaption = rep || correction ? '' : allowRefund ? 'reembolso' : 'vale na troca';
+              const isDefect = defects.has(item.sale_item_id);
 
               return (
-                <View
-                  key={item.sale_item_id}
-                  style={[
-                    styles.itemCard,
-                    isSelected && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '10' },
-                  ]}
-                >
-                  <View style={styles.itemHeader}>
-                    <View style={styles.itemInfo}>
-                      <Text style={styles.itemName}>{item.product_name}{item.variant_label ? ` (${item.variant_label})` : ''}</Text>
-                      <Text style={styles.itemPrice}>{formatCurrency(item.unit_price)} cada</Text>
-                    </View>
-                    <View style={styles.itemQuantityInfo}>
-                      <Text style={[styles.itemQuantityLabel, { color: brandingColors.primary }]}>
-                        Disponível: {item.quantity_available_for_return}
+                <View key={item.sale_item_id} style={[styles.pieceCard, isSelected && { borderColor: brandingColors.primary }]}>
+                  <TouchableOpacity
+                    style={styles.pieceHead}
+                    activeOpacity={0.7}
+                    onPress={() => handleQuantityChange(item.sale_item_id, isSelected ? 0 : 1, item.quantity_available_for_return)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={`${item.product_name}${item.variant_label ? `, ${item.variant_label}` : ''}`}
+                  >
+                    <Ionicons
+                      name={isSelected ? 'checkbox' : 'square-outline'}
+                      size={24}
+                      color={isSelected ? brandingColors.primary : Colors.light.textTertiary}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.pieceName} numberOfLines={2}>{item.product_name}{item.variant_label ? ` (${item.variant_label})` : ''}</Text>
+                      <Text style={styles.pieceSub}>
+                        {formatCurrency(item.unit_price)} cada{item.quantity_available_for_return > 1 ? ` · pode devolver ${item.quantity_available_for_return}` : ''}
                       </Text>
                     </View>
-                  </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.pieceValue}>{formatCurrency(value)}</Text>
+                      {isSelected && !!valueCaption && <Text style={styles.pieceCaption}>{valueCaption}</Text>}
+                    </View>
+                  </TouchableOpacity>
 
-                  <View style={styles.quantityControl}>
-                    <IconButton
-                      icon="minus"
-                      size={20}
-                      mode="contained"
-                      containerColor={Colors.light.error}
-                      iconColor={Colors.light.white}
-                      onPress={() => handleQuantityChange(item.sale_item_id, selectedQuantity - 1, item.quantity_available_for_return)}
-                      disabled={selectedQuantity === 0}
-                    />
-                    <Text style={styles.quantity}>{selectedQuantity}</Text>
-                    <IconButton
-                      icon="plus"
-                      size={20}
-                      mode="contained"
-                      containerColor={brandingColors.primary}
-                      iconColor={Colors.light.white}
-                      onPress={() => handleQuantityChange(item.sale_item_id, selectedQuantity + 1, item.quantity_available_for_return)}
-                      disabled={selectedQuantity >= item.quantity_available_for_return}
-                    />
-                  </View>
-
-                  {selectedQuantity > 0 && (
-                    <Text style={styles.itemRefund}>
-                      {allowRefund ? 'Reembolso' : 'Valor da peça devolvida'}: {formatCurrency((selectedQuantity / item.quantity_available_for_return) * item.max_refund_amount)}
-                    </Text>
+                  {isSelected && item.quantity_available_for_return > 1 && (
+                    <View style={styles.qtyRow}>
+                      <Text style={styles.pieceSub}>Quantas voltam</Text>
+                      <View style={styles.qtyStepper}>
+                        <IconButton icon="minus" size={18} mode="contained-tonal"
+                          onPress={() => handleQuantityChange(item.sale_item_id, selectedQuantity - 1, item.quantity_available_for_return)} />
+                        <Text style={styles.quantity}>{selectedQuantity}</Text>
+                        <IconButton icon="plus" size={18} mode="contained-tonal"
+                          onPress={() => handleQuantityChange(item.sale_item_id, selectedQuantity + 1, item.quantity_available_for_return)}
+                          disabled={selectedQuantity >= item.quantity_available_for_return} />
+                      </View>
+                    </View>
                   )}
 
-                  {selectedQuantity > 0 && (
-                    <View style={{ marginTop: 8 }}>
-                      {replacements.has(item.sale_item_id) ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <Ionicons name="swap-horizontal" size={18} color={brandingColors.primary} />
-                          <Text style={{ flex: 1, color: Colors.light.text }}>
-                            Leva: {replacements.get(item.sale_item_id)!.label} ({formatCurrency(replacements.get(item.sale_item_id)!.price)})
-                          </Text>
+                  {isSelected && (
+                    <View style={styles.pieceBody}>
+                      {rep ? (
+                        <View style={styles.swapRow}>
+                          <Ionicons name="arrow-forward-circle-outline" size={20} color={brandingColors.primary} />
+                          <Text style={styles.swapText} numberOfLines={2}>{rep.label} · {formatCurrency(rep.price)}</Text>
+                          <AppButton label="Mudar" variant="text" size="sm" onPress={() => setPickerItemId(item.sale_item_id)} />
                           <AppButton label="Tirar" variant="text" size="sm" onPress={() => setReplacements((prev) => { const m = new Map(prev); m.delete(item.sale_item_id); return m; })} />
                         </View>
                       ) : (
-                        <AppButton label="Trocar por outra peça" variant="outlined" size="sm" icon="swap-horizontal" onPress={() => setPickerItemId(item.sale_item_id)} />
-                      )}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                        <Switch
-                          value={defects.has(item.sale_item_id)}
-                          onValueChange={(v) => setDefects((prev) => { const s = new Set(prev); if (v) s.add(item.sale_item_id); else s.delete(item.sale_item_id); return s; })}
+                        <AppButton
+                          label={needsPick ? 'Escolher peça nova' : 'Trocar por outra peça'}
+                          variant="outlined" size="sm" icon="swap-horizontal" fullWidth
+                          onPress={() => setPickerItemId(item.sale_item_id)}
                         />
-                        <Text style={{ flex: 1, marginLeft: 8, color: Colors.light.textSecondary }}>
-                          Peça com defeito (não volta ao estoque; dá para enviar ao fornecedor)
-                        </Text>
-                      </View>
+                      )}
+                      {rep && netToPay < -0.005 && !allowRefund && (
+                        <View style={styles.missingBox}>
+                          <Text style={styles.missingText}>Falta {formatCurrency(-netToPay)} para completar o valor</Text>
+                          <AppButton label="Adicionar peça" variant="outlined" size="sm" icon="add-circle-outline" onPress={() => setPickerExtra(true)} />
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={styles.defectRow}
+                        activeOpacity={0.7}
+                        onPress={() => setDefects((prev) => { const st = new Set(prev); if (st.has(item.sale_item_id)) st.delete(item.sale_item_id); else st.add(item.sale_item_id); return st; })}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: isDefect }}
+                      >
+                        <Ionicons name={isDefect ? 'checkbox' : 'square-outline'} size={18} color={isDefect ? Colors.light.error : Colors.light.textTertiary} />
+                        <Text style={styles.defectText}>Veio com defeito (não volta ao estoque)</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -543,6 +517,12 @@ A devolução já está registrada.`,
             {hasExchange && (
               <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
                 <Text style={styles.summaryTitle}>Resumo da troca</Text>
+                {extras.map((e, i) => (
+                  <View key={`${e.variant_id}-${i}`} style={[styles.summaryRow, { alignItems: 'center' }]}>
+                    <Text style={[styles.summaryLabel, { flex: 1 }]} numberOfLines={2}>+ {e.label} ({formatCurrency(e.price)})</Text>
+                    <AppButton label="Tirar" variant="text" size="sm" onPress={() => setExtras((prev) => prev.filter((_, j) => j !== i))} />
+                  </View>
+                ))}
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Valor das peças devolvidas</Text>
                   <Text style={styles.summaryValue}>{formatCurrency(totalRefund)}</Text>
@@ -552,7 +532,7 @@ A devolução já está registrada.`,
                   <Text style={styles.summaryValue}>{formatCurrency(totalNew)}</Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>{netToPay >= 0 ? 'Cliente paga agora' : 'Diferença a devolver'}</Text>
+                  <Text style={styles.summaryLabel}>{netToPay >= 0 ? 'Cliente paga agora' : allowRefund ? 'Diferença a devolver' : 'Falta completar'}</Text>
                   <Text style={[styles.summaryValue, styles.summaryTotal, { color: brandingColors.primary }]}>
                     {formatCurrency(Math.abs(netToPay))}
                   </Text>
@@ -570,11 +550,24 @@ A devolução já está registrada.`,
             )}
 
             {/* Resumo */}
-            {!hasExchange && totalRefund > 0 && (
+            {!hasExchange && totalRefund > 0 && needsPick && (
+              <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
+                <Text style={styles.summaryTitle}>Próximo passo: a peça nova</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Vale na troca</Text>
+                  <Text style={[styles.summaryValue, styles.summaryTotal, { color: brandingColors.primary }]}>{formatCurrency(totalRefund)}</Text>
+                </View>
+                <Text style={styles.summaryLabel}>
+                  Bipe a etiqueta ou escolha na lista. Se a peça for mais barata, o cliente completa com outras; se passar, paga a diferença.
+                </Text>
+              </View>
+            )}
+
+            {!hasExchange && totalRefund > 0 && !needsPick && (
               <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
                 <Text style={styles.summaryTitle}>Resumo da Devolução</Text>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Itens selecionados</Text>
+                  <Text style={styles.summaryLabel}>Peças que voltam</Text>
                   <Text style={styles.summaryValue}>{selectedCount}</Text>
                 </View>
                 <View style={styles.summaryRow}>
@@ -590,13 +583,25 @@ A devolução já está registrada.`,
           )}
 
           <ReplacementPicker
-            visible={pickerItemId !== null}
-            productId={eligibility?.items.find((i) => i.sale_item_id === pickerItemId)?.product_id}
-            excludeVariantId={eligibility?.items.find((i) => i.sale_item_id === pickerItemId)?.variant_id}
-            onClose={() => setPickerItemId(null)}
+            visible={pickerItemId !== null || pickerExtra}
+            productId={pickerExtra ? undefined : eligibility?.items.find((i) => i.sale_item_id === pickerItemId)?.product_id}
+            excludeVariantId={pickerExtra ? undefined : eligibility?.items.find((i) => i.sale_item_id === pickerItemId)?.variant_id}
+            returnedPrefix={pickerExtra ? 'Falta completar' : 'Voltando'}
+            returnedLabel={pickerExtra ? 'valor da troca' : (() => {
+              const it = eligibility?.items.find((i) => i.sale_item_id === pickerItemId);
+              return it ? [it.product_name, it.variant_label].filter(Boolean).join(' · ') : undefined;
+            })()}
+            returnedUnitValue={pickerExtra ? Math.max(0, -netToPay) : (() => {
+              const it = eligibility?.items.find((i) => i.sale_item_id === pickerItemId);
+              return it && it.quantity_available_for_return > 0 ? it.max_refund_amount / it.quantity_available_for_return : undefined;
+            })()}
+            allowRefund={allowRefund}
+            onClose={() => { setPickerItemId(null); setPickerExtra(false); }}
             onSelect={(choice) => {
-              if (pickerItemId !== null) setReplacements((prev) => new Map(prev).set(pickerItemId, choice));
+              if (pickerExtra) setExtras((prev) => [...prev, choice]);
+              else if (pickerItemId !== null) setReplacements((prev) => new Map(prev).set(pickerItemId, choice));
               setPickerItemId(null);
+              setPickerExtra(false);
             }}
           />
 
@@ -744,6 +749,25 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: 'center',
   },
+  deadlineRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: theme.spacing.sm },
+  deadlineText: { flex: 1, fontSize: 13, color: Colors.light.textSecondary },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing.xs, marginBottom: theme.spacing.xs },
+  sectionTitleInline: { fontSize: 16, fontWeight: '600', color: Colors.light.text },
+  pieceCard: { backgroundColor: Colors.light.card, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border, marginBottom: theme.spacing.sm, overflow: 'hidden' },
+  pieceHead: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: theme.spacing.md, minHeight: 56 },
+  pieceName: { fontSize: 15, fontWeight: '600', color: Colors.light.text },
+  pieceSub: { fontSize: 13, color: Colors.light.textSecondary, marginTop: 2 },
+  pieceValue: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
+  pieceCaption: { fontSize: 12, color: Colors.light.success, marginTop: 2 },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xs },
+  qtyStepper: { flexDirection: 'row', alignItems: 'center' },
+  pieceBody: { paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.md, gap: theme.spacing.sm },
+  swapRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  swapText: { flex: 1, fontSize: 14, color: Colors.light.text },
+  missingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  missingText: { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.light.warning },
+  defectRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 32 },
+  defectText: { fontSize: 13, color: Colors.light.textSecondary },
   itemRefund: {
     fontSize: 14,
     fontWeight: '600',

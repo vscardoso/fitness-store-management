@@ -78,6 +78,8 @@ export interface ReturnItemRequest {
 
 export interface ReturnRequest {
   items: ReturnItemRequest[];
+  /** troca: peças a mais que o cliente leva para completar o valor devolvido */
+  extra_pieces?: { variant_id: number; quantity?: number }[];
   reason: string;
   refund_method?: 'original' | 'store_credit' | 'cash';
   /** como o cliente paga a diferença da troca */

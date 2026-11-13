@@ -43,6 +43,7 @@ import PeriodFilter, { type PeriodFilterValue, PERIOD_OPTIONS } from '@/componen
 import PageHeader from '@/components/layout/PageHeader';
 import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
 import { isManagerRole } from '@/utils/roles';
+import SellCard from '@/components/home/SellCard';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
 import HScroll from '@/components/ui/HScroll';
@@ -406,66 +407,23 @@ export default function DashboardScreen() {
                 <Text style={styles.stockAlertTitle}>
                   {formatInt(lowStockCount)} produto{lowStockCount !== 1 ? 's' : ''} com estoque baixo
                 </Text>
-                <Text style={styles.stockAlertSub}>Toque para ver alertas</Text>
+                <Text style={styles.stockAlertSub}>Ver quais</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.light.warning} />
             </View>
           </TouchableOpacity>
         )}
-        {canSeeDashboard && (
-<>
-        {/* ========== CARD PRINCIPAL: VENDAS HOJE ========== */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => router.push('/(tabs)/sales')}
-        >
-          <LinearGradient
-            colors={[brandingColors.primary, brandingColors.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.mainCard}
-          >
-            <View style={styles.mainCardHeader}>
-              <View style={styles.mainCardIcon}>
-                <Ionicons name="trending-up" size={24} color={Colors.light.white} />
-              </View>
-              {salesTrendPercent !== 0 && (
-                <View style={[
-                  styles.trendBadge,
-                  { backgroundColor: salesTrendPercent >= 0 ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.3)' }
-                ]}>
-                  <Ionicons
-                    name={salesTrendPercent >= 0 ? 'arrow-up' : 'arrow-down'}
-                    size={14}
-                    color={Colors.light.white}
-                  />
-                  <Text style={styles.trendText}>
-                    {formatSignedPercent(salesTrendPercent)} vs ontem
-                  </Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.mainCardLabel}>Vendas Hoje</Text>
-            <Money style={styles.mainCardValue} value={Number(totalSalesToday)} />
-            <Text style={styles.mainCardSubtitle}>
-              {formatInt(salesCountToday)} {salesCountToday === 1 ? 'venda realizada' : 'vendas realizadas'}
-            </Text>
-            {salesCountToday > 0 && (
-              <View style={styles.todayProfitRow}>
-                <Ionicons name="trending-up" size={14} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.todayProfitText}>
-                  Lucro: {formatCurrency(profitToday)}
-                </Text>
-                <View style={styles.todayMarginBadge}>
-                  <Text style={styles.todayMarginText}>margem {formatPercent(marginToday, 1)}</Text>
-                </View>
-              </View>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-
-        </>
-)}
+        {/* ========== AÇÃO PRINCIPAL: NOVA VENDA (com o dia dentro) ========== */}
+        <SellCard
+          gradient={[brandingColors.primary, brandingColors.secondary]}
+          showToday={canSeeDashboard}
+          totalToday={Number(totalSalesToday)}
+          countToday={salesCountToday}
+          profitToday={Number(profitToday)}
+          marginToday={Number(marginToday)}
+          trendPercent={Number(salesTrendPercent)}
+          onPress={() => router.push('/(tabs)/sale')}
+        />
 
         {/* ========== AÇÕES RÁPIDAS ========== */}
         <Text style={styles.sectionTitle}>Ações Rápidas</Text>
@@ -1369,27 +1327,6 @@ export default function DashboardScreen() {
             </Animated.View>
           </TouchableOpacity>
         </Modal>
-
-        {/* ========== ALERTA DE ESTOQUE BAIXO ========== */}
-        {lowStockCount > 0 && (
-          <TouchableOpacity
-            style={styles.alertCard}
-            activeOpacity={0.8}
-            onPress={() => router.push('/(tabs)/products')}
-          >
-            <View style={styles.alertIcon}>
-              <Ionicons name="warning" size={24} color={Colors.light.warning} />
-            </View>
-            <View style={styles.alertContent}>
-              <Text style={styles.alertTitle}>Estoque Baixo</Text>
-              <Text style={styles.alertText}>
-                {formatInt(lowStockCount)} {lowStockCount === 1 ? 'produto precisa' : 'produtos precisam'} de reposição
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
-          </TouchableOpacity>
-        )}
-
 
         {/* ========== RESUMO RÁPIDO ========== */}
         <View style={styles.quickStatsRow}>

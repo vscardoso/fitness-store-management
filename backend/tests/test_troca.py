@@ -250,3 +250,60 @@ async def test_fornecedor_credita_vira_desconto_na_entrada_e_abate_o_custo(test_
     r2 = await test_client.post("/api/v1/supplier-returns/", headers=h, json={"entry_item_id": item_id, "quantity": 1, "reason": "Outra"})
     r3 = await test_client.post(f"/api/v1/supplier-returns/{r2.json()['id']}/resolve", headers=h, json={"outcome": "credited"})
     assert r3.status_code == 422 or r3.status_code == 400
+
+
+async def test_troca_por_peca_de_OUTRO_produto_bipada_na_hora(test_client, async_session, test_user):
+    """O cliente devolve uma legging e leva um top de outro produto (a etiqueta bipada vira `replacement_variant_id`)."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_b="100.00")
+    from app.models.product_variant import ProductVariant
+    t2_id, token2, cat = await _loja_api(async_session, test_user)
+    p2, vtop = await _produto(async_session, t_id, cat, "Top Outro Produto", "130.00")
+    p2_id, vtop_id = p2.id, vtop.id
+    await _lote(async_session, t_id, [(vtop, p2, 3, 40)])
+    await async_session.commit()
+    sale_id, item_id = await _vender(test_client, h, p, va, 2, "100.00")
+    estoque_antes = {va.id: await _estoque(async_session, va.id), vtop_id: await _estoque(async_session, vtop_id)}
+    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+        "reason": "Quer outro produto", "settlement_method": "cash",
+        "items": [{"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vtop_id}]})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert float(body["net_amount"]) == 30.0          # top de R$ 130 no lugar da legging de R$ 100
+    async_session.expire_all()
+    assert await _estoque(async_session, va.id) == estoque_antes[va.id] + 1      # a peça devolvida voltou
+    assert await _estoque(async_session, vtop_id) == estoque_antes[vtop_id] - 1  # o top saiu por FIFO
+    from app.models.sale import SaleItem
+    its = (await async_session.execute(select(SaleItem).where(SaleItem.sale_id == body["exchange_sale_id"]))).scalars().all()
+    assert len(its) == 1 and its[0].product_id == p2_id and its[0].variant_id == vtop_id
+    assert D(str(its[0].unit_cost)) == D("40")        # custo FIFO da peça nova, não da devolvida
+
+
+async def test_peca_mais_barata_e_completada_com_outra_peca_na_mesma_troca(test_client, async_session, test_user):
+    """Loja sem reembolso: a legging de R$ 100 volta, o cliente leva uma de R$ 60 e COMPLETA com um top de R$ 50 (paga R$ 10)."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_b="60.00")
+    t2_id, token2, cat = await _loja_api(async_session, test_user)
+    p2, vtop = await _produto(async_session, t_id, cat, "Top Complemento", "50.00")
+    p2_id, vtop_id = p2.id, vtop.id
+    await _lote(async_session, t_id, [(vtop, p2, 3, 20)])
+    await _config(async_session, t_id, allow_money_refund=False)
+    sale_id, item_id = await _vender(test_client, h, p, va, 1, "100.00")
+    base = {"reason": "Quer duas peças", "settlement_method": "cash"}
+    item = {"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id}
+    # só a peça mais barata: recusa, nada muda
+    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={**base, "items": [item]})
+    assert r.status_code == 400, r.text
+    # a peça extra não cobre o valor (R$ 60 + R$ 10 < R$ 100): recusa
+    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+        **base, "items": [item], "extra_pieces": [{"variant_id": vtop_id, "quantity": 1, "unit_price": "10.00"}]})
+    assert r.status_code == 400, r.text
+    antes = await _estoque(async_session, vtop_id)
+    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+        **base, "items": [item], "extra_pieces": [{"variant_id": vtop_id, "quantity": 1}]})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert float(body["net_amount"]) == 10.0
+    async_session.expire_all()
+    assert await _estoque(async_session, vtop_id) == antes - 1
+    from app.models.sale import SaleItem
+    its = (await async_session.execute(select(SaleItem).where(SaleItem.sale_id == body["exchange_sale_id"]))).scalars().all()
+    assert sorted(i.variant_id for i in its) == sorted([vb.id, vtop_id])

@@ -39,7 +39,7 @@ CENT = Decimal('0.01')
 
 
 def line_paid_amount(item: SaleItem, sale: Sale) -> Decimal:
-    """O que a cliente pagou pela LINHA: (qtd x preço - desconto do item) x (1 - desconto da venda proporcional)."""
+    """O que o cliente pagou pela LINHA: (qtd x preço - desconto do item) x (1 - desconto da venda proporcional)."""
     base = Decimal(str(item.quantity)) * Decimal(str(item.unit_price)) - Decimal(str(item.discount_amount or 0))
     subtotal = Decimal(str(sale.subtotal or 0))
     discount = Decimal(str(sale.discount_amount or 0))
@@ -204,7 +204,7 @@ class ReturnService:
             available_for_return = item.quantity - already_returned
             
             if available_for_return > 0:
-                # Valor máximo = o que a cliente pagou pelo que falta devolver (mesma conta do process_return)
+                # Valor máximo = o que o cliente pagou pelo que falta devolver (mesma conta do process_return)
                 max_refund = line_refund_amount(item, sale, available_for_return, already_returned,
                                                 refunded_amounts.get(item.id, Decimal('0')))
                 
@@ -286,7 +286,8 @@ class ReturnService:
             )).all()
             await lock_stock(
                 self.db,
-                variant_ids=[r[0] for r in _rows] + [i.replacement_variant_id for i in return_data.items],
+                variant_ids=[r[0] for r in _rows] + [i.replacement_variant_id for i in return_data.items]
+                + [e.variant_id for e in return_data.extra_pieces],
                 product_ids=[r[1] for r in _rows if not r[0]],
             )
             # 1. Verificar elegibilidade
@@ -344,7 +345,7 @@ class ReturnService:
                         f"para o item {sale_item.product.name if sale_item.product else sale_item.product_id}"
                     )
                 
-                # Estorno = o que a cliente pagou por estas peças (desconto do item e da venda; a última da linha fecha o centavo)
+                # Estorno = o que o cliente pagou por estas peças (desconto do item e da venda; a última da linha fecha o centavo)
                 refund_amount = line_refund_amount(sale_item, sale, item_request.quantity, already_returned,
                                                    refunded_amounts.get(sale_item.id, Decimal('0')))
                 returned_quantities[sale_item.id] = already_returned + item_request.quantity
@@ -353,7 +354,7 @@ class ReturnService:
                 total_refund += refund_amount
 
                 # Troca: confere a peça nova (existe, é outra variação e tem estoque) ANTES de mexer em qualquer coisa
-                if not item_request.replacement_variant_id and not allow_refund:
+                if not item_request.replacement_variant_id and not allow_refund and not return_data.extra_pieces:
                     raise ValueError("Esta loja não devolve dinheiro: escolha a peça que o cliente leva no lugar.")
                 if item_request.replacement_variant_id:
                     from app.models.product_variant import ProductVariant
@@ -399,6 +400,28 @@ class ReturnService:
                     'replacement_variant_id': item_request.replacement_variant_id,
                 })
             
+            # 3.1 Peças a mais da troca (o cliente completa o valor com outras peças): confere cada uma e o estoque somado
+            if return_data.extra_pieces:
+                from app.models.product_variant import ProductVariant
+                wanted: Dict[int, int] = {l['variant'].id: l['quantity'] for l in exchange_lines}
+                for ex in return_data.extra_pieces:
+                    rv = (await self.db.execute(select(ProductVariant).where(
+                        ProductVariant.id == ex.variant_id, ProductVariant.tenant_id == tenant_id,
+                        ProductVariant.is_active == True,  # noqa: E712
+                    ))).scalar_one_or_none()
+                    if not rv:
+                        raise ValueError("Uma das peças escolhidas para a troca não foi encontrada")
+                    wanted[rv.id] = wanted.get(rv.id, 0) + ex.quantity
+                    avail = await self.fifo_service.check_availability(
+                        product_id=rv.product_id, quantity=wanted[rv.id], variant_id=rv.id, tenant_id=tenant_id,
+                    )
+                    if not avail["available"]:
+                        raise ValueError(
+                            f"Sem estoque da peça escolhida para a troca (disponível: {avail['total_available']}, "
+                            f"necessário: {wanted[rv.id]})"
+                        )
+                    exchange_lines.append({'variant': rv, 'unit_price': Decimal(str(ex.unit_price or rv.price)), 'quantity': ex.quantity})
+
             # 4. Devolver ao estoque via FIFO
             for item_data in items_to_return_to_stock:
                 sale_item = item_data['sale_item']
@@ -442,7 +465,7 @@ class ReturnService:
                     # Venda antiga sem fontes FIFO: não pode devolver e deixar o estoque perder a peça sem avisar
                     raise ValueError("Esta venda não tem a origem das peças (FIFO) registrada; devolva pelo ajuste de estoque")
 
-            # 5. Pontos de fidelidade (proporcional ao devolvido): tira os ganhos e devolve os que a cliente tinha usado
+            # 5. Pontos de fidelidade (proporcional ao devolvido): tira os ganhos e devolve os que o cliente tinha usado
             if sale.customer_id:
                 customer = (await self.db.execute(select(Customer).where(Customer.id == sale.customer_id))).scalar_one_or_none()
                 if customer and sale.total_amount and sale.total_amount > 0:
@@ -453,7 +476,7 @@ class ReturnService:
                     await loyalty.restore(customer, sale.id, Decimal(str(sale.loyalty_points_used or 0)) * ratio, tenant_id,
                                           note="Devolução de compra paga com pontos")
 
-            # 5.1 Total gasto da cliente é líquido: o que voltou sai (a troca soma a peça nova em _create_exchange_sale)
+            # 5.1 Total gasto do cliente é líquido: o que voltou sai (a troca soma a peça nova em _create_exchange_sale)
             if sale.customer_id:
                 cust = (await self.db.execute(select(Customer).where(Customer.id == sale.customer_id))).scalar_one_or_none()
                 if cust:
@@ -472,7 +495,7 @@ class ReturnService:
                     allow_refund=allow_refund,
                 )
 
-            # 6.2 Fiado: devolução (sem troca) abate primeiro o que a cliente ainda deve desta venda; só o resto é dinheiro
+            # 6.2 Fiado: devolução (sem troca) abate primeiro o que o cliente ainda deve desta venda; só o resto é dinheiro
             receivable_abated = Decimal('0')
             if not exchange_lines:
                 from app.services.receivable_service import ReceivableService
