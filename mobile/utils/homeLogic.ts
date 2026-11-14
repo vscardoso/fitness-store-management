@@ -15,7 +15,7 @@ export function todayLine(total: number, count: number, money: (v: number) => st
  */
 export type ShortcutId = 'entries' | 'finance' | 'labels' | 'consult' | 'products' | 'customers' | 'conditional';
 export function shortcutIds(manager: boolean): ShortcutId[] {
-  return manager ? ['entries', 'finance', 'labels', 'consult'] : ['consult', 'products', 'customers', 'conditional'];
+  return manager ? ['products', 'entries', 'finance', 'consult'] : ['consult', 'products', 'customers', 'conditional'];
 }
 
 /**

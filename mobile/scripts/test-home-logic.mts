@@ -19,7 +19,7 @@ t('contagem inválida não quebra', () => {
 });
 
 t('atalhos: quem gerencia vê Entradas, Financeiro, Etiquetas e Consultar; quem vende não vê dinheiro nem entrada', () => {
-  assert.deepEqual(shortcutIds(true), ['entries', 'finance', 'labels', 'consult']);
+  assert.deepEqual(shortcutIds(true), ['products', 'entries', 'finance', 'consult']);
   assert.deepEqual(shortcutIds(false), ['consult', 'products', 'customers', 'conditional']);
   assert.ok(!shortcutIds(false).includes('finance' as any) && !shortcutIds(false).includes('entries' as any));
 });

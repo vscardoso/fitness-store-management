@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import {
+  ScrollView,
   View,
   Text,
   StyleSheet,
@@ -33,6 +34,21 @@ import { normalizeScan } from '@/utils/scanLogic';
 
 const PAGE_SIZE = 40;
 
+/** Os cinco filtros da lista. "Estoque baixo" vem do endereço (?filter=low_stock) para o alerta da Início abrir já filtrado. */
+type StockView = 'all' | 'in_stock' | 'sold_out' | 'catalog';
+const STOCK_CHIPS: { id: StockView | 'low'; label: string }[] = [
+  { id: 'all', label: 'Todos' },
+  { id: 'in_stock', label: 'Em estoque' },
+  { id: 'low', label: 'Estoque baixo' },
+  { id: 'sold_out', label: 'Esgotados' },
+  { id: 'catalog', label: 'Só catálogo' },
+];
+/** Em estoque; esgotado (vendeu e zerou); só catálogo (zerado e nunca vendeu). */
+function stockKind(p: any): 'in_stock' | 'sold_out' | 'catalog' {
+  if ((p.total_stock ?? 0) > 0) return 'in_stock';
+  return p.has_sales ? 'sold_out' : 'catalog';
+}
+
 /** Notebook (app web com 1024 px ou mais): tabela. Celular: a lista de cartões de sempre. */
 export default function ProductsScreen() {
   const isDesktop = useIsDesktop();
@@ -46,9 +62,8 @@ function MobileProductsScreen() {
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
   const [scanOpen, setScanOpen] = useState(false);   // leitor de QR dentro da busca
-  const [showOnlyWithStock, setShowOnlyWithStock] = useState(false);
-  // cadastros zerados que nunca venderam ficam guardados para a próxima compra: fora da lista, a menos que se peça ou se busque
-  const [showCatalogOnly, setShowCatalogOnly] = useState(false);
+  // um filtro só (chips): Todos, Em estoque, Estoque baixo, Esgotados, Só catálogo. Estoque baixo vem do endereço (?filter=low_stock)
+  const [view, setView] = useState<StockView>('all');
   const headerScale = useRef(new Animated.Value(0.94)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslateY = useRef(new Animated.Value(24)).current;
@@ -57,6 +72,7 @@ function MobileProductsScreen() {
   // showLowStock é derivado diretamente do param de URL (fonte única de verdade)
   // Isso garante que qualquer navegação com ?filter=low_stock sempre ativa o filtro
   const showLowStock = filter === 'low_stock';
+  const activeChip: StockView | 'low' = showLowStock ? 'low' : view;
 
   /**
    * Infinite Query para buscar produtos AGRUPADOS com paginação
@@ -103,7 +119,7 @@ function MobileProductsScreen() {
     queryKey: ['grouped-products', 'all'],
     queryFn: getAllGroupedProducts,
     // Busca também: o produto procurado pode estar numa página que ainda não carregou
-    enabled: showLowStock || !!searchQuery.trim(),
+    enabled: showLowStock || view !== 'all' || !!searchQuery.trim(),
   });
 
   // Auto-refresh quando a tela recebe foco;
@@ -117,7 +133,6 @@ function MobileProductsScreen() {
 
       refetch();
       if (filter === 'low_stock') {
-        setShowOnlyWithStock(false);
         refetchAllProducts();
       }
 
@@ -181,64 +196,35 @@ function MobileProductsScreen() {
   const products = useMemo(() => {
     // Com filtro de estoque baixo ativo, usa a lista COMPLETA (não paginada)
     // para não perder produtos que estão em páginas ainda não carregadas.
-    const allProducts = (showLowStock || searchQuery.trim()) && allProductsData
-      ? allProductsData
-      : (data?.pages?.flat() ?? []);
+    const needAll = showLowStock || view !== 'all' || !!searchQuery.trim();
+    const allProducts = needAll && allProductsData ? allProductsData : (data?.pages?.flat() ?? []);
 
-    // 1. FILTRO DE BUSCA (instantâneo, sem request ao backend)
-    let filtered = allProducts;
-    if (searchQuery.trim()) {
-      // Nome, marca, SKU, cor, tamanho e código da etiqueta (#054, 054, #054-1): mesma regra do computador
-      filtered = allProducts.filter((product) => matchesProduct(product, searchQuery));
-    }
+    // busca: nome, marca, SKU, cor, tamanho e código da etiqueta (#054, 054, #054-1); mesma regra do computador
+    let filtered = searchQuery.trim() ? allProducts.filter((product) => matchesProduct(product, searchQuery)) : allProducts;
 
-    // 1.1 cadastro guardado (zerado e nunca vendeu) não aparece na lista; a busca e o botão do rodapé o mostram
-    if (!searchQuery.trim() && !showCatalogOnly) {
-      filtered = filtered.filter((product: any) => !(product.total_stock <= 0 && !product.has_sales));
-    }
-
-    // 2. FILTRO DE ESTOQUE
-    if (showOnlyWithStock) {
-      filtered = filtered.filter((product) => product.total_stock > 0);
-    }
-
-    // 3. FILTRO DE ESTOQUE BAIXO
     if (showLowStock) {
       filtered = filtered.filter((product) => {
         const threshold = product.min_stock_threshold ?? 3;
         return product.total_stock > 0 && product.total_stock <= threshold;
       });
+    } else if (view !== 'all') {
+      filtered = filtered.filter((product: any) => stockKind(product) === view);
+    }
+
+    // Todos: nada fica escondido, mas o que é só catálogo vai para o fim da lista
+    if (!showLowStock && view === 'all') {
+      filtered = [
+        ...filtered.filter((p: any) => stockKind(p) !== 'catalog'),
+        ...filtered.filter((p: any) => stockKind(p) === 'catalog'),
+      ];
     }
 
     return filtered;
-  }, [data, allProductsData, searchQuery, showOnlyWithStock, showLowStock, showCatalogOnly]);
+  }, [data, allProductsData, searchQuery, view, showLowStock]);
 
   const handleProductPress = useCallback((product: ProductGrouped) => {
     router.push(`/products/${product.id}`);
   }, [router]);
-
-  const renderFilterPills = () => (
-    <>
-      {showLowStock && (
-        <View style={[styles.filterPill, { backgroundColor: Colors.light.warning + '14', borderColor: Colors.light.warning + '2A' }]}>
-          <Ionicons name="warning-outline" size={12} color={Colors.light.warning} />
-          <Text style={[styles.filterPillText, { color: Colors.light.warning }]}>Estoque baixo</Text>
-        </View>
-      )}
-      {showOnlyWithStock && (
-        <View style={[styles.filterPill, { backgroundColor: brandingColors.primary + '12', borderColor: brandingColors.primary + '24' }]}>
-          <Ionicons name="cube-outline" size={12} color={brandingColors.primary} />
-          <Text style={[styles.filterPillText, { color: brandingColors.primary }]}>Com estoque</Text>
-        </View>
-      )}
-      {!!searchQuery.trim() && (
-        <View style={styles.filterPill}>
-          <Ionicons name="search-outline" size={12} color={Colors.light.textSecondary} />
-          <Text style={styles.filterPillText} numberOfLines={1}>Busca ativa</Text>
-        </View>
-      )}
-    </>
-  );
 
   const renderProduct = useCallback(({ item }: { item: ProductGrouped }) => {
     // Se item for null ou undefined, renderizar espaço vazio
@@ -257,24 +243,16 @@ function MobileProductsScreen() {
       };
     }
 
-    if (showLowStock) {
-      return {
-        icon: 'warning-outline' as const,
-        title: 'Nenhum produto com estoque baixo',
-        description: 'Quando algum item ficar abaixo do limite, ele aparece aqui automaticamente.',
-      };
-    }
-
-    if (showOnlyWithStock) {
-      return {
-        icon: 'cube-outline' as const,
-        title: 'Nenhum produto com estoque disponível',
-        description: 'Limpe o filtro para ver também itens sem estoque ou volte ao catálogo.',
-      };
-    }
+    const byView: Record<string, { icon: any; title: string; description: string }> = {
+      low: { icon: 'warning-outline', title: 'Nenhum produto com estoque baixo', description: 'Quando algum item ficar abaixo do limite, ele aparece aqui automaticamente.' },
+      in_stock: { icon: 'cube-outline', title: 'Nenhum produto em estoque', description: 'Quando uma compra for recebida, as peças aparecem aqui.' },
+      sold_out: { icon: 'checkmark-circle-outline', title: 'Nenhum produto esgotado', description: 'Aqui entram as peças que você vendeu até acabar.' },
+      catalog: { icon: 'albums-outline', title: 'Nenhum cadastro só de catálogo', description: 'Aqui ficam os produtos cadastrados que nunca tiveram venda e estão sem estoque.' },
+    };
+    if (activeChip !== 'all') return byView[activeChip];
 
     return null; // primeiro acesso — renderiza onboarding dedicado
-  }, [searchQuery, showLowStock, showOnlyWithStock]);
+  }, [searchQuery, activeChip]);
 
   if ((isLoading || (showLowStock && isLoadingAllProducts)) && !isRefetching) {
     return (
@@ -282,9 +260,6 @@ function MobileProductsScreen() {
         <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Produtos"
           subtitle="0 produtos"
-          rightActions={[
-            { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
-          ]}
         />
 
         <ScreenLoader message="Carregando produtos..." />
@@ -298,9 +273,6 @@ function MobileProductsScreen() {
         <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Produtos"
           subtitle="0 produtos"
-          rightActions={[
-            { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
-          ]}
         />
 
         <EmptyState
@@ -312,13 +284,17 @@ function MobileProductsScreen() {
     );
   }
 
-  const keptCount = (data?.pages?.flat() ?? []).filter((p: any) => (p.total_stock ?? 0) <= 0 && !p.has_sales).length;
   const productCount = products?.length || 0;
-  // composição do catálogo: o total de cadastros continua visível, mas só quem tem estoque conta como "em estoque"
-  const inStockCount = (products ?? []).filter((p: any) => (p.total_stock ?? 0) > 0).length;
-  const soldOutCount = (products ?? []).filter((p: any) => (p.total_stock ?? 0) <= 0 && p.has_sales).length;
-  const catalogOnlyCount = showCatalogOnly ? productCount - inStockCount - soldOutCount : 0;
-  const hasActiveFilter = showLowStock || showOnlyWithStock || !!searchQuery.trim();
+  const loaded = (allProductsData && view !== 'all') || showLowStock ? (allProductsData ?? []) : (data?.pages?.flat() ?? []);
+  const kinds = loaded.reduce((acc: Record<string, number>, p: any) => { const k = stockKind(p); acc[k] = (acc[k] ?? 0) + 1; return acc; }, {});
+  const subtitle = showLowStock
+    ? `${productCount} com estoque baixo`
+    : [
+        `${kinds.in_stock ?? 0} em estoque`,
+        kinds.sold_out ? `${kinds.sold_out} ${kinds.sold_out === 1 ? 'esgotado' : 'esgotados'}` : '',
+        kinds.catalog ? `${kinds.catalog} só catálogo` : '',
+      ].filter(Boolean).join(' · ');
+  const hasActiveFilter = activeChip !== 'all' || !!searchQuery.trim();
 
   return (
     <View style={styles.container}>
@@ -333,10 +309,7 @@ function MobileProductsScreen() {
         >
         <PageHeader showBackButton hideBackOnDesktop backFallback="/(tabs)/more"
           title="Produtos"
-          subtitle={showLowStock ? `${productCount} com estoque baixo` : `${inStockCount} em estoque${soldOutCount ? ` · ${soldOutCount} esgotado(s)` : ''}${catalogOnlyCount ? ` · ${catalogOnlyCount} cadastros guardados` : ''}`}
-          rightActions={[
-            { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
-          ]}
+          subtitle={subtitle}
         />
         </Animated.View>
 
@@ -386,85 +359,32 @@ function MobileProductsScreen() {
             }}
           />
 
-          <View style={styles.actionsContainer}>
-            <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                showLowStock && {
-                  backgroundColor: Colors.light.warning + '18',
-                  borderColor: Colors.light.warning + '55',
-                },
-              ]}
-              onPress={() => {
-                if (showLowStock) {
-                  router.setParams({ filter: '' } as any);
-                } else {
-                  setShowOnlyWithStock(false);
-                  router.setParams({ filter: 'low_stock' } as any);
-                }
-              }}
-              activeOpacity={0.72}
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  showLowStock
-                    ? { backgroundColor: Colors.light.warning + '22' }
-                    : { backgroundColor: Colors.light.warning + '12' },
-                ]}
-              >
-                <Ionicons
-                  name={showLowStock ? 'warning' : 'warning-outline'}
-                  size={14}
-                  color={Colors.light.warning}
-                />
-              </View>
-              <Text style={[styles.buttonText, showLowStock && { color: Colors.light.warning }]}>
-                Estoque Baixo
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                showOnlyWithStock && {
-                  backgroundColor: brandingColors.primary + '12',
-                  borderColor: brandingColors.primary,
-                },
-              ]}
-              onPress={() => {
-                setShowOnlyWithStock(!showOnlyWithStock);
-                if (showLowStock) router.setParams({ filter: '' } as any);
-              }}
-              activeOpacity={0.72}
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  showOnlyWithStock
-                    ? { backgroundColor: brandingColors.primary + '18' }
-                    : { backgroundColor: brandingColors.primary + '12' },
-                ]}
-              >
-                <Ionicons
-                  name={showOnlyWithStock ? 'checkmark-circle' : 'cube-outline'}
-                  size={14}
-                  color={brandingColors.primary}
-                />
-              </View>
-              <Text style={[styles.buttonText, showOnlyWithStock && { color: brandingColors.primary }]}>
-                {showOnlyWithStock ? 'C/ Estoque' : 'Todos'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {hasActiveFilter && (
-            <View style={styles.filterSummaryRow}>
-              {renderFilterPills()}
-            </View>
-          )}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow} accessibilityRole="tablist">
+            {STOCK_CHIPS.map((chip) => {
+              const on = activeChip === chip.id;
+              return (
+                <TouchableOpacity
+                  key={chip.id}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`Mostrar: ${chip.label}`}
+                  activeOpacity={0.72}
+                  onPress={() => {
+                    if (chip.id === 'low') {
+                      setView('all');
+                      router.setParams({ filter: 'low_stock' } as any);
+                    } else {
+                      setView(chip.id);
+                      if (showLowStock) router.setParams({ filter: '' } as any);
+                    }
+                  }}
+                  style={[styles.chip, on && { backgroundColor: brandingColors.primary + '14', borderColor: brandingColors.primary }]}
+                >
+                  <Text style={[styles.chipText, on && { color: brandingColors.primary }]}>{chip.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <FlatList
@@ -491,15 +411,7 @@ function MobileProductsScreen() {
           windowSize={7}
           removeClippedSubviews
           ListFooterComponent={
-            !hasNextPage && keptCount > 0 && !searchQuery.trim() ? (
-              <TouchableOpacity onPress={() => setShowCatalogOnly(v => !v)} style={{ padding: 16, alignItems: 'center' }}>
-                <Text style={{ color: brandingColors.primary, fontWeight: '700', textAlign: 'center' }}>
-                  {showCatalogOnly
-                    ? 'Esconder os cadastros sem estoque'
-                    : `${keptCount} cadastro${keptCount !== 1 ? 's' : ''} sem estoque guardado${keptCount !== 1 ? 's' : ''} para a próxima compra. Toque para ver`}
-                </Text>
-              </TouchableOpacity>
-            ) : isFetchingNextPage ? (
+            isFetchingNextPage ? (
               <View style={styles.loadingMore}>
                 <ActivityIndicator size="small" color={brandingColors.primary} />
                 <Text style={styles.loadingMoreText}>Carregando mais...</Text>
@@ -514,12 +426,6 @@ function MobileProductsScreen() {
                 </View>
                 <Text style={styles.emptyStateTitle}>{emptyState?.title ?? 'Nenhum resultado'}</Text>
                 <Text style={styles.emptyStateDescription}>{emptyState?.description ?? ''}</Text>
-                <View style={styles.emptyFilterSummary}>
-                  <Text style={styles.emptyFilterSummaryLabel}>Filtros ativos</Text>
-                  <View style={styles.emptyFilterSummaryRow}>
-                    {renderFilterPills()}
-                  </View>
-                </View>
               </View>
             ) : (
               <View style={styles.onboardingCard}>
@@ -640,6 +546,24 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     color: Colors.light.textSecondary,
     fontSize: theme.fontSize.sm,
+  },
+  chipsRow: {
+    gap: theme.spacing.sm,
+    paddingRight: theme.spacing.md,
+  },
+  chip: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  chipText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
   },
   actionsContainer: {
     gap: theme.spacing.sm,
