@@ -134,6 +134,25 @@ def parse_day(value: Any, label: str, *, allow_future: bool = False) -> date:
     return d
 
 
+def day_credit_debit(lines: List[Dict[str, Any]], all_accounts: bool):
+    """(entrou, saiu) de um dia do extrato, a partir das linhas. Em "todas as contas" a transferência de uma conta para
+    outra não conta (sai de uma e entra na outra, o total não muda); numa conta só ela conta normalmente."""
+    entrou = saiu = D0
+    for ln in lines or []:
+        items = ln.get("items") or []
+        if not items:
+            items = [{"amount": ln["amount"], "ref": None}]
+        for it in items:
+            if all_accounts and str(it.get("ref") or "").startswith("transfer:"):
+                continue
+            v = _q(Decimal(str(it["amount"])))
+            if v > 0:
+                entrou += v
+            elif v < 0:
+                saiu += -v
+    return entrou, saiu
+
+
 def day_start_utc(d: date) -> datetime:
     """Começo do dia no Brasil, em UTC (as vendas são gravadas em UTC)."""
     return to_utc(make_aware(datetime.combine(d, time.min)))
@@ -641,6 +660,9 @@ class FinanceService:
                                      "by_method": self._by_method(det, accounts)})
             d += timedelta(days=1)
         out_days.reverse()
+        for dd in out_days:
+            e_, s_ = day_credit_debit(dd["lines"], acc is None)
+            dd["entrou"], dd["saiu"] = float(e_), float(s_)
         bal = await self.balances(tenant_id)
         balance_now = Decimal(str(next((x["balance"] for x in bal["accounts"] if x["id"] == acc.id), 0))) if acc else Decimal(str(bal["total"]))
         reaches_today = before_d > today
@@ -651,6 +673,57 @@ class FinanceService:
                 "difference": float(_q(balance_now - closing_latest)) if reaches_today else None,
             },
         }
+
+    async def statement_period(self, tenant_id: int, account_id: Any, start: Any, end: Any) -> Dict[str, Any]:
+        """Extrato de um período escolhido (de `start` a `end`, inclusive), como o de um banco: saldo do começo, tudo que entrou
+        (créditos), tudo que saiu (débitos) e saldo do fim. Usa o mesmo extrato dia a dia, então fecha com o saldo da conta."""
+        store = await self._store(tenant_id)
+        if store.finance_start_date is None:
+            return {"started": False, "start_date": None, "account": None, "days": [], "next_before": None,
+                    "reconciliation": None, "period": None}
+        today = today_brazil()
+        first = store.finance_start_date
+        s, e = parse_day(start, "Data inicial", allow_future=True), parse_day(end, "Data final", allow_future=True)
+        if s > e:
+            raise FinanceError("A data inicial vem depois da data final.")
+        if (e - s).days > 366:
+            raise FinanceError("Escolha no máximo 1 ano por vez.")
+        e = min(e, today)
+        s = max(s, first)
+        acc = await self._account(tenant_id, as_int(account_id, "a conta")) if account_id not in (None, "", 0) else None
+        accounts = await self._accounts(tenant_id)
+        shown = [acc] if acc else accounts
+        head = {"started": True, "start_date": first.isoformat(),
+                "account": {"id": acc.id, "name": acc.name, "kind": acc.kind} if acc else None}
+        if s > e:   # período todo antes do começo da contagem ou todo no futuro
+            return {**head, "days": [], "next_before": None, "reconciliation": None,
+                    "period": {"start": s.isoformat(), "end": e.isoformat(), "opening": 0.0, "entrou": 0.0, "saiu": 0.0,
+                               "closing": 0.0, "days_with_movement": 0, "before_start": e < first}}
+        days: Dict[str, Dict[str, Any]] = {}
+        before = e + timedelta(days=1)
+        reconciliation = None
+        for _ in range(40):   # 40 páginas de 14 dias cobrem 1 ano com folga
+            page = await self.statement(tenant_id, acc.id if acc else None, before.isoformat(), 14)
+            if reconciliation is None:
+                reconciliation = page.get("reconciliation")
+            for d in page["days"]:
+                if s <= date.fromisoformat(d["date"]) <= e:
+                    days[d["date"]] = d
+            nb = page.get("next_before")
+            if not nb or date.fromisoformat(nb) <= s:
+                break
+            before = date.fromisoformat(nb)
+        ordered = [days[k] for k in sorted(days, reverse=True)]   # mais novo primeiro, igual ao extrato normal
+        opening_map = await self.balances_at(tenant_id, s)
+        closing_map = await self.balances_at(tenant_id, e + timedelta(days=1))
+        opening = sum((_q(opening_map.get(a.id, 0)) for a in shown), D0)
+        closing = sum((_q(closing_map.get(a.id, 0)) for a in shown), D0)
+        entrou = sum((Decimal(str(d["entrou"])) for d in ordered), D0)
+        saiu = sum((Decimal(str(d["saiu"])) for d in ordered), D0)
+        return {**head, "days": ordered, "next_before": None, "reconciliation": reconciliation,
+                "period": {"start": s.isoformat(), "end": e.isoformat(), "opening": float(_q(opening)), "entrou": float(_q(entrou)),
+                           "saiu": float(_q(saiu)), "closing": float(_q(closing)), "days_with_movement": len(ordered),
+                           "before_start": False}}
 
     async def projection(self, tenant_id: int, balances: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """"E se eu receber todo o fiado?": dinheiro de hoje nas contas + fiado a receber - despesas e contas a pagar em aberto.

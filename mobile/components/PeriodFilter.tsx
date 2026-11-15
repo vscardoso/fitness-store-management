@@ -79,6 +79,7 @@ export const SALES_REPORT_PERIOD_OPTIONS: PeriodOption[] = [
   { value: 'last_7_days', label: 'Últimos 7 dias', shortLabel: '7 dias', description: 'Os últimos 7 dias, contando hoje' },
   { value: 'last_15_days', label: 'Últimos 15 dias', shortLabel: '15 dias', description: 'Os últimos 15 dias, contando hoje' },
   ...PERIOD_OPTIONS,
+  { value: 'custom', label: 'Escolher datas', shortLabel: 'Datas', description: 'De uma data até outra, a que você escolher' },
 ];
 
 interface PeriodFilterProps {

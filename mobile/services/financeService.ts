@@ -296,6 +296,8 @@ export interface StatementItem { label: string; amount: number; ref: string | nu
 export interface StatementLine { kind: string; label: string; amount: number; count: number | null; items: StatementItem[] }
 export interface StatementDay {
   date: string; opening: number; closing: number; net: number; lines: StatementLine[];
+  /** Créditos e débitos do dia (como num banco): quanto entrou e quanto saiu. */
+  entrou?: number; saiu?: number;
   /** Saldo de cada conta no fim do dia (separa o disponível do que a maquininha ainda vai pagar). */
   accounts?: { id: number; name: string; kind: string; closing: number }[];
   /** Vendas no fiado do dia, uma por uma (não entra dinheiro). */
@@ -303,8 +305,15 @@ export interface StatementDay {
   /** Vendas do dia por forma de pagamento e a conta onde o dinheiro entrou. */
   by_method?: { method: string; label: string; count: number; amount: number; account: string }[];
 }
+/** Resumo de um período escolhido: saldo do começo, créditos, débitos e saldo do fim. */
+export interface StatementPeriod {
+  start: string; end: string; opening: number; entrou: number; saiu: number; closing: number;
+  days_with_movement: number; before_start: boolean;
+}
 export interface Statement {
   started: boolean;
+  /** Só vem quando o extrato foi pedido por período (de, até). */
+  period?: StatementPeriod | null;
   start_date: string | null;
   account: { id: number; name: string; kind: string } | null;
   days: StatementDay[];
@@ -315,12 +324,18 @@ export interface Statement {
 }
 
 /** Extrato de uma conta (ou de todas) por 7 dias antes de `before` (padrão: até hoje). Só gerente e administrador. */
-export const getStatement = async (params: { accountId?: number | null; before?: string; days?: number } = {}): Promise<Statement> =>
+export const getStatement = async (params: { accountId?: number | null; before?: string; days?: number; start?: string; end?: string } = {}): Promise<Statement> =>
   (await api.get<Statement>('/finance/statement', {
-    params: { ...(params.accountId ? { account_id: params.accountId } : {}), ...(params.before ? { before: params.before } : {}), days: params.days ?? 7 },
+    params: {
+      ...(params.accountId ? { account_id: params.accountId } : {}),
+      ...(params.start && params.end ? { start: params.start, end: params.end } : { ...(params.before ? { before: params.before } : {}), days: params.days ?? 7 }),
+    },
     headers: { 'X-Skip-Loading': 'true' },
   })).data;
 
 /** Extrato COMPLETO em PDF (do começo da contagem até hoje, dia a dia). Objeto para o <PdfActions />. Só gerente e administrador. */
-export const getStatementPdf = (accountId?: number | null) =>
-  getServerPdf('/finance/statement/pdf', { params: accountId ? { account_id: accountId } : {}, title: 'Extrato financeiro' });
+export const getStatementPdf = (accountId?: number | null, range?: { start: string; end: string } | null) =>
+  getServerPdf('/finance/statement/pdf', {
+    params: { ...(accountId ? { account_id: accountId } : {}), ...(range ? { start: range.start, end: range.end } : {}) },
+    title: 'Extrato financeiro',
+  });

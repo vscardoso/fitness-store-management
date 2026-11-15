@@ -98,7 +98,8 @@ def build_statement_pdf(data: Dict[str, Any], store_name: str = "", generated_at
     right_small = ParagraphStyle("right_small", parent=small, alignment=2)
     day_style = ParagraphStyle("day", parent=styles["Heading3"], fontSize=11, leading=14, spaceAfter=2, textTransform="capitalize")
     account = (data.get("account") or {}).get("name") or "Todas as contas"
-    days = data.get("days") or []
+    days = sorted(data.get("days") or [], key=lambda x: x["date"])   # mais antigo primeiro, como o extrato de um banco
+    period = data.get("period")
     when = generated_at or datetime.now()
 
     buf = io.BytesIO()
@@ -107,14 +108,30 @@ def build_statement_pdf(data: Dict[str, Any], store_name: str = "", generated_at
     story: List[Any] = [
         Paragraph("Extrato financeiro", styles["Title"]),
         Paragraph(f"{_esc(store_name)} · {_esc(account)}" if store_name else _esc(account), body),
-        Paragraph(f"Contando desde {date.fromisoformat(data['start_date']):%d/%m/%Y} até hoje · gerado em {when:%d/%m/%Y às %H:%M}"
-                  if data.get("start_date") else "Financeiro ainda não implantado", small),
+        Paragraph(
+            (f"Período de {date.fromisoformat(period['start']):%d/%m/%Y} a {date.fromisoformat(period['end']):%d/%m/%Y} · gerado em {when:%d/%m/%Y às %H:%M}"
+             if period else
+             f"Contando desde {date.fromisoformat(data['start_date']):%d/%m/%Y} até hoje · gerado em {when:%d/%m/%Y às %H:%M}")
+            if data.get("start_date") else "Financeiro ainda não implantado", small),
         Spacer(1, 4 * mm),
     ]
     if not days:
         story.append(Paragraph("Nenhum movimento encontrado neste período.", body))
     rec = data.get("reconciliation") or {}
-    if days:
+    if period:
+        # extrato de período, como o de um banco: saldo do começo, créditos (entrou), débitos (saiu) e saldo do fim
+        psum = [
+            ["Saldo no começo do período", brl(period["opening"])],
+            [f"Créditos (entrou) em {period['days_with_movement']} dia(s) com movimento", brl(period["entrou"], sign=True)],
+            ["Débitos (saiu)", brl(-period["saiu"]) if period["saiu"] else brl(0)],
+            ["Saldo no fim do período", brl(period["closing"])],
+        ]
+        pt = Table(psum, colWidths=[110 * mm, 66 * mm])
+        pt.setStyle(TableStyle([("FONTSIZE", (0, 0), (-1, -1), 9), ("ALIGN", (1, 0), (1, -1), "RIGHT"), ("BACKGROUND", (0, 0), (-1, -1), LIGHT),
+                                ("FONTNAME", (0, 3), (-1, 3), "Helvetica-Bold"), ("LINEABOVE", (0, 3), (-1, 3), 0.5, GRAY),
+                                ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 4)]))
+        story += [Paragraph("Resumo do período", styles["Heading2"]), pt, Spacer(1, 5 * mm), Paragraph("Dia a dia", styles["Heading2"])]
+    elif days:
         first_open = days[0]["opening"]
         last_close = days[-1]["closing"]
         total_net = sum(d["net"] for d in days)

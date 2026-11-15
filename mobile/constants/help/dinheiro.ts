@@ -42,8 +42,9 @@ export const DINHEIRO: HelpEntry[] = [
     purpose: 'Mostra, dia a dia, tudo o que entrou e saiu de cada conta, com o saldo no começo e no fim do dia. Serve para conferir se a conta bate.',
     steps: [
       'Escolha uma conta nas bolinhas do topo, ou “Todas” para ver o dia inteiro da loja.',
+      'Escolha o período: “Hoje”, “7 dias”, “Este mês” ou “Escolher datas”, para ver de uma data até outra.',
       'Veja o selo de conferência: verde diz que o extrato bate com o saldo de agora; vermelho mostra a diferença e o que procurar.',
-      'Cada dia mostra quanto a conta tinha ao começar, o resultado do dia e quanto tinha ao terminar. Toque numa linha para ver os movimentos um a um.',
+      'Cada dia mostra o saldo do começo, quanto entrou, quanto saiu e o saldo do fim. Toque numa linha para ver os movimentos um a um.',
       'Toque em “Ver dias anteriores” para andar para trás, 7 dias por vez, até o começo da contagem.',
     ],
     parts: [
@@ -53,6 +54,7 @@ export const DINHEIRO: HelpEntry[] = [
       { label: 'Retiradas, empréstimos e ajustes', text: 'lançamentos que não são despesa nem venda, e o ajuste do fechamento do mês.' },
     ],
     goodToKnow: [
+      'Num período escolhido, o alto mostra o saldo do começo, os créditos (entrou), os débitos (saiu) e o saldo do fim, como o extrato de um banco. O PDF segue o mesmo período.',
       'O extrato usa as mesmas contas do saldo: se ele não bater, algum lançamento está com data fora do período ou o saldo foi ajustado à mão.',
       'Só quem gerencia a loja vê o extrato. Dias sem movimento não aparecem.',
     ],

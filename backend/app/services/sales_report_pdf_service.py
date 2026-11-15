@@ -10,6 +10,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 PERIODS = {
+    "custom": "Período escolhido",
     "today": "Hoje",
     "yesterday": "Ontem",
     "last_7_days": "Últimos 7 dias",

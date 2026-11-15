@@ -23,6 +23,8 @@ import { isAdminRole } from '@/utils/roles';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import PdfActions from '@/components/ui/PdfActions';
+import DateRangeFields from '@/components/ui/DateRangeFields';
+import { isoToBr, rangeFor, type RangeKey } from '@/utils/periodRange';
 import { getFinanceOverview, getStatement, getStatementPdf, type StatementDay, type StatementLine } from '@/services/financeService';
 
 const WEEKDAY = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
@@ -91,10 +93,23 @@ function DayCard({ day, expanded, toggle }: { day: StatementDay; expanded: Set<s
           <Text style={styles.balanceLabel}>Começou com</Text>
           <Text style={styles.balanceValue}>{formatCurrency(day.opening)}</Text>
         </View>
-        <View style={styles.balanceBox}>
-          <Text style={styles.balanceLabel}>Resultado do dia</Text>
-          <Text style={[styles.balanceValue, { color: tone(day.net) }]}>{signed(day.net)}</Text>
-        </View>
+        {day.entrou !== undefined && day.saiu !== undefined ? (
+          <>
+            <View style={styles.balanceBox}>
+              <Text style={styles.balanceLabel}>Entrou</Text>
+              <Text style={[styles.balanceValue, { color: Colors.light.success }]}>{formatCurrency(day.entrou)}</Text>
+            </View>
+            <View style={styles.balanceBox}>
+              <Text style={styles.balanceLabel}>Saiu</Text>
+              <Text style={[styles.balanceValue, { color: day.saiu > 0 ? Colors.light.error : Colors.light.textSecondary }]}>{formatCurrency(day.saiu)}</Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.balanceBox}>
+            <Text style={styles.balanceLabel}>Resultado do dia</Text>
+            <Text style={[styles.balanceValue, { color: tone(day.net) }]}>{signed(day.net)}</Text>
+          </View>
+        )}
         <View style={styles.balanceBox}>
           <Text style={styles.balanceLabel}>Terminou com</Text>
           <Text style={styles.balanceValue}>{formatCurrency(day.closing)}</Text>
@@ -147,6 +162,10 @@ export default function StatementScreen() {
   const params = useLocalSearchParams<{ account?: string }>();
   const [accountId, setAccountId] = useState<number | null>(params.account ? Number(params.account) || null : null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // período: 'recent' = os últimos dias (padrão, anda para trás); os outros mostram de uma data a outra, como um banco
+  const [periodKey, setPeriodKey] = useState<'recent' | RangeKey | 'custom'>('recent');
+  const [customRange, setCustomRange] = useState<{ start: string; end: string } | null>(null);
+  const range = periodKey === 'recent' ? null : periodKey === 'custom' ? customRange : rangeFor(periodKey);
 
   const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
   const statement = useInfiniteQuery({
@@ -157,10 +176,18 @@ export default function StatementScreen() {
     enabled: finance?.started !== false,
   });
 
+  const periodQuery = useQuery({
+    queryKey: ['finance-statement-period', accountId, range?.start, range?.end],
+    queryFn: () => getStatement({ accountId, start: range!.start, end: range!.end }),
+    enabled: !!range && finance?.started !== false,
+  });
+  const ranged = !!range;
+  const active = ranged ? periodQuery : statement;
   const pages = statement.data?.pages ?? [];
-  const first = pages[0];
-  const days = useMemo(() => pages.flatMap((p) => p.days), [pages]);
+  const first = ranged ? periodQuery.data : pages[0];
+  const days = useMemo(() => (ranged ? (periodQuery.data?.days ?? []) : pages.flatMap((p) => p.days)), [ranged, periodQuery.data, pages]);
   const rec = first?.reconciliation ?? null;
+  const period = ranged ? periodQuery.data?.period ?? null : null;
   const toggle = (key: string) => setExpanded((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
@@ -171,10 +198,11 @@ export default function StatementScreen() {
   const accountName = accountId ? accounts.find((a) => a.id === accountId)?.name ?? 'esta conta' : 'todas as contas';
 
   const content = (() => {
-    if (statement.isLoading) return <ScreenLoader inline message="Carregando o extrato..." />;
-    if (statement.error && !first) {
-      return <EmptyState type="error" title="Não foi possível abrir o extrato" description={parseApiError(statement.error)}
-        actionLabel="Tentar de novo" onAction={() => statement.refetch()} />;
+    if (periodKey === 'custom' && !customRange) return null;   // espera a pessoa escolher as datas
+    if (active.isLoading) return <ScreenLoader inline message="Carregando o extrato..." />;
+    if (active.error && !first) {
+      return <EmptyState type="error" title="Não foi possível abrir o extrato" description={parseApiError(active.error)}
+        actionLabel="Tentar de novo" onAction={() => active.refetch()} />;
     }
     if (first && !first.started) {
       return <EmptyState icon="wallet-outline" title="O controle do dinheiro ainda não começou"
@@ -183,6 +211,32 @@ export default function StatementScreen() {
     }
     return (
       <>
+        {!!period && (
+          <View style={styles.periodCard} testID="statement-period">
+            <Text style={styles.periodTitle}>{period.start === period.end ? `Dia ${isoToBr(period.start)}` : `De ${isoToBr(period.start)} a ${isoToBr(period.end)}`}</Text>
+            <View style={styles.periodRow}>
+              <Text style={styles.periodLabel}>Saldo no começo</Text>
+              <Text style={styles.periodValue}>{formatCurrency(period.opening)}</Text>
+            </View>
+            <View style={styles.periodRow}>
+              <Text style={styles.periodLabel}>Créditos (entrou)</Text>
+              <Text style={[styles.periodValue, { color: Colors.light.success }]}>{`+ ${formatCurrency(period.entrou)}`}</Text>
+            </View>
+            <View style={styles.periodRow}>
+              <Text style={styles.periodLabel}>Débitos (saiu)</Text>
+              <Text style={[styles.periodValue, { color: period.saiu > 0 ? Colors.light.error : Colors.light.textSecondary }]}>{`- ${formatCurrency(period.saiu)}`}</Text>
+            </View>
+            <View style={[styles.periodRow, styles.periodTotal]}>
+              <Text style={styles.periodLabelBold}>Saldo no fim</Text>
+              <Text style={styles.periodValueBold}>{formatCurrency(period.closing)}</Text>
+            </View>
+            <Text style={styles.balanceLabel}>
+              {period.before_start
+                ? 'Este período é de antes do começo da contagem do dinheiro.'
+                : `${period.days_with_movement} dia${period.days_with_movement === 1 ? '' : 's'} com movimento. Saldo no começo mais créditos menos débitos dá o saldo no fim.`}
+            </Text>
+          </View>
+        )}
         {!!rec && rec.difference !== null && (
           rec.difference === 0 ? (
             <View style={[styles.check, { borderColor: Colors.light.success, backgroundColor: Colors.light.successLight }]} testID="statement-check-ok">
@@ -207,7 +261,10 @@ export default function StatementScreen() {
           )
         )}
 
-        {days.length === 0 ? (
+        {days.length === 0 && ranged ? (
+          <EmptyState icon="receipt-outline" title="Nenhum movimento neste período"
+            description="Escolha outras datas ou veja os últimos dias para achar o último movimento." />
+        ) : days.length === 0 ? (
           <EmptyState icon="receipt-outline"
             title={first?.next_before ? 'Nenhum movimento nestes dias' : 'Nenhum movimento ainda'}
             description={first?.next_before ? 'Veja os dias anteriores para achar o último movimento.' : 'Quando houver venda, transferência ou pagamento, ele aparece aqui.'}
@@ -217,7 +274,7 @@ export default function StatementScreen() {
           days.map((d) => <DayCard key={d.date} day={d} expanded={expanded} toggle={toggle} />)
         )}
 
-        {statement.hasNextPage ? (
+        {ranged ? null : statement.hasNextPage ? (
           <AppButton variant="outlined" size="md" fullWidth icon="time-outline" label="Ver dias anteriores"
             loading={statement.isFetchingNextPage} onPress={() => statement.fetchNextPage()} />
         ) : days.length > 0 && !!first?.start_date ? (
@@ -244,12 +301,30 @@ export default function StatementScreen() {
         </View>
       )}
       {accounts.length > 0 && (
+        <View style={[styles.periodBar, isDesktop && styles.reading]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            <FilterChip text="Últimos dias" on={periodKey === 'recent'} color={brand.primary} onPress={() => { setPeriodKey('recent'); setExpanded(new Set()); }} />
+            <FilterChip text="Hoje" on={periodKey === 'today'} color={brand.primary} onPress={() => { setPeriodKey('today'); setExpanded(new Set()); }} />
+            <FilterChip text="Ontem" on={periodKey === 'yesterday'} color={brand.primary} onPress={() => { setPeriodKey('yesterday'); setExpanded(new Set()); }} />
+            <FilterChip text="7 dias" on={periodKey === 'last_7_days'} color={brand.primary} onPress={() => { setPeriodKey('last_7_days'); setExpanded(new Set()); }} />
+            <FilterChip text="30 dias" on={periodKey === 'last_30_days'} color={brand.primary} onPress={() => { setPeriodKey('last_30_days'); setExpanded(new Set()); }} />
+            <FilterChip text="Este mês" on={periodKey === 'this_month'} color={brand.primary} onPress={() => { setPeriodKey('this_month'); setExpanded(new Set()); }} />
+            <FilterChip text="Escolher datas" on={periodKey === 'custom'} color={brand.primary} onPress={() => { setPeriodKey('custom'); setExpanded(new Set()); }} />
+          </ScrollView>
+          {periodKey === 'custom' && (
+            <DateRangeFields start={customRange?.start} end={customRange?.end} applyLabel="Ver extrato"
+              onApply={(start, end) => { setCustomRange({ start, end }); setExpanded(new Set()); }} />
+          )}
+        </View>
+      )}
+      {accounts.length > 0 && (
         <View style={[styles.pdfBar, isDesktop && styles.reading]}>
-          <PdfActions getPdf={() => getStatementPdf(accountId)} cacheKey={`extrato-${accountId ?? 'todas'}`} shareLabel="Extrato completo em PDF" variant="outlined" size="sm" fullWidth={false} />
+          <PdfActions getPdf={() => getStatementPdf(accountId, range)} cacheKey={`extrato-${accountId ?? 'todas'}-${range?.start ?? 'tudo'}-${range?.end ?? ''}`}
+            shareLabel={range ? 'Extrato do período em PDF' : 'Extrato completo em PDF'} variant="outlined" size="sm" fullWidth={false} />
         </View>
       )}
       <ScrollView contentContainerStyle={[styles.content, isDesktop && styles.reading]}
-        refreshControl={<RefreshControl refreshing={statement.isRefetching && !statement.isFetchingNextPage} onRefresh={() => statement.refetch()} />}>
+        refreshControl={<RefreshControl refreshing={active.isRefetching && !statement.isFetchingNextPage} onRefresh={() => active.refetch()} />}>
         {content}
       </ScrollView>
     </View>
@@ -260,6 +335,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   reading: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   chipsBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 16, paddingRight: 16, paddingVertical: 8, backgroundColor: Colors.light.background, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  periodBar: { paddingHorizontal: 16, paddingTop: 8, gap: 8 },
+  periodCard: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.light.border, gap: 6 },
+  periodTitle: { fontSize: 15, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  periodRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  periodTotal: { borderTopWidth: 1, borderTopColor: Colors.light.border, paddingTop: 6 },
+  periodLabel: { fontSize: 14, color: Colors.light.textSecondary, flex: 1 },
+  periodValue: { fontSize: 14, fontWeight: theme.fontWeight.bold, color: Colors.light.text, flexShrink: 0 },
+  periodLabelBold: { fontSize: 15, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text, flex: 1 },
+  periodValueBold: { fontSize: 16, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text, flexShrink: 0 },
   pdfBar: { paddingHorizontal: 16, paddingTop: 8, flexDirection: 'row', justifyContent: 'flex-start' },
   chipsScroll: { flex: 1, minWidth: 0 },   // sem isto a faixa de chips passava por baixo do selo "Bate com o saldo"
   chips: { flexDirection: 'row', gap: 8, paddingRight: 8 },

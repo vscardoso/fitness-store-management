@@ -43,7 +43,7 @@ export const RELATORIOS: HelpEntry[] = [
     open: '/reports/sales',
     purpose: 'Mostra quanto a loja vendeu, quanto lucrou e como vendeu no período escolhido.',
     steps: [
-      'Toque no período e escolha, por exemplo, “Hoje”, “Últimos 7 dias” ou “Este Mês”.',
+      'Toque no período e escolha, por exemplo, “Hoje”, “Últimos 7 dias” ou “Este Mês”. Para outra data, escolha “Escolher datas” e toque em “Ver relatório”.',
       'Leia os quatro números do alto e role para ver os detalhes.',
       'Para guardar ou enviar, toque no ícone de baixar no alto: sai um PDF.',
     ],

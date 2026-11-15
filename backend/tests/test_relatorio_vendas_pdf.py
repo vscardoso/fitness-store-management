@@ -92,3 +92,33 @@ async def test_relatorio_por_periodo_curto(test_client, async_session, test_user
     for periodo in ("today", "yesterday", "last_7_days", "last_15_days"):
         pdf = await test_client.get(f"/api/v1/reports/sales/pdf?period={periodo}", headers=h)
         assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF"), periodo
+
+
+async def test_relatorio_de_periodo_escolhido(test_client, async_session, test_user):
+    from datetime import date, timedelta
+    from tests.test_troca import _cenario, _vender
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _vender(test_client, h, p, va, 2, "100.00")
+    hoje, ontem = date.today(), date.today() - timedelta(days=1)
+    get = lambda **k: test_client.get("/api/v1/reports/sales", headers=h, params=k)
+
+    r = await get(start_date=hoje.isoformat(), end_date=hoje.isoformat())
+    assert r.status_code == 200 and r.json()["total_sales"] == 1 and r.json()["total_revenue"] == 200.0
+    assert r.json()["period"] == "custom" and r.json()["start_date"][:10] == hoje.isoformat()
+    r = await get(start_date=(hoje - timedelta(days=10)).isoformat(), end_date=ontem.isoformat())    # antes da venda
+    assert r.status_code == 200 and r.json()["total_sales"] == 0
+    r = await get(start_date=ontem.isoformat(), end_date=(hoje + timedelta(days=5)).isoformat())     # final no futuro vira hoje
+    assert r.status_code == 200 and r.json()["total_sales"] == 1 and r.json()["end_date"][:10] == hoje.isoformat()
+    # comparação com o período anterior do mesmo tamanho: ontem+hoje (2 dias) contra os 2 dias antes
+    assert r.json()["comparison"]["previous_start"][:10] == (hoje - timedelta(days=3)).isoformat()
+    # datas ruins
+    assert (await get(start_date=hoje.isoformat())).status_code == 400
+    assert (await get(start_date=hoje.isoformat(), end_date=ontem.isoformat())).status_code == 400
+    assert (await get(start_date=(hoje - timedelta(days=400)).isoformat(), end_date=hoje.isoformat())).status_code == 400
+    assert (await get(start_date="x", end_date="y")).status_code == 400
+    assert (await get(start_date=(hoje + timedelta(days=2)).isoformat(), end_date=(hoje + timedelta(days=3)).isoformat())).status_code == 400
+    # PDF do período escolhido
+    pdf = await test_client.get("/api/v1/reports/sales/pdf", headers=h,
+                                params={"start_date": ontem.isoformat(), "end_date": hoje.isoformat()})
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+    assert f"{ontem.isoformat()}-a-{hoje.isoformat()}" in pdf.headers.get("content-disposition", "")

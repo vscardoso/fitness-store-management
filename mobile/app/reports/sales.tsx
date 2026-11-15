@@ -29,6 +29,8 @@ import { getSales } from '@/services/saleService';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import PeriodFilter, { SALES_REPORT_PERIOD_OPTIONS } from '@/components/PeriodFilter';
+import DateRangeFields from '@/components/ui/DateRangeFields';
+import { isoToBr } from '@/utils/periodRange';
 import type { PeriodFilterValue } from '@/components/PeriodFilter';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
@@ -48,6 +50,9 @@ export default function SalesReportScreen() {
   const brandingColors = useBrandingColors();
   const storeName = useBrandingStore((s) => s.branding.name);
   const [period, setPeriod] = useState<PeriodFilterType>('this_month');
+  // "Escolher datas": de uma data a outra (AAAA-MM-DD), só vale depois de a pessoa tocar em "Ver relatório"
+  const [customRange, setCustomRange] = useState<{ start: string; end: string } | null>(null);
+  const activeRange = period === 'custom' ? customRange : null;
   const [isExporting, setIsExporting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showErrorDialog, setShowErrorDialog] = useState(false);
@@ -58,11 +63,13 @@ export default function SalesReportScreen() {
   const contentTransY  = useSharedValue(24);
 
   const { data: report, isLoading, refetch } = useQuery({
-    queryKey: ['sales-report', period],
-    queryFn: () => getSalesReport(period),
+    queryKey: ['sales-report', period, activeRange?.start, activeRange?.end],
+    queryFn: () => getSalesReport(period, activeRange),
+    enabled: period !== 'custom' || !!customRange,
   });
 
   const periodLabels: Record<PeriodFilterType, string> = {
+    'custom': customRange ? (customRange.start === customRange.end ? `Dia ${isoToBr(customRange.start)}` : `De ${isoToBr(customRange.start)} a ${isoToBr(customRange.end)}`) : 'Datas escolhidas',
     'today': 'Hoje',
     'yesterday': 'Ontem',
     'last_7_days': 'Últimos 7 Dias',
@@ -448,6 +455,9 @@ export default function SalesReportScreen() {
     const start = new Date(today);
 
     switch (p) {
+      case 'custom':
+        if (customRange) return { start_date: customRange.start, end_date: customRange.end };
+        break;
       case 'today':
         break;
       case 'yesterday':
@@ -590,7 +600,7 @@ export default function SalesReportScreen() {
 
       // No navegador/PWA o PDF vem do servidor; no celular gera o arquivo e compartilha
       if (Platform.OS === 'web') {
-        await openSalesReportPdfWeb(period);
+        await openSalesReportPdfWeb(period, activeRange);
         setShowSuccessDialog(true);
         return;
       }
@@ -666,11 +676,20 @@ export default function SalesReportScreen() {
             />
           </View>
 
-          {isLoading && (
+          {period === 'custom' && (
+            <DateRangeFields start={customRange?.start} end={customRange?.end} applyLabel="Ver relatório"
+              onApply={(start, end) => setCustomRange({ start, end })} />
+          )}
+
+          {period === 'custom' && !customRange && (
+            <Text style={styles.emptyStateDescription}>Escolha a data inicial e a final e toque em “Ver relatório”.</Text>
+          )}
+
+          {isLoading && !(period === 'custom' && !customRange) && (
             <ScreenLoader message="Carregando relatório..." />
           )}
 
-          {!isLoading && !report && (
+          {!isLoading && !report && !(period === 'custom' && !customRange) && (
             <View style={styles.emptyStateCard}>
               <View style={[styles.emptyStateIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
                 <Ionicons name="bar-chart-outline" size={28} color={brandingColors.primary} />

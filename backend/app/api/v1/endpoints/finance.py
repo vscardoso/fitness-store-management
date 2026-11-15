@@ -38,38 +38,51 @@ async def accounts(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(
 
 @router.get("/statement", summary="Extrato passo a passo: dia a dia o que entrou e saiu de cada conta (confere com o saldo)")
 async def statement(account_id: Optional[int] = Query(None), before: Optional[str] = Query(None),
-                    days: int = Query(7), db: AsyncSession = Depends(get_db),
+                    days: int = Query(7), start: Optional[str] = Query(None), end: Optional[str] = Query(None),
+                    db: AsyncSession = Depends(get_db),
                     tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
+        if start or end:   # período escolhido (de, até): as duas datas juntas
+            if not (start and end):
+                raise FinanceError("Informe a data inicial e a data final.")
+            return await FinanceService(db).statement_period(tenant_id, account_id, start, end)
         return await FinanceService(db).statement(tenant_id, account_id, before, days)
     except FinanceError as e:
         raise _http(e)
 
 
 @router.get("/statement/pdf", summary="Extrato financeiro COMPLETO em PDF (do começo da contagem até hoje, dia a dia)")
-async def statement_pdf(account_id: Optional[int] = Query(None), link: bool = Query(False), db: AsyncSession = Depends(get_db),
+async def statement_pdf(account_id: Optional[int] = Query(None), link: bool = Query(False),
+                        start: Optional[str] = Query(None), end: Optional[str] = Query(None), db: AsyncSession = Depends(get_db),
                         tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     from app.models.store import Store
     from app.services.pdf_delivery import pdf_response
     from app.services.statement_pdf_service import build_statement_pdf, merge_pages
 
     svc = FinanceService(db)
-    pages: List[Dict[str, Any]] = []
-    before: Optional[str] = None
     try:
-        for _ in range(80):   # 80 páginas de 14 dias = mais de 3 anos; trava de segurança
-            page = await svc.statement(tenant_id, account_id, before, 14)
-            pages.append(page)
-            before = page.get("next_before")
-            if not before:
-                break
+        if start or end:   # período escolhido: o mesmo extrato do app, de uma data a outra
+            if not (start and end):
+                raise FinanceError("Informe a data inicial e a data final.")
+            data = await svc.statement_period(tenant_id, account_id, start, end)
+        else:
+            pages: List[Dict[str, Any]] = []
+            before: Optional[str] = None
+            for _ in range(80):   # 80 páginas de 14 dias = mais de 3 anos; trava de segurança
+                page = await svc.statement(tenant_id, account_id, before, 14)
+                pages.append(page)
+                before = page.get("next_before")
+                if not before:
+                    break
+            data = merge_pages(pages)
     except FinanceError as e:
         raise _http(e)
     store = await db.get(Store, tenant_id)
-    data = merge_pages(pages)
     label = (data.get("account") or {}).get("name") or "todas-as-contas"
     safe = "".join(c if c.isalnum() else "-" for c in str(label).lower()).strip("-") or "contas"
-    return pdf_response(build_statement_pdf(data, getattr(store, "name", "") or ""), f"extrato-{safe}.pdf",
+    per = data.get("period")
+    suffix = f"-{per['start']}-a-{per['end']}" if per else ""
+    return pdf_response(build_statement_pdf(data, getattr(store, "name", "") or ""), f"extrato-{safe}{suffix}.pdf",
                         link=link, tenant_id=tenant_id, no_store=True)
 
 

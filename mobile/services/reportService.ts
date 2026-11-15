@@ -98,13 +98,13 @@ export interface CustomersReport {
   average_ticket: number;
 }
 
-export type PeriodFilter = 'today' | 'yesterday' | 'last_7_days' | 'last_15_days' | 'this_month' | 'last_30_days' | 'last_2_months' | 'last_3_months' | 'last_6_months' | 'this_year';
+export type PeriodFilter = 'custom' | 'today' | 'yesterday' | 'last_7_days' | 'last_15_days' | 'this_month' | 'last_30_days' | 'last_2_months' | 'last_3_months' | 'last_6_months' | 'this_year';
 
 /**
  * Relatório de vendas
  */
-export const getSalesReport = async (period: PeriodFilter = 'this_month'): Promise<SalesReport> => {
-  const response = await api.get(`/reports/sales?period=${period}`);
+export const getSalesReport = async (period: PeriodFilter = 'this_month', range?: { start: string; end: string } | null): Promise<SalesReport> => {
+  const response = await api.get('/reports/sales', { params: range ? { start_date: range.start, end_date: range.end } : { period } });
   return response.data;
 };
 
@@ -267,8 +267,8 @@ export const getHistory = async (
 };
 
 /** Relatório de vendas em PDF (web, inclusive o app instalado no iPhone): o servidor gera e o app abre o link https. */
-export async function openSalesReportPdfWeb(period: string): Promise<void> {
-  await openServerPdf('/reports/sales/pdf', { params: { period }, title: 'Relatório de Vendas' });
+export async function openSalesReportPdfWeb(period: string, range?: { start: string; end: string } | null): Promise<void> {
+  await openServerPdf('/reports/sales/pdf', { params: range ? { start_date: range.start, end_date: range.end } : { period }, title: 'Relatório de Vendas' });
 }
 
 /** Estoque atual em PDF (entrada, fornecedor e produto), gerado no servidor (objeto para o <PdfActions />). */

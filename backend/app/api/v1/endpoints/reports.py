@@ -89,6 +89,28 @@ async def stock_check_writeoff(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+def _custom_range(start_date: str | None, end_date: str | None):
+    """Período escolhido (de, até): as duas datas juntas, a inicial não depois da final, no máximo 1 ano. A final no futuro vira hoje."""
+    if not start_date and not end_date:
+        return None
+    from datetime import date as _date, timedelta as _td
+    from app.core.timezone import today_brazil
+    if not (start_date and end_date):
+        raise HTTPException(status_code=400, detail="Informe a data inicial e a data final.")
+    try:
+        s, e = _date.fromisoformat(start_date[:10]), _date.fromisoformat(end_date[:10])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida (use AAAA-MM-DD).")
+    if s > e:
+        raise HTTPException(status_code=400, detail="A data inicial vem depois da data final.")
+    e = min(e, today_brazil())
+    if s > e:
+        raise HTTPException(status_code=400, detail="A data inicial está no futuro.")
+    if (e - s).days > 366:
+        raise HTTPException(status_code=400, detail="Escolha no máximo 1 ano por vez.")
+    return s, e
+
+
 @router.get(
     "/sales",
     response_model=SalesReportResponse,
@@ -98,6 +120,8 @@ async def stock_check_writeoff(
 async def get_sales_report(
     period: str = Query("this_month", description="Período: today, yesterday, last_7_days, last_15_days, this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year"),
     seller_id: int | None = Query(None, description="Filtrar por vendedor (opcional)"),
+    start_date: str | None = Query(None, description="Período escolhido: data inicial AAAA-MM-DD (use junto com end_date)"),
+    end_date: str | None = Query(None, description="Período escolhido: data final AAAA-MM-DD"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -121,11 +145,13 @@ async def get_sales_report(
     if current_user.role.value == "SELLER":
         seller_id = current_user.id
 
+    custom = _custom_range(start_date, end_date)
     return await service.get_sales_report(
         db=db,
         tenant_id=tenant_id,
-        period=period,
+        period="custom" if custom else period,
         seller_id=seller_id,
+        custom_range=custom,
     )
 
 
@@ -138,6 +164,8 @@ async def get_sales_report_pdf(
     period: str = Query("this_month", description="Período: today, yesterday, last_7_days, last_15_days, this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year"),
     seller_id: int | None = Query(None, description="Filtrar por vendedor (opcional)"),
     link: bool = Query(False, description="true = devolve o link https do PDF em vez do arquivo"),
+    start_date: str | None = Query(None, description="Período escolhido: data inicial AAAA-MM-DD (use junto com end_date)"),
+    end_date: str | None = Query(None, description="Período escolhido: data final AAAA-MM-DD"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -147,8 +175,11 @@ async def get_sales_report_pdf(
 
     if current_user.role.value == "SELLER":
         seller_id = current_user.id
-    report = await ReportService().get_sales_report(db=db, tenant_id=tenant_id, period=period, seller_id=seller_id)
-    return pdf_response(build_sales_report_pdf(report), f"relatorio-vendas-{period}.pdf", link=link, tenant_id=tenant_id, no_store=True)
+    custom = _custom_range(start_date, end_date)
+    report = await ReportService().get_sales_report(db=db, tenant_id=tenant_id, period="custom" if custom else period,
+                                                    seller_id=seller_id, custom_range=custom)
+    name = f"relatorio-vendas-{custom[0].isoformat()}-a-{custom[1].isoformat()}.pdf" if custom else f"relatorio-vendas-{period}.pdf"
+    return pdf_response(build_sales_report_pdf(report), name, link=link, tenant_id=tenant_id, no_store=True)
 
 
 async def _monthly_data(db: AsyncSession, tenant_id: int, user: User, year: int | None, month: int | None):

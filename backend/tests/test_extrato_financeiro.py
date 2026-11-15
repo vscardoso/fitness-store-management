@@ -347,3 +347,65 @@ async def test_extrato_detalha_cada_venda_cada_fiado_e_diz_onde_entrou(test_clie
     # devolução em dinheiro: um item, na Gaveta
     dev = next(ln for ln in dg["lines"] if ln["kind"] == "refunds")
     assert dev["items"] and "Devolução da venda #" in dev["items"][0]["label"]
+
+
+async def test_extrato_de_periodo_escolhido_fecha_como_um_banco(test_client, async_session, test_user):
+    """De uma data a outra: saldo do começo + créditos (entrou) - débitos (saiu) = saldo do fim, por conta e em todas."""
+    t_id, h, ids, _ = await _vida_financeira(test_client, async_session, test_user)
+    hoje = date.today().isoformat()
+    contas, total = await _contas(test_client, h)
+    for nome, conta in contas.items():
+        ex = await _extrato(test_client, h, account_id=conta["id"], start=hoje, end=hoje)
+        p = ex["period"]
+        assert round(p["opening"] + p["entrou"] - p["saiu"], 2) == p["closing"], (nome, p)
+        assert p["closing"] == conta["balance"], (nome, p)
+        assert p["start"] == hoje and p["end"] == hoje
+        for d in ex["days"]:
+            assert round(d["opening"] + d["entrou"] - d["saiu"], 2) == d["closing"], (nome, d["date"])
+    ex = await _extrato(test_client, h, start=hoje, end=hoje)               # todas as contas
+    p = ex["period"]
+    assert round(p["opening"] + p["entrou"] - p["saiu"], 2) == p["closing"] == total
+    # a transferência de R$ 750 da gaveta para o Nubank: conta numa conta só (saiu da gaveta, entrou no Nubank) e NÃO conta em todas
+    gav = (await _extrato(test_client, h, account_id=ids["Gaveta"], start=hoje, end=hoje))["period"]
+    nub = (await _extrato(test_client, h, account_id=ids["Nubank"], start=hoje, end=hoje))["period"]
+    assert gav["saiu"] >= 750.0 and nub["entrou"] >= 750.0
+    todos_entrou = 0.0
+    for c in contas.values():
+        todos_entrou += (await _extrato(test_client, h, account_id=c["id"], start=hoje, end=hoje))["period"]["entrou"]
+    assert round(todos_entrou - p["entrou"], 2) == 750.0                    # a soma das contas passa o consolidado só pela transferência
+    # igual ao extrato normal do mesmo dia
+    normal = (await _extrato(test_client, h))["days"][0]
+    assert normal["entrou"] == p["entrou"] and normal["saiu"] == p["saiu"]
+
+
+async def test_extrato_de_periodo_recusa_datas_ruins_e_gera_pdf(test_client, async_session, test_user):
+    t_id, h, ids, _ = await _vida_financeira(test_client, async_session, test_user)
+    hoje = date.today()
+    f = lambda **k: test_client.get(f"{FIN}/statement", headers=h, params=k)
+    assert (await f(start=hoje.isoformat())).status_code == 400                        # falta a data final
+    assert (await f(start=hoje.isoformat(), end=(hoje - timedelta(days=1)).isoformat())).status_code == 400   # de depois de até
+    assert (await f(start=(hoje - timedelta(days=400)).isoformat(), end=hoje.isoformat())).status_code == 400  # mais de 1 ano
+    assert (await f(start="ontem", end="hoje")).status_code == 400
+    # período inteiro antes do começo da contagem: vazio, sem erro, avisando
+    r = await f(start=(hoje - timedelta(days=60)).isoformat(), end=(hoje - timedelta(days=30)).isoformat())
+    assert r.status_code == 200 and r.json()["days"] == [] and r.json()["period"]["before_start"] is True
+    # data final no futuro vira hoje
+    r = await f(start=hoje.isoformat(), end=(hoje + timedelta(days=10)).isoformat())
+    assert r.status_code == 200 and r.json()["period"]["end"] == hoje.isoformat()
+    # PDF do período
+    pdf = await test_client.get(f"{FIN}/statement/pdf", headers=h, params={"start": hoje.isoformat(), "end": hoje.isoformat()})
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+    assert f"{hoje.isoformat()}-a-{hoje.isoformat()}" in pdf.headers.get("content-disposition", "")
+    assert (await test_client.get(f"{FIN}/statement/pdf", headers=h, params={"start": hoje.isoformat()})).status_code == 400
+    # caixa e vendedor continuam sem acesso
+    from app.models.user import User, UserRole
+    for papel in (UserRole.CASHIER, UserRole.SELLER):
+        u = User(email=f"per.{papel.value}.{t_id}.{datetime.utcnow().timestamp()}@example.com", full_name="Pessoa",
+                 hashed_password=get_password_hash("Senha1234"), role=papel, is_active=True, tenant_id=t_id)
+        async_session.add(u)
+        await async_session.commit()
+        await async_session.refresh(u)
+        hh = {"Authorization": f"Bearer {create_access_token(data={'sub': str(u.id)})}"}
+        for rota in ("statement", "statement/pdf"):
+            r = await test_client.get(f"{FIN}/{rota}", headers=hh, params={"start": hoje.isoformat(), "end": hoje.isoformat()})
+            assert r.status_code == 403, (papel, rota)
