@@ -28,7 +28,7 @@ import {
 import { getSales } from '@/services/saleService';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
-import PeriodFilter from '@/components/PeriodFilter';
+import PeriodFilter, { SALES_REPORT_PERIOD_OPTIONS } from '@/components/PeriodFilter';
 import type { PeriodFilterValue } from '@/components/PeriodFilter';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
@@ -63,6 +63,10 @@ export default function SalesReportScreen() {
   });
 
   const periodLabels: Record<PeriodFilterType, string> = {
+    'today': 'Hoje',
+    'yesterday': 'Ontem',
+    'last_7_days': 'Últimos 7 Dias',
+    'last_15_days': 'Últimos 15 Dias',
     'this_month': 'Este Mês',
     'last_30_days': 'Últimos 30 Dias',
     'last_2_months': 'Últimos 2 Meses',
@@ -444,6 +448,17 @@ export default function SalesReportScreen() {
     const start = new Date(today);
 
     switch (p) {
+      case 'today':
+        break;
+      case 'yesterday':
+        start.setDate(start.getDate() - 1);
+        return { start_date: toISODate(start), end_date: toISODate(start) };
+      case 'last_7_days':
+        start.setDate(start.getDate() - 6);
+        break;
+      case 'last_15_days':
+        start.setDate(start.getDate() - 14);
+        break;
       case 'this_month':
         start.setDate(1);
         break;
@@ -646,6 +661,7 @@ export default function SalesReportScreen() {
           <View style={styles.periodContainer}>
             <PeriodFilter
               value={period as PeriodFilterValue}
+              options={SALES_REPORT_PERIOD_OPTIONS}
               onChange={(value) => setPeriod(value as PeriodFilterType)}
             />
           </View>

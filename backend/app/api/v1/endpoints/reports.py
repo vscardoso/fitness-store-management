@@ -96,7 +96,7 @@ async def stock_check_writeoff(
     description="Relatório completo de vendas com métricas, lucro, breakdown de pagamentos e top produtos"
 )
 async def get_sales_report(
-    period: str = Query("this_month", description="Período: this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year"),
+    period: str = Query("this_month", description="Período: today, yesterday, last_7_days, last_15_days, this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year"),
     seller_id: int | None = Query(None, description="Filtrar por vendedor (opcional)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -135,7 +135,7 @@ async def get_sales_report(
     description="Mesmo conteúdo do relatório de vendas, em PDF gerado no servidor (usado pelo app web, que não tem arquivo local).",
 )
 async def get_sales_report_pdf(
-    period: str = Query("this_month", description="Período: this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year"),
+    period: str = Query("this_month", description="Período: today, yesterday, last_7_days, last_15_days, this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year"),
     seller_id: int | None = Query(None, description="Filtrar por vendedor (opcional)"),
     link: bool = Query(False, description="true = devolve o link https do PDF em vez do arquivo"),
     db: AsyncSession = Depends(get_db),

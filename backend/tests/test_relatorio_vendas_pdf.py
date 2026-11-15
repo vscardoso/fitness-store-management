@@ -57,3 +57,38 @@ async def test_relatorio_detalhado_nao_conta_venda_cancelada(test_client, async_
 
     pdf = await test_client.get("/api/v1/reports/sales/pdf?period=this_month", headers=h)
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+
+
+async def test_datas_dos_periodos_curtos():
+    """Hoje, Ontem, 7 e 15 dias: dias corridos do Brasil, 7 dias contam hoje."""
+    from datetime import timedelta
+    from app.services.report_service import ReportService
+    f = ReportService._get_period_dates
+    ini, fim = f("today")
+    assert ini.date() == fim.date() and ini.hour == 0 and fim.hour == 23
+    ini, fim = f("yesterday")
+    hoje = f("today")[0]
+    assert ini.date() == fim.date() == hoje.date() - timedelta(days=1)
+    ini, fim = f("last_7_days")
+    assert (fim.date() - ini.date()).days == 6 and fim.date() == hoje.date()
+    ini, fim = f("last_15_days")
+    assert (fim.date() - ini.date()).days == 14
+
+
+async def test_relatorio_por_periodo_curto(test_client, async_session, test_user):
+    from tests.test_troca import _cenario, _vender
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _vender(test_client, h, p, va, 2, "100.00")
+
+    for periodo in ("today", "last_7_days", "last_15_days"):
+        rep = (await test_client.get(f"/api/v1/reports/sales?period={periodo}", headers=h)).json()
+        assert rep["total_sales"] == 1 and rep["total_revenue"] == 200.0, (periodo, rep["total_revenue"])
+    # ontem não tem nada: a venda de hoje não entra
+    rep = (await test_client.get("/api/v1/reports/sales?period=yesterday", headers=h)).json()
+    assert rep["total_sales"] == 0 and rep["total_revenue"] == 0
+    # comparação: hoje contra o dia anterior (1 dia) e 7 dias contra os 7 anteriores
+    hoje = (await test_client.get("/api/v1/reports/sales?period=today", headers=h)).json()
+    assert hoje["comparison"]["previous_total"] == 0
+    for periodo in ("today", "yesterday", "last_7_days", "last_15_days"):
+        pdf = await test_client.get(f"/api/v1/reports/sales/pdf?period={periodo}", headers=h)
+        assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF"), periodo

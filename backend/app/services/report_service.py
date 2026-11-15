@@ -40,7 +40,18 @@ class ReportService:
         # dia do Brasil (o servidor roda em UTC: às 21h de Brasília já seria o dia seguinte)
         today = now_brazil().replace(tzinfo=None, hour=23, minute=59, second=59, microsecond=999999)
 
-        if period == "this_month":
+        if period == "today":
+            start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "yesterday":
+            # só ontem (o fim também é ontem, não hoje)
+            ontem = today - timedelta(days=1)
+            return ontem.replace(hour=0, minute=0, second=0, microsecond=0), ontem
+        elif period == "last_7_days":
+            # 7 dias corridos contando hoje
+            start_date = (today - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "last_15_days":
+            start_date = (today - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "this_month":
             start_date = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         elif period == "last_30_days":
             start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)

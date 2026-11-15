@@ -98,7 +98,7 @@ export interface CustomersReport {
   average_ticket: number;
 }
 
-export type PeriodFilter = 'this_month' | 'last_30_days' | 'last_2_months' | 'last_3_months' | 'last_6_months' | 'this_year';
+export type PeriodFilter = 'today' | 'yesterday' | 'last_7_days' | 'last_15_days' | 'this_month' | 'last_30_days' | 'last_2_months' | 'last_3_months' | 'last_6_months' | 'this_year';
 
 /**
  * Relatório de vendas

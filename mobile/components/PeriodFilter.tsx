@@ -27,7 +27,7 @@ export type PeriodFilterValue =
   | 'this_year';
 
 export interface PeriodOption {
-  value: PeriodFilterValue;
+  value: string;
   label: string;
   shortLabel: string;
   description: string;
@@ -72,21 +72,33 @@ export const PERIOD_OPTIONS: PeriodOption[] = [
   },
 ];
 
+/** Períodos curtos, só para o relatório de vendas (os outros filtros do app seguem com a lista padrão). */
+export const SALES_REPORT_PERIOD_OPTIONS: PeriodOption[] = [
+  { value: 'today', label: 'Hoje', shortLabel: 'Hoje', description: 'Só as vendas de hoje' },
+  { value: 'yesterday', label: 'Ontem', shortLabel: 'Ontem', description: 'Só as vendas de ontem' },
+  { value: 'last_7_days', label: 'Últimos 7 dias', shortLabel: '7 dias', description: 'Os últimos 7 dias, contando hoje' },
+  { value: 'last_15_days', label: 'Últimos 15 dias', shortLabel: '15 dias', description: 'Os últimos 15 dias, contando hoje' },
+  ...PERIOD_OPTIONS,
+];
+
 interface PeriodFilterProps {
   value: PeriodFilterValue;
   onChange: (value: PeriodFilterValue) => void;
   compact?: boolean;
+  /** Lista própria de períodos (padrão: PERIOD_OPTIONS). */
+  options?: PeriodOption[];
 }
 
 export default function PeriodFilter({
   value,
   onChange,
   compact = false,
+  options = PERIOD_OPTIONS,
 }: PeriodFilterProps) {
   const brandingColors = useBrandingColors();
   const [modalVisible, setModalVisible] = useState(false);
 
-  const selectedOption = PERIOD_OPTIONS.find((opt) => opt.value === value);
+  const selectedOption = options.find((opt) => opt.value === value);
 
   const openModal = () => setModalVisible(true);
   const closeModal = () => setModalVisible(false);
@@ -125,7 +137,7 @@ export default function PeriodFilter({
         subtitle="Escolha de quando mostrar os números"
         icon="calendar-outline"
       >
-        {PERIOD_OPTIONS.map((option) => {
+        {options.map((option) => {
           const isSelected = option.value === value;
           return (
             <TouchableOpacity
@@ -135,7 +147,7 @@ export default function PeriodFilter({
                 styles.optionItemBorder,
                 isSelected && { backgroundColor: brandingColors.primary + '12', borderColor: brandingColors.primary + '55' },
               ]}
-              onPress={() => handleSelect(option.value)}
+              onPress={() => handleSelect(option.value as PeriodFilterValue)}
               activeOpacity={0.7}
             >
               <View style={styles.optionContent}>
