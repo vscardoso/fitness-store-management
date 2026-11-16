@@ -1,3 +1,4 @@
+import HScroll from '@/components/ui/HScroll';
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
@@ -891,7 +892,7 @@ export default function DashboardScreen() {
                   {excludedCats.length ? 'Fora da conta (clique para voltar):' : 'Clique numa categoria para tirar da conta:'}
                 </Text>
                 {/* UMA fileira só, que rola para o lado (no celular com o dedo; no computador com a barra fina ou Shift + roda do mouse) */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} contentContainerStyle={styles.catFilterRow}>
+                <HScroll contentContainerStyle={styles.catFilterRow}>
                   {stockCats.map((c) => {
                     const off = excludedCats.includes(c.category_id);
                     return (
@@ -907,7 +908,7 @@ export default function DashboardScreen() {
                       </TouchableOpacity>
                     );
                   })}
-                </ScrollView>
+                </HScroll>
               </View>
             )}
             {/* Linha 1: Capital Investido e Potencial de Venda */}
