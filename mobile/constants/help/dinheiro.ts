@@ -19,7 +19,7 @@ export const DINHEIRO: HelpEntry[] = [
     parts: [
       { label: 'Dinheiro agora', text: 'total e saldo de gaveta, bancos e maquininha a receber, calculados com as vendas e os pagamentos.' },
       { label: 'Precisa de você', text: 'só o que existe: compras sem conta, repasse da maquininha, fiado vencido e despesa vencida.' },
-      { label: 'A conta do mês fecha', text: 'o que deveria ter contra o que as contas mostram. Se difere, “Ver a ponte” explica onde foi cada real: fiado, cartão, gasto sem conta, retirada, correção à mão.' },
+      { label: 'A conta do mês fecha', text: 'o que deveria ter contra o que as contas mostram. Se difere, “Ver para onde foi o dinheiro” explica onde foi cada real: fiado, cartão, gasto sem conta, retirada, correção à mão.' },
       { label: 'Fiado e despesas', text: 'o que as clientes ainda vão pagar e as contas e boletos a vencer; o que já venceu aparece em destaque.' },
       { label: 'Previsão e maquininha', text: 'recolhida: o dinheiro de hoje mais o fiado a receber, menos o que há a pagar (nada é lançado), e a regra de quando o cartão cai.' },
       { label: 'Compras sem conta', text: 'compras de mercadoria que ainda não disseram de onde saiu o dinheiro. Escolha a gaveta ou o banco e toque em “Descontar”: o saldo cai e a tela mostra de onde saiu cada real.' },

@@ -42,7 +42,7 @@ export default function ReconciliationCard() {
       <Text style={styles.message}>{data.message}</Text>
       {unexplained && bridge && (
         <Text style={[styles.message, { color: Colors.light.warningDark }]}>
-          {`Sobra sem explicação de ${formatCurrency(Math.abs(bridge.residual))}: o app não sabe de onde veio ou para onde foi esse dinheiro. Abra a ponte abaixo e confira.`}
+          {`Sobra sem explicação de ${formatCurrency(Math.abs(bridge.residual))}: o app não sabe de onde veio ou para onde foi esse dinheiro. Abra “Ver para onde foi o dinheiro” abaixo e confira.`}
         </Text>
       )}
       <Row label="Começou o mês com" value={formatCurrency(data.opening ?? 0)} />
@@ -55,7 +55,7 @@ export default function ReconciliationCard() {
       {!!bridge && (
         <>
           <TouchableOpacity onPress={() => setShowBridge((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showBridge }} style={styles.toggle}>
-            <Text style={styles.toggleText}>{showBridge ? 'Esconder a ponte' : 'Ver a ponte: das vendas e gastos até o saldo das contas'}</Text>
+            <Text style={styles.toggleText}>{showBridge ? 'Esconder' : 'Ver para onde foi o dinheiro'}</Text>
             <Ionicons name={showBridge ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.light.textSecondary} />
           </TouchableOpacity>
           {showBridge && (

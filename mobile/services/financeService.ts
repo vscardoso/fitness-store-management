@@ -333,7 +333,7 @@ export interface Reconciliation {
   refunds?: number; payables_paid?: number; expenses_paid?: number; purchases_paid?: number; other_out?: number; left?: number; cash_net?: number;
   should_have?: number; have?: number; difference?: number;
   adjustments?: ReconciliationAdjustment[]; adjustments_total?: number; pending_approvals?: number;
-  /** A ponte: vendido menos gasto (o que sobraria) até o que as contas mostram, com cada motivo da diferença. */
+  /** Para onde foi o dinheiro: vendido menos gasto (o que sobraria) até o que as contas mostram, com cada motivo da diferença. */
   bridge?: ReconciliationBridge;
 }
 export interface ReconciliationBridge {
