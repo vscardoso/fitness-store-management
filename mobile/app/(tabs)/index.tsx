@@ -890,8 +890,8 @@ export default function DashboardScreen() {
                 <Text style={styles.catFilterHint}>
                   {excludedCats.length ? 'Fora da conta (clique para voltar):' : 'Clique numa categoria para tirar da conta:'}
                 </Text>
-                {/* no navegador não há como arrastar uma fileira: as categorias quebram em linhas e todas ficam à vista */}
-                <ScrollView horizontal={Platform.OS !== 'web'} showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.catFilterRow, Platform.OS === 'web' && { flexDirection: 'row', flexWrap: 'wrap' }]}>
+                {/* UMA fileira só, que rola para o lado (no celular com o dedo; no computador com a barra fina ou Shift + roda do mouse) */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} contentContainerStyle={styles.catFilterRow}>
                   {stockCats.map((c) => {
                     const off = excludedCats.includes(c.category_id);
                     return (
