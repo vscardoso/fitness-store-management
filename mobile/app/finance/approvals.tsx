@@ -22,7 +22,7 @@ import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { formatDateTime } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import {
-  approveApproval, cancelApproval, getApprovals, rejectApproval, type FinanceApproval,
+  approveApproval, cancelApproval, getApprovals, rejectApproval, setApprovers, type FinanceApproval,
 } from '@/services/bankApproval';
 
 const STATUS: Record<FinanceApproval['status'], { label: string; variant: 'warning' | 'success' | 'error' | 'info' }> = {
@@ -104,6 +104,11 @@ export default function ApprovalsScreen() {
     onSuccess: async () => { setRejecting(null); await refresh(); },
     onError: (e) => setRejectError(parseApiError(e) || 'Não foi possível recusar.'),
   });
+  const changeApprovers = useMutation({
+    mutationFn: (ids: number[]) => setApprovers(ids),
+    onSuccess: refresh,
+    onError: (e) => showApiError(e, 'Não foi possível mudar quem aprova'),
+  });
   const cancel = useMutation({
     mutationFn: (id: number) => cancelApproval(id),
     onSuccess: refresh,
@@ -123,6 +128,25 @@ export default function ApprovalsScreen() {
         <Text style={styles.intro}>
           O saldo de um banco não muda sozinho. Quem pede uma correção escreve o motivo, e a mudança só vale depois que todos os administradores aprovarem. Qualquer um pode recusar.
         </Text>
+        {(data?.approvers ?? []).length > 0 && (
+          <AppCard style={styles.card}>
+            <Text style={styles.title}>Quem aprova</Text>
+            <Text style={styles.reason}>
+              Os administradores marcados como “aprova” precisam votar. Quem só acompanha vê tudo, mas não vota.
+            </Text>
+            {(data?.approvers ?? []).map((a) => {
+              const approvers = (data?.approvers ?? []).filter((x) => x.approver).map((x) => x.user_id);
+              const next = a.approver ? approvers.filter((id) => id !== a.user_id) : [...approvers, a.user_id];
+              return (
+                <View key={a.user_id} style={styles.head}>
+                  <Text style={styles.summary}>{`${a.name}: ${a.approver ? 'aprova' : 'só acompanha'}`}</Text>
+                  <AppButton variant="outlined" size="sm" label={a.approver ? 'Só acompanhar' : 'Passar a aprovar'}
+                    disabled={changeApprovers.isPending || (a.approver && approvers.length <= 1)} onPress={() => changeApprovers.mutate(next)} />
+                </View>
+              );
+            })}
+          </AppCard>
+        )}
         {!!error && !data && <EmptyState type="error" title="Não foi possível abrir os pedidos" description={parseApiError(error)} actionLabel="Tentar de novo" onAction={() => refetch()} />}
         {!error && items.length === 0 && (
           <EmptyState icon="shield-checkmark-outline" title="Nenhum pedido"

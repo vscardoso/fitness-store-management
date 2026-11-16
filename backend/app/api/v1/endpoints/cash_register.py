@@ -16,6 +16,8 @@ router = APIRouter(prefix="/cash", tags=["Caixa"])
 class OpenBody(BaseModel):
     opening_amount: float = Field(..., ge=0, le=1_000_000, description="Dinheiro que já está na gaveta ao abrir")
     note: Optional[str] = Field(None, max_length=500)
+    reason: Optional[str] = Field(None, max_length=500, description="Motivo da diferença entre o contado e o que o sistema espera")
+    align_drawer: bool = Field(False, description="true = a gaveta do Financeiro passa a ser o valor contado (o app manda true)")
 
 
 class MovementBody(BaseModel):
@@ -29,6 +31,8 @@ class MovementBody(BaseModel):
 class CloseBody(BaseModel):
     counted_amount: float = Field(..., ge=0, le=1_000_000, description="Dinheiro contado na gaveta")
     note: Optional[str] = Field(None, max_length=500)
+    reason: Optional[str] = Field(None, max_length=500, description="Motivo da diferença entre o contado e o que o sistema espera")
+    align_drawer: bool = Field(False, description="true = a gaveta do Financeiro passa a ser o valor contado (o app manda true)")
 
 
 def _raise(exc: CashError):
@@ -56,7 +60,8 @@ async def open_cash(
     current_user: User = Depends(get_current_active_user),
 ):
     try:
-        return await CashRegisterService(db).open(tenant_id, current_user, body.opening_amount, body.note)
+        return await CashRegisterService(db).open(tenant_id, current_user, body.opening_amount, body.note,
+                                                  reason=body.reason, align_drawer=body.align_drawer)
     except CashError as exc:
         _raise(exc)
 
@@ -78,7 +83,8 @@ async def close_cash(
     current_user: User = Depends(get_current_active_user),
 ):
     try:
-        return await CashRegisterService(db).close(tenant_id, current_user, body.counted_amount, body.note)
+        return await CashRegisterService(db).close(tenant_id, current_user, body.counted_amount, body.note,
+                                                   reason=body.reason, align_drawer=body.align_drawer)
     except CashError as exc:
         _raise(exc)
 

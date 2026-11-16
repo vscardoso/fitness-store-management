@@ -23,8 +23,8 @@ from app.models.cash_register import KIND_SUPPLY, KIND_WITHDRAWAL, CashMovement
 from app.models.expense import Expense
 from app.models.finance import (
     ACCOUNT_KINDS, ENTRY_CLOSING_ADJUSTMENT, ENTRY_IN_KINDS, ENTRY_KIND_LABELS, ENTRY_OUT_KINDS, KIND_BANK, KIND_CARD,
-    KIND_CASH, PAYABLE_CANCELED, PAYABLE_OPEN, PAYABLE_PAID, AccountEntry, AccountTransfer, FinancialAccount, MonthClosing,
-    Payable,
+    KIND_CASH, PAYABLE_CANCELED, PAYABLE_OPEN, PAYABLE_PAID, AccountEntry, AccountTransfer, FinanceApproval, FinancialAccount,
+    MonthClosing, Payable,
 )
 from app.models.sale import Payment, PaymentMethod, Sale
 from app.models.sale_return import SaleReturn
@@ -724,6 +724,78 @@ class FinanceService:
                 "period": {"start": s.isoformat(), "end": e.isoformat(), "opening": float(_q(opening)), "entrou": float(_q(entrou)),
                            "saiu": float(_q(saiu)), "closing": float(_q(closing)), "days_with_movement": len(ordered),
                            "before_start": False}}
+
+    async def reconciliation(self, tenant_id: int, year: Optional[int] = None, month: Optional[int] = None) -> Dict[str, Any]:
+        """A conta do mês fecha? Começou com X, entrou Y (vendas, fiado recebido), saiu Z (despesas, compras, contas pagas,
+        devoluções), então DEVERIA ter W. O que as contas mostram menos W é o que foi corrigido à mão ("Corrigir saldo",
+        contagem do caixa, ajuste do fechamento): aparece como "a conta não fecha", com cada correção, quem fez e o motivo.
+        Transferência entre contas não entra (sai de uma e entra na outra)."""
+        store = await self._store(tenant_id)
+        if store.finance_start_date is None:
+            return {"started": False}
+        today = today_brazil()
+        year, month = int(year or today.year), int(month or today.month)
+        first = date(year, month, 1)
+        nxt = date(year + (month == 12), (month % 12) + 1, 1)
+        start = max(first, store.finance_start_date)
+        end_excl = min(nxt, today + timedelta(days=1))
+        if start >= end_excl:
+            return {"started": True, "year": year, "month": month, "status": "empty", "message": "Este mês é de antes do começo da contagem do dinheiro."}
+        accounts = await self._accounts(tenant_id)
+        opening_map = await self.balances_at(tenant_id, start)
+        closing_map = await self.balances_at(tenant_id, end_excl)
+        opening = sum((_q(opening_map.get(a.id, 0)) for a in accounts), D0)
+        closing = sum((_q(closing_map.get(a.id, 0)) for a in accounts), D0)
+        f = await self.flows(tenant_id, start, end_excl)
+
+        def total(key: str) -> Decimal:
+            return sum((f["by_account"][a.id][key] for a in accounts), D0)
+
+        adj_rows = (await self.db.execute(select(AccountEntry).where(
+            AccountEntry.tenant_id == tenant_id, AccountEntry.is_active == True,  # noqa: E712
+            AccountEntry.occurred_on >= start, AccountEntry.occurred_on < end_excl,
+            or_(AccountEntry.description.like("Ajuste de saldo:%"), AccountEntry.kind == ENTRY_CLOSING_ADJUSTMENT),
+        ).order_by(AccountEntry.id))).scalars().all()
+        names = {a.id: a.name for a in accounts}
+
+        def signed(e: AccountEntry) -> Decimal:
+            if e.kind == ENTRY_CLOSING_ADJUSTMENT:
+                return _q(e.amount)
+            return _q(e.amount) if e.kind in ENTRY_IN_KINDS else -_q(e.amount)
+        adjustments = [{"id": e.id, "date": e.occurred_on.isoformat(), "account": names.get(e.account_id, "?"), "amount": float(signed(e)),
+                        "reason": (e.description or "Ajuste do fechamento do mês").replace("Ajuste de saldo: ", ""), "by": e.created_by_name}
+                       for e in adj_rows]
+        adj_total = sum((signed(e) for e in adj_rows), D0)
+        adj_in = sum((_q(e.amount) for e in adj_rows if e.kind in ENTRY_IN_KINDS), D0)
+        adj_out = sum((_q(e.amount) for e in adj_rows if e.kind in ENTRY_OUT_KINDS), D0)
+        adj_closing = sum((_q(e.amount) for e in adj_rows if e.kind == ENTRY_CLOSING_ADJUSTMENT), D0)
+
+        sold, fiado = total("sales"), total("receivables_received")
+        other_in = total("other_in") - adj_in
+        refunds, payables, expenses, purchases = total("refunds"), total("payables_paid"), total("expenses_paid"), total("purchases_paid")
+        other_out = total("other_out") - adj_out
+        cash_net = total("cash_register")
+        entered = sold + fiado + other_in
+        left = refunds + payables + expenses + purchases + other_out
+        should_have = opening + entered - left + cash_net
+        diff = _q(closing - should_have)
+        pend = (await self.db.execute(select(func.count()).select_from(FinanceApproval).where(
+            FinanceApproval.tenant_id == tenant_id, FinanceApproval.status == "pending", FinanceApproval.expires_at > func.now()))).scalar() or 0
+        f2 = lambda v: float(_q(v))  # noqa: E731
+        ok = diff == 0
+        brl = lambda v: "R$ " + self._brl(v)  # noqa: E731
+        message = (f"A conta fecha: o que as contas mostram é o que as vendas e os gastos do mês dizem que deveria ter ({brl(closing)})." if ok else
+                   f"A conta não fecha: pelas vendas e gastos do mês deveria ter {brl(should_have)}, as contas mostram {brl(closing)}. "
+                   f"A diferença de {brl(abs(diff))} foi corrigida à mão ({len(adjustments)} correç{'ão' if len(adjustments) == 1 else 'ões'}).")
+        return {
+            "started": True, "year": year, "month": month, "start": start.isoformat(), "end": (end_excl - timedelta(days=1)).isoformat(),
+            "opening": f2(opening), "sales": f2(sold), "fiado_received": f2(fiado), "other_in": f2(other_in), "entered": f2(entered),
+            "refunds": f2(refunds), "payables_paid": f2(payables), "expenses_paid": f2(expenses), "purchases_paid": f2(purchases),
+            "other_out": f2(other_out), "left": f2(left), "cash_net": f2(cash_net),
+            "should_have": f2(should_have), "have": f2(closing), "difference": float(diff),
+            "adjustments": adjustments, "adjustments_total": f2(adj_total), "closing_adjustments": f2(adj_closing),
+            "pending_approvals": int(pend), "status": "ok" if ok else "adjusted", "message": message,
+        }
 
     async def projection(self, tenant_id: int, balances: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """"E se eu receber todo o fiado?": dinheiro de hoje nas contas + fiado a receber - despesas e contas a pagar em aberto.

@@ -33,15 +33,15 @@ TABELA = [
     ("GET", "/receivables", C), ("GET", "/receivables/summary", C), ("GET", f"/receivables/{X}/payments", C),
     ("POST", "/receivables/receive", C), ("POST", "/receivables/opening", M), ("POST", f"/receivables/{X}/cancel", M),
     ("DELETE", f"/receivables/payments/{X}", M),
-    # financeiro
-    ("GET", "/finance/accounts", M), ("GET", "/finance/card-schedule", M), ("POST", "/finance/card-settlement", M),
+    # financeiro (só administrador)
+    ("GET", "/finance/accounts", A), ("GET", "/finance/card-schedule", A), ("POST", "/finance/card-settlement", A),
     ("POST", "/finance/setup", A), ("POST", "/finance/accounts", A), ("PUT", f"/finance/accounts/{X}/pix", A),
-    ("GET", "/finance/transfers", M), ("POST", "/finance/transfers", M), ("DELETE", f"/finance/transfers/{X}", M),
-    ("GET", "/finance/payables", M), ("POST", "/finance/payables", M), ("POST", f"/finance/payables/{X}/pay", M),
-    ("POST", f"/finance/payables/{X}/unpay", M), ("POST", f"/finance/payables/{X}/cancel", M),
-    ("GET", "/finance/entries", M), ("POST", "/finance/entries", M), ("DELETE", f"/finance/entries/{X}", M),
-    ("GET", "/finance/loans", M), ("GET", "/finance/closings", M), ("GET", "/finance/closings/2026/1", M),
-    ("POST", "/finance/closings/2026/1", M), ("POST", "/finance/closings/2026/1/reopen", A),
+    ("GET", "/finance/transfers", A), ("POST", "/finance/transfers", A), ("DELETE", f"/finance/transfers/{X}", A),
+    ("GET", "/finance/payables", A), ("POST", "/finance/payables", A), ("POST", f"/finance/payables/{X}/pay", A),
+    ("POST", f"/finance/payables/{X}/unpay", A), ("POST", f"/finance/payables/{X}/cancel", A),
+    ("GET", "/finance/entries", A), ("POST", "/finance/entries", A), ("DELETE", f"/finance/entries/{X}", A),
+    ("GET", "/finance/loans", A), ("GET", "/finance/closings", A), ("GET", "/finance/closings/2026/1", A),
+    ("POST", "/finance/closings/2026/1", A), ("POST", "/finance/closings/2026/1/reopen", A),
     # despesas
     ("GET", "/expenses", M), ("POST", "/expenses", M), ("GET", f"/expenses/{X}", M), ("PUT", f"/expenses/{X}", M),
     ("DELETE", f"/expenses/{X}", A), ("GET", "/expenses/categories", M), ("POST", "/expenses/categories", M),

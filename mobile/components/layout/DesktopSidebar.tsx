@@ -110,7 +110,7 @@ export default function DesktopSidebar() {
         ],
       });
     }
-    if (!manager) {
+    if (!admin) {
       g.push({ key: 'dinheiro', title: 'Dinheiro', items: [
         { label: 'Caixa da gaveta', icon: 'cash-outline' as Icon, href: '/cash', match: ['/cash'] },
         { label: 'Fiado', icon: 'book-outline' as Icon, href: '/finance/receivables', match: ['/finance/receivables'] },
@@ -118,11 +118,11 @@ export default function DesktopSidebar() {
     }
     if (manager) {
       g.push(
-        {
+        ...(admin ? [{
           key: 'dinheiro', title: 'Dinheiro', items: [
-            { label: 'Financeiro', icon: 'wallet-outline', href: '/finance', match: ['/finance', '/cash', '/expenses', '/stock-losses', '/reports/monthly'] },
+            { label: 'Financeiro', icon: 'wallet-outline' as Icon, href: '/finance', match: ['/finance', '/cash', '/expenses', '/stock-losses', '/reports/monthly'] },
           ],
-        },
+        }] : []),
         {
           key: 'relatorios', title: 'Relatórios', collapsed: true, items: [
             { label: 'Vendas', icon: 'bar-chart-outline', href: '/reports/sales', match: ['/reports/sales'] },

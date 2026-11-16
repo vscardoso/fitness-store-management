@@ -1,7 +1,7 @@
 """
 Modelo de usuário com autenticação e permissões.
 """
-from sqlalchemy import String, Enum as SQLEnum, Integer, ForeignKey
+from sqlalchemy import Boolean, String, Enum as SQLEnum, Integer, ForeignKey, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
@@ -37,6 +37,8 @@ class User(BaseModel):
         nullable=False,
         comment="User email address (unique)"
     )
+    # Administrador que vota nos pedidos de mudança de saldo (Financeiro). Falso = acompanha tudo, mas não aprova.
+    finance_approver: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
     
     hashed_password: Mapped[str] = mapped_column(
         String(255), 

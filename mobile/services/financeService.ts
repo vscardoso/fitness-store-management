@@ -324,6 +324,20 @@ export const updateEntry = async (
     {} as AccountEntry,
   );
 
+// ── A conta do mês fecha? ───────────────────────────────────────────────────────────────────────────────────────
+export interface ReconciliationAdjustment { id: number; date: string; account: string; amount: number; reason: string; by: string | null }
+export interface Reconciliation {
+  started: boolean; year?: number; month?: number; start?: string; end?: string;
+  status?: 'ok' | 'adjusted' | 'empty'; message?: string;
+  opening?: number; sales?: number; fiado_received?: number; other_in?: number; entered?: number;
+  refunds?: number; payables_paid?: number; expenses_paid?: number; purchases_paid?: number; other_out?: number; left?: number; cash_net?: number;
+  should_have?: number; have?: number; difference?: number;
+  adjustments?: ReconciliationAdjustment[]; adjustments_total?: number; pending_approvals?: number;
+}
+/** Começou + entrou - saiu = deveria ter, contra o que as contas mostram. A diferença é o que foi corrigido à mão. */
+export const getReconciliation = async (year?: number, month?: number): Promise<Reconciliation> =>
+  (await api.get<Reconciliation>('/finance/reconciliation', { params: { year, month }, headers: { 'X-Skip-Loading': 'true' } })).data;
+
 // ── Extrato passo a passo (dia a dia, com o saldo no começo e no fim) ────────────────────────────────────────────────
 export interface StatementItem { label: string; amount: number; ref: string | null }
 export interface StatementLine { kind: string; label: string; amount: number; count: number | null; items: StatementItem[] }

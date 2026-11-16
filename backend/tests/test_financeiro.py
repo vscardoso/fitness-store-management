@@ -153,8 +153,8 @@ async def test_papeis_e_conta_de_outra_loja(test_client, async_session, test_use
     assert (await test_client.get(f"{API}/accounts", headers=vendedor)).status_code == 403
     assert (await _implantar(test_client, gerente)).status_code == 403          # implantar: só admin
     assert (await _implantar(test_client, h)).status_code == 200
-    assert (await test_client.get(f"{API}/payables", headers=gerente)).status_code == 200
-    r = await test_client.post(f"{API}/payables", headers=gerente, json={"description": "Frete", "amount": 40, "due_date": "2026-12-01"})
+    assert (await test_client.get(f"{API}/payables", headers=gerente)).status_code == 403        # Financeiro: só administrador
+    r = await test_client.post(f"{API}/payables", headers=h, json={"description": "Frete", "amount": 40, "due_date": "2026-12-01"})
     assert r.status_code == 200
     # despesa com conta inexistente ou de outra loja é recusada
     r = await test_client.post("/api/v1/expenses", headers=h, json={

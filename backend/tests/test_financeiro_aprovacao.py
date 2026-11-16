@@ -22,6 +22,24 @@ API = "/api/v1/finance"
 MOTIVO = "Conferi o extrato do banco e o valor lançado estava errado"
 
 
+@pytest.fixture(autouse=True)
+async def _sem_admins_extras(async_session, test_user):
+    """Os administradores extras criados aqui ficam inativos depois: a loja 1 é reaproveitada e os outros testes a tratam
+    como de um administrador só (sem outro para aprovar)."""
+    tenant, uid = test_user.tenant_id, test_user.id        # lidos agora: depois do rollback o objeto expira
+
+    async def _reset(rollback=True):
+        if rollback:
+            await async_session.rollback()
+        await async_session.execute(update(User).where(User.tenant_id == tenant, User.role == UserRole.ADMIN).values(finance_approver=True))
+        await async_session.execute(update(User).where(User.tenant_id == tenant, User.role == UserRole.ADMIN,
+                                                       User.id != uid).values(is_active=False))
+        await async_session.commit()
+    await _reset(rollback=False)          # no começo sem rollback: o usuário do teste não pode expirar
+    yield
+    await _reset()
+
+
 async def _loja(client, db, user):
     """Loja 1 com o financeiro implantado e pelo menos 3 administradores (quem pede e dois que votam)."""
     t_id, h, p, va, vb = await _cenario(db, user)
@@ -80,8 +98,8 @@ async def test_corrigir_saldo_de_banco_vira_pedido_e_so_vale_com_todos(test_clie
     assert r2.status_code in (400, 409), r2.text
 
     # a gaveta continua com a correção direta de antes
-    r = await test_client.post(f"{API}/accounts/{ids['Gaveta']}/adjust", headers=h, json={"target_balance": "900.00", "reason": "Contagem do dinheiro"})
-    assert r.status_code == 200 and _conta(r.json(), "Gaveta")["balance"] == 900.0
+    r = await test_client.post(f"{API}/accounts/{ids['Gaveta']}/adjust", headers=h, json={"target_balance": "995.00", "reason": "Contagem do dinheiro"})
+    assert r.status_code == 200 and _conta(r.json(), "Gaveta")["balance"] == 995.0
 
     # os outros aprovam um por um: só no último o saldo muda
     outros = [uid for uid in heads if uid != ap["requested_by_id"]]
@@ -150,22 +168,47 @@ async def test_pedido_vence_em_7_dias(test_client, async_session, test_user):
     assert next(i for i in lista["items"] if i["id"] == ap["id"])["status"] == "expired" and lista["pending"] == 0
 
 
-async def test_gerente_pede_mas_nao_vota_e_precisa_de_todos_os_administradores(test_client, async_session, test_user):
+async def test_financeiro_so_para_administrador(test_client, async_session, test_user):
+    """Decisão do dono: o Financeiro inteiro (saldos, extrato, transferências, pedidos) é só de administrador."""
     t_id, h, p, va, ids, heads, admins = await _loja(test_client, async_session, test_user)
     gerente = await _user(async_session, t_id, UserRole.MANAGER)
-    r = await test_client.post(f"{API}/accounts/{ids['Nubank']}/adjust", headers=gerente, json={"target_balance": "5", "reason": MOTIVO})
-    assert r.status_code == 403                                             # corrigir saldo é só de administrador
-    # transferência para o banco: gerente lança; apagar depois já é pedido
-    r = await test_client.post(f"{API}/transfers", headers=gerente, json={"from_account_id": ids["Gaveta"], "to_account_id": ids["Nubank"], "amount": "100"})
-    assert r.status_code == 200, r.text
-    tid = (await test_client.get(f"{API}/transfers", headers=gerente)).json()[0]["id"]
-    r = await test_client.delete(f"{API}/transfers/{tid}", headers=gerente, params={"reason": MOTIVO})
-    assert r.status_code == 202
+    vendedora = await _user(async_session, t_id, UserRole.SELLER)
+    for quem in (gerente, vendedora):
+        for rota in ("accounts", "statement", "transfers", "payables", "entries", "approvals", "closings", "loans"):
+            assert (await test_client.get(f"{API}/{rota}", headers=quem)).status_code == 403, rota
+        assert (await test_client.post(f"{API}/transfers", headers=quem, json={"from_account_id": ids["Gaveta"], "to_account_id": ids["Nubank"], "amount": "10"})).status_code == 403
+    assert (await test_client.get(f"{API}/accounts", headers=h)).status_code == 200
+
+
+async def test_so_quem_aprova_vota_e_o_dono_pode_so_acompanhar(test_client, async_session, test_user):
+    t_id, h, p, va, ids, heads, admins = await _loja(test_client, async_session, test_user)
+    dono = test_user.id
+    aprovam = [uid for uid in heads if uid != dono]
+    assert len(aprovam) == 2
+    # só administrador escolhe quem aprova; pelo menos um
+    gerente = await _user(async_session, t_id, UserRole.MANAGER)
+    assert (await test_client.put(f"{API}/approvers", headers=gerente, json={"user_ids": aprovam})).status_code == 403
+    assert (await test_client.put(f"{API}/approvers", headers=h, json={"user_ids": []})).status_code == 400
+    r = await test_client.put(f"{API}/approvers", headers=h, json={"user_ids": aprovam})
+    assert r.status_code == 200
+    assert {a["user_id"]: a["approver"] for a in r.json()}[dono] is False
+
+    antes = (await _saldos(test_client, h))["Nubank"]
+    r = await test_client.post(f"{API}/accounts/{ids['Nubank']}/adjust", headers=h, json={"target_balance": str(antes + 100), "reason": MOTIVO})
     ap = r.json()["approval"]
-    assert ap["approved_count"] == 0 and len(ap["waiting_for"]) == len(admins)           # gerente não conta como voto
-    assert (await test_client.post(f"{API}/approvals/{ap['id']}/approve", headers=gerente, json={})).status_code == 403
-    await _aprovar_todos(test_client, heads, ap["id"])
-    assert (await test_client.get(f"{API}/transfers", headers=h)).json() == []
+    assert r.status_code == 202 and ap["approved_count"] == 0                       # o dono pediu, mas não vota
+    assert sorted(w["user_id"] for w in ap["waiting_for"]) == sorted(aprovam) and ap["can_vote"] is False
+    r = await test_client.post(f"{API}/approvals/{ap['id']}/approve", headers=h, json={})
+    assert r.status_code == 400 and "acompanha" in r.json()["detail"]                 # ele acompanha, não aprova
+    # com pedido esperando não dá para trocar quem aprova
+    assert (await test_client.put(f"{API}/approvers", headers=h, json={"user_ids": aprovam[:1]})).status_code == 409
+    r = await test_client.post(f"{API}/approvals/{ap['id']}/approve", headers=heads[aprovam[0]], json={})
+    assert r.json()["status"] == "pending"
+    r = await test_client.post(f"{API}/approvals/{ap['id']}/approve", headers=heads[aprovam[1]], json={})
+    assert r.json()["status"] == "approved" and (await _saldos(test_client, h))["Nubank"] == antes + 100.0
+    # o dono vê o pedido na lista
+    lista = (await test_client.get(f"{API}/approvals", headers=h)).json()
+    assert any(i["id"] == ap["id"] for i in lista["items"]) and lista["waiting_for_me"] == 0
 
 
 async def test_transferencia_lancamento_e_conta_paga_de_banco_passam_pelo_pedido(test_client, async_session, test_user):
@@ -291,3 +334,67 @@ async def test_despesa_paga_pelo_banco_so_muda_com_aprovacao(test_client, async_
     assert (await _saldos(test_client, h))["Nubank"] == saldo + 40.0
     # despesa da gaveta: continua direta
     assert (await test_client.delete(f"/api/v1/expenses/{gid}", headers=h)).status_code == 204
+
+
+async def test_gaveta_ate_10_reais_so_pede_motivo_e_acima_precisa_de_outro_administrador(test_client, async_session, test_user):
+    t_id, h, p, va, ids, heads, admins = await _loja(test_client, async_session, test_user)
+    g = ids["Gaveta"]
+    # quebra pequena: direto (motivo de 5 letras)
+    r = await test_client.post(f"{API}/accounts/{g}/adjust", headers=h, json={"target_balance": "992.00", "reason": "Ok"})
+    assert r.status_code == 400
+    r = await test_client.post(f"{API}/accounts/{g}/adjust", headers=h, json={"target_balance": "992.00", "reason": "Contagem do dinheiro"})
+    assert r.status_code == 200 and _conta(r.json(), "Gaveta")["balance"] == 992.0
+    # acima de R$ 10: motivo de 20 letras e pedido; só OUTRO administrador precisa aprovar (não todos)
+    r = await test_client.post(f"{API}/accounts/{g}/adjust", headers=h, json={"target_balance": "900.00", "reason": "Contei a gaveta"})
+    assert r.status_code == 400 and "gaveta" in r.json()["detail"] and "20 letras" in r.json()["detail"]
+    r = await test_client.post(f"{API}/accounts/{g}/adjust", headers=h, json={"target_balance": "900.00", "reason": MOTIVO})
+    assert r.status_code == 202, r.text
+    ap = r.json()["approval"]
+    assert ap["rule"] == "one_other" and "gaveta" in ap["summary"].lower() and (await _saldos(test_client, h))["Gaveta"] == 992.0
+    outro = next(uid for uid in heads if uid != ap["requested_by_id"])
+    r = await test_client.post(f"{API}/approvals/{ap['id']}/approve", headers=heads[outro], json={})
+    assert r.status_code == 200 and r.json()["status"] == "approved", r.text           # um outro administrador basta
+    assert (await _saldos(test_client, h))["Gaveta"] == 900.0
+    # quem pediu sozinho não aprova o próprio pedido: os votos dele não bastam
+    r = await test_client.post(f"{API}/accounts/{g}/adjust", headers=h, json={"target_balance": "700.00", "reason": MOTIVO})
+    ap2 = r.json()["approval"]
+    assert ap2["status"] == "pending" and ap2["approved_count"] == 1
+    assert (await test_client.post(f"{API}/approvals/{ap2['id']}/approve", headers=h, json={})).status_code == 409
+
+
+async def test_caixa_abre_e_fecha_conferindo_a_gaveta_do_financeiro(test_client, async_session, test_user):
+    t_id, h, p, va, ids, heads, admins = await _loja(test_client, async_session, test_user)     # gaveta = 1000
+    cur = (await test_client.get("/api/v1/cash/current", headers=h)).json()
+    assert cur["drawer"] == {"started": True, "account_id": ids["Gaveta"], "expected": 1000.0}
+
+    # sem a opção do app (align_drawer), o caixa abre como sempre e o Financeiro não muda
+    r = await test_client.post("/api/v1/cash/open", headers=h, json={"opening_amount": 250})
+    assert r.status_code == 201 and "drawer_alignment" not in r.json()
+    assert (await test_client.post("/api/v1/cash/close", headers=h, json={"counted_amount": 250})).status_code == 200
+    assert (await _saldos(test_client, h))["Gaveta"] == 1000.0
+
+    # contou diferente sem motivo: nada é criado
+    r = await test_client.post("/api/v1/cash/open", headers=h, json={"opening_amount": 995, "align_drawer": True})
+    assert r.status_code == 400 and "motivo" in r.json()["detail"]
+    assert (await test_client.get("/api/v1/cash/current", headers=h)).json()["open"] is False
+    # diferença pequena: abre e a gaveta do Financeiro passa a ser o contado
+    r = await test_client.post("/api/v1/cash/open", headers=h, json={"opening_amount": 995, "align_drawer": True, "reason": "Troco entregue ontem"})
+    assert r.status_code == 201, r.text
+    al = r.json()["drawer_alignment"]
+    assert al["applied"] is True and al["difference"] == -5.0 and al["approval"] is None
+    assert (await _saldos(test_client, h))["Gaveta"] == 995.0
+    # fechar com o valor igual ao que o sistema espera: sem motivo e sem ajuste
+    r = await test_client.post("/api/v1/cash/close", headers=h, json={"counted_amount": 995, "align_drawer": True})
+    assert r.status_code == 200 and r.json()["drawer_alignment"]["difference"] == 0.0 and r.json()["drawer_alignment"]["applied"] is False
+
+    # diferença grande: o caixa abre com o contado, o acerto da gaveta vira pedido para outro administrador
+    r = await test_client.post("/api/v1/cash/open", headers=h, json={"opening_amount": 900, "align_drawer": True, "reason": "curto"})
+    assert r.status_code == 400 and "20 letras" in r.json()["detail"]
+    r = await test_client.post("/api/v1/cash/open", headers=h, json={"opening_amount": 900, "align_drawer": True, "reason": MOTIVO})
+    assert r.status_code == 201, r.text
+    al = r.json()["drawer_alignment"]
+    assert al["applied"] is False and al["approval"]["status"] == "pending" and al["approval"]["rule"] == "one_other"
+    assert (await _saldos(test_client, h))["Gaveta"] == 995.0               # o Financeiro espera a aprovação
+    outro = next(uid for uid in heads if uid != al["approval"]["requested_by_id"])
+    assert (await test_client.post(f"{API}/approvals/{al['approval']['id']}/approve", headers=heads[outro], json={})).status_code == 200
+    assert (await _saldos(test_client, h))["Gaveta"] == 900.0

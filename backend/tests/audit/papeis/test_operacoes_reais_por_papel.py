@@ -168,8 +168,11 @@ async def test_despesas_e_financeiro_por_papel(m):
     contas = {a["name"]: a["id"] for a in (await c.get(f"{API}/finance/accounts", headers=h["admin"])).json()["accounts"]}
     assert (await c.put(f"{API}/finance/accounts/{contas['Banco X']}/pix", headers=h["manager"])).status_code == 403
     assert (await c.post(f"{API}/finance/accounts", headers=h["manager"], json={"name": "Outro", "balance": "1"})).status_code == 403
-    # gerente faz o dia a dia: transferir, lançar retirada, conta a pagar
+    # o Financeiro inteiro é só do administrador (decisão do dono): gerente nem lê nem lança
+    assert (await c.get(f"{API}/finance/accounts", headers=h["manager"])).status_code == 403
     assert (await c.post(f"{API}/finance/transfers", headers=h["manager"], json={
+        "from_account_id": contas["Gaveta"], "to_account_id": contas["Banco X"], "amount": "5"})).status_code == 403
+    assert (await c.post(f"{API}/finance/transfers", headers=h["admin"], json={
         "from_account_id": contas["Gaveta"], "to_account_id": contas["Banco X"], "amount": "5"})).status_code == 200
 
 

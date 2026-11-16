@@ -125,7 +125,8 @@ async def test_papel_trocado_vale_na_proxima_requisicao(test_client, async_sessi
     """Gerente rebaixado a caixa perde as rotas de gerente com o MESMO token; vendedor promovido ganha."""
     t_id, h = loja
     u, hu = await novo_usuario(async_session, t_id, "manager")
-    assert (await test_client.get(f"{API}/finance/accounts", headers=hu)).status_code != 403
+    assert (await test_client.get(f"{API}/expenses", headers=hu)).status_code != 403
+    assert (await test_client.get(f"{API}/finance/accounts", headers=hu)).status_code == 403      # Financeiro: só administrador
     r = await test_client.patch(f"{API}/team/{u.id}/role", headers=h["admin"], json={"role": "cashier"})
     assert r.status_code == 200, r.text
     assert (await test_client.get(f"{API}/finance/accounts", headers=hu)).status_code == 403

@@ -102,7 +102,7 @@ async def test_retirada_emprestimo_e_fatura_mexem_na_conta_e_nao_sao_despesa(tes
     d = (await test_client.get(f"{API}/accounts", headers=h)).json()
     assert _conta(d, "Nubank")["balance"] == 1000.0 - 400 + 1000 - 300
 
-    # papéis: vendedor e caixa não veem nem lançam; gerente sim
+    # papéis: vendedor, caixa e gerente não veem nem lançam (o Financeiro é só do administrador)
     vendedor, caixa, gerente = (await _token(async_session, t_id, UserRole.SELLER),
                                 await _token(async_session, t_id, UserRole.CASHIER),
                                 await _token(async_session, t_id, UserRole.MANAGER))
@@ -113,7 +113,7 @@ async def test_retirada_emprestimo_e_fatura_mexem_na_conta_e_nao_sao_despesa(tes
         assert (await test_client.get(f"{API}/loans", headers=hh)).status_code == 403
         assert (await test_client.get(f"{API}/closings", headers=hh)).status_code == 403
     assert (await test_client.post(f"{API}/entries", headers=gerente, json={"kind": "owner_withdrawal", "account_id": nu,
-                                                                          "amount": 1, "person": "X"})).status_code == 200
+                                                                          "amount": 1, "person": "X"})).status_code == 403
 
 
 async def _venda_em(client, db, h, p, v, dia: date, valor="100.00"):
@@ -219,7 +219,7 @@ async def test_fechamento_do_mes_confere_fecha_ajusta_e_reabre(test_client, asyn
 
     # reabrir: só admin; desfaz os ajustes
     gerente = await _token(async_session, t_id, UserRole.MANAGER)
-    assert (await test_client.get(f"{API}/closings/{Y}/{M}", headers=gerente)).status_code == 200
+    assert (await test_client.get(f"{API}/closings/{Y}/{M}", headers=gerente)).status_code == 403
     assert (await test_client.post(f"{API}/closings/{Y}/{M}/reopen", headers=gerente)).status_code == 403
     r = await test_client.post(f"{API}/closings/{Y}/{M}/reopen", headers=h)
     assert r.status_code == 200 and r.json()["closed"] is None and r.json()["expected_total"] == 1420.0
@@ -228,7 +228,7 @@ async def test_fechamento_do_mes_confere_fecha_ajusta_e_reabre(test_client, asyn
     assert (await test_client.post(f"{API}/closings/{Y}/{M}/reopen", headers=h)).status_code == 404
     # sem quebra: fecha sem observação e não grava ajuste
     contado[str(gaveta)] = "270"
-    r = await test_client.post(f"{API}/closings/{Y}/{M}", headers=gerente, json={"counted": contado})
+    r = await test_client.post(f"{API}/closings/{Y}/{M}", headers=h, json={"counted": contado})
     assert r.status_code == 200 and r.json()["closed"]["difference"] == 0.0
     assert not [x for x in (await test_client.get(f"{API}/entries", headers=h)).json() if x["kind"] == "closing_adjustment"]
 

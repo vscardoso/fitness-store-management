@@ -20,6 +20,7 @@ import FiadoProjectionCard from '@/components/finance/FiadoProjectionCard';
 import CardScheduleCard from '@/components/finance/CardScheduleCard';
 import PendingPurchasesCard from '@/components/finance/PendingPurchasesCard';
 import PurchasePaymentResultCard from '@/components/finance/PurchasePaymentResultCard';
+import ReconciliationCard from '@/components/finance/ReconciliationCard';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
@@ -261,6 +262,7 @@ export default function FinanceHomeScreen() {
           <View style={styles.columns}>
             <View style={styles.col}>
               {money}
+              <ReconciliationCard />
               <PurchasePaymentResultCard />
               {todos}
             </View>
@@ -269,6 +271,7 @@ export default function FinanceHomeScreen() {
         ) : (
           <>
             {money}
+            <ReconciliationCard />
             <PurchasePaymentResultCard />
             {todos}
             {tiles}

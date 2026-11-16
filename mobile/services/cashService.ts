@@ -37,7 +37,14 @@ export interface CashSession {
   movements: CashMovement[];
 }
 
+/** O que o servidor fez com a gaveta do Financeiro ao abrir ou fechar o caixa contando um valor diferente do esperado. */
+export interface DrawerAlignment {
+  difference: number; applied: boolean; error: string | null;
+  approval: { id: number; summary: string; waiting_for: { user_id: number; name: string }[] } | null;
+}
 export interface CashCurrent {
+  /** A gaveta no Financeiro: quanto o sistema espera nela agora (`expected` nulo = Financeiro ainda não implantado). */
+  drawer?: { started: boolean; account_id: number | null; expected: number | null };
   open: boolean;
   session: CashSession | null;
   last_closed: { id: number; closed_at: string; counted_amount: number; difference: number } | null;
@@ -68,15 +75,15 @@ export const getCashCurrent = async (): Promise<CashCurrent> => (await api.get<C
 export const getCashReasons = async (): Promise<Record<MovementKind, CashReason[]>> =>
   (await api.get('/cash/reasons', skipLoading())).data;
 
-export const openCash = async (openingAmount: number, note?: string): Promise<CashSession> =>
-  (await api.post<CashSession>('/cash/open', { opening_amount: openingAmount, note: note || null })).data;
+export const openCash = async (openingAmount: number, note?: string, reason?: string): Promise<CashSession & { drawer_alignment?: DrawerAlignment }> =>
+  (await api.post('/cash/open', { opening_amount: openingAmount, note: note || null, reason: reason || null, align_drawer: true })).data;
 
 /** `accountId`: conta do Financeiro para onde foi (retirada) ou de onde veio (reforço) o dinheiro; o servidor grava a transferência junto. */
 export const addCashMovement = async (kind: MovementKind, amount: number, reason: string, note?: string, accountId?: number | null): Promise<CashSession> =>
   (await api.post<CashSession>('/cash/movements', { kind, amount, reason, note: note || null, account_id: accountId ?? null })).data;
 
-export const closeCash = async (countedAmount: number, note?: string): Promise<CashSession> =>
-  (await api.post<CashSession>('/cash/close', { counted_amount: countedAmount, note: note || null })).data;
+export const closeCash = async (countedAmount: number, note?: string, reason?: string): Promise<CashSession & { drawer_alignment?: DrawerAlignment }> =>
+  (await api.post('/cash/close', { counted_amount: countedAmount, note: note || null, reason: reason || null, align_drawer: true })).data;
 
 export const getCashSessions = async (skip = 0, limit = 30): Promise<CashSessionSummary[]> =>
   (await api.get<CashSessionSummary[]>('/cash/sessions', { params: { skip, limit } })).data;

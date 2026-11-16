@@ -99,6 +99,16 @@ async def statement_pdf(account_id: Optional[int] = Query(None), link: bool = Qu
                         link=link, tenant_id=tenant_id, no_store=True)
 
 
+@router.get("/reconciliation", summary="A conta do mês fecha? Começou + entrou - saiu = deveria ter, contra o que as contas mostram")
+async def reconciliation(year: Optional[int] = Query(None), month: Optional[int] = Query(None, ge=1, le=12),
+                         db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+                         current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).reconciliation(tenant_id, year, month)
+    except FinanceError as e:
+        raise _http(e)
+
+
 @router.get("/purchases-pending", summary="Compras de mercadoria que ainda não disseram de onde saiu o dinheiro")
 async def purchases_pending(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
                             current_user: User = Depends(get_current_active_user)):
@@ -348,6 +358,15 @@ async def list_approvals(limit: int = Query(50, ge=1, le=200), db: AsyncSession 
 async def approvals_summary(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
                             current_user: User = Depends(get_current_active_user)):
     return await FinanceApprovalService(db).summary(tenant_id, current_user)
+
+
+@router.put("/approvers", summary="Escolher quais administradores aprovam os pedidos (os outros só acompanham)")
+async def set_approvers(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                        tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceApprovalService(db).set_approvers(tenant_id, current_user, list(data.get("user_ids") or []))
+    except FinanceError as e:
+        raise _http(e)
 
 
 @router.post("/approvals/{approval_id}/approve", summary="Aprovar o pedido (só administrador). Com todos os votos, a mudança é aplicada")

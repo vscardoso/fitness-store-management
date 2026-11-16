@@ -288,11 +288,11 @@ export default function MoreScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Financeiro</Text>
           <View style={styles.menuCard}>
-            {/* gerente e admin: um menu só ("Financeiro") com caixa, contas, fiado, a pagar, retiradas, relatório e fechamento */}
-            {isManager
+            {/* só admin: um menu só ("Financeiro") com caixa, contas, fiado, a pagar, retiradas, relatório e fechamento; os outros veem só o caixa e o fiado */}
+            {isAdminRole(user?.role)
               ? <MenuItem icon="wallet-outline" title="Financeiro" subtitle="Quanto tenho, o que entra e sai, como foi o mês" onPress={() => router.push('/finance' as any)} iconColor="#0E7490" iconBg="#CFFAFE" />
               : <MenuItem icon="cash-outline" title="Caixa da gaveta" subtitle="Abrir, colocar e retirar dinheiro, fechar" onPress={() => router.push('/cash' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />}
-            {!isManager && <MenuItem icon="book-outline" title="Fiado" subtitle="Quem deve, quanto e quando vence; receber" onPress={() => router.push('/finance/receivables' as any)} iconColor={Colors.light.warningDark} iconBg={Colors.light.warningLight} />}
+            {!isAdminRole(user?.role) && <MenuItem icon="book-outline" title="Fiado" subtitle="Quem deve, quanto e quando vence; receber" onPress={() => router.push('/finance/receivables' as any)} iconColor={Colors.light.warningDark} iconBg={Colors.light.warningLight} />}
           </View>
         </View>
 

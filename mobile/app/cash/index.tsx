@@ -16,7 +16,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Line, ClosedSummary, diffColor } from '@/components/cash/CashParts';
-import { isManagerRole } from '@/utils/roles';
+import { isAdminRole, isManagerRole } from '@/utils/roles';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { differenceText, moneyInput, parseMoneyBr } from '@/utils/cashMoney';
@@ -26,8 +26,10 @@ import {
   getCashCurrent,
   openCash,
   type CashSession,
+  type DrawerAlignment,
   type MovementKind,
 } from '@/services/cashService';
+import { announceHeld } from '@/services/bankApproval';
 import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
 import { getFinanceOverview } from '@/services/financeService';
 import { goBackOr } from '@/utils/navBack';
@@ -65,10 +67,13 @@ export default function CashScreen() {
   const { user } = useAuth();
   const manager = isManagerRole(user?.role);
   // loja que já funcionava: gaveta, bancos e contas a pagar entram pela implantação do financeiro
-  const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview, enabled: manager });
+  const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview, enabled: isAdminRole(user?.role) });
 
   const [openAmount, setOpenAmount] = useState('');
   const [openNote, setOpenNote] = useState('');
+  const [openReason, setOpenReason] = useState('');
+  const [closeReason, setCloseReason] = useState('');
+  const [aligned, setAligned] = useState<{ text: string; warn: boolean } | null>(null);
   const [moveKind, setMoveKind] = useState<MovementKind | null>(null);
   const [moveAmount, setMoveAmount] = useState('');
   const [moveReason, setMoveReason] = useState('');
@@ -90,11 +95,28 @@ export default function CashScreen() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['cash'] });
   const fail = (e: unknown) => setError(parseApiError(e) || 'Não foi possível concluir. Tente de novo.');
 
+  // Depois de abrir ou fechar contando diferente do esperado: diz o que aconteceu com a gaveta do Financeiro
+  const showAlignment = (al?: DrawerAlignment) => {
+    setAligned(null);
+    if (!al || al.difference === 0) return;
+    if (al.approval) {
+      announceHeld({ approval_required: true, approval: al.approval as any,
+        message: 'O caixa foi registrado com o valor que você contou. O acerto da gaveta no Financeiro só vale quando outro administrador aprovar.' });
+      setAligned({ text: `Falta outro administrador aprovar o acerto da gaveta (${formatCurrency(al.difference)}).`, warn: true });
+    } else if (al.applied) {
+      setAligned({ text: `A gaveta no Financeiro foi acertada pela sua contagem (${al.difference > 0 ? '+' : '-'} ${formatCurrency(Math.abs(al.difference))}).`, warn: false });
+    } else if (al.error) {
+      setAligned({ text: `O caixa foi registrado, mas a gaveta no Financeiro não foi acertada: ${al.error}`, warn: true });
+    }
+  };
+
   const open = useMutation({
-    mutationFn: () => openCash(parseMoneyBr(openAmount) ?? 0, openNote.trim()),
-    onSuccess: () => {
+    mutationFn: () => openCash(parseMoneyBr(openAmount) ?? 0, openNote.trim(), openReason.trim()),
+    onSuccess: (s) => {
+      showAlignment(s.drawer_alignment);
       setOpenAmount('');
       setOpenNote('');
+      setOpenReason('');
       setClosed(null);
       setError('');
       refresh();
@@ -111,12 +133,14 @@ export default function CashScreen() {
     onError: fail,
   });
   const close = useMutation({
-    mutationFn: () => closeCash(parseMoneyBr(counted) as number, closeNote.trim()),
+    mutationFn: () => closeCash(parseMoneyBr(counted) as number, closeNote.trim(), closeReason.trim() || closeNote.trim()),
     onSuccess: (s) => {
+      showAlignment(s.drawer_alignment);
       setClosing(false);
       setClosed(s);
       setCounted('');
       setCloseNote('');
+      setCloseReason('');
       setError('');
       refresh();
     },
@@ -137,6 +161,14 @@ export default function CashScreen() {
   const openValue = parseMoneyBr(openAmount);
   const moveValue = parseMoneyBr(moveAmount);
   const countedValue = parseMoneyBr(counted);
+  // a gaveta no Financeiro: o que o sistema espera nela. Contar diferente exige motivo; acima de R$ 10 outro administrador aprova.
+  const drawerExpected = data?.drawer?.started ? data.drawer.expected : null;
+  const openDiff = drawerExpected != null && openValue !== null ? Math.round((openValue - drawerExpected) * 100) / 100 : 0;
+  const closeDiff = drawerExpected != null && countedValue !== null ? Math.round((countedValue - drawerExpected) * 100) / 100 : 0;
+  const openReasonMin = Math.abs(openDiff) > 10 ? 20 : 5;
+  const closeReasonMin = Math.abs(closeDiff) > 10 ? 20 : 5;
+  const openReasonShort = openDiff !== 0 && openReason.trim().length < openReasonMin;
+  const closeReasonShort = closeDiff !== 0 && (closeReason.trim() || closeNote.trim()).length < closeReasonMin;
   const liveDiff = session && countedValue !== null ? differenceText(countedValue - session.expected_amount, formatCurrency) : null;
   const others = useMemo(() => Object.entries(session?.other_methods ?? {}), [session]);
 
@@ -225,7 +257,7 @@ export default function CashScreen() {
         title="Caixa da gaveta"
         subtitle={subtitle}
         showBackButton
-        onBack={() => goBackOr(router, manager ? '/finance' : '/(tabs)/more')}
+        onBack={() => goBackOr(router, isAdminRole(user?.role) ? '/finance' : '/(tabs)/more')}
         rightActions={manager ? [{ icon: 'time-outline', onPress: () => router.push('/cash/history' as any) }] : undefined}
       />
       <ScrollView
@@ -234,6 +266,10 @@ export default function CashScreen() {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >
         {!!error && !sheetOpen && <Text style={styles.error}>{error}</Text>}
+
+        {!!aligned && (
+          <Text style={[styles.note, { color: aligned.warn ? Colors.light.warningDark : Colors.light.success }]} testID="cash-aligned">{aligned.text}</Text>
+        )}
 
         {closed && !session && (
           <View style={styles.card}>
@@ -245,6 +281,11 @@ export default function CashScreen() {
           <View style={styles.card}>
             <Text style={styles.title}>Abrir o caixa</Text>
             <Text style={styles.note}>Conte o dinheiro da gaveta e informe. Dali em diante o app soma as vendas em dinheiro.</Text>
+            {drawerExpected != null && (
+              <Text style={styles.note} testID="cash-drawer-expected">
+                {`Pelo Financeiro, a gaveta deveria ter ${formatCurrency(drawerExpected)}. Conte o dinheiro e digite o que tem de verdade.`}
+              </Text>
+            )}
             {data?.last_closed && (
               <Text style={styles.small}>
                 Último caixa fechou com {formatCurrency(data.last_closed.counted_amount)} ({formatDateTime(data.last_closed.closed_at)}).
@@ -259,16 +300,29 @@ export default function CashScreen() {
               placeholder="0,00"
               style={styles.input}
             />
+            {openDiff !== 0 && (
+              <>
+                <Text style={[styles.diff, { color: Colors.light.warningDark }]}>
+                  {`${openDiff > 0 ? 'Sobrou' : 'Faltou'} ${formatCurrency(Math.abs(openDiff))} em relação ao Financeiro.`}
+                </Text>
+                <TextInput mode="outlined" label={`Motivo da diferença (mínimo ${openReasonMin} letras)`} value={openReason} onChangeText={setOpenReason} style={styles.input} />
+                <Text style={styles.small}>
+                  {Math.abs(openDiff) > 10
+                    ? 'Diferença acima de R$ 10: o caixa abre com o que você contou e outro administrador precisa aprovar o acerto da gaveta no Financeiro.'
+                    : 'O caixa abre com o que você contou e a gaveta no Financeiro é acertada na hora, com este motivo.'}
+                </Text>
+              </>
+            )}
             <TextInput mode="outlined" label="Observação (opcional)" value={openNote} onChangeText={setOpenNote} style={styles.input} />
             <AppButton
               label="Abrir caixa"
               onPress={() => open.mutate()}
-              disabled={openValue === null || open.isPending}
+              disabled={openValue === null || openReasonShort || open.isPending}
               loading={open.isPending}
               fullWidth
               style={styles.btn}
             />
-            {manager && finance && !finance.started && (
+            {isAdminRole(user?.role) && finance && !finance.started && (
               <TouchableOpacity onPress={() => router.push('/finance' as any)} accessibilityRole="link" style={styles.financeLink}>
                 <Text style={[styles.small, { color: brand.primary, fontWeight: theme.fontWeight.bold }]}>
                   A loja já funcionava? Lance também os bancos, a maquininha e as contas a pagar em Caixa e contas.
@@ -364,7 +418,7 @@ export default function CashScreen() {
         icon="lock-closed-outline"
         actions={[
           { label: 'Cancelar', variant: 'secondary', onPress: () => setClosing(false) },
-          { label: 'Fechar caixa', onPress: () => close.mutate(), loading: close.isPending, disabled: countedValue === null || close.isPending },
+          { label: 'Fechar caixa', onPress: () => close.mutate(), loading: close.isPending, disabled: countedValue === null || closeReasonShort || close.isPending },
         ]}
       >
         <Text style={styles.note}>Conte o dinheiro que está na gaveta e informe o valor. Depois de fechar, o resultado não muda mais.</Text>
@@ -378,6 +432,15 @@ export default function CashScreen() {
           style={styles.input}
         />
         {liveDiff && <Text style={[styles.diff, { color: diffColor(liveDiff.kind) }]}>{liveDiff.text}</Text>}
+        {closeDiff !== 0 && (
+          <>
+            <Text style={[styles.small, { color: Colors.light.warningDark }]}>
+              {`Pelo Financeiro, a gaveta deveria ter ${formatCurrency(drawerExpected as number)}. ${Math.abs(closeDiff) > 10
+                ? 'Diferença acima de R$ 10: outro administrador precisa aprovar o acerto.' : 'A gaveta é acertada na hora, com o motivo.'}`}
+            </Text>
+            <TextInput mode="outlined" label={`Motivo da diferença (mínimo ${closeReasonMin} letras)`} value={closeReason} onChangeText={setCloseReason} style={styles.input} />
+          </>
+        )}
         <TextInput mode="outlined" label="Observação (ex.: motivo da diferença)" value={closeNote} onChangeText={setCloseNote} style={styles.input} />
         {!!error && <Text style={styles.error}>{error}</Text>}
       </BottomSheet>

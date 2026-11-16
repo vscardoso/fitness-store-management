@@ -210,19 +210,19 @@ async def test_aviso_vai_para_os_outros_admins_e_nao_para_quem_fez(test_client, 
     monkeypatch.setattr("app.services.web_push_service.notify_tenant", falso)
 
     r = await test_client.post(f"{API}/finance/accounts/{contas['Gaveta']}/adjust", headers=h,
-                               json={"target_balance": "80", "reason": "contei de novo"})
+                               json={"target_balance": "95", "reason": "contei de novo"})
     assert r.status_code == 200, r.text
     assert len(chamadas) == 1
     c = chamadas[0]
     assert c["exclude_user_id"] == admin.id and tuple(c["roles"]) == ("admin",) and c["tenant"] == t_id
-    assert "Dona da Loja corrigiu o saldo da Gaveta" in c["body"] and "100,00" in c["body"] and "80,00" in c["body"]
+    assert "Dona da Loja corrigiu o saldo da Gaveta" in c["body"] and "100,00" in c["body"] and "95,00" in c["body"]
 
     # falha de push não derruba a correção
     async def quebra(*a, **k):
         raise RuntimeError("push fora do ar")
     monkeypatch.setattr("app.services.web_push_service.notify_tenant", quebra)
     r = await test_client.post(f"{API}/finance/accounts/{contas['Gaveta']}/adjust", headers=h,
-                               json={"target_balance": "70", "reason": "outra correcao"})
+                               json={"target_balance": "90", "reason": "outra correcao"})
     assert r.status_code == 200, r.text
     assert len(await _log(async_session, t_id, "FINANCE_ACCOUNT_ADJUSTED")) == 2
     _ = UserRole

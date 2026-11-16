@@ -64,8 +64,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"PATCH"}, r"^/finance/accounts/\{account_id\}$", ADMIN),  # corrigir saldo de partida / nome: só admin
     ({"POST"}, r"^/finance/closings/\{year\}/\{month\}/reopen$", ADMIN),  # reabrir mês fechado: só admin
     ({"POST"}, r"^/finance/approvals/\{approval_id\}/(approve|reject)$", ADMIN),  # votar nos pedidos de saldo de banco: só admin
-    ({"GET"}, r"^/finance/statement(/pdf)?$", MANAGER),  # extrato passo a passo das contas: gerente e admin
-    (ANY, r"^/finance(/|$)", MANAGER),  # saldos, transferências e contas a pagar
+    (ANY, r"^/finance(/|$)", ADMIN),  # o Financeiro inteiro (saldos, extrato, transferências, contas a pagar...): só admin (decisão do dono)
     ({"POST"}, r"^/receivables/receive$", CASHIER),  # receber fiado é dinheiro entrando, como no caixa
     ({"GET"}, r"^/receivables(/|$)", CASHIER),  # quem recebe no balcão precisa ver quanto ela deve
     (ANY, r"^/receivables(/|$)", MANAGER),  # fiado antigo, cancelar lançamento, desfazer recebimento

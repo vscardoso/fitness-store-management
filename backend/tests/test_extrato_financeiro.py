@@ -218,7 +218,7 @@ async def test_extrato_papeis_parametros_e_loja_sem_implantacao(test_client, asy
     for papel in (UserRole.SELLER, UserRole.CASHIER):
         assert (await test_client.get(f"{FIN}/statement", headers=await _token(papel))).status_code == 403
     gerente = await _token(UserRole.MANAGER)
-    assert (await test_client.get(f"{FIN}/statement", headers=gerente)).status_code == 200
+    assert (await test_client.get(f"{FIN}/statement", headers=gerente)).status_code == 403        # Financeiro: só administrador
     for ruim in ({"days": 0}, {"days": 15}, {"before": "ontem"}, {"account_id": 999999}):
         r = await test_client.get(f"{FIN}/statement", headers=h, params=ruim)
         assert r.status_code in (400, 404, 422), (ruim, r.text)
@@ -314,7 +314,7 @@ async def test_extrato_pdf_so_gerente_e_loja_sem_implantacao_nao_quebra(test_cli
 
     for papel in (UserRole.SELLER, UserRole.CASHIER):
         assert (await test_client.get(f"{FIN}/statement/pdf", headers=await _token(papel))).status_code == 403
-    assert (await test_client.get(f"{FIN}/statement/pdf", headers=await _token(UserRole.MANAGER))).status_code == 200
+    assert (await test_client.get(f"{FIN}/statement/pdf", headers=await _token(UserRole.MANAGER))).status_code == 403
     assert (await test_client.get(f"{FIN}/statement/pdf", headers=h, params={"account_id": 999999})).status_code == 404
     await _zerar_implantacao(async_session, t_id)
     r = await test_client.get(f"{FIN}/statement/pdf", headers=h)

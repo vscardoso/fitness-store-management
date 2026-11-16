@@ -432,7 +432,9 @@ export default function AccountsScreen() {
         const openingNow = Number(fix.acc.opening_balance ?? fix.acc.breakdown.opening ?? 0);
         const isBank = fix.acc.kind === 'bank';
         // banco: motivo de 20 letras (o pedido vai para todos os administradores aprovarem); gaveta e maquininha: 5 letras e direto
-        const minReason = isBank ? 20 : 5;
+        const isCash = fix.acc.kind === 'cash';
+        const bigDrawer = isCash && fix.mode === 'adjust' && Math.abs(diffCents) > 1000;
+        const minReason = isBank || bigDrawer ? 20 : 5;
         const shortReason = (fix.mode === 'adjust' || isBank) && fix.reason.trim().length < minReason;
         const noChange = fix.mode === 'adjust' ? diffCents === 0 : target == null || Math.round(target * 100) === Math.round(openingNow * 100);
         return (
@@ -442,13 +444,20 @@ export default function AccountsScreen() {
             title={`Corrigir saldo de ${fix.acc.name}`}
             icon="pencil"
             actions={[{
-              label: isBank ? 'Pedir a correção' : fix.mode === 'adjust' ? 'Corrigir saldo' : 'Corrigir saldo de partida', variant: 'primary', loading: doFix.isPending,
+              label: isBank || bigDrawer ? 'Pedir a correção' : fix.mode === 'adjust' ? 'Corrigir saldo' : 'Corrigir saldo de partida', variant: 'primary', loading: doFix.isPending,
               disabled: target == null || noChange || shortReason,
               onPress: () => { setSheetError(''); doFix.mutate(); },
             }]}
           >
             <View style={{ gap: 10 }}>
               {!!sheetError && <Text style={styles.error}>{sheetError}</Text>}
+              {isCash && (
+                <Text style={styles.note}>
+                  {bigDrawer
+                    ? 'Diferença acima de R$ 10: vira um pedido e outro administrador precisa aprovar. Escreva o motivo com pelo menos 20 letras e diga como contou o dinheiro.'
+                    : 'Diferença de até R$ 10 é acertada na hora, com o motivo. Acima disso, outro administrador precisa aprovar.'}
+                </Text>
+              )}
               {isBank && (
                 <Text style={styles.note}>
                   Saldo de banco não muda sozinho. Esta correção vira um pedido e só vale depois que todos os administradores aprovarem. Escreva o motivo com pelo menos 20 letras e diga como conferiu (por exemplo, o extrato do banco).

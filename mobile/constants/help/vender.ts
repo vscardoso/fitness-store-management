@@ -231,11 +231,11 @@ export const VENDER: HelpEntry[] = [
     open: '/cash',
     purpose: 'Controla o dinheiro da gaveta: abrir, colocar, retirar e fechar contando.',
     steps: [
-      'No começo do dia, conte o dinheiro da gaveta, digite o valor e toque em “Abrir caixa”.',
+      'No começo do dia, conte o dinheiro da gaveta, digite o valor e toque em “Abrir caixa”. O app mostra quanto o Financeiro espera na gaveta.',
       'Para pôr troco, toque em “Colocar dinheiro”; para tirar, em “Retirar dinheiro”, com o motivo.',
       'Se o dinheiro foi depositado no banco (ou veio dele), escolha a conta em “Para onde foi o dinheiro?”: o Financeiro já lança a transferência.',
       'No fim do dia, toque em “Fechar caixa”, conte a gaveta e digite o valor contado.',
-      'Se sobrou ou faltou, escreva o motivo na observação e confirme.',
+      'Se contou diferente do Financeiro, escreva o motivo. Até R$ 10 a gaveta é acertada na hora; acima disso, outro administrador aprova.',
     ],
     parts: [
       { label: 'Valor grande', text: 'o dinheiro que deve ter na gaveta agora: abertura, mais vendas em dinheiro e colocado, menos devoluções e retiradas.' },

@@ -40,8 +40,8 @@ export default function BankApprovalHost() {
     <BottomSheet
       visible={open}
       onDismiss={() => close(null)}
-      title="Mexer no saldo do banco"
-      subtitle="Precisa de motivo e da aprovação de todos os administradores"
+      title="Esta mudança precisa de aprovação"
+      subtitle="Explique o motivo: outros administradores vão aprovar"
       icon="shield-checkmark-outline"
       actions={[
         { label: 'Enviar pedido', variant: 'primary', disabled: short, onPress: () => close(text) },
@@ -50,7 +50,7 @@ export default function BankApprovalHost() {
     >
       <View style={{ gap: 10 }}>
         <Text style={styles.note}>
-          O saldo do banco só muda depois que todos os administradores aprovarem. Explique o que aconteceu e como você conferiu, por exemplo, comparando com o extrato do banco.
+          Saldo de banco, e acerto da gaveta acima de R$ 10, só mudam depois da aprovação de outros administradores. Explique o que aconteceu e como você conferiu: o extrato do banco ou a contagem do dinheiro.
         </Text>
         <TextInput mode="outlined" label="Motivo (mínimo 20 letras)" value={reason} onChangeText={setReason} multiline numberOfLines={4}
           activeOutlineColor={brand.primary} autoFocus />

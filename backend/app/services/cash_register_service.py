@@ -42,6 +42,10 @@ REASONS = {
 }
 
 
+def _q2(v: Any) -> Decimal:
+    return Decimal(str(v or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
 class CashError(ValueError):
     """Operação recusada (400): a mensagem é mostrada à pessoa."""
 
@@ -198,7 +202,53 @@ class CashRegisterService:
         return self._public(s, totals, movs)
 
     # ── operações ───────────────────────────────────────────────────────────
+    async def _drawer(self, tenant_id: int) -> Dict[str, Any]:
+        """A gaveta no Financeiro: quanto o sistema espera nela agora. `started` falso = loja sem Financeiro implantado."""
+        from app.models.finance import KIND_CASH
+        from app.services.finance_service import FinanceService
+        b = await FinanceService(self.db).balances(tenant_id)
+        if not b.get("started"):
+            return {"started": False, "account_id": None, "expected": None}
+        g = next((a for a in b["accounts"] if a["kind"] == KIND_CASH), None)
+        return {"started": g is not None, "account_id": g["id"] if g else None, "expected": g["balance"] if g else None}
+
+    @staticmethod
+    def _need_reason(diff: Decimal, reason: Optional[str]) -> None:
+        """Contou diferente do que o sistema espera: o motivo é obrigatório (5 letras; acima de R$ 10, 20 e outro administrador aprova)."""
+        text = (reason or "").strip()
+        if abs(diff) > Decimal("10.00") and len(text) < 20:
+            raise CashError("A diferença é maior que R$ 10,00: explique o motivo com pelo menos 20 letras. Outro administrador precisa aprovar o acerto da gaveta no Financeiro.")
+        if len(text) < 5:
+            raise CashError("Você contou um valor diferente do que o sistema espera na gaveta. Escreva o motivo da diferença (pelo menos 5 letras).")
+
+    async def _align_drawer(self, tenant_id: int, user: User, counted: Decimal, reason: Optional[str], drawer: Dict[str, Any]) -> Dict[str, Any]:
+        """Leva a gaveta do Financeiro ao valor contado. Diferença até R$ 10: acerta na hora (com o motivo). Acima: vira pedido para
+        outro administrador aprovar (o caixa já foi aberto ou fechado com o valor contado, que é o que está na gaveta de verdade)."""
+        from app.services.finance_approval_service import FinanceApprovalService
+        from app.services.finance_service import FinanceError, FinanceService
+        diff = _q2(counted - Decimal(str(drawer["expected"])))
+        out: Dict[str, Any] = {"difference": float(diff), "applied": False, "approval": None, "error": None}
+        if diff == 0:
+            return out
+        data = {"target_balance": str(counted), "reason": (reason or "").strip()}
+        try:
+            held = await FinanceApprovalService(self.db).gate(tenant_id, user, "account_adjust", drawer["account_id"], data, reason)
+            if held is not None:
+                out["approval"] = held
+                return out
+            await FinanceService(self.db).adjust_account(tenant_id, user, drawer["account_id"], data)
+            out["applied"] = True
+        except FinanceError as e:
+            await self.db.rollback()
+            out["error"] = str(e)
+        return out
+
     async def current(self, tenant_id: int) -> Dict[str, Any]:
+        r = await self._current(tenant_id)
+        r["drawer"] = await self._drawer(tenant_id)
+        return r
+
+    async def _current(self, tenant_id: int) -> Dict[str, Any]:
         s = await self._open_session(tenant_id)
         if s is None:
             last = (await self.db.execute(
@@ -212,10 +262,14 @@ class CashRegisterService:
             }
         return {"open": True, "session": await self._view(s, tenant_id), "last_closed": None}
 
-    async def open(self, tenant_id: int, user: User, amount: Any, note: Optional[str]) -> Dict[str, Any]:
+    async def open(self, tenant_id: int, user: User, amount: Any, note: Optional[str],
+                   reason: Optional[str] = None, align_drawer: bool = False) -> Dict[str, Any]:
         opening = _money(amount, "Valor do dinheiro no caixa", allow_zero=True)
         if await self._open_session(tenant_id):
             raise CashConflict("Já existe um caixa aberto. Feche o caixa atual antes de abrir outro.")
+        drawer = await self._drawer(tenant_id) if align_drawer else None
+        if drawer and drawer["started"] and _q2(opening - Decimal(str(drawer["expected"]))) != 0:
+            self._need_reason(opening - Decimal(str(drawer["expected"])), reason)      # antes de abrir: sem motivo, nada é criado
         s = CashSession(
             tenant_id=tenant_id, status=SESSION_OPEN, opened_at=datetime.utcnow(), opened_by_id=user.id,
             opened_by_name=_who(user), opening_amount=opening, opening_note=(note or "").strip()[:500] or None, is_active=True,
@@ -227,7 +281,10 @@ class CashRegisterService:
             await self.db.rollback()
             raise CashConflict("Já existe um caixa aberto. Feche o caixa atual antes de abrir outro.")
         await self.db.refresh(s)
-        return await self._view(s, tenant_id)
+        view = await self._view(s, tenant_id)
+        if drawer and drawer["started"]:
+            view["drawer_alignment"] = await self._align_drawer(tenant_id, user, opening, reason, drawer)
+        return view
 
     async def add_movement(
         self, tenant_id: int, user: User, kind: str, amount: Any, reason: str, note: Optional[str],
@@ -283,11 +340,15 @@ class CashRegisterService:
         await self.db.flush()
         return t.id
 
-    async def close(self, tenant_id: int, user: User, counted: Any, note: Optional[str]) -> Dict[str, Any]:
+    async def close(self, tenant_id: int, user: User, counted: Any, note: Optional[str],
+                    reason: Optional[str] = None, align_drawer: bool = False) -> Dict[str, Any]:
         value = _money(counted, "Dinheiro contado", allow_zero=True)
         s = await self._open_session(tenant_id, lock=True)
         if s is None:
             raise CashConflict("Não há caixa aberto para fechar.")
+        drawer = await self._drawer(tenant_id) if align_drawer else None
+        if drawer and drawer["started"] and _q2(value - Decimal(str(drawer["expected"]))) != 0:
+            self._need_reason(value - Decimal(str(drawer["expected"])), reason or note)
         end = datetime.utcnow()
         t = await self._live_totals(s, tenant_id, end)
         expected = _num(t["expected_amount"])
@@ -300,7 +361,10 @@ class CashRegisterService:
         s.sales_count = t["sales_count"]
         s.other_methods = json.dumps(t["other_methods"])
         await self.db.commit()
-        return await self._view(s, tenant_id)
+        view = await self._view(s, tenant_id)
+        if drawer and drawer["started"]:
+            view["drawer_alignment"] = await self._align_drawer(tenant_id, user, value, reason or note, drawer)
+        return view
 
     async def list_sessions(self, tenant_id: int, skip: int, limit: int) -> List[Dict[str, Any]]:
         rows = (await self.db.execute(

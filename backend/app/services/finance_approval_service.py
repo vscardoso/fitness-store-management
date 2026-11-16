@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.finance import (
     APPROVAL_APPROVED, APPROVAL_CANCELED, APPROVAL_EXPIRED, APPROVAL_FAILED, APPROVAL_PENDING, APPROVAL_REJECTED,
-    KIND_BANK, AccountEntry, AccountTransfer, FinanceApproval, FinanceApprovalVote, FinancialAccount, Payable,
+    KIND_BANK, KIND_CASH, AccountEntry, AccountTransfer, FinanceApproval, FinanceApprovalVote, FinancialAccount, Payable,
     PAYABLE_PAID,
 )
 from app.models.user import User, UserRole
@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 APPROVAL_DAYS = 7
 MIN_REASON = 20
+# gaveta: diferença de contagem até este valor só pede o motivo; acima disso outro administrador precisa aprovar
+DRAWER_TOLERANCE = Decimal("10.00")
 RULE_ALL = "all_admins"
 RULE_ONE_OTHER = "one_other"
 
@@ -89,10 +91,43 @@ class FinanceApprovalService:
 
     # ── quem aprova ─────────────────────────────────────────────────────────────────────────────────────────────
     async def _admins(self, tenant_id: int) -> List[User]:
+        """Os administradores que APROVAM (o dono pode ser administrador só para acompanhar: `finance_approver` falso)."""
+        rows = (await self.db.execute(select(User).where(
+            User.tenant_id == tenant_id, User.role == UserRole.ADMIN, User.is_active == True,  # noqa: E712
+            User.finance_approver == True,  # noqa: E712
+        ).order_by(User.id))).scalars().all()
+        return list(rows)
+
+    async def approvers(self, tenant_id: int) -> List[Dict[str, Any]]:
+        """Todos os administradores ativos e se cada um aprova (para a tela escolher quem aprova)."""
         rows = (await self.db.execute(select(User).where(
             User.tenant_id == tenant_id, User.role == UserRole.ADMIN, User.is_active == True,  # noqa: E712
         ).order_by(User.id))).scalars().all()
-        return list(rows)
+        return [{"user_id": u.id, "name": _who(u), "approver": bool(u.finance_approver)} for u in rows]
+
+    async def set_approvers(self, tenant_id: int, user: User, approver_ids: List[int]) -> List[Dict[str, Any]]:
+        """Escolhe quem aprova (só administrador). Pelo menos um administrador precisa aprovar."""
+        if not _is_admin(user):
+            raise FinanceError("Só administrador escolhe quem aprova.")
+        rows = (await self.db.execute(select(User).where(
+            User.tenant_id == tenant_id, User.role == UserRole.ADMIN, User.is_active == True))).scalars().all()  # noqa: E712
+        ids = {int(i) for i in approver_ids}
+        if not ids & {u.id for u in rows}:
+            raise FinanceError("Escolha pelo menos um administrador para aprovar.")
+        pending = (await self.db.execute(select(FinanceApproval.id).where(
+            FinanceApproval.tenant_id == tenant_id, FinanceApproval.status == APPROVAL_PENDING))).first()
+        if pending:
+            raise FinanceConflict("Há pedido esperando aprovação. Decida ou cancele os pedidos antes de mudar quem aprova.")
+        antes = {u.id: bool(u.finance_approver) for u in rows}
+        for u in rows:
+            u.finance_approver = u.id in ids
+            self.db.add(u)
+        from app.services.audit_service import AuditService
+        await AuditService.log(self.db, "FINANCE_APPROVERS_CHANGED", tenant_id=tenant_id, user_id=user.id, user_email=user.email,
+                               entity="user", entity_id=user.id,
+                               detail={"antes": antes, "depois": {u.id: u.id in ids for u in rows}})
+        await self.db.commit()
+        return await self.approvers(tenant_id)
 
     async def _account(self, tenant_id: int, account_id: int) -> FinancialAccount:
         a = (await self.db.execute(select(FinancialAccount).where(
@@ -118,13 +153,19 @@ class FinanceApprovalService:
             acc = accs.get(as_int(key, "a conta"))
             if acc is None:
                 raise FinanceNotFound("Conta não encontrada.")
-            if acc.kind != KIND_BANK:
+            if acc.kind not in (KIND_BANK, KIND_CASH):
                 return None
             target = money(data.get("target_balance"), "Saldo desejado", allow_zero=True, allow_negative=True)
             current = Decimal(str(next(a["balance"] for a in (await FinanceService(self.db).balances(tenant_id))["accounts"] if a["id"] == acc.id)))
             diff = _q(target - current)
             if diff == 0:
                 raise FinanceError("O saldo já é esse: nada para ajustar.")
+            if acc.kind == KIND_CASH:
+                if abs(diff) <= DRAWER_TOLERANCE:
+                    return None          # quebra pequena: só o motivo (a própria correção exige), sem aprovação
+                return {"account_id": acc.id, "amount": diff, "extra": {"diff": str(diff), "current_at_request": str(current)},
+                        "rule": RULE_ONE_OTHER, "kind": KIND_CASH,
+                        "summary": f"Acertar a gaveta de {brl(current)} para {brl(target)} ({'+' if diff > 0 else '−'} {brl(abs(diff))})"}
             return {"account_id": acc.id, "amount": diff, "extra": {"diff": str(diff), "current_at_request": str(current)},
                     "summary": f"Corrigir o saldo do {acc.name} de {brl(current)} para {brl(target)} ({'+' if diff > 0 else '−'} {brl(abs(diff))})"}
 
@@ -262,7 +303,10 @@ class FinanceApprovalService:
             return None
         await self._precheck(tenant_id, op, key)
         reason = str(reason or "").strip()
+        rule = ctx.get("rule", rule)
         if len(reason) < MIN_REASON:
+            if ctx.get("kind") == KIND_CASH:
+                raise FinanceError("Para acertar a gaveta com uma diferença acima de R$ 10, explique o motivo com pelo menos 20 letras: o que aconteceu e como você contou o dinheiro.")
             raise FinanceError("Para mexer no saldo de um banco, explique o motivo com pelo menos 20 letras: o que aconteceu e como você conferiu (por exemplo, o extrato do banco).")
         admins = await self._admins(tenant_id)
         others = [a for a in admins if a.id != user.id]
@@ -286,12 +330,13 @@ class FinanceApprovalService:
             requested_by_id=user.id, requested_by_name=_who(user), expires_at=_now() + timedelta(days=APPROVAL_DAYS))
         self.db.add(ap)
         await self.db.flush()
-        if _is_admin(user):       # quem pediu já conta como sim
+        if _is_admin(user) and user.id in {a.id for a in admins}:       # quem pediu já conta como sim (se for aprovador)
             self.db.add(FinanceApprovalVote(tenant_id=tenant_id, approval_id=ap.id, user_id=user.id, user_name=_who(user),
                                             vote="approve", comment="Pediu a mudança"))
         await self._audit(tenant_id, user, "FINANCE_APPROVAL_REQUESTED", ap, {"resumo": ap.summary, "motivo": reason, "regra": rule})
         await self.db.commit()
-        await self._notify(tenant_id, user, f"Pedido para mexer no saldo do banco: {OP_TITLE.get(op, op)}",
+        await self._notify(tenant_id, user, ("Pedido para acertar a gaveta" if ctx.get("kind") == KIND_CASH
+                                             else f"Pedido para mexer no saldo do banco: {OP_TITLE.get(op, op)}"),
                            f"{_who(user)} quer: {ap.summary}. Abra e aprove ou recuse.")
         return await self.public(tenant_id, user, ap.id)
 
@@ -332,6 +377,8 @@ class FinanceApprovalService:
         user = _actor(user)
         if not _is_admin(user):
             raise FinanceError("Só administrador vota nos pedidos.")
+        if user.id not in {a.id for a in await self._admins(tenant_id)}:
+            raise FinanceError("Você acompanha os pedidos, mas não está entre os administradores que aprovam.")
         ap = await self._load(tenant_id, approval_id, lock=True)
         ap_id = ap.id
         await self._expire_if_needed(ap)
@@ -393,7 +440,7 @@ class FinanceApprovalService:
         ap = await self._load(tenant_id, approval_id)
         params = json.loads(ap.params)
         op, key, data = params["op"], params["key"], dict(params.get("data") or {})
-        summary, requester_id, reason = ap.summary, ap.requested_by_id, ap.reason   # lidos agora: o objeto expira nas operações abaixo
+        summary, requester_id, reason, rule = ap.summary, ap.requested_by_id, ap.reason, ap.rule   # lidos agora: o objeto expira nas operações abaixo
         requester = (await self.db.execute(select(User).where(User.id == requester_id))).scalar_one_or_none()
         svc = FinanceService(self.db)
         try:
@@ -401,7 +448,7 @@ class FinanceApprovalService:
                 # o valor relativo vale, não o saldo absoluto do dia do pedido: pode ter entrado venda nesse tempo
                 current = Decimal(str(next(a["balance"] for a in (await svc.balances(tenant_id))["accounts"] if a["id"] == int(key))))
                 data["target_balance"] = str(_q(current + Decimal(params["diff"])))
-                data["reason"] = f"{reason} (aprovado por todos os administradores, pedido #{approval_id})"
+                data["reason"] = f"{reason} (aprovado, pedido #{approval_id})"
                 await svc.adjust_account(tenant_id, requester, key, data)
             elif op == "account_opening":
                 await svc.update_account(tenant_id, requester, int(key), data)
@@ -428,14 +475,15 @@ class FinanceApprovalService:
                     raise FinanceNotFound("Despesa não encontrada.")
             else:
                 raise FinanceError("Operação desconhecida.")
-            msg, ok = "Aplicado depois da aprovação de todos os administradores.", True
+            msg, ok = ("Aplicado depois da aprovação de outro administrador." if rule == RULE_ONE_OTHER
+                       else "Aplicado depois da aprovação de todos os administradores."), True
         except (FinanceError, ValueError) as e:      # a despesa recusa com ValueError simples
             await self.db.rollback()
-            msg, ok = f"Todos aprovaram, mas não foi possível aplicar: {e}", False
+            msg, ok = f"Aprovado, mas não foi possível aplicar: {e}", False
         except Exception as e:  # noqa: BLE001
             await self.db.rollback()
             logger.exception("Pedido de aprovação %s não aplicou", approval_id)
-            msg, ok = f"Todos aprovaram, mas deu erro ao aplicar: {e}", False
+            msg, ok = f"Aprovado, mas deu erro ao aplicar: {e}", False
         # grava o resultado por UPDATE direto: a operação acima fez commit/rollback e o objeto do pedido pode estar expirado
         await self.db.execute(update(FinanceApproval).where(FinanceApproval.id == approval_id).values(
             status=APPROVAL_APPROVED if ok else APPROVAL_FAILED, applied_at=_now() if ok else None, result_message=msg))
@@ -458,7 +506,8 @@ class FinanceApprovalService:
         admins = await self._admins(tenant_id)
         by_user = {v.user_id: v for v in votes}
         waiting = [{"user_id": a.id, "name": _who(a)} for a in admins if a.id not in by_user] if ap.status == APPROVAL_PENDING else []
-        can_vote = bool(ap.status == APPROVAL_PENDING and _is_admin(user) and user.id not in by_user)
+        can_vote = bool(ap.status == APPROVAL_PENDING and _is_admin(user) and user.id not in by_user
+                        and user.id in {a.id for a in admins})
         return {
             "id": ap.id, "kind": ap.kind, "title": OP_TITLE.get(ap.kind, ap.kind), "summary": ap.summary, "reason": ap.reason,
             "status": ap.status, "rule": ap.rule, "account_id": ap.account_id,
@@ -483,7 +532,8 @@ class FinanceApprovalService:
             await self._expire_if_needed(ap)
             items.append(await self._public(tenant_id, user, ap))
         pending = [i for i in items if i["status"] == APPROVAL_PENDING]
-        return {"items": items, "pending": len(pending), "waiting_for_me": sum(1 for i in pending if i["can_vote"])}
+        return {"items": items, "pending": len(pending), "waiting_for_me": sum(1 for i in pending if i["can_vote"]),
+                "approvers": await self.approvers(tenant_id)}
 
     async def summary(self, tenant_id: int, user: User) -> Dict[str, Any]:
         r = await self.list(tenant_id, user, limit=30)

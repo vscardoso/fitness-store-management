@@ -21,7 +21,11 @@ export interface FinanceApproval {
   can_vote: boolean; can_cancel: boolean; approved_count: number; admins_total: number;
 }
 export interface ApprovalHeld { approval_required: true; approval: FinanceApproval; message: string }
-export interface ApprovalList { items: FinanceApproval[]; pending: number; waiting_for_me: number }
+export interface Approver { user_id: number; name: string; approver: boolean }
+export interface ApprovalList { items: FinanceApproval[]; pending: number; waiting_for_me: number; approvers: Approver[] }
+/** Administrador escolhe quais administradores aprovam (os outros só acompanham). */
+export const setApprovers = async (userIds: number[]): Promise<Approver[]> =>
+  (await api.put<Approver[]>('/finance/approvers', { user_ids: userIds })).data;
 
 export const getApprovals = async (): Promise<ApprovalList> =>
   (await api.get<ApprovalList>('/finance/approvals', { headers: { 'X-Skip-Loading': 'true' } })).data;
@@ -38,9 +42,12 @@ export const isHeld = (data: unknown): data is ApprovalHeld => !!data && (data a
 
 /** A frase com que o servidor pede o motivo (o app a reconhece para perguntar e repetir). */
 export const REASON_NEEDLE = 'Para mexer no saldo de um banco';
+/** A gaveta com diferença acima de R$ 10 também pede motivo (e outro administrador aprova). */
+export const DRAWER_REASON_NEEDLE = 'Para acertar a gaveta com uma diferença acima';
 export const isBankReasonRequired = (e: unknown): boolean => {
   const err = e as { status?: number; message?: string } | undefined;
-  return !!err && (err.status === 400 || err.status === undefined) && String(err.message ?? '').includes(REASON_NEEDLE);
+  const msg = String(err?.message ?? '');
+  return !!err && (err.status === 400 || err.status === undefined) && (msg.includes(REASON_NEEDLE) || msg.includes(DRAWER_REASON_NEEDLE));
 };
 
 // ── janela do motivo (montada uma vez na raiz: BankApprovalHost) ─────────────────────────────────────────────────

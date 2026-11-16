@@ -24,6 +24,11 @@ async def _saldos(c, h):
 
 async def _pronto(async_session, test_user, client):
     t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    # estes testes tratam a loja como de UM administrador só (sem outro para aprovar); sobras de outros testes ficam inativas
+    from sqlalchemy import update
+    from app.models.user import User
+    await async_session.execute(update(User).where(User.tenant_id == t_id, User.role == UserRole.ADMIN, User.id != test_user.id).values(is_active=False))
+    await async_session.commit()
     await _zerar_implantacao(async_session, t_id)
     d = (await _implantar(client, h, payables=[])).json()
     return t_id, h, {a["name"]: a["id"] for a in d["accounts"]}
@@ -35,7 +40,7 @@ async def test_ajuste_sobe_desce_e_nao_vira_resultado(test_client, async_session
     res0 = (await c.get("/api/v1/expenses/resultado-mes", params={"year": HOJE.year, "month": HOJE.month}, headers=h)).json()
     rel0 = (await c.get("/api/v1/reports/monthly", params={"year": HOJE.year, "month": HOJE.month}, headers=h)).json()["result"]["current"]
     # sobe a gaveta (150 -> 7500)
-    r = await c.post(f"{API}/accounts/{ids['Gaveta']}/adjust", headers=h, json={"target_balance": "7500.00", "reason": "Contagem da gaveta"})
+    r = await c.post(f"{API}/accounts/{ids['Gaveta']}/adjust", headers=h, json={"target_balance": "7500.00", "reason": "Contagem da gaveta feita hoje"})
     assert r.status_code == 200, r.text
     assert D(str(_conta(r.json(), "Gaveta")["balance"])) == D("7500.00") and "warning" not in r.json()
     # desce a maquininha (300 -> 120.50)
@@ -48,7 +53,7 @@ async def test_ajuste_sobe_desce_e_nao_vira_resultado(test_client, async_session
     es = (await c.get(f"{API}/entries", headers=h)).json()
     por_conta = {e["account_id"]: e for e in es}
     assert por_conta[ids["Gaveta"]]["kind"] == "other_in" and D(str(por_conta[ids["Gaveta"]]["amount"])) == D("7350.00")
-    assert por_conta[ids["Gaveta"]]["description"] == "Ajuste de saldo: Contagem da gaveta"
+    assert por_conta[ids["Gaveta"]]["description"] == "Ajuste de saldo: Contagem da gaveta feita hoje"
     assert por_conta[ids["Maquininha a receber"]]["kind"] == "other_out"
     assert por_conta[ids["Gaveta"]]["occurred_on"] == HOJE.isoformat()
     # Resultado do Mes e relatorio mensal nao mudam
