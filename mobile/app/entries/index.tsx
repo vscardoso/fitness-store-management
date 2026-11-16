@@ -1165,7 +1165,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   cardRow: {
@@ -1225,7 +1225,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   filterBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.textSecondary,
   },
@@ -1246,7 +1246,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginBottom: 2,
   },

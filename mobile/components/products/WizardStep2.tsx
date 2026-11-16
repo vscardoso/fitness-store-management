@@ -680,7 +680,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 6,
   },
   variantSkuPreviewTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: brand,
     textTransform: 'uppercase',
@@ -702,7 +702,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     flex: 1,
   },
   variantSkuCode: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: 'monospace',
     color: brand,
     fontWeight: '700',
@@ -712,7 +712,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingVertical: 2,
   },
   variantSkuMore: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     fontStyle: 'italic',
     textAlign: 'right',

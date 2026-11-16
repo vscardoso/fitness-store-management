@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
   },
   heroNumber: {
     marginTop: 6,
-    fontSize: 11,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.75)',
     textAlign: 'center',
   },

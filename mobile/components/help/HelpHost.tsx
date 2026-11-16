@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   openBtn: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
   openText: { color: Colors.light.white, fontWeight: '700', fontSize: 14 },
   hint: { fontSize: 12, color: Colors.light.textTertiary },
-  iconBtnOnColor: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 255, 255, 0.25)', alignItems: 'center',
+  iconBtnOnColor: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255, 255, 255, 0.25)', alignItems: 'center',
     justifyContent: 'center' },
   iconBtn: { width: 38, height: 38, borderRadius: 9, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center',
     justifyContent: 'center', backgroundColor: Colors.light.card },

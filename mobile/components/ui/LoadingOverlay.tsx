@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   timeoutText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '500',
   },

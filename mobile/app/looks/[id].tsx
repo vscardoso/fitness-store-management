@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginBottom: 2,
   },

@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card,
   },
   fieldText: { flex: 1 },
-  fieldLabel: { fontSize: 11, color: Colors.light.textSecondary },
+  fieldLabel: { fontSize: 12, color: Colors.light.textSecondary },
   fieldValue: { fontSize: 15, fontWeight: '600', color: Colors.light.text, marginTop: 1 },
   list: { gap: 10, paddingBottom: 8 },
   row: {

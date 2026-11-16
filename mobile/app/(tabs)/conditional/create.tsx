@@ -934,7 +934,7 @@ export default function CreateConditionalShipmentScreen() {
                         <Text style={{ fontSize: 18, fontWeight: 'bold', color: brandingColors.primary }}>
                           {Math.ceil((returnDateTime.getTime() - departureDateTime.getTime()) / (1000 * 60 * 60 * 24))} dias
                         </Text>
-                        <Text style={{ fontSize: 11, color: Colors.light.textSecondary, marginTop: 2 }}>
+                        <Text style={{ fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 }}>
                           Baseado nas datas de ida e volta
                         </Text>
                       </View>
@@ -1224,7 +1224,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingVertical: 6,
   },
   progressPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
   },
@@ -1445,7 +1445,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     minHeight: 24,
   },
   brandText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#1976d2',
     lineHeight: 14,
   },
@@ -1472,7 +1472,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   catalogSku: {
     color: '#999',
-    fontSize: 11,
+    fontSize: 12,
   },
   catalogCardActions: {
     paddingHorizontal: 12,

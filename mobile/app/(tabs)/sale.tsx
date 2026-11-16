@@ -47,6 +47,7 @@ import { playScan } from '@/utils/scanFeedback';
 import { Money } from '@/components/ui/PriceDisplay';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopPDV from '@/components/sale/DesktopPDV';
+import { plural } from '@/utils/plural';
 
 /** Notebook (app web com 1024 px ou mais): PDV de balcão em duas colunas. Celular: o PDV de sempre. */
 export default function SaleScreen() {
@@ -432,7 +433,7 @@ function MobileSaleScreen() {
         visible: true,
         type: 'warning',
         title: 'Estoque insuficiente',
-        message: `Apenas ${variant.current_stock} unidade(s) disponíveis.`,
+        message: `Apenas ${plural(variant.current_stock, 'unidade', 'unidades')} disponíveis.`,
         confirmText: 'Entendi',
         cancelText: '',
         onConfirm: () => setDialog({ ...dialog, visible: false }),

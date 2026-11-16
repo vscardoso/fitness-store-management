@@ -60,6 +60,13 @@ function useFitFont(base: number, minSize: number, key: unknown) {
   // só quando a fonte, o valor ou o tamanho-base mudam (a largura é tratada pelo onLayout): medir a cada render forçava
   // um recálculo de layout por preço e travava a rolagem das listas
   useLayoutEffect(check, [fs, base, key]);
+  // a fonte do app carrega depois do primeiro desenho e alarga o texto: mede de novo quando ela chega
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined' || !(document as any).fonts?.ready) return;
+    let alive = true;
+    (document as any).fonts.ready.then(() => { if (alive) check(); });
+    return () => { alive = false; };
+  }, [base, key]);
   const nativeFit = Platform.OS === 'web' ? {} : { adjustsFontSizeToFit: true, minimumFontScale: Math.min(1, minSize / base) };
   return { ref, fs, check, nativeFit };
 }
@@ -220,9 +227,9 @@ const styles = StyleSheet.create({
   fill: { alignSelf: 'stretch', minWidth: 0 },
   shrink: { maxWidth: '100%', flexShrink: 1, minWidth: 0 },
   money: { fontWeight: '800', letterSpacing: -0.3, fontVariant: ['tabular-nums'] },
-  upTo: { fontSize: 11, fontWeight: '600', color: Colors.light.textSecondary, marginTop: 1 },
+  upTo: { fontSize: 12, fontWeight: '600', color: Colors.light.textSecondary, marginTop: 1 },
   rangeRow: { flexDirection: 'row', alignItems: 'baseline' },
   rangeLabel: { color: Colors.light.textSecondary, fontWeight: '600' },
   hint: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 4, alignSelf: 'flex-start' },
-  hintText: { fontSize: 11, fontWeight: '700' },
+  hintText: { fontSize: 12, fontWeight: '700' },
 });

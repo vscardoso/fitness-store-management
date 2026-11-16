@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: Colors.light.white,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
   },
 });

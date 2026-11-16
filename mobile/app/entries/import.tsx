@@ -29,6 +29,7 @@ import {
   type ImportSource,
 } from '@/services/stockImportService';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { plural } from '@/utils/plural';
 
 const STATUS_LABEL: Record<ImportRowStatus, string> = {
   novo_produto: 'Produto novo',
@@ -134,8 +135,8 @@ export default function ImportStockScreen() {
               {result.pieces} peças entraram na entrada {result.entry_code}, com o custo da planilha ({formatCurrency(result.total_cost)} no total).
             </Text>
             <Text style={styles.note}>
-              {result.products_created} produto(s) novo(s), {result.variants_created} variação(ões) nova(s)
-              {result.products_touched > result.products_created ? `, ${result.products_touched - result.products_created} produto(s) que já existiam` : ''}.
+              {plural(result.products_created, 'produto novo', 'produtos novos')}, {plural(result.variants_created, 'variação nova', 'variações novas')}
+              {result.products_touched > result.products_created ? `, ${plural(result.products_touched - result.products_created, 'produto', 'produtos')} que já existiam` : ''}.
               {result.categories_created.length ? ` Categorias criadas: ${result.categories_created.join(', ')}.` : ''}
             </Text>
             <View style={styles.actions}>
@@ -236,13 +237,13 @@ export default function ImportStockScreen() {
             {s.categories_new.length > 0 && <Text style={styles.note}>Categorias novas: {s.categories_new.join(', ')}.</Text>}
             {s.variants_added_to_existing > 0 && (
               <Text style={styles.warn}>
-                {s.variants_added_to_existing} peça(s) já existem no estoque: as unidades da planilha serão SOMADAS a elas.
+                {plural(s.variants_added_to_existing, 'peça', 'peças')} já existem no estoque: as unidades da planilha serão SOMADAS a elas.
               </Text>
             )}
-            {s.ignored > 0 && <Text style={styles.note}>{s.ignored} linha(s) sem quantidade serão ignoradas.</Text>}
+            {s.ignored > 0 && <Text style={styles.note}>{plural(s.ignored, 'linha', 'linhas')} sem quantidade serão ignoradas.</Text>}
             {s.errors > 0 ? (
               <Text style={styles.error}>
-                {s.errors} linha(s) com erro. Corrija a planilha e confira de novo: nada é importado enquanto houver erro.
+                {plural(s.errors, 'linha', 'linhas')} com erro. Corrija a planilha e confira de novo: nada é importado enquanto houver erro.
               </Text>
             ) : preview?.can_import ? (
               <AppButton variant="primary" size="lg" fullWidth label={`Importar ${s.pieces} peças`} onPress={() => setConfirm(true)} disabled={busy} style={styles.btn} />
@@ -268,7 +269,7 @@ export default function ImportStockScreen() {
         visible={confirm}
         title="Importar o estoque?"
         message="As peças entram no estoque agora, numa entrada de Estoque inicial, e valem para vendas e relatórios. Se algo falhar, nada é gravado."
-        details={s ? [`${s.pieces} peças`, `Custo total ${formatCurrency(s.total_cost)}`, `${s.products_new} produto(s) novo(s)`, `Data ${dateBr}`] : []}
+        details={s ? [`${s.pieces} peças`, `Custo total ${formatCurrency(s.total_cost)}`, plural(s.products_new, 'produto novo', 'produtos novos'), `Data ${dateBr}`] : []}
         confirmText="Importar"
         type="info"
         loading={busy}

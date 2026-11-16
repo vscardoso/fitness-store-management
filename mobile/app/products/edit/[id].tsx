@@ -1554,7 +1554,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 6,
   },
   entryTypeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.card,
     textTransform: 'uppercase',
@@ -1595,7 +1595,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.textTertiary,
   },
   soldText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.error,
     fontWeight: '600',
     marginLeft: 4,
@@ -1623,7 +1623,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 4,
   },
   progressText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '600',
     textAlign: 'right',
@@ -1790,7 +1790,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 6,
   },
   fifoEntryTypeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1900,7 +1900,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 4,
   },
   fifoEntryTypeTextCompact: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -2080,7 +2080,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 10,
   },
   variantEntriesCountText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: brand,
   },
@@ -2118,7 +2118,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.text,
   },
   variantEntryMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 1,
   },

@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
     maxWidth: 170,
   },
   variantChipText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.info,
   },
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
     maxWidth: 120,
   },
   skuChipText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: VALUE_COLORS.warning,
   },

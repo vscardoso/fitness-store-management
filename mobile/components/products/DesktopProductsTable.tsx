@@ -18,6 +18,7 @@ import { formatCurrency } from '@/utils/format';
 import { matchesProduct, productCode, productCodeNumber } from '@/utils/productSearch';
 import type { ProductGrouped } from '@/types';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { plural } from '@/utils/plural';
 
 const INK = '#160F28';
 const MUTED = '#5B5670';
@@ -136,7 +137,7 @@ export default function DesktopProductsTable() {
   const header = (
     <PageHeader
       title="Produtos"
-      subtitle={`${summary.inStock.toLocaleString('pt-BR')} em estoque (${summary.pieces.toLocaleString('pt-BR')} peças)${summary.none ? ` · ${summary.none} esgotado(s)` : ''}${summary.catalog ? ` · ${summary.catalog} cadastros guardados` : ''}`}
+      subtitle={`${summary.inStock.toLocaleString('pt-BR')} em estoque (${summary.pieces.toLocaleString('pt-BR')} peças)${summary.none ? ` · ${plural(summary.none, 'esgotado', 'esgotados')}` : ''}${summary.catalog ? ` · ${summary.catalog} cadastros guardados` : ''}`}
       rightActions={[
         { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
       ]}

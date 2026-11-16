@@ -122,12 +122,10 @@ function ProductGroupCardBase({ product, onPress }: ProductGroupCardProps) {
             </Text>
 
             <View style={styles.metaRow}>
-              {product.brand ? (
+              {!!product.brand && (
                 <Text style={styles.brand} numberOfLines={1}>
                   {product.brand}
                 </Text>
-              ) : (
-                <Text style={styles.brandMuted}>Sem marca</Text>
               )}
             </View>
 

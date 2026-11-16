@@ -119,7 +119,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   summary: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   summaryText: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  pillText: { fontSize: 11, fontWeight: '700' },
+  pillText: { fontSize: 12, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center' },
   headRow: { paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
   bodyRow: { paddingVertical: 5, borderRadius: 8 },

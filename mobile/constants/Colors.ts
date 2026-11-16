@@ -112,8 +112,8 @@ export const theme = {
     full: 9999,
   },
   fontSize: {
-    xxs: 10,
-    xs: 11,
+    xxs: 12,
+    xs: 12,
     sm: 12,
     md: 14,
     base: 16,

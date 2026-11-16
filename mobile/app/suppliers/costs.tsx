@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   saveText: { fontSize: 12, fontWeight: '600', color: Colors.light.success },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   supplier: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
-  meta: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 1 },
+  meta: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 1 },
   cost: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
   empty: { alignItems: 'center', paddingVertical: theme.spacing.xl, gap: theme.spacing.sm },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: Colors.light.text, textAlign: 'center' },

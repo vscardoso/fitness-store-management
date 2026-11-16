@@ -2342,7 +2342,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   catalogBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.info,
     fontWeight: '600',
   },
@@ -2398,7 +2398,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   warningText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.warning,
     marginTop: 4,
   },
@@ -2584,7 +2584,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   variantCountText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.white,
   },
@@ -2613,12 +2613,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   variantChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.text,
   },
   variantSkuText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
   },
   variantRemoveBtn: {

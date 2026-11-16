@@ -728,7 +728,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 4,
   },
   adminOnlyText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: brand,
   },

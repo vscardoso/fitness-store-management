@@ -198,7 +198,7 @@ export default function EntryVariantGrid({
 
 const styles = StyleSheet.create({
   note: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary, marginBottom: theme.spacing.sm },
-  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: Colors.light.textTertiary, marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
+  sectionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, color: Colors.light.textTertiary, marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, height: 36, borderRadius: theme.borderRadius.full,
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     width: CELL_W - 12, height: 40, textAlign: 'center', fontSize: theme.fontSize.base, fontWeight: '700', color: Colors.light.text,
     borderWidth: 1, borderColor: Colors.light.border, borderRadius: theme.borderRadius.md, backgroundColor: Colors.light.card,
   },
-  cellTag: { fontSize: 10, color: Colors.light.textTertiary },
+  cellTag: { fontSize: 12, color: Colors.light.textTertiary },
   summary: { marginTop: theme.spacing.sm, fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.textSecondary },
   hint: { marginTop: theme.spacing.sm, fontSize: theme.fontSize.xs, color: Colors.light.textSecondary },
   input: { marginTop: theme.spacing.md, backgroundColor: Colors.light.card },

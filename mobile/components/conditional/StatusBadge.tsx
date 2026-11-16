@@ -30,7 +30,7 @@ export default function StatusBadge({
   const label = SHIPMENT_STATUS_LABELS[status] ?? status;
 
   const sizeStyles = {
-    small: { fontSize: 10, height: 24 },
+    small: { fontSize: 12, height: 24 },
     medium: { fontSize: 12, height: 28 },
     large: { fontSize: 14, height: 32 },
   };

@@ -45,9 +45,6 @@ function MenuItem({ icon, title, subtitle, onPress, badge, iconColor, iconBg }: 
         <Text style={styles.menuItemTitle}>{title}</Text>
         {subtitle && <Text style={styles.menuItemSubtitle}>{subtitle}</Text>}
       </View>
-      <View style={styles.menuOpenTag}>
-        <Text style={styles.menuOpenTagText}>Abrir</Text>
-      </View>
       {badge && (
         <View style={styles.menuBadge}>
           <Text style={styles.menuBadgeText}>{badge}</Text>
@@ -524,7 +521,7 @@ const styles = StyleSheet.create({
     marginRight: theme.spacing.xs,
   },
   menuOpenTagText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
     color: Colors.light.textSecondary,
     textTransform: 'uppercase',

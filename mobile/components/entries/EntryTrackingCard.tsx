@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getEntryTracking } from '@/services/stockEntryService';
+import { plural, pluralWord } from '@/utils/plural';
 
 function fmtWhen(iso: string | null) {
   if (!iso) return '';
@@ -44,7 +45,7 @@ export default function EntryTrackingCard({ entryId }: { entryId: number }) {
           </Text>
           {t.removed_unrecorded > 0 && (
             <Text style={styles.warn}>
-              {t.removed_unrecorded} peça(s) saíram sem venda e sem registro na hora (aconteceu antes do registro existir). Ficam marcadas em laranja.
+              {plural(t.removed_unrecorded, 'peça', 'peças')} {pluralWord(t.removed_unrecorded, 'saiu', 'saíram')} sem venda e sem registro na hora (aconteceu antes do registro existir). {pluralWord(t.removed_unrecorded, 'Fica marcada', 'Ficam marcadas')} em laranja.
             </Text>
           )}
           <TouchableOpacity onPress={() => setOnlyOut(v => !v)} style={styles.filter}>
@@ -79,7 +80,7 @@ export default function EntryTrackingCard({ entryId }: { entryId: number }) {
                   ))}
                   {r.removed_unrecorded > 0 && (
                     <Text style={[styles.histTxt, { color: '#D97706' }]}>
-                      {r.removed_unrecorded} peça(s) saíram sem venda e sem registro na hora.
+                      {plural(r.removed_unrecorded, 'peça', 'peças')} {pluralWord(r.removed_unrecorded, 'saiu', 'saíram')} sem venda e sem registro na hora.
                     </Text>
                   )}
                 </View>
@@ -102,11 +103,11 @@ const styles = StyleSheet.create({
   filter: { alignSelf: 'flex-start' },
   filterTxt: { fontSize: 12, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
-  th: { fontSize: 11, color: Colors.light.textSecondary, fontWeight: '700' },
+  th: { fontSize: 12, color: Colors.light.textSecondary, fontWeight: '700' },
   cName: { flex: 1 },
   cNum: { width: 52, textAlign: 'center', fontSize: 13, color: Colors.light.text },
   name: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
-  variant: { fontSize: 11, color: Colors.light.textSecondary },
+  variant: { fontSize: 12, color: Colors.light.textSecondary },
   hist: { backgroundColor: Colors.light.background, borderRadius: 10, padding: 10, gap: 4, marginBottom: 6 },
   histTxt: { fontSize: 12, color: Colors.light.textSecondary },
 });

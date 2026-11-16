@@ -78,5 +78,5 @@ const styles = StyleSheet.create({
   chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { backgroundColor: Colors.light.card, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, maxWidth: '100%' },
   chipText: { fontSize: 12, fontWeight: '600', color: Colors.light.text },
-  chipStock: { fontSize: 11, fontWeight: '500', color: Colors.light.textTertiary },
+  chipStock: { fontSize: 12, fontWeight: '500', color: Colors.light.textTertiary },
 });

@@ -24,6 +24,7 @@ import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { plural } from '@/utils/plural';
 
 const STATUS_LABEL: Record<string, string> = {
   sent: 'Com o fornecedor',
@@ -87,7 +88,7 @@ export default function SupplierReturnsScreen() {
         ) : (
           (pending.data || []).map((d) => (
             <View key={d.return_item_id} style={styles.card}>
-              <Text style={styles.cardTitle}>{d.quantity_pending} peça(s) com defeito</Text>
+              <Text style={styles.cardTitle}>{plural(d.quantity_pending, 'peça', 'peças')} com defeito</Text>
               <Text style={styles.note}>Custo de cada uma: {formatCurrency(d.unit_cost)}</Text>
               <AppButton
                 variant="primary" size="md" fullWidth label="Enviar ao fornecedor" style={{ marginTop: 8 }}
@@ -107,7 +108,7 @@ export default function SupplierReturnsScreen() {
         ) : (
           open.map((r) => (
             <View key={r.id} style={styles.card}>
-              <Text style={styles.cardTitle}>{r.quantity} peça(s), {formatCurrency(r.unit_cost)} cada</Text>
+              <Text style={styles.cardTitle}>{plural(r.quantity, 'peça', 'peças')}, {formatCurrency(r.unit_cost)} cada</Text>
               <Text style={styles.note}>{r.reason}</Text>
               <View style={styles.actions}>
                 <AppButton variant="outlined" size="sm" label="Fornecedor trocou" onPress={() => resolve.mutate({ id: r.id, outcome: 'exchanged' })} />
@@ -142,7 +143,7 @@ export default function SupplierReturnsScreen() {
         {done.length > 0 && <Text style={styles.section}>Já resolvidas</Text>}
         {done.map((r) => (
           <View key={r.id} style={styles.card}>
-            <Text style={styles.cardTitle}>{STATUS_LABEL[r.status] || r.status}: {r.quantity} peça(s)</Text>
+            <Text style={styles.cardTitle}>{STATUS_LABEL[r.status] || r.status}: {plural(r.quantity, 'peça', 'peças')}</Text>
             {r.credit_amount ? <Text style={styles.note}>Crédito de {formatCurrency(r.credit_amount)}</Text> : null}
             {r.resolution_note ? <Text style={styles.note}>{r.resolution_note}</Text> : null}
           </View>

@@ -943,7 +943,7 @@ const styles = StyleSheet.create({
   },
   coverBadgeText: {
     color: Colors.light.white,
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
@@ -1237,7 +1237,7 @@ const styles = StyleSheet.create({
   },
   inheritedBadgeText: {
     color: Colors.light.white,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
@@ -1249,7 +1249,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   useProductPhotoBtnText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
   },

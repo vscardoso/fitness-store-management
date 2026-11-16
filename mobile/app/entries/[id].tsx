@@ -63,6 +63,8 @@ import AddProductToEntryModal from '@/components/entries/AddProductToEntryModal'
 import { setPresetEntry } from '@/utils/presetEntry';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { plural } from '@/utils/plural';
+import { cleanNotes } from '@/utils/cleanNotes';
 
 export default function StockEntryDetailsScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -208,7 +210,7 @@ export default function StockEntryDetailsScreen() {
       // Preparar mensagem de sucesso
       const messages = [`Entrada ${result.entry_code} excluída!`];
       if (result.orphan_products_deleted > 0) {
-        messages.push(`${result.orphan_products_deleted} produto(s) órfão(s) excluído(s)`);
+        messages.push(`${plural(result.orphan_products_deleted, 'produto órfão excluído', 'produtos órfãos excluídos')}`);
       }
       if (result.total_stock_removed > 0) {
         messages.push(`${result.total_stock_removed} unidades removidas`);
@@ -479,7 +481,7 @@ export default function StockEntryDetailsScreen() {
 
     // Contar produtos únicos
     const uniqueProducts = entry.entry_items?.length || 0;
-    details.push(`${uniqueProducts} produto(s) vinculado(s) a esta entrada`);
+    details.push(`${plural(uniqueProducts, 'produto vinculado', 'produtos vinculados')} a esta entrada`);
 
     // Avisar sobre produtos órfãos
     if (uniqueProducts > 0) {
@@ -642,7 +644,7 @@ export default function StockEntryDetailsScreen() {
             accessibilityLabel="Incluir as etiquetas desta peça na fila de impressão e abrir a fila"
           >
             <Ionicons name="list-outline" size={16} color={brandingColors.primary} />
-            <Text style={[styles.itemToolText, { color: brandingColors.primary, fontSize: 11, textAlign: 'center' }]} numberOfLines={2}>Fila de impressão</Text>
+            <Text style={[styles.itemToolText, { color: brandingColors.primary, fontSize: 12, textAlign: 'center' }]} numberOfLines={2}>Fila de impressão</Text>
           </TouchableOpacity>
         </View>
 
@@ -713,10 +715,10 @@ export default function StockEntryDetailsScreen() {
         </View>
 
         {/* Observações */}
-        {!!item.notes && (
+        {!!cleanNotes(item.notes) && (
           <View style={styles.itemNotesContainer}>
             <Ionicons name="document-text-outline" size={14} color={Colors.light.textSecondary} />
-            <Text style={styles.itemNotesText} numberOfLines={3}>{item.notes}</Text>
+            <Text style={styles.itemNotesText} numberOfLines={3}>{cleanNotes(item.notes)}</Text>
           </View>
         )}
       </View>
@@ -840,8 +842,8 @@ export default function StockEntryDetailsScreen() {
             {!!entry.payment_method && (
               <InfoRow label="Pagamento" value={entry.payment_method} icon="cash-outline" />
             )}
-            {!!entry.notes && (
-              <InfoRow label="Observações" value={entry.notes} icon="document-outline" />
+            {!!cleanNotes(entry.notes) && (
+              <InfoRow label="Observações" value={cleanNotes(entry.notes)} icon="document-outline" />
             )}
         </View>
 
@@ -1093,7 +1095,7 @@ export default function StockEntryDetailsScreen() {
                 return (
                   <>
                     <Text style={styles.itemsViewInfo}>
-                      {zero.length === 0 ? 'Nenhum item zerado nesta entrada.' : `${zero.length} item(ns) zerado(s) de ${all.length}.`}
+                      {zero.length === 0 ? 'Nenhum item zerado nesta entrada.' : `${plural(zero.length, 'item zerado', 'itens zerados')} de ${all.length}.`}
                     </Text>
                     {zero.map(renderProductItem)}
                   </>
@@ -1113,7 +1115,7 @@ export default function StockEntryDetailsScreen() {
                       <View style={styles.groupHeader}>
                         <Text style={styles.groupTitle} numberOfLines={2}>{list[0].product_name}</Text>
                         <Text style={[styles.groupInfo, rest === 0 && { color: Colors.light.error }]}>
-                          {rest === 0 ? 'Zerado' : `Restam ${rest} de ${bought} un`} · {list.length} item(ns)
+                          {rest === 0 ? 'Zerado' : `Restam ${rest} de ${bought} un`} · {plural(list.length, 'item', 'itens')}
                         </Text>
                       </View>
                       {list.map(renderProductItem)}
@@ -1136,7 +1138,7 @@ export default function StockEntryDetailsScreen() {
           <View style={styles.compactNoticeRow}>
             <Ionicons name="information-circle-outline" size={14} color={Colors.light.textSecondary} />
             <Text style={styles.compactNoticeText}>
-              Exclusão indisponível: esta entrada possui {entry.items_sold} unidade(s) vendida(s).
+              Exclusão indisponível: esta entrada possui {plural(entry.items_sold, 'unidade vendida', 'unidades vendidas')}.
             </Text>
           </View>
         )}

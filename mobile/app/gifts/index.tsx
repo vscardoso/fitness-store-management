@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   name: { fontSize: 15, fontWeight: '600', color: Colors.light.text },
   meta: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: 2 },
   cost: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
-  small: { fontSize: 11, color: Colors.light.textSecondary },
+  small: { fontSize: 12, color: Colors.light.textSecondary },
   empty: { alignItems: 'center', padding: theme.spacing.xl, gap: theme.spacing.sm },
   emptyTitle: { fontSize: 17, fontWeight: '600', color: Colors.light.text, textAlign: 'center' },
   emptySub: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary, textAlign: 'center' },

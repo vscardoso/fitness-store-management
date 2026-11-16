@@ -1898,7 +1898,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     height: 28,
   },
   itemBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.success,
   },
   itemDetails: {

@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quickFilterChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.textSecondary,
     textTransform: 'uppercase',
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
   variantLabel: { flex: 1, fontSize: 14, color: Colors.light.textSecondary },
   variantLabelChecked: { color: Colors.light.text, fontWeight: '600' },
   alreadyInlineText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.success,
     minWidth: 20,
@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.success + '35',
   },
   alreadyBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.success,
     textTransform: 'uppercase',

@@ -118,6 +118,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 14, color: Colors.light.text, fontWeight: '600' },
   titleUnread: { fontWeight: '800' },
   body: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2, lineHeight: 17 },
-  date: { fontSize: 11, color: Colors.light.textTertiary, marginTop: 4 },
+  date: { fontSize: 12, color: Colors.light.textTertiary, marginTop: 4 },
   dot: { width: 10, height: 10, borderRadius: 5 },
 });

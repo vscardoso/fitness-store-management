@@ -130,7 +130,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: brand,
   },
   stepLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     textAlign: 'center',
     maxWidth: 60,

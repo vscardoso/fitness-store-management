@@ -43,6 +43,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 
 import { FitText } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
+import { plural } from '@/utils/plural';
 const PERIOD_DAYS_OPTIONS = [
   { value: 7, label: '7 dias' },
   { value: 30, label: '30 dias' },
@@ -534,7 +535,7 @@ export default function InventoryDashboard() {
             <AlertCard
               type="error"
               title="Produtos Sem Estoque"
-              message={`${metrics.productsOutOfStock} produto(s) sem unidades disponíveis. Reponha o estoque o quanto antes.`}
+              message={`${plural(metrics.productsOutOfStock, 'produto', 'produtos')} sem unidades disponíveis. Reponha o estoque o quanto antes.`}
               onPress={() => router.push('/products')}
             />
           )}
@@ -543,7 +544,7 @@ export default function InventoryDashboard() {
             <AlertCard
               type="warning"
               title="Estoque Baixo"
-              message={`${metrics.lowStockCount} produto(s) com menos de 3 unidades em estoque. Toque para ver quais.`}
+              message={`${plural(metrics.lowStockCount, 'produto', 'produtos')} com menos de 3 unidades em estoque. Toque para ver quais.`}
               onPress={() => router.push('/(tabs)/products?filter=low_stock' as any)}
             />
           )}
@@ -552,7 +553,7 @@ export default function InventoryDashboard() {
             <AlertCard
               type="warning"
               title="Produtos Encalhados"
-              message={`${metrics.slowMovingCount} produto(s) com mais de 60 dias parados`}
+              message={`${plural(metrics.slowMovingCount, 'produto', 'produtos')} com mais de 60 dias parados`}
               onPress={() => router.push('/(tabs)/products')}
             />
           )}
@@ -885,7 +886,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 2,
   },
   trendBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   alertCard: {
@@ -987,7 +988,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.text,
   },
   chartCount: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
   },
   // Novos estilos para card melhorado
@@ -1096,7 +1097,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     alignItems: 'center',
   },
   typeChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.text,
   },

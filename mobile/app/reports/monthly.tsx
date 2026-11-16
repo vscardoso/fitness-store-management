@@ -23,6 +23,7 @@ import { parseApiError } from '@/utils/apiError';
 import PdfActions from '@/components/ui/PdfActions';
 import { getMonthlyReport, getMonthlyReportPdf } from '@/services/monthlyReportService';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { plural, pluralWord } from '@/utils/plural';
 
 const PAYMENTS: Record<string, string> = {
   cash: 'Dinheiro', credit_card: 'Cartão de crédito', debit_card: 'Cartão de débito', pix: 'PIX', bank_transfer: 'Transferência',
@@ -160,7 +161,7 @@ export default function MonthlyReportScreen() {
         <Card title="O que mais vendeu" hint="Os 5 produtos que mais faturaram no mês.">
           {d.sales.top_products.slice(0, 5).map((p, i) => (
             <BarRow key={i} label={`${p.product_name}${p.variant_label ? ` · ${p.variant_label}` : ''}`} value={formatCurrency(p.revenue)} color={brand.primary}
-              share={p.revenue / maxTop} sub={`${p.quantity_sold} peça(s) vendida(s) · lucro ${formatCurrency(p.profit)}${p.variant_display_code ? ` · ${p.variant_display_code}` : ''}`} />
+              share={p.revenue / maxTop} sub={`${plural(p.quantity_sold, 'peça vendida', 'peças vendidas')} · lucro ${formatCurrency(p.profit)}${p.variant_display_code ? ` · ${p.variant_display_code}` : ''}`} />
           ))}
         </Card>
       )}
@@ -168,7 +169,7 @@ export default function MonthlyReportScreen() {
         <Card title="Faturamento por categoria">
           {d.sales.by_category.map((c) => (
             <BarRow key={c.category} label={c.category} value={formatCurrency(c.revenue)} color={Colors.light.success} share={c.percentage / 100}
-              sub={`${c.percentage.toFixed(0)}% do faturamento · ${c.pieces} peça(s) · lucro ${formatCurrency(c.profit)}`} />
+              sub={`${c.percentage.toFixed(0)}% do faturamento · ${plural(c.pieces, 'peça', 'peças')} · lucro ${formatCurrency(c.profit)}`} />
           ))}
         </Card>
       )}
@@ -184,11 +185,11 @@ export default function MonthlyReportScreen() {
         <Card title="Faturamento por vendedor">
           {d.sales.by_seller.map((v) => (
             <BarRow key={v.seller_name} label={v.seller_name} value={formatCurrency(v.revenue)} color={Colors.light.info} share={v.percentage / 100}
-              sub={`${v.sales} venda(s) · ticket médio ${formatCurrency(v.average_ticket)}`} />
+              sub={`${plural(v.sales, 'venda', 'vendas')} · ticket médio ${formatCurrency(v.average_ticket)}`} />
           ))}
         </Card>
       )}
-      <FoldSection title="Detalhes das vendas" summary={`${d.sales.returns_count} devolução(ões)`}>
+      <FoldSection title="Detalhes das vendas" summary={`${plural(d.sales.returns_count, 'devolução', 'devoluções')}`}>
         <Row label="Descontos dados" value={d.sales.discount_total} />
         <Row label="Vendas com cliente cadastrada" value={d.sales.sales_with_customer} count />
         <Row label="Vendas sem cliente cadastrada" value={d.sales.sales_without_customer} count />
@@ -255,11 +256,11 @@ export default function MonthlyReportScreen() {
           <Stat label="Fiado vencido" value={formatCurrency(d.to_receive.fiado_overdue)} note={d.to_receive.fiado_overdue > 0 ? 'passou do prazo' : 'nada vencido'} warn={d.to_receive.fiado_overdue > 0}
             onPress={() => router.push('/finance/receivables' as any)} />
           <Stat label="Contas a pagar" value={formatCurrency(d.to_pay.open_total)} note="despesas e contas em aberto" onPress={() => router.push('/finance/payables' as any)} />
-          <Stat label="Contas vencidas" value={formatCurrency(d.to_pay.overdue_total)} note={`${d.to_pay.overdue_count} conta(s)`} warn={d.to_pay.overdue_count > 0}
+          <Stat label="Contas vencidas" value={formatCurrency(d.to_pay.overdue_total)} note={`${plural(d.to_pay.overdue_count, 'conta', 'contas')}`} warn={d.to_pay.overdue_count > 0}
             onPress={() => router.push('/finance/payables' as any)} />
         </View>
         <Text style={styles.small}>
-          {`Fiado que vence nos próximos 7 dias: ${formatCurrency(d.to_receive.due_this_week)}. Neste mês, ${formatCurrency(d.to_receive.launched_in_month)} foram lançados em fiado (${d.to_receive.launched_count} parcela(s)) e ${formatCurrency(d.to_receive.received_in_month)} foram recebidos.`}
+          {`Fiado que vence nos próximos 7 dias: ${formatCurrency(d.to_receive.due_this_week)}. Neste mês, ${formatCurrency(d.to_receive.launched_in_month)} foram lançados em fiado (${plural(d.to_receive.launched_count, 'parcela', 'parcelas')}) e ${formatCurrency(d.to_receive.received_in_month)} foram recebidos.`}
         </Text>
       </Card>
       <Card title="Estoque (hoje)">
@@ -269,7 +270,7 @@ export default function MonthlyReportScreen() {
           <Stat label="Valor a preço de custo" value={formatCurrency(d.stock.cost_value)} />
           <Stat label="Paradas há mais de 30 dias" value={String(d.stock.stagnant_units)} note="peças sem venda" warn={d.stock.stagnant_units > 0} />
         </View>
-        <Text style={styles.small}>{`${d.stock.other_out} peça(s) saíram sem venda (baixa, perda ou ajuste).`}</Text>
+        <Text style={styles.small}>{`${plural(d.stock.other_out, 'peça', 'peças')} ${pluralWord(d.stock.other_out, 'saiu', 'saíram')} sem venda (baixa, perda ou ajuste).`}</Text>
       </Card>
     </>
   );
@@ -332,7 +333,7 @@ const styles = StyleSheet.create({
   col: { flex: 1, gap: 12, minWidth: 0 },
   card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 10 },
   hero: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.light.border, gap: 10 },
-  eyebrow: { fontSize: 11, fontWeight: theme.fontWeight.extrabold, letterSpacing: 1, color: Colors.light.textSecondary },
+  eyebrow: { fontSize: 12, fontWeight: theme.fontWeight.extrabold, letterSpacing: 1, color: Colors.light.textSecondary },
   profit: { fontSize: 34, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { flexGrow: 1, flexBasis: 120, minWidth: 0, backgroundColor: Colors.light.background, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: Colors.light.border, gap: 2 },

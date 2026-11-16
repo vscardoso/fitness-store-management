@@ -158,12 +158,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   pillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
   },
   pillTextCompact: {
-    fontSize: 10,
+    fontSize: 12,
   },
   pillTextCurrent: {
     color: Colors.light.white,

@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   saleHistoryStatus: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
 });

@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   linkDense: { alignSelf: 'flex-start', height: 28 },
   appliedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.xs },
   applied: { flex: 1, fontSize: theme.fontSize.xs, color: Colors.light.successDark },
-  appliedDense: { fontSize: 11 },
+  appliedDense: { fontSize: 12 },
   editor: { gap: 4, marginTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   input: {

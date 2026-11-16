@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: Colors.light.white, borderRadius: 14, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
   headRow: { flexDirection: 'row', backgroundColor: '#FBFAFD', borderBottomWidth: 1, borderBottomColor: LINE },
   headInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  headText: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.4 },
+  headText: { fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.4 },
   row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0EDF5', minHeight: 56 },
   cell: { paddingHorizontal: 14, paddingVertical: 11, justifyContent: 'center' },
   right: { alignItems: 'flex-end' },

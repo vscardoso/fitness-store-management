@@ -11,6 +11,7 @@ import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import { getReceivableSummary } from '@/services/receivableService';
+import { plural } from '@/utils/plural';
 
 export default function CustomerFiadoCard({ customerId }: { customerId: number }) {
   const router = useRouter();
@@ -29,7 +30,7 @@ export default function CustomerFiadoCard({ customerId }: { customerId: number }
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Deve {formatCurrency(data.open_total)} no fiado</Text>
         <Text style={[styles.sub, overdue && { color: Colors.light.error, fontWeight: '700' }]}>
-          {overdue ? `${formatCurrency(data.overdue_total)} vencido · ` : ''}{data.installments} parcela(s) · Ver fiado e receber
+          {overdue ? `${formatCurrency(data.overdue_total)} vencido · ` : ''}{plural(data.installments, 'parcela', 'parcelas')} · Ver fiado e receber
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />

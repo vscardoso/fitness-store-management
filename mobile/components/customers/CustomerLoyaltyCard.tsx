@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   note: { fontSize: 12, color: Colors.light.textSecondary },
   entry: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 6 },
   entryLabel: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
-  entryDate: { fontSize: 11, color: Colors.light.textSecondary },
+  entryDate: { fontSize: 12, color: Colors.light.textSecondary },
   entryPts: { fontSize: 14, fontWeight: '800' },
   error: { color: Colors.light.error, fontSize: 13 },
 });

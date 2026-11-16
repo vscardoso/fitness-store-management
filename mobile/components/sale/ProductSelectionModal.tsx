@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   priceFrom: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
     marginBottom: -4,
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   stockPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   // ── Variantes expandidas ──
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   variantSku: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     marginTop: 1,
   },

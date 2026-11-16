@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   mine: { alignSelf: 'flex-end', borderBottomRightRadius: 5 },
   theirs: { alignSelf: 'flex-start', borderWidth: 1, borderBottomLeftRadius: 5 },
   msgText: { fontSize: 15, lineHeight: 21 },
-  meta: { fontSize: 11, alignSelf: 'flex-end' },
+  meta: { fontSize: 12, alignSelf: 'flex-end' },
   footer: { paddingHorizontal: 12, paddingTop: 8, borderTopWidth: 1, gap: 6 },
   suggest: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
   suggestRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 },

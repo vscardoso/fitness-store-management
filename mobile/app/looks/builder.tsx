@@ -535,12 +535,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   productBrand: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
   variantText: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.primary,
     marginTop: 2,
     fontWeight: '600',

@@ -470,7 +470,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     lineHeight: 22,
   },
   summaryLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '600',
     letterSpacing: 0.25,
@@ -625,7 +625,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 3,
   },
   statusPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   itemsCountText: {

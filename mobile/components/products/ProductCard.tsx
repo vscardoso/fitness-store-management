@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontWeight: '600',
     textTransform: 'uppercase',
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 0.5,
   },
   name: {
@@ -194,11 +194,11 @@ const styles = StyleSheet.create({
   meta: {
     color: Colors.light.textSecondary,
     fontWeight: '500',
-    fontSize: 11,
+    fontSize: 12,
   },
   brand: {
     color: Colors.light.textSecondary,
-    fontSize: 11,
+    fontSize: 12,
   },
   footer: {
     paddingTop: 12,
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   label: {
     color: Colors.light.textSecondary,
     marginBottom: 4,
-    fontSize: 11,
+    fontSize: 12,
   },
   costPrice: {
     fontWeight: '600',

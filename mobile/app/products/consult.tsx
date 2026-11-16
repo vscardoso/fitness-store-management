@@ -194,6 +194,6 @@ const styles = StyleSheet.create({
   sibling: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 12 },
   siblingActive: { backgroundColor: Colors.light.backgroundSecondary },
   sibName: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
-  sibCode: { fontSize: 11, color: Colors.light.textTertiary },
+  sibCode: { fontSize: 12, color: Colors.light.textTertiary },
   sibStock: { fontSize: 13, fontWeight: '700' },
 });

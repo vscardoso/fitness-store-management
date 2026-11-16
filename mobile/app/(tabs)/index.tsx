@@ -1189,7 +1189,7 @@ export default function DashboardScreen() {
                       <Text style={styles.recentItemTitle}>Venda #{sale.id}</Text>
                       {!!rv.tag && (
                         <View style={{ backgroundColor: VALUE_COLORS.negative + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                          <Text style={{ fontSize: 9, fontWeight: '700', color: VALUE_COLORS.negative, textTransform: 'uppercase' }}>{rv.tag}</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: VALUE_COLORS.negative, textTransform: 'uppercase' }}>{rv.tag}</Text>
                         </View>
                       )}
                     </View>
@@ -1462,7 +1462,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 2,
   },
   changeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
   },
   // P&L Summary Card
@@ -1508,7 +1508,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
   },
   plSummaryLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginBottom: 4,
   },
@@ -1574,7 +1574,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.textStrong,
   },
   purchasesPeriodNote: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     marginTop: 1,
   },
@@ -1706,7 +1706,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     fontWeight: '500',
   },
   stockItemPeriodHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: brand,
     marginTop: 2,
     fontWeight: '500',
@@ -1833,7 +1833,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginBottom: 6,
   },
   quickActionText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#4B5563',
     fontWeight: '500',
     textAlign: 'center',
@@ -1865,12 +1865,12 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginTop: 6,
   },
   quickStatLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
   quickStatSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     marginTop: 1,
   },
@@ -2032,7 +2032,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 4,
   },
   barLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     marginTop: 4,
   },
@@ -2041,7 +2041,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     fontWeight: '700',
   },
   barValue: {
-    fontSize: 9,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
@@ -2067,7 +2067,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginBottom: 6,
   },
   chartSummaryLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     flexShrink: 1,
   },
@@ -2153,7 +2153,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   topProductStatText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
   },
 
@@ -2216,17 +2216,17 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 12,
   },
   fifoSellThroughBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   fifoMetricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '500',
     marginBottom: 4,
   },
   fifoMetricSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     marginTop: 2,
   },
@@ -2294,7 +2294,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 8,
   },
   fifoMetricBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.white,
   },
@@ -2331,7 +2331,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginBottom: 4,
   },
   fifoAlertHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#991B1B',
     fontWeight: '600',
   },
@@ -2358,7 +2358,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   monthTrack: { width: '100%', height: 8, backgroundColor: Colors.light.surfaceMuted, borderRadius: 4, overflow: 'hidden' },
   monthValues: { minWidth: 96, alignItems: 'flex-end' },
   monthValue: { fontSize: 13, fontWeight: '700', color: Colors.light.textStrong },
-  monthPrev: { fontSize: 10, fontWeight: '600' },
+  monthPrev: { fontSize: 12, fontWeight: '600' },
   yoyCard: {
     backgroundColor: Colors.light.white,
     borderRadius: 16,
@@ -2417,7 +2417,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: '#C7D2FE',
   },
   yoyTotalYear: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '600',
     marginBottom: 3,
@@ -2498,7 +2498,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   yoyBarHValue: {
     width: 64,
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     textAlign: 'right',
   },
@@ -2513,7 +2513,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     justifyContent: 'center',
   },
   yoyMonthBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
 });

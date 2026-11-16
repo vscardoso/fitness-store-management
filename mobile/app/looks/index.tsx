@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   },
   description: {
     color: Colors.light.textSecondary,
-    fontSize: 11,
+    fontSize: 12,
     marginBottom: 6,
   },
   badgeRow: {
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: Colors.light.white,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
   },
   price: {
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     backgroundColor: `${Colors.light.textSecondary}20`,
   },
   publicText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
   },

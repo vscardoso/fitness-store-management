@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   },
   chipNew: { backgroundColor: Colors.light.card, borderStyle: 'dashed', alignItems: 'flex-start' },
   chipTitle: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
-  chipMeta: { fontSize: 11, color: Colors.light.textSecondary },
+  chipMeta: { fontSize: 12, color: Colors.light.textSecondary },
 });
 
 /** `Product` (com variações) no formato da lista agrupada, para abrir o seletor já no produto. */

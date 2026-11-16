@@ -56,6 +56,7 @@ import { playScan } from '@/utils/scanFeedback';
 import { buildSearchIndex, matchesSearch } from '@/utils/searchMatch';
 import { useDesktopContentStyle, useDesktopGrid } from '@/hooks/useLayout';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { plural, pluralWord } from '@/utils/plural';
 
 type Counts = Record<number, string>;
 
@@ -765,7 +766,7 @@ export default function StockCheckScreen() {
     </style></head><body>
       <h1>${title}</h1>
       <div class="sub">${today}${categoryId ? ' · só uma categoria' : ''} · ${formatInt(visible.length)} variações${
-        withResult ? ` · contadas ${formatInt(summary.counted)}, divergentes ${formatInt(summary.diffs)}, faltam ${formatInt(summary.falta)} peça(s), sobram ${formatInt(summary.sobra)}` : ''
+        withResult ? ` · contadas ${formatInt(summary.counted)}, divergentes ${formatInt(summary.diffs)}, faltam ${formatInt(summary.falta)} ${pluralWord(summary.falta, 'peça', 'peças')}, sobram ${formatInt(summary.sobra)}` : ''
       }</div>
       <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
     </body></html>`;
@@ -1061,7 +1062,7 @@ export default function StockCheckScreen() {
 
         {!isLoading && rows.length > 0 && (
           <Text style={styles.footer}>
-            {pending > 0 ? `${formatInt(pending)} variação(ões) ainda sem contagem.` : 'Todas as variações foram contadas.'}
+            {pending > 0 ? `${formatInt(pending)} ${pluralWord(pending, 'variação ainda sem contagem', 'variações ainda sem contagem')}.` : 'Todas as variações foram contadas.'}
           </Text>
         )}
       </ScrollView>
@@ -1121,7 +1122,7 @@ export default function StockCheckScreen() {
         ]}
       >
         <Text style={styles.saveHelp}>
-          Tira {wo?.qty ?? 0} peça(s) do estoque do sistema, das entradas mais antigas. Não dá para desfazer por aqui; fica registrado com o motivo.
+          Tira {plural(wo?.qty ?? 0, 'peça', 'peças')} do estoque do sistema, das entradas mais antigas. Não dá para desfazer por aqui; fica registrado com o motivo.
         </Text>
         <Text style={styles.woQuestion}>Qual o motivo? *</Text>
         <View style={styles.woReasons}>
@@ -1383,7 +1384,7 @@ const styles = StyleSheet.create({
   groupCat: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.light.border, borderLeftWidth: 3, borderLeftColor: 'transparent' },
   variant: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
-  meta: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 1 },
+  meta: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 1 },
   undoBtn: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
   rowHighlight: { backgroundColor: '#FEF9C3' },
   draftBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: Colors.light.warningLight, marginBottom: 8 },

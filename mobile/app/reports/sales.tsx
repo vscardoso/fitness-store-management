@@ -1041,7 +1041,7 @@ const styles = StyleSheet.create({
   catValue: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
   catMeta: { fontSize: 12, color: Colors.light.textSecondary },
   codeBadge: { backgroundColor: Colors.light.backgroundSecondary, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  codeBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.light.text },
+  codeBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.light.text },
   periodContainer: {
     alignItems: 'flex-start',
   },
@@ -1260,7 +1260,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.info + '14',
   },
   variantBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.info,
     maxWidth: 140,
@@ -1272,7 +1272,7 @@ const styles = StyleSheet.create({
     backgroundColor: VALUE_COLORS.warning + '1f',
   },
   skuBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: VALUE_COLORS.warning,
     maxWidth: 120,

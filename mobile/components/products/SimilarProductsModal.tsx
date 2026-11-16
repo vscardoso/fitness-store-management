@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   scoreText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.3,
   },

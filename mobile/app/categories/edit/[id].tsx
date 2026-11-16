@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
 
   // Inputs
   inputLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textTertiary,
     textTransform: 'uppercase',

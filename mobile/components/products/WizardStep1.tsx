@@ -33,6 +33,7 @@ import { capitalizeWords } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { checkProductName } from '@/services/productService';
 import { useScrollBleed } from '@/hooks/useLayout';
+import { plural } from '@/utils/plural';
 
 interface WizardStep1Props {
   wizard: UseProductWizardReturn;
@@ -415,7 +416,7 @@ export default function WizardStep1({
                 </View>
                 <View style={styles.duplicatesHeaderText}>
                   <Text style={styles.duplicatesTitle}>
-                    {state.duplicates.length} produto(s) similar(es)
+                    {plural(state.duplicates.length, 'produto similar', 'produtos similares')}
                   </Text>
                   <Text style={styles.duplicatesSubtitle}>
                     Já existe no catálogo. Deseja usar um deles?
@@ -662,7 +663,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: brand,
   },
   methodButtonSubtext: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
   },
   methodButtonSubtextActive: {

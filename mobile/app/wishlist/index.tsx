@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   summaryLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     textAlign: 'center',
   },

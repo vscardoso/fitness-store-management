@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     borderRadius: 99,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
 
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.background,
   },
   fieldHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: C.textSecondary,
     marginTop: 3,
   },

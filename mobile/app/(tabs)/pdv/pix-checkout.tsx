@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
   },
 
   stepNum: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: C.textSecondary,
   },

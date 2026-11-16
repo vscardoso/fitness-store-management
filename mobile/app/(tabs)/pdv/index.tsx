@@ -596,7 +596,7 @@ const styles = StyleSheet.create({
   },
   copyText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     color: C.textSecondary,
   },
 });

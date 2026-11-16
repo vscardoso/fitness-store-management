@@ -155,5 +155,5 @@ const styles = StyleSheet.create({
   photoEmpty: { alignItems: 'center', justifyContent: 'center', padding: 12 },
   small: { fontSize: 12, textAlign: 'center' },
   fileBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, maxWidth: 240 },
-  err: { fontSize: 11 },
+  err: { fontSize: 12 },
 });

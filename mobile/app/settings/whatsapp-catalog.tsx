@@ -18,6 +18,7 @@ import {
 } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { plural } from '@/utils/plural';
 
 type Confirm = null | 'rotate' | 'disable';
 
@@ -143,11 +144,11 @@ export default function WhatsappCatalogScreen() {
             </View>
           )}
           {!!st && st.brand_removed > 0 && (
-            <Text style={styles.note}>Nome de marca retirado em {st.brand_removed} item(ns). Confira os títulos no catálogo.</Text>
+            <Text style={styles.note}>Nome de marca retirado em {plural(st.brand_removed, 'item', 'itens')}. Confira os títulos no catálogo.</Text>
           )}
           {!!st && (st.skipped_no_price > 0 || st.skipped_no_name > 0 || st.products_no_variants > 0) && (
             <Text style={styles.warn}>
-              Também ficaram de fora: {st.skipped_no_price} sem preço, {st.skipped_no_name} sem nome e {st.products_no_variants} produto(s) sem
+              Também ficaram de fora: {st.skipped_no_price} sem preço, {st.skipped_no_name} sem nome e {plural(st.products_no_variants, 'produto', 'produtos')} sem
               variação.
             </Text>
           )}

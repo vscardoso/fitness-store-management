@@ -27,6 +27,7 @@ import type { DuplicateMatch } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatPercent } from '@/utils/format';
+import { plural } from '@/utils/plural';
 
 const { width } = Dimensions.get('window');
 
@@ -399,7 +400,7 @@ export default function ScanProductScreen() {
             </View>
 
             <Text style={styles.duplicatesSubtitle}>
-              Encontramos {scanResult.possible_duplicates.length} produto(s) similar(es) no seu catálogo
+              Encontramos {plural(scanResult.possible_duplicates.length, 'produto similar', 'produtos similares')} no seu catálogo
             </Text>
 
             {scanResult.possible_duplicates.map((dup) => (
@@ -1063,7 +1064,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     fontFamily: 'monospace',
   },
   duplicateReason: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     marginTop: 2,
   },
@@ -1077,7 +1078,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.warning,
   },
   duplicateScoreLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textTertiary,
   },
 

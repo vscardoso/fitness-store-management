@@ -195,7 +195,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     fontWeight: '400',
   },
   fieldHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 4,
     marginLeft: 4,

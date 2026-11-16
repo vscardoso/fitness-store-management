@@ -277,11 +277,11 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 12, gap: 6 },
   group: { gap: 1 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 5 },
-  groupTitle: { color: '#A79FC0', fontSize: 11, fontWeight: '700', letterSpacing: 0.8 },
+  groupTitle: { color: '#A79FC0', fontSize: 12, fontWeight: '700', letterSpacing: 0.8 },
   item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
   itemText: { flex: 1, color: '#E7E3F1', fontSize: 14 },
   itemTextActive: { color: Colors.light.white, fontWeight: '600' },
-  shortcut: { color: '#C9C2DD', fontSize: 11 },
+  shortcut: { color: '#C9C2DD', fontSize: 12 },
   footer: {
     flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.06)', marginTop: 8,
@@ -296,5 +296,5 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND.magenta, alignItems: 'center', justifyContent: 'center',
   },
   itemBadge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, marginLeft: 'auto', backgroundColor: BRAND.magenta, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: Colors.light.white, fontSize: 10, fontWeight: '700' },
+  badgeText: { color: Colors.light.white, fontSize: 12, fontWeight: '700' },
 });

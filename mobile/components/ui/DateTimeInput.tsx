@@ -296,7 +296,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     minWidth: 0,
   },
   modernLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '600',
     marginBottom: 1,

@@ -58,8 +58,8 @@ export default function MonthCard({ monthName, result, onInfo, onPress }: Props)
                 {l.label}
                 {l.id === 'revenue' ? ` · ${formatInt(Number(result.sales_count) || 0)} ${Number(result.sales_count) === 1 ? 'venda' : 'vendas'}` : ''}
               </Text>
-              <Text style={[styles.rowValue, { color: l.sign < 0 ? VALUE_COLORS.negative : VALUE_COLORS.positive }]}>
-                {l.sign < 0 ? '-' : ''}{formatCurrency(Math.abs(l.value))}
+              <Text style={[styles.rowValue, { color: l.value === 0 ? Colors.light.textSecondary : l.sign < 0 ? VALUE_COLORS.negative : VALUE_COLORS.positive }]}>
+                {l.sign < 0 && l.value !== 0 ? '-' : ''}{formatCurrency(Math.abs(l.value))}
               </Text>
             </View>
           ))}

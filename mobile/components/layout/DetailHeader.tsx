@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: Colors.light.white,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   metrics: {

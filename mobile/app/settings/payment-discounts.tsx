@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   filterBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.textSecondary,
   },
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   statusText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.3,
   },

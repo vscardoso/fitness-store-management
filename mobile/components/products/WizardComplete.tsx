@@ -568,7 +568,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 12,
   },
   variantBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: brand,
   },
@@ -602,7 +602,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   infoLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginBottom: 3,
     textTransform: 'uppercase',
@@ -642,7 +642,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     backgroundColor: Colors.light.border,
   },
   priceLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginBottom: 4,
     textTransform: 'uppercase',
@@ -686,7 +686,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   variantTagsLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -732,7 +732,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     overflow: 'hidden',
   },
   variantListTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -762,7 +762,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginBottom: 2,
   },
   variantSku: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontFamily: 'monospace',
   },
@@ -775,7 +775,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: VALUE_COLORS.neutral,
   },
   variantMarkup: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.success,
   },

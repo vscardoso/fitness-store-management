@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.05 }],
   },
   centralLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     marginTop: -12,
   },

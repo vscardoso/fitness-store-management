@@ -2178,7 +2178,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.text,
   },
   installmentPickerHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 1,
   },
@@ -2213,7 +2213,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: brand,
   },
   installmentChipSub: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 2,
   },

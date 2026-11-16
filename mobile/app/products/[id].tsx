@@ -47,6 +47,7 @@ import LoadedImage from '@/components/ui/LoadedImage';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 import { goBackOr } from '@/utils/navBack';
 import { encodeLaunched } from '@/utils/labelFocus';
+import { plural } from '@/utils/plural';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -571,7 +572,7 @@ export default function ProductDetailsScreen() {
                 <Text style={styles.quickValue}>{formatCurrency(cost)}</Text>
                 <Text style={styles.quickSub}>
                   {stockCost > 0
-                    ? `Média das ${costInfo?.total_quantity ?? 0} peça(s) em estoque (mercadoria + despesas)`
+                    ? `Média das ${plural(costInfo?.total_quantity ?? 0, 'peça', 'peças')} em estoque (mercadoria + despesas)`
                     : 'Da compra mais recente (não há peça em estoque)'}
                 </Text>
                 {profit !== null && (
@@ -1411,7 +1412,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   quickInfo: { flex: 1 },
   quickLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.textSecondary,
     textTransform: 'uppercase',
@@ -1467,7 +1468,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     alignItems: 'center',
   },
   quickValue: { fontSize: 18, fontWeight: '800', color: Colors.light.text },
-  quickSub: { fontSize: 10, color: Colors.light.textTertiary, marginTop: 2 },
+  quickSub: { fontSize: 12, color: Colors.light.textTertiary, marginTop: 2 },
 
   // ── Cards ──
   card: {
@@ -1643,7 +1644,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     lineHeight: 19,
   },
   variantCardSku: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     fontFamily: 'monospace',
     letterSpacing: 0.3,
@@ -1673,14 +1674,14 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.light.success + '35',
   },
-  variantMarginText: { fontSize: 10, fontWeight: '700', color: Colors.light.success },
+  variantMarginText: { fontSize: 12, fontWeight: '700', color: Colors.light.success },
   variantStockPill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
   },
-  variantStockText: { fontSize: 10, fontWeight: '700' },
+  variantStockText: { fontSize: 12, fontWeight: '700' },
 
   // ── Info List ──
   infoList: { gap: 16 },
@@ -1713,7 +1714,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: Colors.light.border,
   },
   pricingLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.textSecondary,
     textTransform: 'uppercase',
@@ -1786,7 +1787,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   entrySummaryItem: { flex: 1, alignItems: 'center' },
   entrySummaryValue: { fontSize: 18, fontWeight: '700', color: Colors.light.text },
-  entrySummaryLabel: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 2 },
+  entrySummaryLabel: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
   entrySummaryDivider: { width: 1, backgroundColor: Colors.light.border, marginVertical: 4 },
   entryList: { gap: 10 },
   entryCard: {
@@ -1812,12 +1813,12 @@ const createStyles = (brand: string) => StyleSheet.create({
   entryTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   entryTypeBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   entryTypeBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  entryDate: { fontSize: 11, color: Colors.light.textSecondary, marginLeft: 'auto' as any },
+  entryDate: { fontSize: 12, color: Colors.light.textSecondary, marginLeft: 'auto' as any },
   entryCodeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   entryCode: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
   entrySupplier: { fontSize: 12, color: Colors.light.textSecondary },
@@ -1831,8 +1832,8 @@ const createStyles = (brand: string) => StyleSheet.create({
     overflow: 'hidden',
   },
   entryProgressFill: { height: '100%' as any, borderRadius: 2 },
-  entryProgressLabel: { fontSize: 11, fontWeight: '600', flexShrink: 0 },
-  entryCostLabel: { fontSize: 11, color: Colors.light.textSecondary },
+  entryProgressLabel: { fontSize: 12, fontWeight: '600', flexShrink: 0 },
+  entryCostLabel: { fontSize: 12, color: Colors.light.textSecondary },
 
   // ── Error States ──
   errorTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.light.error, marginTop: 16 },
@@ -1855,7 +1856,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
   },
-  inactiveBadgeText: { fontSize: 10, fontWeight: '600', color: Colors.light.textSecondary },
+  inactiveBadgeText: { fontSize: 12, fontWeight: '600', color: Colors.light.textSecondary },
 
   // ── Catalog toggle ──
   catalogToggleRow: {

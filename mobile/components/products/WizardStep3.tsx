@@ -31,6 +31,7 @@ import { logError } from '@/services/debugLog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { useScrollBleed } from '@/hooks/useLayout';
+import { plural } from '@/utils/plural';
 
 interface WizardStep3Props {
   wizard: UseProductWizardReturn;
@@ -582,7 +583,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         visible={!!emptyVariantsAsk}
         onDismiss={() => setEmptyVariantsAsk(null)}
         title="Variações sem quantidade"
-        subtitle={`${emptyVariantsAsk?.labels.length ?? 0} variação(ões) estão com quantidade 0`}
+        subtitle={`${plural(emptyVariantsAsk?.labels.length ?? 0, 'variação', 'variações')} estão com quantidade 0`}
         icon="alert-circle-outline"
         actions={[
           {
@@ -898,7 +899,7 @@ const createStyles = (brand: string, brand2: string) => StyleSheet.create({
     borderRadius: 10,
   },
   recommendedText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.warning,
   },

@@ -8,6 +8,7 @@ import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors, theme } from '@/constants/Colors';
 import { createSupplierReturn } from '@/services/supplierReturnService';
 import { parseApiError } from '@/utils/apiError';
+import { plural } from '@/utils/plural';
 
 interface Props {
   visible: boolean;
@@ -45,7 +46,7 @@ export default function SendToSupplierModal({ visible, entryItemId, productLabel
 
   const submit = () => {
     const n = parseInt(qty, 10);
-    if (!n || n < 1 || n > remaining) return setError(`Informe de 1 a ${remaining} peça(s).`);
+    if (!n || n < 1 || n > remaining) return setError(`Informe de 1 a ${plural(remaining, 'peça', 'peças')}.`);
     if (reason.trim().length < 3) return setError('Diga o motivo.');
     setError('');
     send.mutate();

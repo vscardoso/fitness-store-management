@@ -226,19 +226,19 @@ const styles = StyleSheet.create({
     minHeight: 48,                    // Altura mínima para dar mais espaço vertical
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   placeholder: {
-    width: 40, // Mesmo tamanho do botão voltar para manter centralizado
+    width: 44, // Mesmo tamanho do botão voltar para manter centralizado
   },
   leftVisualWrap: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -268,9 +268,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm, // 8
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',

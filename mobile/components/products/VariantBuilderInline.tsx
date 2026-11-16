@@ -1168,7 +1168,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     backgroundColor: brand,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
     color: Colors.light.textSecondary,
     letterSpacing: 1,
@@ -1183,7 +1183,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingHorizontal: 5,
   },
   countBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
     color: Colors.light.white,
   },
@@ -1256,7 +1256,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginBottom: 4,
   },
   colorSwatchName: {
-    fontSize: 10,
+    fontSize: 12,
     lineHeight: 12,
     textAlign: 'center',
     color: Colors.light.textSecondary,
@@ -1299,7 +1299,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: Colors.light.border,
   },
   colorLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     textAlign: 'center',
     fontWeight: '500',
@@ -1318,7 +1318,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 8,
   },
   colorGroupSectionLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
     color: Colors.light.textTertiary,
     letterSpacing: 0.8,
@@ -1404,7 +1404,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: Colors.light.border,
   },
   equalizeBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '600',
   },
@@ -1460,7 +1460,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: brand,
   },
   colorGroupSizeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.textSecondary,
   },
@@ -1517,7 +1517,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: brand,
   },
   variantCardPrice: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
   },
@@ -1531,7 +1531,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     right: 4,
   },
   variantCardCustomBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     color: Colors.light.warning,
   },
 
@@ -1558,7 +1558,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     marginTop: 2,
   },
   tapHintText: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     flex: 1,
     lineHeight: 14,
@@ -1572,7 +1572,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingVertical: 2,
   },
   colorGroupCustomBadgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.warning,
     textTransform: 'uppercase',
@@ -1677,7 +1677,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 8,
   },
   modalQuickActionsLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.light.textSecondary,
     textTransform: 'uppercase',
@@ -1694,14 +1694,14 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderColor: Colors.light.border,
   },
   globalQuickBtnLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   globalQuickBtnValue: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.light.text,
     fontWeight: '700',
   },
@@ -1779,7 +1779,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     backgroundColor: Colors.light.errorLight,
   },
   batchMarginText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
     color: Colors.light.textTertiary,
   },
@@ -1820,7 +1820,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderRadius: 4,
   },
   marginLegendText: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.light.textTertiary,
     fontWeight: '600',
   },
