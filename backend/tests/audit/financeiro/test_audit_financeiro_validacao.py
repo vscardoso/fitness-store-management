@@ -8,6 +8,8 @@ from tests.test_lot_costs import _limpa_loja_1  # noqa: F401
 from tests.test_relatorio_vendas_pdf import _limpa_vendas  # noqa: F401
 from tests.test_troca import _cenario
 
+MOTIVO_BANCO = "Conferi no extrato do banco e o lançamento estava errado"
+
 pytestmark = pytest.mark.asyncio
 API = "/api/v1/finance"
 EXP = "/api/v1/expenses"
@@ -81,11 +83,11 @@ async def test_despesa_recorrente_lote_e_conta_paga_em_mes_fechado(test_client, 
     ex = (await async_session.execute(select(Expense).where(Expense.payable_id == pid, Expense.is_active == True))).scalars().one()  # noqa: E712
     assert (await c.delete(f"{EXP}/{ex.id}", headers=h)).status_code in (400, 409)
     assert (await c.put(f"{EXP}/{ex.id}", headers=h, json={"expense_date": HOJE.isoformat()})).status_code in (400, 409)
-    assert (await c.post(f"{API}/payables/{pid}/unpay", headers=h)).status_code == 409
+    assert (await c.post(f"{API}/payables/{pid}/unpay", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 409
     r = await c.post(EXP, headers=h, json={"amount": "5", "description": "Lote", "expense_date": DIA, "account_id": g, "stock_entry_id": 999999})
     assert r.status_code in (400, 404, 409), r.text
     assert (await c.post(f"{API}/closings/{MP.year}/{MP.month}/reopen", headers=h)).status_code == 200
-    assert (await c.post(f"{API}/payables/{pid}/unpay", headers=h)).status_code == 200
+    assert (await c.post(f"{API}/payables/{pid}/unpay", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 200
 
 
 async def test_ids_invalidos_e_setup_com_lixo_dao_400(test_client, async_session, test_user):

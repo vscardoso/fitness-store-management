@@ -5,11 +5,13 @@ Permissões (matriz em app/core/permissions.py): implantar e criar contas = admi
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.core.database import get_db
 from app.models.user import User
+from app.services.finance_approval_service import FinanceApprovalService
 from app.services.finance_service import FinanceConflict, FinanceError, FinanceNotFound, FinanceService
 from app.services.month_closing_service import MonthClosingService
 
@@ -19,6 +21,17 @@ router = APIRouter(prefix="/finance", tags=["Financeiro"])
 def _http(e: FinanceError) -> HTTPException:
     code = 404 if isinstance(e, FinanceNotFound) else 409 if isinstance(e, FinanceConflict) else 400
     return HTTPException(status_code=code, detail=str(e))
+
+
+async def _gate(db: AsyncSession, tenant_id: int, user: User, op: str, key: int, data: Dict[str, Any], reason: Any = None):
+    """Mexer no saldo de um BANCO depois de lançado precisa de motivo e da aprovação de todos os administradores: em vez de
+    aplicar, guarda o pedido e responde 202. Devolve None quando pode aplicar direto (não envolve banco)."""
+    ap = await FinanceApprovalService(db).gate(tenant_id, user, op, key, data, reason if reason is not None else data.get("reason"))
+    if ap is None:
+        return None
+    return JSONResponse(status_code=202, content={
+        "approval_required": True, "approval": ap,
+        "message": "Pedido enviado. O saldo do banco só muda depois que todos os administradores aprovarem."})
 
 
 @router.get("/accounts", summary="Contas e saldos (calculados na hora)")
@@ -155,6 +168,10 @@ async def add_bank(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(
 async def adjust_account(account_id: str, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
+        from app.services.finance_service import as_int
+        held = await _gate(db, tenant_id, current_user, "account_adjust", as_int(account_id, "a conta"), data)
+        if held is not None:
+            return held
         return await FinanceService(db).adjust_account(tenant_id, current_user, account_id, data)
     except FinanceError as e:
         raise _http(e)
@@ -165,6 +182,9 @@ async def update_account(account_id: str, data: Dict[str, Any] = Body(...), db: 
                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
         from app.services.finance_service import as_int
+        held = await _gate(db, tenant_id, current_user, "account_opening", as_int(account_id, "a conta"), data)
+        if held is not None:
+            return held
         return await FinanceService(db).update_account(tenant_id, current_user, as_int(account_id, "a conta"), data)
     except FinanceError as e:
         raise _http(e)
@@ -200,15 +220,21 @@ async def transfer(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(
 async def update_transfer(transfer_id: int, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
                           tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
+        held = await _gate(db, tenant_id, current_user, "transfer_update", transfer_id, data)
+        if held is not None:
+            return held
         return await FinanceService(db).update_transfer(tenant_id, current_user, transfer_id, data)
     except FinanceError as e:
         raise _http(e)
 
 
 @router.delete("/transfers/{transfer_id}", summary="Apagar transferência lançada errado")
-async def delete_transfer(transfer_id: int, db: AsyncSession = Depends(get_db),
+async def delete_transfer(transfer_id: int, reason: Optional[str] = Query(None), db: AsyncSession = Depends(get_db),
                           tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
+        held = await _gate(db, tenant_id, current_user, "transfer_delete", transfer_id, {}, reason or "")
+        if held is not None:
+            return held
         return await FinanceService(db).delete_transfer(tenant_id, transfer_id)
     except FinanceError as e:
         raise _http(e)
@@ -233,6 +259,9 @@ async def create_payable(data: Dict[str, Any] = Body(...), db: AsyncSession = De
 async def update_payable(payable_id: int, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
+        held = await _gate(db, tenant_id, current_user, "payable_update", payable_id, data)
+        if held is not None:
+            return held
         return await FinanceService(db).update_payable(tenant_id, current_user, payable_id, data)
     except FinanceError as e:
         raise _http(e)
@@ -248,9 +277,12 @@ async def pay_payable(payable_id: int, data: Dict[str, Any] = Body(...), db: Asy
 
 
 @router.post("/payables/{payable_id}/unpay", summary="Desfazer pagamento (volta para em aberto)")
-async def unpay_payable(payable_id: int, db: AsyncSession = Depends(get_db),
+async def unpay_payable(payable_id: int, reason: Optional[str] = Query(None), db: AsyncSession = Depends(get_db),
                         tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
+        held = await _gate(db, tenant_id, current_user, "payable_unpay", payable_id, {}, reason or "")
+        if held is not None:
+            return held
         return await FinanceService(db).unpay_payable(tenant_id, payable_id)
     except FinanceError as e:
         raise _http(e)
@@ -285,16 +317,62 @@ async def create_entry(data: Dict[str, Any] = Body(...), db: AsyncSession = Depe
 async def update_entry(entry_id: int, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
                        tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
+        held = await _gate(db, tenant_id, current_user, "entry_update", entry_id, data)
+        if held is not None:
+            return held
         return await FinanceService(db).update_entry(tenant_id, current_user, entry_id, data)
     except FinanceError as e:
         raise _http(e)
 
 
 @router.delete("/entries/{entry_id}", summary="Apagar lançamento feito errado")
-async def delete_entry(entry_id: int, db: AsyncSession = Depends(get_db),
+async def delete_entry(entry_id: int, reason: Optional[str] = Query(None), db: AsyncSession = Depends(get_db),
                        tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
+        held = await _gate(db, tenant_id, current_user, "entry_delete", entry_id, {}, reason or "")
+        if held is not None:
+            return held
         return await FinanceService(db).delete_entry(tenant_id, entry_id)
+    except FinanceError as e:
+        raise _http(e)
+
+
+# ── Aprovação dos administradores para mexer no saldo de um banco ────────────────────────────────────────────────────
+@router.get("/approvals", summary="Pedidos para mexer no saldo de um banco (esperando, aprovados, recusados)")
+async def list_approvals(limit: int = Query(50, ge=1, le=200), db: AsyncSession = Depends(get_db),
+                         tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    return await FinanceApprovalService(db).list(tenant_id, current_user, limit)
+
+
+@router.get("/approvals/summary", summary="Quantos pedidos esperam aprovação e quantos esperam você")
+async def approvals_summary(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+                            current_user: User = Depends(get_current_active_user)):
+    return await FinanceApprovalService(db).summary(tenant_id, current_user)
+
+
+@router.post("/approvals/{approval_id}/approve", summary="Aprovar o pedido (só administrador). Com todos os votos, a mudança é aplicada")
+async def approve_approval(approval_id: int, data: Dict[str, Any] = Body(default={}), db: AsyncSession = Depends(get_db),
+                           tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceApprovalService(db).vote(tenant_id, current_user, approval_id, True, data.get("comment"))
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.post("/approvals/{approval_id}/reject", summary="Recusar o pedido (só administrador; o motivo é obrigatório)")
+async def reject_approval(approval_id: int, data: Dict[str, Any] = Body(default={}), db: AsyncSession = Depends(get_db),
+                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceApprovalService(db).vote(tenant_id, current_user, approval_id, False, data.get("comment"))
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.post("/approvals/{approval_id}/cancel", summary="Cancelar o pedido (quem pediu ou um administrador)")
+async def cancel_approval(approval_id: int, db: AsyncSession = Depends(get_db),
+                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceApprovalService(db).cancel(tenant_id, current_user, approval_id)
     except FinanceError as e:
         raise _http(e)
 

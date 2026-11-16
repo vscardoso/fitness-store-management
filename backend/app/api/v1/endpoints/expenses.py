@@ -19,9 +19,21 @@ from app.schemas.expense import (
     ExpenseUpdate,
     MonthlyResultResponse,
 )
-from app.services.finance_service import FinanceConflict
+from app.services.finance_service import FinanceConflict, FinanceError, FinanceNotFound
 from app.services.expense_service import ExpenseService
 from app.core.timezone import today_brazil
+
+async def _gate_bank(db, tenant_id, user, op, key, data, reason):
+    """Despesa paga por um BANCO: apagar ou mudar valor, dia ou conta depois de lançada é pedido de aprovação (202)."""
+    from fastapi.responses import JSONResponse
+    from app.services.finance_approval_service import FinanceApprovalService
+    ap = await FinanceApprovalService(db).gate(tenant_id, user, op, key, data, reason)
+    if ap is None:
+        return None
+    return JSONResponse(status_code=202, content={
+        "approval_required": True, "approval": ap,
+        "message": "Pedido enviado. O saldo do banco só muda depois que todos os administradores aprovarem."})
+
 
 router = APIRouter(prefix="/expenses", tags=["Despesas"])
 
@@ -227,16 +239,23 @@ async def get_expense(
 async def update_expense(
     expense_id: int,
     data: ExpenseUpdate,
+    reason: Optional[str] = Query(None, description="Motivo (20 letras) quando a despesa foi paga por um banco"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[int] = Depends(get_current_tenant_id),
 ):
     svc = ExpenseService(db)
     try:
+        held = await _gate_bank(db, tenant_id, current_user, "expense_update", expense_id, data.model_dump(exclude_unset=True, mode="json"), reason)
+        if held is not None:
+            return held
         exp = await svc.update_expense(expense_id, data, tenant_id)
     except FinanceConflict as e:
         await db.rollback()
         raise HTTPException(status_code=409, detail=str(e))
+    except FinanceNotFound as e:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -248,13 +267,26 @@ async def update_expense(
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_expense(
     expense_id: int,
+    reason: Optional[str] = Query(None, description="Motivo (20 letras) quando a despesa foi paga por um banco"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[int] = Depends(get_current_tenant_id),
 ):
     svc = ExpenseService(db)
     try:
+        held = await _gate_bank(db, tenant_id, current_user, "expense_delete", expense_id, {}, reason)
+        if held is not None:
+            return held
         ok = await svc.delete_expense(expense_id, tenant_id)
+    except FinanceNotFound as e:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
+    except FinanceConflict as e:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    except FinanceError as e:      # recusa do pedido de aprovação (ex.: falta o motivo)
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     if not ok:

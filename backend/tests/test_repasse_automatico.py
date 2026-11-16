@@ -12,6 +12,8 @@ from tests.test_financeiro import _conta, _implantar, _pagar_com, _zerar_implant
 from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse)
 from tests.test_troca import _cenario
 
+MOTIVO_BANCO = "Conferi no extrato do banco e o lançamento estava errado"
+
 pytestmark = pytest.mark.asyncio
 API = "/api/v1/finance"
 
@@ -113,7 +115,7 @@ async def test_lanca_um_repasse_por_dia_e_nao_repete(test_client, async_session,
 
     # apagar um repasse automático (o dinheiro não caiu de verdade) NÃO o refaz sozinho
     apagar = next(t for t in ts if t["amount"] == 100)
-    assert (await test_client.delete(f"{API}/transfers/{apagar['id']}", headers=h)).status_code == 200
+    assert (await test_client.delete(f"{API}/transfers/{apagar['id']}", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 200
     r = await run_card_auto_settlement(async_session)
     assert r["settled"] == 0 and len(await _transferencias(test_client, h)) == 1
     d = (await test_client.get(f"{API}/accounts", headers=h)).json()

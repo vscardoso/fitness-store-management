@@ -12,6 +12,8 @@ from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (autouse)
 from tests.test_relatorio_vendas_pdf import _limpa_vendas  # noqa: F401  (autouse)
 from tests.test_troca import _cenario
 
+MOTIVO_BANCO = "Conferi no extrato do banco e o lançamento estava errado"
+
 pytestmark = pytest.mark.asyncio
 API = "/api/v1/finance"
 HOJE = date.today()
@@ -115,7 +117,7 @@ async def test_livro_sequencia_aleatoria(test_client, async_session, test_user, 
             if not pagas:
                 continue
             x = rnd.choice(pagas)
-            r = await test_client.post(f"{API}/payables/{x[0]}/unpay", headers=h)
+            r = await test_client.post(f"{API}/payables/{x[0]}/unpay", headers=h, params={"reason": MOTIVO_BANCO})
             assert r.status_code == 200, r.text
             L.bal[x[2]] += x[1]
             x[2] = None
@@ -158,7 +160,7 @@ async def test_livro_sequencia_aleatoria(test_client, async_session, test_user, 
             if not vivas:
                 continue
             t = rnd.choice(vivas)
-            r = await test_client.delete(f"{API}/transfers/{t[0]}", headers=h)
+            r = await test_client.delete(f"{API}/transfers/{t[0]}", headers=h, params={"reason": MOTIVO_BANCO})
             assert r.status_code == 200, r.text
             t[5] = False
             L.bal[t[1]] += t[3] + t[4]
@@ -167,7 +169,7 @@ async def test_livro_sequencia_aleatoria(test_client, async_session, test_user, 
             if not entradas:
                 continue
             e = rnd.choice(entradas)
-            r = await test_client.delete(f"{API}/entries/{e[0]}", headers=h)
+            r = await test_client.delete(f"{API}/entries/{e[0]}", headers=h, params={"reason": MOTIVO_BANCO})
             assert r.status_code == 200, r.text
             L.bal[e[1]] -= e[2]
             entradas.remove(e)
@@ -299,10 +301,10 @@ async def test_isolamento_outra_loja(test_client, async_session, _tenant_de_verd
         assert r.status_code == 404, r.text
     assert (await test_client.post(f"{API}/payables/{pid}/pay", headers=b, json={"account_id": gb})).status_code == 404
     assert (await test_client.post(f"{API}/payables/{pid}/cancel", headers=b)).status_code == 404
-    assert (await test_client.post(f"{API}/payables/{pid}/unpay", headers=b)).status_code == 404
+    assert (await test_client.post(f"{API}/payables/{pid}/unpay", headers=b, params={"reason": MOTIVO_BANCO})).status_code == 404
     assert (await test_client.post(f"{API}/payables", headers=b, json={"description": "x", "amount": 1, "due_date": "2026-12-01", "supplier_id": 1})).status_code in (400, 404)
     assert (await test_client.put(f"{API}/accounts/{na}/pix", headers=b)).status_code == 404
-    assert (await test_client.delete(f"{API}/transfers/{tid}", headers=b)).status_code == 404
+    assert (await test_client.delete(f"{API}/transfers/{tid}", headers=b, params={"reason": MOTIVO_BANCO})).status_code == 404
     r = await test_client.post(f"{API}/entries", headers=b, json={"kind": "other_out", "account_id": ga, "amount": 1, "description": "x"})
     assert r.status_code == 404
     r = await test_client.post(f"{API}/card-settlement", headers=b, json={"gross": 1, "received": 1, "to_account_id": na})
@@ -333,7 +335,7 @@ async def test_mes_fechado_e_datas(test_client, async_session, test_user):
     assert r.status_code == 200, r.text
     r = await test_client.post(f"{API}/payables/{pid2}/pay", headers=h, json={"account_id": n, "paid_on": dia})
     assert r.status_code == 409 and "fechado" in r.json()["detail"]
-    r = await test_client.post(f"{API}/payables/{pid}/unpay", headers=h)
+    r = await test_client.post(f"{API}/payables/{pid}/unpay", headers=h, params={"reason": MOTIVO_BANCO})
     assert r.status_code == 409 and "fechado" in r.json()["detail"]
     r = await test_client.post(f"{API}/card-settlement", headers=h, json={"gross": 10, "received": 10, "occurred_on": dia})
     assert r.status_code == 409

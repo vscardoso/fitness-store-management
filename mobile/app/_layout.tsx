@@ -33,6 +33,7 @@ import { setForceLogoutCallback, setInvalidateQueriesCallback, setSessionEndedCa
 import { isSessionIdle, markActivity, startActivityTracking } from '@/services/sessionActivity';
 import { IDLE_REASON } from '@/utils/sessionRules';
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
+import BankApprovalHost from '@/components/finance/BankApprovalHost';
 import UpdateBanner from '@/components/layout/UpdateBanner';
 import SystemUpdateOverlay from '@/components/layout/SystemUpdateOverlay';
 import { startHistoryTrail, trailRoute } from '@/utils/navTrail';
@@ -296,6 +297,7 @@ function AppLayout() {
 
                 {/* Intercepta Alert.alert e renderiza modal padronizado */}
                 <GlobalConfirmModalHost />
+                <BankApprovalHost />
               </TutorialProvider>
             </ErrorProvider>
           </PaperProvider>

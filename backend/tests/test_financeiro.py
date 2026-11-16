@@ -9,6 +9,8 @@ from app.core.security import create_access_token, get_password_hash
 from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse: limpa a loja 1 depois de cada teste)
 from tests.test_troca import _cenario, _vender
 
+MOTIVO_BANCO = "Conferi no extrato do banco e o lançamento estava errado"
+
 pytestmark = pytest.mark.asyncio
 API = "/api/v1/finance"
 
@@ -171,18 +173,18 @@ async def test_desfazer_pagamento_e_apagar_transferencia_voltam_o_saldo(test_cli
     assert _conta(r.json(), "Nubank")["balance"] == -2000.0 and "negativa" in r.json()["warning"]
     lista = (await test_client.get(f"{API}/transfers", headers=h)).json()
     assert len(lista) == 1 and lista[0]["amount"] == 3000.0
-    r = await test_client.delete(f"{API}/transfers/{lista[0]['id']}", headers=h)
+    r = await test_client.delete(f"{API}/transfers/{lista[0]['id']}", headers=h, params={"reason": MOTIVO_BANCO})
     assert r.status_code == 200 and _conta(r.json(), "Nubank")["balance"] == 1000.0 and _conta(r.json(), "Maquininha a receber")["balance"] == 300.0
     assert (await test_client.get(f"{API}/transfers", headers=h)).json() == []
-    assert (await test_client.delete(f"{API}/transfers/{lista[0]['id']}", headers=h)).status_code == 404
+    assert (await test_client.delete(f"{API}/transfers/{lista[0]['id']}", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 404
     # pagou pela conta errada: desfazer volta para em aberto e o dinheiro para a gaveta; paga de novo pelo banco
     boleto = next(x for x in (await test_client.get(f"{API}/payables", headers=h)).json()["items"] if x["description"] == "Boleto fornecedor Brás")
     await test_client.post(f"{API}/payables/{boleto['id']}/pay", headers=h, json={"account_id": gaveta})
     assert _conta((await test_client.get(f"{API}/accounts", headers=h)).json(), "Gaveta")["balance"] == -650.0
-    r = await test_client.post(f"{API}/payables/{boleto['id']}/unpay", headers=h)
+    r = await test_client.post(f"{API}/payables/{boleto['id']}/unpay", headers=h, params={"reason": MOTIVO_BANCO})
     assert r.status_code == 200 and r.json()["status"] == "open" and r.json()["paid_account_id"] is None
     assert _conta((await test_client.get(f"{API}/accounts", headers=h)).json(), "Gaveta")["balance"] == 150.0
-    assert (await test_client.post(f"{API}/payables/{boleto['id']}/unpay", headers=h)).status_code == 409   # já em aberto
+    assert (await test_client.post(f"{API}/payables/{boleto['id']}/unpay", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 409   # já em aberto
     await test_client.post(f"{API}/payables/{boleto['id']}/pay", headers=h, json={"account_id": nu})
     assert _conta((await test_client.get(f"{API}/accounts", headers=h)).json(), "Nubank")["balance"] == 200.0
 
@@ -218,7 +220,7 @@ async def test_retirada_do_caixa_para_o_banco_nao_conta_duas_vezes(test_client, 
     # a transferência feita pelo caixa não se apaga pela tela de transferências; conta inválida é recusada
     t = next(x for x in (await test_client.get(f"{API}/transfers", headers=h)).json() if x["to_account_id"] == nu)
     assert "Caixa" in t["description"]
-    r = await test_client.delete(f"{API}/transfers/{t['id']}", headers=h)
+    r = await test_client.delete(f"{API}/transfers/{t['id']}", headers=h, params={"reason": MOTIVO_BANCO})
     assert r.status_code == 409 and "caixa" in r.json()["detail"]
     for ruim in (gaveta, 999999):
         r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 1, "reason": "sangria", "account_id": ruim})
@@ -286,7 +288,7 @@ async def test_despesa_a_pagar_vira_despesa_ao_pagar_sem_contar_duas_vezes(test_
     assert r.status_code == 400
     r = await test_client.put(f"/api/v1/expenses/{gid}", headers=h, json={"amount": "10"})
     assert r.status_code == 400
-    assert (await test_client.post(f"{API}/payables/{aluguel['id']}/unpay", headers=h)).status_code == 200
+    assert (await test_client.post(f"{API}/payables/{aluguel['id']}/unpay", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 200
     async_session.expire_all()
     assert (await async_session.execute(select(Expense).where(Expense.payable_id == aluguel["id"], Expense.is_active == True))).scalars().all() == []  # noqa: E712
     d = (await test_client.get(f"{API}/accounts", headers=h)).json()

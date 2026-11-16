@@ -42,7 +42,7 @@ from .gift import Gift, GiftItem  # noqa: F401
 from .label_queue import LabelPrintJob, LabelQueueItem  # noqa: F401
 from .stock_count import StockCount, StockCountItem
 from .cash_register import CashSession, CashMovement
-from .finance import FinancialAccount, AccountTransfer, Payable, AccountEntry, MonthClosing
+from .finance import FinancialAccount, AccountTransfer, Payable, AccountEntry, MonthClosing, FinanceApproval, FinanceApprovalVote
 from .loyalty import LoyaltyEntry
 from .entry_item_event import EntryItemEvent
 from .receivable import Receivable, ReceivablePayment

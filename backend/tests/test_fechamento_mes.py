@@ -10,6 +10,8 @@ from tests.test_financeiro import _conta, _implantar, _zerar_implantacao
 from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse)
 from tests.test_troca import _cenario, _vender
 
+MOTIVO_BANCO = "Conferi no extrato do banco e o lançamento estava errado"
+
 pytestmark = pytest.mark.asyncio
 API = "/api/v1/finance"
 
@@ -92,11 +94,11 @@ async def test_retirada_emprestimo_e_fatura_mexem_na_conta_e_nao_sao_despesa(tes
     # apagar: volta o saldo; empréstimo com pagamento não se apaga antes do pagamento
     itens = (await test_client.get(f"{API}/entries", headers=h)).json()
     dado = next(x for x in itens if x["kind"] == "loan_given")
-    r = await test_client.delete(f"{API}/entries/{dado['id']}", headers=h)
+    r = await test_client.delete(f"{API}/entries/{dado['id']}", headers=h, params={"reason": MOTIVO_BANCO})
     assert r.status_code == 409 and "pagamento" in r.json()["detail"]
     fatura = next(x for x in itens if x["kind"] == "card_bill")
-    assert (await test_client.delete(f"{API}/entries/{fatura['id']}", headers=h)).status_code == 200
-    assert (await test_client.delete(f"{API}/entries/{fatura['id']}", headers=h)).status_code == 404
+    assert (await test_client.delete(f"{API}/entries/{fatura['id']}", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 200
+    assert (await test_client.delete(f"{API}/entries/{fatura['id']}", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 404
     d = (await test_client.get(f"{API}/accounts", headers=h)).json()
     assert _conta(d, "Nubank")["balance"] == 1000.0 - 400 + 1000 - 300
 
@@ -203,12 +205,12 @@ async def test_fechamento_do_mes_confere_fecha_ajusta_e_reabre(test_client, asyn
         r = await test_client.post(rota, headers=h, json=body)
         assert r.status_code == 409 and "já foi fechado" in r.json()["detail"], (rota, r.text)
     retirada = next(x for x in (await test_client.get(f"{API}/entries", headers=h)).json() if x["kind"] == "owner_withdrawal")
-    assert (await test_client.delete(f"{API}/entries/{retirada['id']}", headers=h)).status_code == 409
+    assert (await test_client.delete(f"{API}/entries/{retirada['id']}", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 409
     ajuste = next(x for x in (await test_client.get(f"{API}/entries", headers=h)).json() if x["kind"] == "closing_adjustment")
-    r = await test_client.delete(f"{API}/entries/{ajuste['id']}", headers=h)
+    r = await test_client.delete(f"{API}/entries/{ajuste['id']}", headers=h, params={"reason": MOTIVO_BANCO})
     assert r.status_code == 409 and "reabra" in r.json()["detail"]
     t = next(x for x in (await test_client.get(f"{API}/transfers", headers=h)).json() if x["amount"] == 300.0)
-    assert (await test_client.delete(f"{API}/transfers/{t['id']}", headers=h)).status_code == 409
+    assert (await test_client.delete(f"{API}/transfers/{t['id']}", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 409
 
     # venda lançada depois, com data do mês fechado: aparece como mudança, a fotografia não muda
     await _venda_em(test_client, async_session, h, p, va, dia10, "50.00")

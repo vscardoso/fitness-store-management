@@ -5,6 +5,8 @@ import pytest
 
 from tests.test_team_limit import _nova_loja
 
+MOTIVO_BANCO = "Conferi no extrato do banco e o lançamento estava errado"
+
 pytestmark = pytest.mark.asyncio
 API = "/api/v1/finance"
 MES_PASSADO = (date.today().replace(day=1) - timedelta(days=1)).replace(day=1)
@@ -50,7 +52,7 @@ async def test_lancamentos_e_fechamento_ficam_na_propria_loja(test_client, async
     # B não vê nem apaga o lançamento de A, nem lança na conta de A
     assert "Cliente Segredo A" not in (await test_client.get(f"{API}/entries", headers=b)).text
     assert "Cliente Segredo A" not in (await test_client.get(f"{API}/loans", headers=b)).text
-    assert (await test_client.delete(f"{API}/entries/{entrada_a}", headers=b)).status_code == 404
+    assert (await test_client.delete(f"{API}/entries/{entrada_a}", headers=b, params={"reason": MOTIVO_BANCO})).status_code == 404
     r = await test_client.post(f"{API}/entries", headers=b, json={
         "kind": "owner_withdrawal", "account_id": contas_a["Banco"], "amount": "1", "person": "Invasor"})
     assert r.status_code == 404

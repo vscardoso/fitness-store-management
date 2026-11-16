@@ -4,6 +4,7 @@ import { getServerPdf } from './pdfDelivery';
  * pelo servidor, transferências e contas a pagar. Regras em backend/app/models/finance.py.
  */
 import api from './api';
+import { settle, withBankReason } from './bankApproval';
 
 export type AccountKind = 'cash' | 'bank' | 'card';
 
@@ -151,8 +152,12 @@ export const listTransfers = async (): Promise<AccountTransfer[]> =>
   (await api.get<AccountTransfer[]>('/finance/transfers', { headers: { 'X-Skip-Loading': 'true' } })).data;
 
 /** Apaga a transferência lançada errado: as duas contas voltam ao que eram. */
+/** Banco no meio: vira pedido de aprovação dos administradores (202) e o saldo só muda depois (ver services/bankApproval.ts). */
 export const deleteTransfer = async (id: number): Promise<FinanceOverview> =>
-  (await api.delete<FinanceOverview>(`/finance/transfers/${id}`)).data;
+  settle(
+    await withBankReason(async (reason) => (await api.delete(`/finance/transfers/${id}`, { params: reason ? { reason } : undefined })).data),
+    {} as FinanceOverview,
+  );
 
 export const listPayables = async (status?: 'open' | 'paid' | 'canceled'): Promise<PayableList> =>
   (await api.get<PayableList>('/finance/payables', { params: status ? { status } : undefined, headers: { 'X-Skip-Loading': 'true' } })).data;
@@ -168,7 +173,10 @@ export const payPayable = async (id: number, accountId: number, paidOn?: string)
 
 /** Desfaz o pagamento: a conta volta para em aberto e o dinheiro volta para a conta de onde saiu. */
 export const unpayPayable = async (id: number): Promise<Payable> =>
-  (await api.post<Payable>(`/finance/payables/${id}/unpay`)).data;
+  settle(
+    await withBankReason(async (reason) => (await api.post(`/finance/payables/${id}/unpay`, undefined, { params: reason ? { reason } : undefined })).data),
+    {} as Payable,
+  );
 
 export const cancelPayable = async (id: number): Promise<Payable> =>
   (await api.post<Payable>(`/finance/payables/${id}/cancel`)).data;
@@ -212,7 +220,12 @@ export const createEntry = async (body: {
   kind: EntryKind; account_id: number; amount: number; occurred_on?: string; person?: string; description?: string;
 }): Promise<AccountEntry> => (await api.post<AccountEntry>('/finance/entries', body)).data;
 
-export const deleteEntry = async (id: number): Promise<void> => { await api.delete(`/finance/entries/${id}`); };
+export const deleteEntry = async (id: number): Promise<void> => {
+  settle(
+    await withBankReason(async (reason) => (await api.delete(`/finance/entries/${id}`, { params: reason ? { reason } : undefined })).data),
+    undefined,
+  );
+};
 
 export const getLoans = async (): Promise<LoansSummary> =>
   (await api.get<LoansSummary>('/finance/loans', { headers: { 'X-Skip-Loading': 'true' } })).data;
@@ -268,28 +281,48 @@ export const reopenMonth = async (year: number, month: number): Promise<MonthClo
 export const adjustAccountBalance = async (
   accountId: number, body: { target_balance: string; reason: string },
 ): Promise<FinanceOverview & { warning?: string | null }> =>
-  (await api.post<FinanceOverview & { warning?: string | null }>(`/finance/accounts/${accountId}/adjust`, body)).data;
+  settle(
+    // o motivo da tela (5 letras para gaveta e maquininha); em banco o servidor exige 20 e a janela global pergunta de novo
+    await withBankReason(async (reason) => (await api.post(`/finance/accounts/${accountId}/adjust`, reason ? { ...body, reason } : body)).data),
+    {} as FinanceOverview & { warning?: string | null },
+  );
 
 /** Admin: corrige o saldo de PARTIDA (erro de implantação) ou o nome da conta. 409 se há mês fechado. */
 export const updateAccount = async (
-  accountId: number, body: { opening_balance?: string; name?: string },
-): Promise<FinanceOverview> => (await api.patch<FinanceOverview>(`/finance/accounts/${accountId}`, body)).data;
+  accountId: number, body: { opening_balance?: string; name?: string; reason?: string },
+): Promise<FinanceOverview> =>
+  settle(
+    await withBankReason(async (reason) => (await api.patch(`/finance/accounts/${accountId}`, reason ? { ...body, reason } : body)).data),
+    {} as FinanceOverview,
+  );
 
 // ── Corrigir o que já foi lançado (o saldo é calculado na hora, então corrigir o valor acerta o saldo) ─────────────
 /** Corrige valor, dia ou descrição de uma transferência. 400 se a conta ficaria negativa; 409 se é do caixa ou repasse com taxa. */
 export const updateTransfer = async (
   id: number, body: { amount?: string; occurred_on?: string; description?: string },
-): Promise<AccountTransfer> => (await api.patch<AccountTransfer>(`/finance/transfers/${id}`, body)).data;
+): Promise<AccountTransfer> =>
+  settle(
+    await withBankReason(async (reason) => (await api.patch(`/finance/transfers/${id}`, reason ? { ...body, reason } : body)).data),
+    {} as AccountTransfer,
+  );
 
 /** Corrige o que é, valor, vencimento ou observação. Conta já paga: o valor também acerta a despesa e a conta de onde saiu. */
 export const updatePayable = async (
   id: number, body: { description?: string; amount?: string; due_date?: string; notes?: string },
-): Promise<Payable> => (await api.patch<Payable>(`/finance/payables/${id}`, body)).data;
+): Promise<Payable> =>
+  settle(
+    await withBankReason(async (reason) => (await api.patch(`/finance/payables/${id}`, reason ? { ...body, reason } : body)).data),
+    {} as Payable,
+  );
 
 /** Corrige valor, dia, conta, pessoa ou descrição de uma retirada ou empréstimo. */
 export const updateEntry = async (
   id: number, body: { amount?: string; occurred_on?: string; account_id?: number; person?: string; description?: string },
-): Promise<AccountEntry> => (await api.patch<AccountEntry>(`/finance/entries/${id}`, body)).data;
+): Promise<AccountEntry> =>
+  settle(
+    await withBankReason(async (reason) => (await api.patch(`/finance/entries/${id}`, reason ? { ...body, reason } : body)).data),
+    {} as AccountEntry,
+  );
 
 // ── Extrato passo a passo (dia a dia, com o saldo no começo e no fim) ────────────────────────────────────────────────
 export interface StatementItem { label: string; amount: number; ref: string | null }

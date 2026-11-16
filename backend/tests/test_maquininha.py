@@ -9,6 +9,8 @@ from tests.test_financeiro import _conta, _implantar, _pagar_com, _zerar_implant
 from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse)
 from tests.test_troca import _cenario
 
+MOTIVO_BANCO = "Conferi no extrato do banco e o lançamento estava errado"
+
 pytestmark = pytest.mark.asyncio
 API = "/api/v1/finance"
 
@@ -86,7 +88,7 @@ async def test_repasse_recusa_valor_errado_e_apagar_desfaz_a_taxa(test_client, a
     d = (await test_client.get(f"{API}/accounts", headers=h)).json()
     assert _conta(d, "Maquininha a receber")["balance"] == 180
     tid = next(t["id"] for t in (await test_client.get(f"{API}/transfers", headers=h)).json() if t["description"] == "Repasse da maquininha")
-    assert (await test_client.delete(f"{API}/transfers/{tid}", headers=h)).status_code == 200
+    assert (await test_client.delete(f"{API}/transfers/{tid}", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 200
     d = (await test_client.get(f"{API}/accounts", headers=h)).json()
     assert _conta(d, "Maquininha a receber")["balance"] == 300 and _conta(d, "Nubank")["balance"] == 1000   # a taxa também voltou
 

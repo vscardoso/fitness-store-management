@@ -1,4 +1,5 @@
 import api from './api';
+import { settle, withBankReason } from './bankApproval';
 import type {
   Expense,
   ExpenseCategory,
@@ -50,13 +51,19 @@ export async function createExpense(payload: ExpenseCreate): Promise<Expense> {
   return data;
 }
 
+/** Despesa paga por um banco: mudar valor, dia ou conta vira pedido de aprovação dos administradores (ver services/bankApproval.ts). */
 export async function updateExpense(id: number, payload: ExpenseUpdate): Promise<Expense> {
-  const { data } = await api.put(`/expenses/${id}`, payload);
-  return data;
+  return settle(
+    await withBankReason(async (reason) => (await api.put(`/expenses/${id}`, payload, { params: reason ? { reason } : undefined })).data),
+    {} as Expense,
+  );
 }
 
 export async function deleteExpense(id: number): Promise<void> {
-  await api.delete(`/expenses/${id}`);
+  settle(
+    await withBankReason(async (reason) => (await api.delete(`/expenses/${id}`, { params: reason ? { reason } : undefined })).data),
+    undefined,
+  );
 }
 
 // ─── P&L ──────────────────────────────────────────────────────

@@ -9,6 +9,8 @@ from app.models.audit_log import AuditLog
 from tests.test_short_codes import _user
 from tests.test_team_limit import _nova_loja
 
+MOTIVO_BANCO = "Conferi no extrato do banco e o lançamento estava errado"
+
 pytestmark = pytest.mark.asyncio
 API = "/api/v1"
 
@@ -83,13 +85,13 @@ async def test_dinheiro_transferencia_conta_a_pagar_caixa_e_fechamento(test_clie
     assert r.status_code == 200, r.text
     lista = (await test_client.get(f"{API}/finance/transfers", headers=h)).json()
     tid = (lista["items"] if isinstance(lista, dict) else lista)[0]["id"]
-    assert (await test_client.delete(f"{API}/finance/transfers/{tid}", headers=h)).status_code == 200
+    assert (await test_client.delete(f"{API}/finance/transfers/{tid}", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 200
     r = await test_client.post(f"{API}/finance/payables", headers=h, json={
         "description": "Aluguel", "amount": "30", "due_date": (date.today() + timedelta(days=5)).isoformat()})
     assert r.status_code in (200, 201), r.text
     pid = r.json()["id"]
     assert (await test_client.post(f"{API}/finance/payables/{pid}/pay", headers=h, json={"account_id": contas["Banco"]})).status_code == 200
-    assert (await test_client.post(f"{API}/finance/payables/{pid}/unpay", headers=h)).status_code == 200
+    assert (await test_client.post(f"{API}/finance/payables/{pid}/unpay", headers=h, params={"reason": MOTIVO_BANCO})).status_code == 200
     assert (await test_client.post(f"{API}/finance/payables/{pid}/cancel", headers=h)).status_code == 200
     assert (await test_client.post(f"{API}/cash/open", headers=h, json={"opening_amount": 100})).status_code == 201
     assert (await test_client.post(f"{API}/cash/movements", headers=h, json={"kind": "supply", "amount": 10, "reason": "troco"})).status_code == 201

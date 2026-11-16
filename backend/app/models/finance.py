@@ -147,3 +147,48 @@ class MonthClosing(BaseModel):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     closed_by_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+# ── Aprovação dos administradores para mexer no saldo de um banco ──────────────────────────────────────────────────
+# Corrigir saldo, saldo de partida, apagar ou editar transferência, lançamento ou conta paga que envolve um BANCO não é
+# aplicado na hora: vira um pedido com motivo, e só vale depois que todos os administradores aprovarem (qualquer um pode
+# recusar). Cada pedido e cada voto ficam guardados e aparecem na auditoria.
+APPROVAL_PENDING = "pending"
+APPROVAL_APPROVED = "approved"      # todos aprovaram e a mudança foi aplicada
+APPROVAL_REJECTED = "rejected"
+APPROVAL_EXPIRED = "expired"
+APPROVAL_CANCELED = "canceled"
+APPROVAL_FAILED = "failed"          # todos aprovaram, mas na hora de aplicar o estado já tinha mudado (a mensagem diz por quê)
+
+
+class FinanceApproval(BaseModel):
+    __tablename__ = "finance_approvals"
+
+    kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    summary: Mapped[str] = mapped_column(String(400), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    params: Mapped[str] = mapped_column(Text, nullable=False, comment="JSON com o que será aplicado")
+    account_id: Mapped[Optional[int]] = mapped_column(ForeignKey("financial_accounts.id"), nullable=True)
+    amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True, comment="valor para mostrar (com sinal)")
+    dedupe_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default=APPROVAL_PENDING, server_default=APPROVAL_PENDING, index=True)
+    rule: Mapped[str] = mapped_column(String(12), nullable=False, default="all_admins", server_default="all_admins",
+                                      comment="all_admins | one_other")
+    requested_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    requested_by_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    decided_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    applied_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    result_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class FinanceApprovalVote(BaseModel):
+    __tablename__ = "finance_approval_votes"
+    __table_args__ = (Index("uq_finance_approval_vote", "approval_id", "user_id", unique=True),)
+
+    approval_id: Mapped[int] = mapped_column(ForeignKey("finance_approvals.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    vote: Mapped[str] = mapped_column(String(8), nullable=False, comment="approve | reject")
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+

@@ -101,7 +101,7 @@ export default function AccountsScreen() {
       const amount = (parseMoneyBr(fix!.amount) ?? 0).toFixed(2);
       return fix!.mode === 'adjust'
         ? adjustAccountBalance(fix!.acc.id, { target_balance: amount, reason: fix!.reason.trim() })
-        : updateAccount(fix!.acc.id, { opening_balance: amount });
+        : updateAccount(fix!.acc.id, { opening_balance: amount, ...(fix!.reason.trim() ? { reason: fix!.reason.trim() } : {}) });
     },
     onSuccess: async (res) => {
       setFix(null);
@@ -430,7 +430,10 @@ export default function AccountsScreen() {
         const target = parseMoneyBr(fix.amount);
         const diffCents = target == null ? 0 : Math.round(target * 100) - Math.round(fix.acc.balance * 100);
         const openingNow = Number(fix.acc.opening_balance ?? fix.acc.breakdown.opening ?? 0);
-        const shortReason = fix.mode === 'adjust' && fix.reason.trim().length < 5;
+        const isBank = fix.acc.kind === 'bank';
+        // banco: motivo de 20 letras (o pedido vai para todos os administradores aprovarem); gaveta e maquininha: 5 letras e direto
+        const minReason = isBank ? 20 : 5;
+        const shortReason = (fix.mode === 'adjust' || isBank) && fix.reason.trim().length < minReason;
         const noChange = fix.mode === 'adjust' ? diffCents === 0 : target == null || Math.round(target * 100) === Math.round(openingNow * 100);
         return (
           <BottomSheet
@@ -439,20 +442,25 @@ export default function AccountsScreen() {
             title={`Corrigir saldo de ${fix.acc.name}`}
             icon="pencil"
             actions={[{
-              label: fix.mode === 'adjust' ? 'Corrigir saldo' : 'Corrigir saldo de partida', variant: 'primary', loading: doFix.isPending,
+              label: isBank ? 'Pedir a correção' : fix.mode === 'adjust' ? 'Corrigir saldo' : 'Corrigir saldo de partida', variant: 'primary', loading: doFix.isPending,
               disabled: target == null || noChange || shortReason,
               onPress: () => { setSheetError(''); doFix.mutate(); },
             }]}
           >
             <View style={{ gap: 10 }}>
               {!!sheetError && <Text style={styles.error}>{sheetError}</Text>}
+              {isBank && (
+                <Text style={styles.note}>
+                  Saldo de banco não muda sozinho. Esta correção vira um pedido e só vale depois que todos os administradores aprovarem. Escreva o motivo com pelo menos 20 letras e diga como conferiu (por exemplo, o extrato do banco).
+                </Text>
+              )}
               {fix.mode === 'adjust' ? (
                 <>
                   <Text style={styles.note}>Saldo no sistema hoje: {formatCurrency(fix.acc.balance)}</Text>
                   <TextInput mode="outlined" label="Quanto tem de verdade agora?" value={fix.amount} keyboardType="decimal-pad"
                     left={<TextInput.Affix text="R$" />} onChangeText={(t) => setFix({ ...fix, amount: moneyInput(t) })}
                     activeOutlineColor={brand.primary} />
-                  <TextInput mode="outlined" label="Motivo (mínimo 5 letras)" value={fix.reason}
+                  <TextInput mode="outlined" label={`Motivo (mínimo ${minReason} letras)`} value={fix.reason}
                     onChangeText={(t) => setFix({ ...fix, reason: t })} activeOutlineColor={brand.primary} />
                   <View style={styles.chips}>
                     {['Contagem do dinheiro', 'Conferi no extrato do banco', 'Erro de lançamento'].map((r) => (
@@ -474,6 +482,10 @@ export default function AccountsScreen() {
                   <TextInput mode="outlined" label="Saldo de partida" value={fix.amount} keyboardType="decimal-pad"
                     left={<TextInput.Affix text="R$" />} onChangeText={(t) => setFix({ ...fix, amount: moneyInput(t) })}
                     activeOutlineColor={brand.primary} />
+                  {isBank && (
+                    <TextInput mode="outlined" label="Motivo (mínimo 20 letras)" value={fix.reason}
+                      onChangeText={(t) => setFix({ ...fix, reason: t })} activeOutlineColor={brand.primary} />
+                  )}
                   <Text style={styles.note}>Muda o saldo desde o início da contagem. Só dá se nenhum mês foi fechado.</Text>
                   <TouchableOpacity onPress={() => { setSheetError(''); setFix({ ...fix, mode: 'adjust', amount: moneyInput(Math.round(fix.acc.balance * 100).toString()) }); }}
                     accessibilityRole="button">

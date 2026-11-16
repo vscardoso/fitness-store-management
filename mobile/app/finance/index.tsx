@@ -29,6 +29,7 @@ import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { getFinanceOverview, listPayables, type FinanceAccount } from '@/services/financeService';
 import { getCashCurrent } from '@/services/cashService';
+import { getApprovalsSummary } from '@/services/bankApproval';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 import { FitText } from '@/components/ui/PriceDisplay';
 
@@ -87,6 +88,9 @@ export default function FinanceHomeScreen() {
     queryKey: ['finance-payables', 'open'], queryFn: () => listPayables('open'), enabled: !!data?.started,
   });
   const { data: cash } = useQuery({ queryKey: ['cash', 'current'], queryFn: getCashCurrent, refetchInterval: 30_000, enabled: !!data?.started });
+  const { data: approvals } = useQuery({
+    queryKey: ['finance-approvals-summary'], queryFn: getApprovalsSummary, enabled: !!data?.started, refetchInterval: 30_000,
+  });
   const [openTodo, setOpenTodo] = useState<'purchases' | 'card' | null>(null);
   const [showForecast, setShowForecast] = useState(false);
   const go = (path: string) => router.push(path as any);
@@ -101,7 +105,8 @@ export default function FinanceHomeScreen() {
   const cardDue = !!card && card.due_now > 0.004;
   const payOverdue = !!payables && payables.overdue_count > 0;
   const fiadoOverdue = !!p && p.fiado_overdue > 0.004;
-  const todoCount = (pending && pending.count > 0 ? 1 : 0) + (cardDue ? 1 : 0) + (fiadoOverdue ? 1 : 0) + (payOverdue ? 1 : 0);
+  const approvalsForMe = admin ? (approvals?.waiting_for_me ?? 0) : 0;
+  const todoCount = (pending && pending.count > 0 ? 1 : 0) + (cardDue ? 1 : 0) + (fiadoOverdue ? 1 : 0) + (payOverdue ? 1 : 0) + (approvalsForMe > 0 ? 1 : 0);
 
   const accountHint = (a: FinanceAccount): string => {
     if (a.kind === 'cash') return cash?.session ? 'caixa aberto' : 'caixa fechado';
@@ -146,6 +151,10 @@ export default function FinanceHomeScreen() {
           <Text style={styles.todoTitle}>Tudo em dia: nenhuma pendência de dinheiro.</Text>
         </View>
       )}
+      {approvalsForMe > 0 && (
+        <TodoRow title="Pedido para mexer no saldo do banco" note={`${approvalsForMe} pedido(s) esperando o seu voto`}
+          action="Ver pedidos" onPress={() => go('/finance/approvals')} />
+      )}
       {!!pending && pending.count > 0 && (
         <>
           <TodoRow title="Compras sem conta" note={`${pending.count} compra(s), ${formatCurrency(pending.total)}, ainda não saíram de nenhuma conta`}
@@ -183,6 +192,9 @@ export default function FinanceHomeScreen() {
             note={payOverdue ? `a pagar · ${payables!.overdue_count} vencida(s)` : 'a pagar'} warn={payOverdue} />
           <Tile icon="swap-vertical-outline" color={Colors.light.info} title="Retiradas e empréstimos" note="sócia, empréstimo, fatura do cartão" onPress={() => go('/finance/entries')} />
           <Tile icon="warning-outline" color={Colors.light.errorDark} title="Prejuízos" note="perdas de estoque" onPress={() => go('/(tabs)/stock-losses')} />
+          <Tile icon="shield-checkmark-outline" color={Colors.light.warningDark} title="Pedidos de aprovação"
+            note={(approvals?.pending ?? 0) > 0 ? `${approvals!.pending} esperando aprovação` : 'mexer no saldo do banco'} warn={approvalsForMe > 0}
+            onPress={() => go('/finance/approvals')} />
         </View>
       </View>
       <View style={styles.section}>

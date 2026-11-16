@@ -72,7 +72,7 @@ async def test_ajuste_recusas_e_aviso_do_banco(test_client, async_session, test_
     t_id, h, ids = await _pronto(async_session, test_user, test_client)
     c = test_client
     g, m, n = ids["Gaveta"], ids["Maquininha a receber"], ids["Nubank"]
-    ok = {"reason": "Conferi o extrato"}
+    ok = {"reason": "Conferi o extrato do banco no aplicativo"}
     r = await c.post(f"{API}/accounts/{g}/adjust", headers=h, json={"target_balance": "150.00", **ok})      # diferenca zero
     assert r.status_code == 400 and "nada para ajustar" in r.json()["detail"]
     for conta in (g, m):                                                                                    # dinheiro fisico nao fica negativo
@@ -106,7 +106,7 @@ async def test_so_admin_ajusta_e_corrige(test_client, async_session, test_user):
 async def test_partida_corrige_nome_e_recusa_com_mes_fechado(test_client, async_session, test_user):
     t_id, h, ids = await _pronto(async_session, test_user, test_client)
     c = test_client
-    r = await c.patch(f"{API}/accounts/{ids['Nubank']}", headers=h, json={"opening_balance": "1200.00", "name": "Nubank PJ"})
+    r = await c.patch(f"{API}/accounts/{ids['Nubank']}", headers=h, json={"opening_balance": "1200.00", "name": "Nubank PJ", "reason": "Errei o saldo da implantação do banco"})
     assert r.status_code == 200, r.text
     assert D(str(_conta(r.json(), "Nubank PJ")["balance"])) == D("1200.00") and _conta(r.json(), "Nubank PJ")["opening_balance"] == 1200.0
     r = await c.patch(f"{API}/accounts/{ids['Gaveta']}", headers=h, json={"name": "Caixa"})                 # nao renomeia gaveta
@@ -128,10 +128,10 @@ async def test_partida_com_mes_fechado_e_409(test_client, async_session, test_us
     ids = {a["name"]: a["id"] for a in d["accounts"]}
     cont = {str(a["id"]): str(a["balance"]) for a in d["accounts"]}
     assert (await test_client.post(f"{API}/closings/{mp.year}/{mp.month}", headers=h, json={"counted": cont})).status_code == 200
-    r = await test_client.patch(f"{API}/accounts/{ids['Nubank']}", headers=h, json={"opening_balance": "999"})
+    r = await test_client.patch(f"{API}/accounts/{ids['Nubank']}", headers=h, json={"opening_balance": "999", "reason": "Errei o saldo da implantação do banco"})
     assert r.status_code == 409 and "fechado" in r.json()["detail"]
     # o ajuste de hoje continua valendo (mes atual aberto)
-    r = await test_client.post(f"{API}/accounts/{ids['Nubank']}/adjust", headers=h, json={"target_balance": "999", "reason": "Conferi o extrato"})
+    r = await test_client.post(f"{API}/accounts/{ids['Nubank']}/adjust", headers=h, json={"target_balance": "999", "reason": "Conferi o extrato do banco no aplicativo"})
     assert r.status_code == 200, r.text
 
 
