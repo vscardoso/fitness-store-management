@@ -226,12 +226,12 @@ async def test_comprovante_mostra_saldo_de_pontos_e_pagamento_com_pontos(test_cl
     sale_id = r.json()["id"]
     d = (await test_client.get(f"{API}/sales/{sale_id}/receipt", headers=h)).json()
     assert d["receipt"]["loyalty"]["balance"] == 39.8                         # 50 - 20 usados + 9,8 ganhos
-    assert "Seu saldo de pontos: 40 (vale R$ 3,98 de desconto)" in d["text"]
+    assert "Seu saldo de pontos" not in d["text"] and "de desconto)" not in d["text"]   # saldo não sai no comprovante (decisão do Victor, 16/11/2026)
     assert "Pontos de fidelidade: R$ 2,00" in d["text"]                       # a parte paga com pontos aparece nos pagamentos
-    assert "vencem em" in d["text"]
+    assert "vencem em" not in d["text"]
     from tests.test_comprovante_venda import _texto_pdf
     pdf = _texto_pdf((await test_client.get(f"{API}/sales/{sale_id}/receipt/pdf", headers=h)).content)
-    assert "Saldo de pontos: 40" in pdf and "Pontos de fidelidade" in pdf
+    assert "Saldo de pontos" not in pdf and "Pontos de fidelidade" in pdf   # só a forma de pagamento aparece
     await _config_fid(test_client, h, enabled=False)
     d = (await test_client.get(f"{API}/sales/{sale_id}/receipt", headers=h)).json()
     assert d["receipt"]["loyalty"] is None and "saldo de pontos" not in d["text"].lower()

@@ -316,10 +316,10 @@ async def test_comprovante_depois_da_devolucao_mostra_devolvido_troca_e_pontos(t
     assert rec["returns"][0]["items"][0]["quantity"] == 1 and rec["returns"][0]["exchange"] is None
     assert rec["points_earned"] == 30 and rec["points_kept"] == 20          # devolveu 1/3: perde 10 dos 30 pontos
     assert "Devolução em" in d["text"] and "Estornado: R$ 100,00" in d["text"] and "Ficou da venda: R$ 200,00" in d["text"]
-    assert "ganhou 30, ficou com 20" in d["text"]
+    assert "ganhou 30" not in d["text"] and "pontos de fidelidade" not in d["text"].lower()   # pontos não saem no comprovante (decisão do Victor, 16/11/2026)
     assert "motivo" not in d["text"].lower() and "não serviu" not in d["text"]       # o motivo é interno
     pdf = _texto_pdf((await test_client.get(f"/api/v1/sales/{sid}/receipt/pdf", headers=h)).content)
-    assert "DEVOLUÇÃO" in pdf and "FICOU DA VENDA" in pdf and "R$ 200,00" in pdf and "ficou com 20" in pdf
+    assert "DEVOLUÇÃO" in pdf and "FICOU DA VENDA" in pdf and "R$ 200,00" in pdf and "ficou com 20" not in pdf
     assert "não serviu" not in pdf
 
     # troca: a peça nova aparece e a diferença
@@ -352,7 +352,7 @@ async def test_aviso_de_devolucao_pelo_whatsapp_da_loja(test_client, async_sessi
     r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
     assert r.status_code == 200 and r.json()["mode"] == "pdf", r.text
     legenda = chamadas[0][1]["document"]["caption"]
-    assert "devolução registrada (R$ 100,00)" in legenda and "Ficou da venda: R$ 200,00" in legenda and "Pontos desta compra: 20" in legenda
+    assert "devolução registrada (R$ 100,00)" in legenda and "Ficou da venda: R$ 200,00" in legenda and "Pontos desta compra" not in legenda
     assert "não serviu" not in legenda                                     # o motivo é interno
 
     # fora da janela de 24 h

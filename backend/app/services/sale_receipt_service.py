@@ -253,6 +253,7 @@ def _exchange_line(d: Dict[str, Any]) -> Optional[str]:
     return f"{how.capitalize()} em até {days} dias com este comprovante e a etiqueta da peça."
 
 
+# Pontos de fidelidade NÃO saem no comprovante (decisão do Victor, 16/11/2026): o saldo aparecia com valor que não batia (42 pontos = R$ 4,22).
 def build_receipt_text(d: Dict[str, Any]) -> str:
     """Texto para mandar pelo WhatsApp (negrito com asteriscos)."""
     out: List[str] = []
@@ -311,19 +312,6 @@ def build_receipt_text(d: Dict[str, Any]) -> str:
             out.append(f"Estornado: {brl(r['refund'])} ({r['method']})")
     if d["returns"]:
         out.append(f"*Ficou da venda: {brl(d['net_total'])}*")
-    if d["points_earned"] > 0 or d["points_kept"] > 0:
-        out.append("")
-        if d["returns"] and d["points_kept"] != d["points_earned"]:
-            out.append(f"Pontos de fidelidade desta compra: ganhou {d['points_earned']}, ficou com {d['points_kept']} depois da devolução.")
-        else:
-            out.append(f"Você ganhou {d['points_earned']} pontos de fidelidade.")
-    lo = d.get("loyalty")
-    if lo:
-        linha = f"Seu saldo de pontos: {lo['balance']:.0f} (vale {brl(lo['value'])} de desconto)."
-        if lo["expiring_soon"] > 0 and lo["next_expiry"]:
-            linha += f" {lo['expiring_soon']:.0f} vencem em {lo['next_expiry']}."
-        out.append("")
-        out.append(linha)
     ex = _exchange_line(d)
     if ex:
         out.append("")
@@ -492,18 +480,6 @@ def build_receipt_pdf(d: Dict[str, Any], size: str = "80") -> bytes:
     if d["returns"]:
         p.gap(3)
         p.pair("FICOU DA VENDA", brl(d["net_total"]), 10, bold=True)
-    if d["points_earned"] > 0 or d["points_kept"] > 0:
-        p.gap(3)
-        if d["returns"] and d["points_kept"] != d["points_earned"]:
-            p.text(f"Pontos desta compra: ganhou {d['points_earned']}, ficou com {d['points_kept']} depois da devolução.", 7.5, align="center")
-        else:
-            p.text(f"Você ganhou {d['points_earned']} pontos de fidelidade.", 7.5, align="center")
-    lo = d.get("loyalty")
-    if lo:
-        p.gap(3)
-        p.text(f"Saldo de pontos: {lo['balance']:.0f} (vale {brl(lo['value'])})", 7.5, bold=True, align="center")
-        if lo["expiring_soon"] > 0 and lo["next_expiry"]:
-            p.text(f"{lo['expiring_soon']:.0f} pontos vencem em {lo['next_expiry']}", 7, align="center")
     p.rule()
     ex = _exchange_line(d)
     if ex:
@@ -551,8 +527,6 @@ async def send_via_store_whatsapp(db: AsyncSession, sale: Any, data: Dict[str, A
         if data["returns"]:
             caption = (f"Atualizamos o comprovante da venda {sale.sale_number}: devolução registrada ({brl(data['refunded'])}). "
                        f"Ficou da venda: {brl(data['net_total'])}.")
-            if data["points_kept"] != data["points_earned"]:
-                caption += f" Pontos desta compra: {data['points_kept']}."
         else:
             caption = f"Comprovante da venda {sale.sale_number} - {brl(data['total'])}. Obrigada pela preferência!"
         await wa.send_media(db, tenant_id, conv.id, data=pdf, filename=f"comprovante-{sale.sale_number}.pdf", caption=caption)
