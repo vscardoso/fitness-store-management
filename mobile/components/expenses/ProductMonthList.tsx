@@ -50,12 +50,12 @@ export default function ProductMonthList({ year, month }: { year: number; month:
   return (
     <View style={styles.card}>
       <Text style={styles.title}>Produtos vendidos no mês</Text>
-      <Text style={styles.sub}>Quanto entrou, quanto custou e quanto sobrou de cada produto. Devoluções já descontadas.</Text>
+      <Text style={styles.sub}>Quanto entrou, quanto custou e quanto sobrou da venda de cada produto, antes dos gastos da loja. Devoluções já descontadas.</Text>
 
       {isLoading ? (
         <ScreenLoader compact />
       ) : !data?.length ? (
-        <Text style={styles.empty}>Nenhuma venda neste mês.</Text>
+        <Text style={styles.empty}>Nenhuma venda neste mês. Quando você vender, os produtos aparecem aqui.</Text>
       ) : (
         <>
           {data.length > 8 && (
@@ -89,10 +89,10 @@ export default function ProductMonthList({ year, month }: { year: number; month:
                 <View style={styles.rowHead}>
                   <Text style={styles.name} numberOfLines={2}>{p.name}</Text>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={[styles.profit, { color: neg ? Colors.light.error : Colors.light.success }]}>
+                    <Text style={[styles.profit, { color: neg ? Colors.light.errorDark : Math.abs(p.profit) < 0.005 ? Colors.light.textSecondary : Colors.light.successDark }]}>
                       {formatCurrency(p.profit)}
                     </Text>
-                    <Text style={styles.small}>lucro{p.revenue > 0 ? ` · ${p.margin_percent.toFixed(0)}%` : ''}</Text>
+                    <Text style={styles.small}>{p.revenue > 0 ? `sobrou · ${p.margin_percent.toFixed(0)}% do que entrou` : 'sobrou'}</Text>
                   </View>
                 </View>
                 <Text style={styles.detail}>
@@ -110,7 +110,7 @@ export default function ProductMonthList({ year, month }: { year: number; month:
                   </View>
                   <View style={styles.num}>
                     <Text style={styles.numLabel}>Custo das peças</Text>
-                    <Text style={[styles.numValue, { color: Colors.light.warning }]}>{formatCurrency(p.cost)}</Text>
+                    <Text style={[styles.numValue, { color: Colors.light.warningDarker }]}>{formatCurrency(p.cost)}</Text>
                   </View>
                 </View>
               </View>
@@ -132,7 +132,6 @@ export default function ProductMonthList({ year, month }: { year: number; month:
 
 const styles = StyleSheet.create({
   card: {
-    marginTop: 12,
     backgroundColor: Colors.light.card,
     borderRadius: 16,
     borderWidth: 1,
@@ -154,18 +153,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  chip: { borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' },
   chipText: { fontSize: 12, fontWeight: '700', color: Colors.light.text },
   row: { borderTopWidth: 1, borderTopColor: Colors.light.border, paddingTop: 10, gap: 6 },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   name: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.light.text },
   profit: { fontSize: 16, fontWeight: theme.fontWeight.extrabold },
-  small: { fontSize: 11, color: Colors.light.textSecondary },
+  small: { fontSize: 12, color: Colors.light.textSecondary },
   detail: { fontSize: 12, color: Colors.light.textSecondary, lineHeight: 17 },
   numbers: { flexDirection: 'row', gap: 8 },
   num: { flex: 1, backgroundColor: Colors.light.backgroundSecondary, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10 },
-  numLabel: { fontSize: 11, color: Colors.light.textSecondary },
+  numLabel: { fontSize: 12, color: Colors.light.textSecondary },
   numValue: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
-  more: { alignItems: 'center', paddingVertical: 6 },
+  more: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
   moreText: { fontWeight: '700', fontSize: 13 },
 });
