@@ -75,3 +75,59 @@ async def test_mes_antes_da_contagem_e_acesso_so_do_administrador(test_client, a
     assert r["status"] == "empty" and "antes do começo" in r["message"]
     gerente = await _user(async_session, t_id, UserRole.MANAGER)
     assert (await test_client.get(f"{API}/reconciliation", headers=gerente)).status_code == 403
+
+
+async def test_ponte_explica_onde_foi_cada_real_e_nao_sobra_nada_sem_explicacao(test_client, async_session, test_user):
+    """O dono pensa: vendi X, gastei Y, sobra X-Y. As contas mostram outro valor por causa de fiado, cartão, gasto sem conta,
+    retirada, correção à mão... A ponte lista cada motivo; a sobra sem explicação tem que ser ZERO."""
+    from tests.test_compra_abate_conta import ENT, _corpo
+    from tests.test_fiado import _cliente, _venda
+    t_id, h, p, va, ids = await _loja(test_client, async_session, test_user)
+    hoje = date.today().isoformat()
+
+    def ponte(rec):
+        return {ln["key"]: ln["amount"] for ln in rec["bridge"]["lines"]}
+
+    base = await _rec(test_client, h)
+    pre = ponte(base).get("purchases_noacct", 0.0)           # a compra do cenário de teste ainda não disse de onde saiu o dinheiro
+    assert base["bridge"]["residual"] == 0 and base["bridge"]["should_be_left"] == -pre
+
+    await _pagar_com(test_client, h, p, va, "cash", "200.00")                      # dinheiro
+    await _pagar_com(test_client, h, p, va, "pix", "100.00")                       # PIX
+    await _pagar_com(test_client, h, p, va, "credit_card", "50.00")                # cartão (fica na maquininha)
+    cid = await _cliente(async_session, t_id)
+    r = await _venda(test_client, h, p, va, cid, [{"amount": "80.00", "payment_method": "on_account"}], preco="80.00")
+    assert r.status_code in (200, 201), r.text                                      # fiado: vendeu, não entrou
+    rec = await _rec(test_client, h)
+    b = rec["bridge"]
+    assert b["sold"] == 430.0 and ponte(rec) == {**({"purchases_noacct": pre} if pre else {}), "fiado_sold": -80.0}
+    assert b["should_be_left"] == 430.0 - pre
+    assert b["change_in_accounts"] == 350.0 and b["residual"] == 0 and b["status"] == "ok"
+    assert b["card_receivable"] == 300.0 + 50.0 and b["available"] == rec["have"] - b["card_receivable"]
+
+    # gastos: um com conta, um SEM conta; compra com conta e compra sem conta
+    r = await test_client.post("/api/v1/expenses", headers=h, json={"amount": "30.00", "description": "Com conta", "expense_date": hoje, "account_id": ids["Gaveta"]})
+    assert r.status_code in (200, 201), r.text
+    r = await test_client.post("/api/v1/expenses", headers=h, json={"amount": "20.00", "description": "Sem conta", "expense_date": hoje})
+    assert r.status_code in (200, 201), r.text
+    r = await test_client.post(ENT, headers=h, json=_corpo(p, va, qtd=4, custo="10.00", paid_account_id=ids["Nubank"]))
+    assert r.status_code == 201, r.text                                             # R$ 40 saem do Nubank
+    r = await test_client.post(ENT, headers=h, json=_corpo(p, va, qtd=3, custo="10.00"))
+    assert r.status_code == 201, r.text                                             # R$ 30 sem conta escolhida
+    rec = await _rec(test_client, h)
+    b, pt = rec["bridge"], ponte(rec)
+    assert b["spent"] == pre + 30 + 20 + 40 + 30 and b["should_be_left"] == 430 - pre - 120
+    assert pt["expenses_noacct"] == 20.0 and pt["purchases_noacct"] == pre + 30.0 and pt["fiado_sold"] == -80.0
+    assert b["residual"] == 0 and b["status"] == "ok", b
+
+    # retirada de sócio, caixa, correção à mão e devolução em dinheiro
+    r = await test_client.post(f"{API}/entries", headers=h, json={"kind": "owner_withdrawal", "account_id": ids["Nubank"], "amount": "25", "person": "Sócia"})
+    assert r.status_code == 200, r.text
+    gaveta = next(a["balance"] for a in (await test_client.get(f"{API}/accounts", headers=h)).json()["accounts"] if a["name"] == "Gaveta")
+    r = await test_client.post(f"{API}/accounts/{ids['Gaveta']}/adjust", headers=h, json={"target_balance": str(gaveta - 3), "reason": "Contagem do dinheiro"})
+    assert r.status_code == 200, r.text
+    rec = await _rec(test_client, h)
+    b, pt = rec["bridge"], ponte(rec)
+    assert pt["owner"] == -25.0 and pt["adjustments"] == -3.0
+    assert b["residual"] == 0 and b["status"] == "ok", b
+    assert round(b["should_be_left"] + sum(pt.values()), 2) == b["change_in_accounts"]

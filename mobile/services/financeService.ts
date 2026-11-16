@@ -333,6 +333,13 @@ export interface Reconciliation {
   refunds?: number; payables_paid?: number; expenses_paid?: number; purchases_paid?: number; other_out?: number; left?: number; cash_net?: number;
   should_have?: number; have?: number; difference?: number;
   adjustments?: ReconciliationAdjustment[]; adjustments_total?: number; pending_approvals?: number;
+  /** A ponte: vendido menos gasto (o que sobraria) até o que as contas mostram, com cada motivo da diferença. */
+  bridge?: ReconciliationBridge;
+}
+export interface ReconciliationBridge {
+  sold: number; spent: number; should_be_left: number; change_in_accounts: number; residual: number;
+  status: 'ok' | 'unexplained'; card_receivable: number; available: number;
+  lines: { key: string; label: string; amount: number }[];
 }
 /** Começou + entrou - saiu = deveria ter, contra o que as contas mostram. A diferença é o que foi corrigido à mão. */
 export const getReconciliation = async (year?: number, month?: number): Promise<Reconciliation> =>

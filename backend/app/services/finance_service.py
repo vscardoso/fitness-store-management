@@ -783,6 +783,7 @@ class FinanceService:
             FinanceApproval.tenant_id == tenant_id, FinanceApproval.status == "pending", FinanceApproval.expires_at > func.now()))).scalar() or 0
         f2 = lambda v: float(_q(v))  # noqa: E731
         ok = diff == 0
+        bridge = await self._bridge(tenant_id, start, end_excl, f, accounts, opening, closing, adj_total, other_in, other_out, cash_net)
         brl = lambda v: "R$ " + self._brl(v)  # noqa: E731
         message = (f"A conta fecha: o que as contas mostram é o que as vendas e os gastos do mês dizem que deveria ter ({brl(closing)})." if ok else
                    f"A conta não fecha: pelas vendas e gastos do mês deveria ter {brl(should_have)}, as contas mostram {brl(closing)}. "
@@ -795,6 +796,61 @@ class FinanceService:
             "should_have": f2(should_have), "have": f2(closing), "difference": float(diff),
             "adjustments": adjustments, "adjustments_total": f2(adj_total), "closing_adjustments": f2(adj_closing),
             "pending_approvals": int(pend), "status": "ok" if ok else "adjusted", "message": message,
+            "bridge": bridge,
+        }
+
+    async def _bridge(self, tenant_id: int, start: date, end_excl: date, f: Dict[str, Any], accounts: List[FinancialAccount],
+                      opening: Decimal, closing: Decimal, adj_total: Decimal, other_in: Decimal, other_out: Decimal,
+                      cash_net: Decimal) -> Dict[str, Any]:
+        """A ponte entre "vendas menos gastos" e "o que as contas mostram". O dono pensa: vendi 5 mil, gastei 3 mil, sobram 2 mil.
+        As contas mostram menos (ou mais) porque: fiado ainda não entrou, cartão ainda não caiu, gasto lançado sem conta, retirada
+        de sócio, correção feita à mão... Cada linha é um desses motivos, com o valor. O que sobra depois das linhas é a "sobra sem
+        explicação": se não for zero, tem dinheiro que o app não sabe de onde veio ou para onde foi."""
+        from app.services.money_ledger import period_totals
+        d0, d1 = start, end_excl - timedelta(days=1)
+        led = await period_totals(self.db, tenant_id, d0, d1)
+
+        def total(key: str) -> Decimal:
+            return sum((f["by_account"][a.id][key] for a in accounts), D0)
+        sold = _q(led.revenue)                                       # vendido no mês, líquido de devolução
+        expenses_acct, payables, purchases_acct = total("expenses_paid"), total("payables_paid"), total("purchases_paid")
+        expenses_noacct = _q((await self.db.execute(select(func.coalesce(func.sum(Expense.amount), 0)).where(
+            Expense.tenant_id == tenant_id, Expense.is_active == True, Expense.account_id.is_(None),  # noqa: E712
+            Expense.payable_id.is_(None), Expense.expense_date >= d0, Expense.expense_date <= d1))).scalar() or 0)
+        rows = (await self.db.execute(select(StockEntry.id).where(
+            StockEntry.tenant_id == tenant_id, StockEntry.is_active == True, StockEntry.paid_account_id.is_(None),  # noqa: E712
+            StockEntry.entry_date >= d0, StockEntry.entry_date <= d1, StockEntry.entry_type.in_([EntryType.ONLINE, EntryType.LOCAL])))).scalars().all()
+        goods = await lot_cost_service.goods_paid_by_entry(self.db, list(rows))
+        purchases_noacct = _q(sum(goods.values(), D0))
+        spent = expenses_acct + expenses_noacct + payables + purchases_acct + purchases_noacct
+        should_be_left = sold - spent
+        fiado_sold = _q(f["sales"].get(PaymentMethod.ON_ACCOUNT.value, D0))
+        points = _q(f["sales"].get(PaymentMethod.LOYALTY_POINTS.value, D0))
+        fiado_received = total("receivables_received")
+        noncash_refunds = _q(led.refunds) - total("refunds")
+        lines = [
+            ("expenses_noacct", "Despesas lançadas sem conta (não saíram de nenhuma conta)", expenses_noacct),
+            ("purchases_noacct", "Compras de mercadoria sem conta (ainda não saíram de nenhuma conta)", purchases_noacct),
+            ("fiado_sold", "Vendido no fiado e ainda não recebido", -fiado_sold),
+            ("fiado_received", "Fiado recebido no mês (de vendas deste ou de meses antes)", fiado_received),
+            ("points", "Vendido com pontos de fidelidade (não entra dinheiro)", -points),
+            ("noncash_refunds", "Devoluções que não saíram em dinheiro (crédito, abatimento de fiado)", noncash_refunds),
+            ("cash_net", "Caixa da gaveta (dinheiro colocado menos tirado)", cash_net),
+            ("owner", "Retiradas de sócio, empréstimos e faturas (não são despesa)", other_in - other_out),
+            ("adjustments", "Correções feitas à mão (Corrigir saldo, contagem do caixa, fechamento)", adj_total),
+        ]
+        explained = sum((v for _, _, v in lines), D0)
+        change = closing - opening
+        residual = _q(change - (should_be_left + explained))
+        card = next((a for a in accounts if a.kind == KIND_CARD), None)
+        card_balance = _q(_q(card.opening_balance) + self.net(f["by_account"][card.id])) if card else D0
+        f2 = lambda v: float(_q(v))  # noqa: E731
+        return {
+            "sold": f2(sold), "spent": f2(spent), "should_be_left": f2(should_be_left),
+            "lines": [{"key": k, "label": lbl, "amount": f2(v)} for k, lbl, v in lines if _q(v) != 0],
+            "change_in_accounts": f2(change), "residual": float(residual),
+            "card_receivable": f2(card_balance), "available": f2(closing - card_balance),
+            "status": "ok" if residual == 0 else "unexplained",
         }
 
     async def projection(self, tenant_id: int, balances: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

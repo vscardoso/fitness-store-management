@@ -24,11 +24,14 @@ function Row({ label, value, tone, bold }: { label: string; value: string; tone?
 export default function ReconciliationCard() {
   const { data } = useQuery({ queryKey: ['finance-reconciliation'], queryFn: () => getReconciliation(), refetchInterval: 60_000 });
   const [open, setOpen] = useState(false);
+  const [showBridge, setShowBridge] = useState(false);
   if (!data?.started || data.status === 'empty' || data.should_have === undefined) return null;
-  const ok = data.status === 'ok';
+  const unexplained = !!data.bridge && data.bridge.status === 'unexplained';
+  const ok = data.status === 'ok' && !unexplained;
   const color = ok ? Colors.light.success : Colors.light.warningDark;
   const adjustments = data.adjustments ?? [];
   const diff = data.difference ?? 0;
+  const bridge = data.bridge;
 
   return (
     <View style={[styles.card, { borderColor: color }]} testID="finance-reconciliation">
@@ -37,6 +40,11 @@ export default function ReconciliationCard() {
         <Text style={styles.title}>{ok ? 'A conta do mês fecha' : 'A conta do mês não fecha'}</Text>
       </View>
       <Text style={styles.message}>{data.message}</Text>
+      {unexplained && bridge && (
+        <Text style={[styles.message, { color: Colors.light.warningDark }]}>
+          {`Sobra sem explicação de ${formatCurrency(Math.abs(bridge.residual))}: o app não sabe de onde veio ou para onde foi esse dinheiro. Abra a ponte abaixo e confira.`}
+        </Text>
+      )}
       <Row label="Começou o mês com" value={formatCurrency(data.opening ?? 0)} />
       <Row label="+ Entrou (vendas e fiado recebido)" value={formatCurrency(data.entered ?? 0)} tone={Colors.light.success} />
       <Row label="− Saiu (despesas, compras, contas pagas)" value={formatCurrency(data.left ?? 0)} tone={Colors.light.error} />
@@ -44,6 +52,30 @@ export default function ReconciliationCard() {
       <Row label="= Deveria ter" value={formatCurrency(data.should_have)} bold />
       <Row label="As contas mostram" value={formatCurrency(data.have ?? 0)} bold />
       {!ok && <Row label="Diferença (corrigida à mão)" value={`${diff > 0 ? '+' : '-'} ${formatCurrency(Math.abs(diff))}`} tone={color} bold />}
+      {!!bridge && (
+        <>
+          <TouchableOpacity onPress={() => setShowBridge((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showBridge }} style={styles.toggle}>
+            <Text style={styles.toggleText}>{showBridge ? 'Esconder a ponte' : 'Ver a ponte: das vendas e gastos até o saldo das contas'}</Text>
+            <Ionicons name={showBridge ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.light.textSecondary} />
+          </TouchableOpacity>
+          {showBridge && (
+            <View style={styles.bridge} testID="finance-bridge">
+              <Row label="Vendeu no mês (menos devoluções)" value={formatCurrency(bridge.sold)} />
+              <Row label="− Gastou (despesas, compras, contas pagas)" value={formatCurrency(bridge.spent)} tone={Colors.light.error} />
+              <Row label="= Sobraria" value={formatCurrency(bridge.should_be_left)} bold />
+              {bridge.lines.map((l) => (
+                <Row key={l.key} label={`${l.amount > 0 ? '+' : '−'} ${l.label}`} value={formatCurrency(Math.abs(l.amount))}
+                  tone={l.amount > 0 ? Colors.light.success : Colors.light.error} />
+              ))}
+              {Math.abs(bridge.residual) > 0.004 && <Row label="± Sobra sem explicação" value={`${bridge.residual > 0 ? '+' : '-'} ${formatCurrency(Math.abs(bridge.residual))}`} tone={Colors.light.warningDark} bold />}
+              <Row label="= Aumento nas contas desde o começo do mês" value={formatCurrency(bridge.change_in_accounts)} bold />
+              <Text style={styles.note}>
+                {`Das contas, ${formatCurrency(bridge.available)} está disponível (gaveta e bancos) e ${formatCurrency(bridge.card_receivable)} ainda está na maquininha.`}
+              </Text>
+            </View>
+          )}
+        </>
+      )}
       {!!data.pending_approvals && <Text style={styles.note}>{`${data.pending_approvals} pedido(s) de correção esperando aprovação.`}</Text>}
       {adjustments.length > 0 && (
         <>
@@ -75,6 +107,7 @@ const styles = StyleSheet.create({
   note: { fontSize: 12, color: Colors.light.textSecondary },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 6 },
   toggleText: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.textSecondary },
+  bridge: { gap: 6, paddingTop: 4 },
   adj: { borderLeftWidth: 2, borderLeftColor: Colors.light.border, paddingLeft: 10, gap: 2 },
   adjTitle: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
   adjText: { fontSize: 12, lineHeight: 18, color: Colors.light.textSecondary },
