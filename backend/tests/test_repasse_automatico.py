@@ -212,3 +212,34 @@ async def test_tudo_fica_registrado_e_rastreavel(test_client, async_session, tes
     assert r["failed"] == 1
     (falha,) = await _auditoria(async_session, t_id, "FINANCE_CARD_AUTO_FAILED")
     assert "banco fora do ar" in falha[1]["erro"] and falha[1]["tipo"] == "RuntimeError"
+
+
+async def test_devolucao_ja_absorvida_pelo_repasse_nao_reabre_o_dia_quando_entra_venda_nova(test_client, async_session, test_user):
+    """Caso real (loja 2, 13 a 15/11/2026): vendas de R$ 496,71 no cartão, devolução de R$ 39,89, repasse automático de R$ 456,82.
+    Quando entrou venda nova, a devolução passou a abater só o dia mais novo e a tela mostrou R$ 39,89 'atrasados' no dia que o
+    repasse já tinha quitado. O saldo da maquininha estava certo; o que errava era a previsão."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _zerar_implantacao(async_session, t_id)
+    assert (await _implantar(test_client, h, start_date=(today_brazil() - timedelta(days=10)).isoformat())).status_code == 200
+    d1 = _dia_de_venda(3)
+    a = await _vender_no_dia(test_client, async_session, h, p, va, "credit_card", "100.00", d1)
+    await _vender_no_dia(test_client, async_session, h, p, vb, "credit_card", "100.00", d1)
+    r = await test_client.post(f"/api/v1/returns/{a['id']}", headers=h, json={
+        "reason": "Não serviu", "refund_method": "original", "items": [{"sale_item_id": a["items"][0]["id"], "quantity": 1}]})
+    assert r.status_code == 201, r.text                                           # R$ 100 saem da maquininha
+
+    await async_session.execute(update(Store).where(Store.id == t_id).values(
+        card_auto_settlement=True, card_auto_account_id=None, card_auto_through=d1))
+    await async_session.commit()
+    r = await FinanceService(async_session).auto_settle_card(t_id, now=datetime.combine(today_brazil(), time(13, 0)))
+    assert r["settled"] == 1 and r["amount"] == 100.0                             # vendas 200 menos a devolução 100
+
+    # venda nova (hoje): o dia antigo continua quitado, só a venda nova espera
+    await _pagar_com(test_client, h, p, va, "debit_card", "77.00")
+    sch = (await test_client.get(f"{API}/card-schedule", headers=h)).json()
+    assert [i["amount"] for i in sch["items"]] == [77.0], sch["items"]
+    assert sch["items"][0]["status"] == "future"
+    assert sch["due_now"] == sch["previous"]                                      # nada atrasado: só o saldo de partida, se houver
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    saldo = _conta(d, "Maquininha a receber")["balance"]
+    assert round(sch["previous"] + 77.0, 2) == saldo                              # o saldo e a soma da previsão são iguais

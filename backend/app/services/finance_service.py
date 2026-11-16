@@ -771,15 +771,7 @@ class FinanceService:
         for created, amount in rows:
             d = card_expected_date(br_day(created))
             by_day[d] = by_day.get(d, D0) + _q(amount)
-        # devolução no cartão: abate os dias mais novos
-        refund = _q(b["refunds"])
-        for d in sorted(by_day, reverse=True):
-            if refund <= 0:
-                break
-            cut = min(by_day[d], refund)
-            by_day[d] -= cut
-            refund -= cut
-        # repasse AUTOMÁTICO quita o próprio dia do cartão (não o saldo anterior); apagar o repasse devolve o dia à lista
+        # repasse AUTOMÁTICO de cada dia do cartão (um por dia)
         auto_rows = (await self.db.execute(
             select(AccountTransfer.card_day, func.sum(AccountTransfer.amount)).where(
                 AccountTransfer.tenant_id == tenant_id, AccountTransfer.is_active == True,  # noqa: E712
@@ -787,6 +779,26 @@ class FinanceService:
                 AccountTransfer.occurred_on >= store.finance_start_date,
             ).group_by(AccountTransfer.card_day)
         )).all()
+        refund = _q(b["refunds"])
+        # Um dia que o repasse automático já quitou JÁ gastou a devolução que existia naquele dia: o repasse levou as vendas
+        # menos a devolução (caso real: vendas de R$ 496,71, devolução de R$ 39,89, repasse de R$ 456,82). Se a devolução
+        # voltasse a abater só o dia mais novo, esse dia "reabria" com R$ 39,89 atrasados toda vez que entrasse uma venda nova.
+        for d, amt in sorted(auto_rows, key=lambda r: r[0]):
+            if refund <= 0:
+                break
+            gap = by_day.get(d, D0) - _q(amt)
+            if gap > 0:
+                used = min(gap, refund)
+                by_day[d] -= used
+                refund -= used
+        # devolução no cartão (a que sobrou): abate os dias mais novos
+        for d in sorted(by_day, reverse=True):
+            if refund <= 0:
+                break
+            cut = min(by_day[d], refund)
+            by_day[d] -= cut
+            refund -= cut
+        # repasse AUTOMÁTICO quita o próprio dia do cartão (não o saldo anterior); apagar o repasse devolve o dia à lista
         auto_cut = D0
         for d, amt in auto_rows:
             cut = min(by_day.get(d, D0), _q(amt))
