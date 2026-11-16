@@ -173,8 +173,8 @@ function Account({ data }: { data: MonthlyResult }) {
 
 /** Só aparece quando há problema real: mês com venda e nenhum gasto lançado deixa o lucro maior do que é. */
 function Attention({ data, onAddExpense, isCurrent }: { data: MonthlyResult; onAddExpense: () => void; isCurrent: boolean }) {
-  // Nos primeiros dias do mês é normal ainda não ter gasto lançado: o aviso só vale a partir do dia 8 (mês fechado sempre vale).
-  if (isCurrent && new Date().getDate() < 8) return null;
+  // Os gastos da loja são lançados sempre no primeiro dia do mês: o aviso só vale a partir do dia 2 (mês fechado sempre vale).
+  if (isCurrent && new Date().getDate() < 2) return null;
   if (!(data.sales_count > 0 && Number(data.total_expenses) === 0)) return null;
   return (
     <AppCard tone="warning" title="Nenhum gasto lançado neste mês">
