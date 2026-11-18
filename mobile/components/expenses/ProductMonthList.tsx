@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { getMonthlyResultByProduct, type ProductMonthResult } from '@/services/expenseService';
+import { getMonthlyResultByProduct, getResultByProductRange, type ProductMonthResult } from '@/services/expenseService';
 import { formatCurrency } from '@/utils/format';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 
@@ -23,14 +23,15 @@ const PAGE = 15;
 
 const strip = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export default function ProductMonthList({ year, month }: { year: number; month: number }) {
+/** Do mês (year e month) ou de um período livre (`range`, AAAA-MM-DD). */
+export default function ProductMonthList({ year, month, range }: { year: number; month: number; range?: { start: string; end: string } | null }) {
   const brand = useBrandingColors();
   const [sort, setSort] = useState<Sort>('profit');
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
   const { data, isLoading } = useQuery({
-    queryKey: ['monthly-result-products', year, month],
-    queryFn: () => getMonthlyResultByProduct(year, month),
+    queryKey: range ? ['result-products-range', range.start, range.end] : ['monthly-result-products', year, month],
+    queryFn: () => (range ? getResultByProductRange(range.start, range.end) : getMonthlyResultByProduct(year, month)),
   });
 
   const list = useMemo(() => {
@@ -49,13 +50,13 @@ export default function ProductMonthList({ year, month }: { year: number; month:
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Produtos vendidos no mês</Text>
+      <Text style={styles.title}>{range ? 'Produtos vendidos no período' : 'Produtos vendidos no mês'}</Text>
       <Text style={styles.sub}>Quanto entrou, quanto custou e quanto sobrou da venda de cada produto, antes dos gastos da loja. Devoluções já descontadas.</Text>
 
       {isLoading ? (
         <ScreenLoader compact />
       ) : !data?.length ? (
-        <Text style={styles.empty}>Nenhuma venda neste mês. Quando você vender, os produtos aparecem aqui.</Text>
+        <Text style={styles.empty}>{range ? 'Nenhuma venda neste período.' : 'Nenhuma venda neste mês. Quando você vender, os produtos aparecem aqui.'}</Text>
       ) : (
         <>
           {data.length > 8 && (

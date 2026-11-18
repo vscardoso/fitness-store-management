@@ -125,11 +125,16 @@ async def monthly_result(
 async def monthly_result_by_product(
     year: Optional[int] = Query(None, description="Ano (padrão: ano atual)"),
     month: Optional[int] = Query(None, ge=1, le=12, description="Mês 1-12 (padrão: mês atual)"),
+    start_date: Optional[date] = Query(None, description="Período livre: data inicial (com end_date, vale no lugar do mês)"),
+    end_date: Optional[date] = Query(None, description="Período livre: data final"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[int] = Depends(get_current_tenant_id),
 ):
-    """Cada produto vendido no mês: peças, preço médio, quanto entrou, custo e lucro (mesma conta do Resultado do Mês)."""
+    """Cada produto vendido no mês (ou no período livre): peças, preço médio, quanto entrou, custo e lucro (mesma conta do Resultado)."""
+    if start_date or end_date:
+        first, last = ExpenseService.check_range(start_date, end_date)
+        return await ExpenseService(db).by_product_range(first, last, tenant_id)
     today = today_brazil()
     return await ExpenseService(db).monthly_by_product(year or today.year, month or today.month, tenant_id)
 
@@ -137,16 +142,21 @@ async def monthly_result_by_product(
 @router.get("/resultado-periodo", response_model=MonthlyResultResponse)
 async def result_by_period(
     days: int = Query(30, ge=1, le=365, description="Janela móvel em dias corridos (ex.: 7, 30, 60, 90)"),
+    start_date: Optional[date] = Query(None, description="Período livre: data inicial (com end_date, vale no lugar de days)"),
+    end_date: Optional[date] = Query(None, description="Período livre: data final (inclusive)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: Optional[int] = Depends(get_current_tenant_id),
 ):
     """
-    Resultado financeiro dos últimos N dias corridos (janela móvel):
-    mesma fórmula do resultado mensal, mas por período livre em dias.
+    Resultado financeiro dos últimos N dias corridos (janela móvel) ou de um período entre duas datas:
+    mesma fórmula do resultado mensal.
     """
     from app.services.gift_service import hide_gifts_in_result
     svc = ExpenseService(db)
+    if start_date or end_date:
+        first, last = ExpenseService.check_range(start_date, end_date)
+        return hide_gifts_in_result(await svc.result_by_range(first, last, tenant_id), current_user)
     return hide_gifts_in_result(await svc.result_by_days(days, tenant_id), current_user)
 
 

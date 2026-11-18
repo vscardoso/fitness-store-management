@@ -105,3 +105,14 @@ export async function getMonthlyResultByProduct(year: number, month: number): Pr
   const { data } = await api.get('/expenses/resultado-mes/produtos', { params: { year, month } });
   return data;
 }
+
+/** Resultado entre duas datas (AAAA-MM-DD, inclusive): mesma conta do mês. */
+export async function getResultByRange(start: string, end: string): Promise<MonthlyResult> {
+  const { data } = await api.get('/expenses/resultado-periodo', { params: { start_date: start, end_date: end } });
+  return data;
+}
+
+export async function getResultByProductRange(start: string, end: string): Promise<ProductMonthResult[]> {
+  const { data } = await api.get('/expenses/resultado-mes/produtos', { params: { start_date: start, end_date: end } });
+  return data;
+}

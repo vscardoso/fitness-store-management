@@ -14,7 +14,10 @@ import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
 import AppCard from '@/components/ui/AppCard';
 import { Money } from '@/components/ui/PriceDisplay';
-import { getMonthlyResult } from '@/services/expenseService';
+import DateRangeFields from '@/components/ui/DateRangeFields';
+import { useBrandingColors } from '@/store/brandingStore';
+import { getMonthlyResult, getResultByRange } from '@/services/expenseService';
+import { isoToBr, rangeFor } from '@/utils/periodRange';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import { resultLines, type ResultLine } from '@/utils/resultMonth';
 import { Colors, theme } from '@/constants/Colors';
@@ -22,6 +25,8 @@ import type { MonthlyResult, ExpenseByCategoryItem } from '@/types/expense';
 import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
 import ProductMonthList from '@/components/expenses/ProductMonthList';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+
+type Mode = 'month' | 'last_7_days' | 'last_30_days' | 'custom';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -39,12 +44,21 @@ export default function MonthlyResultScreen() {
   const isDesktop = useIsDesktop();
   const router = useRouter();
   const now = new Date();
+  const brand = useBrandingColors();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  // Período: o mês (com setas) ou os últimos 7 / 30 dias ou duas datas escolhidas
+  const [mode, setMode] = useState<Mode>('month');
+  const [customRange, setCustomRange] = useState<{ start: string; end: string } | null>(null);
+  const [editingDates, setEditingDates] = useState(true);   // o formulário some depois de aplicar, para o resultado subir
+  const isMonth = mode === 'month';
+  const range = isMonth ? null : mode === 'custom' ? customRange : rangeFor(mode);
+  const waitingDates = mode === 'custom' && !customRange;
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['monthly-result', year, month],
-    queryFn: () => getMonthlyResult(year, month),
+    queryKey: isMonth ? ['monthly-result', year, month] : ['result-range', range?.start, range?.end],
+    queryFn: () => (isMonth ? getMonthlyResult(year, month) : getResultByRange(range!.start, range!.end)),
+    enabled: isMonth || !!range,
   });
 
   const prevMonth = () => {
@@ -58,7 +72,7 @@ export default function MonthlyResultScreen() {
     setYear(ny); setMonth(nm);
   };
 
-  const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
+  const isCurrent = isMonth && year === now.getFullYear() && month === now.getMonth() + 1;
   const canGoNext = !isCurrent;
   const isEmpty = !!data && data.sales_count === 0 && Number(data.total_expenses) === 0 && Number(data.gifts_total ?? 0) === 0;
   const goFinance = () => router.push('/finance');
@@ -66,19 +80,50 @@ export default function MonthlyResultScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Resultado do Mês" showBackButton backFallback="/(tabs)/expenses" />
+      <PageHeader title={isMonth ? 'Resultado do Mês' : 'Resultado do Período'} showBackButton backFallback="/(tabs)/expenses" />
 
-      {/* Seletor de mês: a seta de avançar apaga no mês atual */}
-      <View style={styles.monthNav}>
-        <AppButton variant="ghost" size="md" icon="chevron-back" iconOnly label="Mês anterior" onPress={prevMonth} />
-        <View style={styles.monthCenter}>
-          <Text style={styles.monthLabel}>{MONTHS[month - 1]} {year}</Text>
-          {isCurrent && <Text style={styles.monthSub}>Mês em andamento: valores até hoje, dia {now.getDate()}</Text>}
-        </View>
-        <AppButton variant="ghost" size="md" icon="chevron-forward" iconOnly label="Próximo mês" onPress={nextMonth} disabled={!canGoNext} />
+      {/* Período: Mês | 7 dias | 30 dias | Escolher datas. Só o mês tem setas; os outros mostram as datas */}
+      <View style={[styles.chipsBar, desktopContent]}>
+        <PeriodChip text="Mês" on={mode === 'month'} color={brand.primary} onPress={() => setMode('month')} />
+        <PeriodChip text="7 dias" on={mode === 'last_7_days'} color={brand.primary} onPress={() => setMode('last_7_days')} />
+        <PeriodChip text="30 dias" on={mode === 'last_30_days'} color={brand.primary} onPress={() => setMode('last_30_days')} />
+        <PeriodChip text="Escolher datas" on={mode === 'custom'} color={brand.primary} icon="calendar-outline" onPress={() => setMode('custom')} />
       </View>
 
-      {isLoading ? (
+      {isMonth ? (
+        <View style={styles.monthNav}>
+          <AppButton variant="ghost" size="md" icon="chevron-back" iconOnly label="Mês anterior" onPress={prevMonth} />
+          <View style={styles.monthCenter}>
+            <Text style={styles.monthLabel}>{MONTHS[month - 1]} {year}</Text>
+            {isCurrent && <Text style={styles.monthSub}>Mês em andamento: valores até hoje, dia {now.getDate()}</Text>}
+          </View>
+          <AppButton variant="ghost" size="md" icon="chevron-forward" iconOnly label="Próximo mês" onPress={nextMonth} disabled={!canGoNext} />
+        </View>
+      ) : (
+        <View style={styles.monthNav}>
+          <View style={styles.monthCenter}>
+            {range ? (
+              <>
+                <Text style={styles.monthLabel}>{isoToBr(range.start)} a {isoToBr(range.end)}</Text>
+                <Text style={styles.monthSub}>{mode === 'custom' ? 'Período escolhido' : 'Até hoje, contando o dia de hoje'}</Text>
+                {mode === 'custom' && !editingDates && (
+                  <AppButton variant="text" size="sm" icon="create-outline" label="Mudar datas" onPress={() => setEditingDates(true)} />
+                )}
+              </>
+            ) : (
+              <Text style={styles.monthSub}>Escolha as duas datas para ver o resultado</Text>
+            )}
+          </View>
+        </View>
+      )}
+      {mode === 'custom' && (editingDates || !customRange) && (
+        <View style={[styles.rangeBox, desktopContent]}>
+          <DateRangeFields start={customRange?.start} end={customRange?.end} applyLabel="Ver resultado"
+            onApply={(start, end) => { setCustomRange({ start, end }); setEditingDates(false); }} />
+        </View>
+      )}
+
+      {waitingDates ? null : isLoading ? (
         <ScreenLoader message="Carregando o resultado..." />
       ) : isError || !data ? (
         <View style={[styles.content, desktopContent]}>
@@ -89,11 +134,13 @@ export default function MonthlyResultScreen() {
         </View>
       ) : isEmpty ? (
         <View style={[styles.content, desktopContent]}>
-          <AppCard title={`Nenhuma venda em ${MONTHS[month - 1]}`}>
+          <AppCard title={isMonth ? `Nenhuma venda em ${MONTHS[month - 1]}` : 'Nenhuma venda neste período'}>
             <Text style={styles.stateText}>
-              {isCurrent
-                ? 'Quando você registrar a primeira venda do mês, o lucro aparece aqui.'
-                : 'Neste mês não houve venda nem gasto lançado.'}
+              {!isMonth
+                ? 'Neste período não houve venda nem gasto lançado. Tente outras datas.'
+                : isCurrent
+                  ? 'Quando você registrar a primeira venda do mês, o lucro aparece aqui.'
+                  : 'Neste mês não houve venda nem gasto lançado.'}
             </Text>
             {isCurrent && <AppButton variant="outlined" label="Ver o mês anterior" onPress={prevMonth} />}
           </AppCard>
@@ -103,22 +150,22 @@ export default function MonthlyResultScreen() {
           {isDesktop ? (
             <View style={styles.columns}>
               <View style={styles.leftCol}>
-                <Answer data={data} onFinance={goFinance} />
-                <Account data={data} />
-                <Attention data={data} onAddExpense={goAddExpense} isCurrent={isCurrent} />
+                <Answer data={data} onFinance={goFinance} isMonth={isMonth} />
+                <Account data={data} isMonth={isMonth} />
+                <Attention data={data} onAddExpense={goAddExpense} isCurrent={isCurrent} isMonth={isMonth} />
               </View>
               <View style={styles.rightCol}>
                 <ExpenseBreakdown items={data.expenses_by_category} total={data.total_expenses} />
-                <ProductMonthList year={year} month={month} />
+                <ProductMonthList year={year} month={month} range={range} />
               </View>
             </View>
           ) : (
             <View style={styles.stack}>
-              <Answer data={data} onFinance={goFinance} />
-              <Account data={data} />
-              <Attention data={data} onAddExpense={goAddExpense} isCurrent={isCurrent} />
+              <Answer data={data} onFinance={goFinance} isMonth={isMonth} />
+              <Account data={data} isMonth={isMonth} />
+              <Attention data={data} onAddExpense={goAddExpense} isCurrent={isCurrent} isMonth={isMonth} />
               <ExpenseBreakdown items={data.expenses_by_category} total={data.total_expenses} />
-              <ProductMonthList year={year} month={month} />
+              <ProductMonthList year={year} month={month} range={range} />
             </View>
           )}
         </ScrollView>
@@ -128,7 +175,7 @@ export default function MonthlyResultScreen() {
 }
 
 /** A resposta da tela: o lucro do mês, com de quê ele é. Não promete dinheiro em mão. */
-function Answer({ data, onFinance }: { data: MonthlyResult; onFinance: () => void }) {
+function Answer({ data, onFinance, isMonth }: { data: MonthlyResult; onFinance: () => void; isMonth: boolean }) {
   const net = Number(data.net_profit);
   const positive = net >= 0;
   const tone = positive ? POS : NEG;
@@ -136,7 +183,7 @@ function Answer({ data, onFinance }: { data: MonthlyResult; onFinance: () => voi
     <AppCard tone={positive ? 'success' : 'error'}>
       <View style={styles.answerHead}>
         <Ionicons name={positive ? 'checkmark-circle' : 'warning'} size={22} color={tone} />
-        <Text style={[styles.answerTitle, { color: tone }]}>Lucro do mês</Text>
+        <Text style={[styles.answerTitle, { color: tone }]}>{isMonth ? 'Lucro do mês' : 'Lucro do período'}</Text>
       </View>
       <Money value={net} size={38} minSize={22} color={tone} style={styles.answerValue} testID="resultado-lucro" />
       {positive ? (
@@ -144,7 +191,7 @@ function Answer({ data, onFinance }: { data: MonthlyResult; onFinance: () => voi
           <Text style={[styles.answerNote, { color: tone }]}>{formatPercent(Number(data.net_margin_pct))} do que você vendeu</Text>
         )
       ) : (
-        <Text style={[styles.answerNote, { color: tone }]}>Você gastou mais do que vendeu neste mês.</Text>
+        <Text style={[styles.answerNote, { color: tone }]}>{`Você gastou mais do que vendeu ${isMonth ? 'neste mês' : 'neste período'}.`}</Text>
       )}
       <Text style={styles.answerWhat}>Vendas menos o custo das peças e os gastos. É o resultado das vendas, não o dinheiro que está na conta.</Text>
       <AppButton variant="ghost" size="sm" label="Ver o dinheiro das contas" icon="wallet-outline" onPress={onFinance} />
@@ -153,13 +200,14 @@ function Answer({ data, onFinance }: { data: MonthlyResult; onFinance: () => voi
 }
 
 /** A conta que chega no lucro: vendeu, - custo das peças, - gastos, - brindes (só admin). Soma das linhas = o número do topo. */
-function Account({ data }: { data: MonthlyResult }) {
+function Account({ data, isMonth }: { data: MonthlyResult; isMonth: boolean }) {
+  const here = isMonth ? 'neste mês' : 'neste período';
   const n = (v: number) => v.toLocaleString('pt-BR');
   const salesLine = `${n(data.sales_count)} ${data.sales_count === 1 ? 'venda' : 'vendas'} · ${n(data.units_sold)} ${data.units_sold === 1 ? 'peça' : 'peças'}`;
   const TEXT: Record<ResultLine['key'], { label: string; hint: string; sub?: string }> = {
-    revenue: { label: 'Quanto você vendeu', sub: salesLine, hint: 'Tudo que as clientes pagaram neste mês, já sem as devoluções. Inclui o que ainda vai receber (fiado e cartão).' },
+    revenue: { label: 'Quanto você vendeu', sub: salesLine, hint: `Tudo que as clientes pagaram ${here}, já sem as devoluções. Inclui o que ainda vai receber (fiado e cartão).` },
     cmv: { label: 'Custo das peças vendidas', hint: 'O que você pagou pelas peças que saíram, com a parte das despesas de cada compra (frete, embalagem, taxa...).' },
-    expenses: { label: 'Gastos da loja', hint: 'Aluguel, luz, salários, peças perdidas e outros gastos do mês. As despesas de uma compra já estão no custo das peças.' },
+    expenses: { label: 'Gastos da loja', hint: `Aluguel, luz, salários, peças perdidas e outros gastos ${isMonth ? 'do mês' : 'do período'}. As despesas de uma compra já estão no custo das peças.` },
     gifts: { label: 'Brindes dados', hint: 'O que você pagou pelas peças que deu sem cobrar.' },
   };
   return (
@@ -172,7 +220,9 @@ function Account({ data }: { data: MonthlyResult }) {
 }
 
 /** Só aparece quando há problema real: mês com venda e nenhum gasto lançado deixa o lucro maior do que é. */
-function Attention({ data, onAddExpense, isCurrent }: { data: MonthlyResult; onAddExpense: () => void; isCurrent: boolean }) {
+function Attention({ data, onAddExpense, isCurrent, isMonth }: { data: MonthlyResult; onAddExpense: () => void; isCurrent: boolean; isMonth: boolean }) {
+  // Gasto da loja é lançado por mês: em 7 ou 30 dias a falta dele não quer dizer esquecimento
+  if (!isMonth) return null;
   // Os gastos da loja são lançados sempre no primeiro dia do mês: o aviso só vale a partir do dia 2 (mês fechado sempre vale).
   if (isCurrent && new Date().getDate() < 2) return null;
   if (!(data.sales_count > 0 && Number(data.total_expenses) === 0)) return null;
@@ -181,6 +231,21 @@ function Attention({ data, onAddExpense, isCurrent }: { data: MonthlyResult; onA
       <Text style={styles.stateText}>Sem os gastos da loja (aluguel, luz, salários), o lucro fica maior do que é de verdade.</Text>
       <AppButton variant="outlined" size="sm" label="Lançar gasto" icon="add" onPress={onAddExpense} />
     </AppCard>
+  );
+}
+
+function PeriodChip({ text, on, color, icon, onPress }: { text: string; on: boolean; color: string; icon?: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[styles.chip, on && { borderColor: color, backgroundColor: color + '14' }]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+    >
+      {!!icon && <Ionicons name={icon as any} size={14} color={on ? color : Colors.light.textSecondary} />}
+      <Text style={[styles.chipText, on && { color }]}>{text}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -248,6 +313,10 @@ function ExpenseBreakdown({ items, total }: { items: ExpenseByCategoryItem[]; to
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+  chipsBar: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, paddingTop: theme.spacing.sm },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: Colors.light.background },
+  chipText: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
+  rangeBox: { paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: theme.spacing.xs, gap: theme.spacing.sm },
   monthCenter: { alignItems: 'center', minWidth: 200, flexShrink: 1 },
   monthLabel: { fontWeight: theme.fontWeight.bold, color: Colors.light.text, textAlign: 'center', fontSize: theme.fontSize.xl },

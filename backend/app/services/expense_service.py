@@ -349,6 +349,37 @@ class ExpenseService:
 
         return await self._build_period_result(start_day, end_day, tenant_id, period_label)
 
+    @staticmethod
+    def check_range(start: Optional[date], end: Optional[date]) -> tuple:
+        """Confere um período livre: as duas datas, início antes do fim, no máximo 1 ano. Data final no futuro vira hoje."""
+        from fastapi import HTTPException
+        if not start or not end:
+            raise HTTPException(status_code=400, detail="Informe a data inicial e a data final do período.")
+        today = today_brazil()
+        if start > today:
+            raise HTTPException(status_code=400, detail="A data inicial ainda não chegou.")
+        end = min(end, today)
+        if start > end:
+            raise HTTPException(status_code=400, detail="A data inicial vem depois da data final.")
+        if (end - start).days > 366:
+            raise HTTPException(status_code=400, detail="Escolha no máximo 1 ano por vez.")
+        return start, end
+
+    async def result_by_range(
+        self,
+        start: date,
+        end: date,
+        tenant_id: Optional[int] = None,
+    ) -> MonthlyResultResponse:
+        """Resultado entre duas datas (inclusive): mesma fórmula do mês e dos últimos N dias."""
+        label = f"{start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}"
+        return await self._build_period_result(start, end, tenant_id, label)
+
+    async def by_product_range(self, start: date, end: date, tenant_id: Optional[int]) -> List[dict]:
+        """Produtos vendidos entre duas datas (a soma bate com o resultado do mesmo período)."""
+        from app.services.money_ledger import period_by_product
+        return await period_by_product(self.db, tenant_id, start, end)
+
     async def monthly_by_product(self, year: int, month: int, tenant_id: Optional[int]) -> List[dict]:
         """Produtos vendidos no mês com receita, custo e lucro (soma = receita e custo do Resultado do Mês)."""
         import calendar

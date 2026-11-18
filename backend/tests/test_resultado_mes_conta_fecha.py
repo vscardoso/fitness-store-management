@@ -104,3 +104,48 @@ async def test_conta_fecha_com_desconto_por_peca_devolucao_cancelada_gasto_e_bri
         assert D(str(res_m["total_expenses"])) == gastos + brindes
         a, b = _fecha(res_m)
         assert a == b == esperado
+
+
+async def test_periodo_livre_entre_datas_bate_com_o_mes_e_recusa_datas_ruins(test_client, async_session, test_user):
+    """Entre duas datas vale a mesma conta do mês; datas ruins dão 400 com frase clara e a lista por produto acompanha."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _config(async_session, t_id, allow_money_refund=True, return_window_days=7, discount_mode="piece")
+    r = await test_client.post(f"{API}/sales/", headers=h, json={
+        "payment_method": "cash",
+        "items": [{"product_id": p.id, "variant_id": va.id, "quantity": 2, "unit_price": "100.00"}],
+        "payments": [{"amount": "200.00", "payment_method": "cash"}]})
+    assert r.status_code in (200, 201), r.text
+
+    hoje = date.today()
+    mes, _ = await _mes(test_client, h)
+    ini = hoje.replace(day=1).isoformat()
+    per = await test_client.get(f"{API}/expenses/resultado-periodo",
+                                params={"start_date": ini, "end_date": hoje.isoformat()}, headers=h)
+    assert per.status_code == 200, per.text
+    per = per.json()
+    for k in ("revenue", "cmv", "total_expenses", "net_profit", "sales_count", "units_sold"):
+        assert D(str(per[k] or 0)) == D(str(mes[k] or 0)), k
+    assert per["period_label"].count("/") == 4          # "01/11/2026 a 18/11/2026"
+
+    prod = await test_client.get(f"{API}/expenses/resultado-mes/produtos",
+                                 params={"start_date": ini, "end_date": hoje.isoformat()}, headers=h)
+    assert prod.status_code == 200
+    assert sum(D(str(x["revenue"])) for x in prod.json()) == D(str(per["revenue"]))
+
+    # um dia sem venda (ontem do mês passado) é zero, e data final no futuro vira hoje
+    antigo = date(hoje.year - 1, 1, 10).isoformat()
+    vazio = (await test_client.get(f"{API}/expenses/resultado-periodo",
+                                   params={"start_date": antigo, "end_date": antigo}, headers=h)).json()
+    assert D(str(vazio["revenue"])) == 0
+    fut = await test_client.get(f"{API}/expenses/resultado-periodo",
+                                params={"start_date": ini, "end_date": "2999-01-01"}, headers=h)
+    assert fut.status_code == 200 and D(str(fut.json()["revenue"])) == D(str(per["revenue"]))
+
+    for params, trecho in [
+        ({"start_date": ini}, "data inicial e a data final"),
+        ({"start_date": hoje.isoformat(), "end_date": ini}, "depois da data final") if hoje.day > 1 else ({"start_date": "2999-01-01", "end_date": "2999-01-02"}, "ainda não chegou"),
+        ({"start_date": "2999-01-01", "end_date": "2999-01-02"}, "ainda não chegou"),
+        ({"start_date": date(hoje.year - 3, 1, 1).isoformat(), "end_date": hoje.isoformat()}, "no máximo 1 ano"),
+    ]:
+        bad = await test_client.get(f"{API}/expenses/resultado-periodo", params=params, headers=h)
+        assert bad.status_code == 400 and trecho in bad.json()["detail"], (params, bad.text)
