@@ -152,7 +152,7 @@ export const VENDER: HelpEntry[] = [
       { label: 'Devoluções', text: 'cada troca ou devolução já feita nesta venda, com valor e motivo.' },
     ],
     goodToKnow: [
-      'A peça devolvida volta ao estoque; marque “Peça com defeito” para ela não voltar e poder ir ao fornecedor.',
+      'A peça devolvida volta ao estoque; marque “Veio com defeito” para ela não voltar e poder ir ao fornecedor.',
       'Na troca, se a peça nova custa mais, a cliente paga a diferença na hora.',
       'Dinheiro devolvido em espécie sai do caixa aberto, e os pontos da cliente são estornados.',
       'Venda com troca ou devolução não pode ser cancelada.',
