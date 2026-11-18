@@ -37,8 +37,13 @@ import {
   ReturnItemRequest,
 } from '@/services/returnService';
 import ReplacementPicker, { ReplacementChoice } from '@/components/sale/ReplacementPicker';
+import ItemDiscountEditor from '@/components/sale/ItemDiscountEditor';
+import { percentLabel, percentOf, unitNet } from '@/utils/itemDiscount';
 import ScreenLoader from '@/components/ui/ScreenLoader';
 import { plural } from '@/utils/plural';
+
+/** Preço de cada peça nova já com o desconto que quem vende digitou. */
+const netUnit = (c: ReplacementChoice): number => unitNet(c.price, c.unitDiscount ?? 0);
 
 interface ReturnModalProps {
   visible: boolean;
@@ -183,9 +188,15 @@ export default function ReturnModal({
     let t = 0;
     selectedItems.forEach((qty, id) => {
       const r = replacements.get(id);
-      if (r) t += r.price * qty;
+      if (r) t += netUnit(r) * qty;
     });
-    return t + extras.reduce((a, e) => a + e.price, 0);
+    return t + extras.reduce((a, e) => a + netUnit(e), 0);
+  })();
+  // Desconto dado nas peças novas (digitado por quem vende): aparece no resumo da troca
+  const newDiscount = (() => {
+    let d = 0;
+    selectedItems.forEach((qty, id) => { const r = replacements.get(id); if (r?.unitDiscount) d += r.unitDiscount * qty; });
+    return d + extras.reduce((a, e) => a + (e.unitDiscount ?? 0), 0);
   })();
   const hasExchange = replacements.size > 0 || extras.length > 0;
   const netToPay = hasExchange ? totalNew - totalRefund : 0;
@@ -257,6 +268,7 @@ export default function ReturnModal({
             quantity,
             restock: !defects.has(saleItemId),
             replacement_variant_id: rep?.variant_id,
+            replacement_unit_price: rep?.unitDiscount ? netUnit(rep) : undefined,
           });
         }
       });
@@ -264,7 +276,7 @@ export default function ReturnModal({
       await processReturn(saleId, {
         items,
         reason: reason.trim(),
-        extra_pieces: extras.length ? extras.map((e) => ({ variant_id: e.variant_id, quantity: 1 })) : undefined,
+        extra_pieces: extras.length ? extras.map((e) => ({ variant_id: e.variant_id, quantity: 1, unit_price: e.unitDiscount ? netUnit(e) : undefined })) : undefined,
         refund_method: 'original',
         settlement_method: settlement,
         is_correction: correction || undefined,
@@ -439,7 +451,10 @@ A devolução já está registrada.`,
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.pieceName} numberOfLines={2}>{item.product_name}{item.variant_label ? ` (${item.variant_label})` : ''}</Text>
                       <Text style={styles.pieceSub}>
-                        {formatCurrency(item.unit_price)} cada{item.quantity_available_for_return > 1 ? ` · pode devolver ${item.quantity_available_for_return}` : ''}
+                        {formatCurrency(item.unit_price)} cada{(() => {
+                          const paid = item.quantity_available_for_return > 0 ? item.max_refund_amount / item.quantity_available_for_return : item.unit_price;
+                          return paid < item.unit_price - 0.005 ? ` · vendida com ${percentLabel(percentOf(item.unit_price - paid, item.unit_price))} de desconto` : '';
+                        })()}{item.quantity_available_for_return > 1 ? ` · pode devolver ${item.quantity_available_for_return}` : ''}
                       </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
@@ -465,12 +480,22 @@ A devolução já está registrada.`,
                   {isSelected && (
                     <View style={styles.pieceBody}>
                       {rep ? (
+                        <>
                         <View style={styles.swapRow}>
                           <Ionicons name="arrow-forward-circle-outline" size={20} color={brandingColors.primary} />
                           <Text style={styles.swapText} numberOfLines={2}>{rep.label} · {formatCurrency(rep.price)}</Text>
                           <AppButton label="Mudar" variant="text" size="sm" onPress={() => setPickerItemId(item.sale_item_id)} />
                           <AppButton label="Tirar" variant="text" size="sm" onPress={() => setReplacements((prev) => { const m = new Map(prev); m.delete(item.sale_item_id); return m; })} />
                         </View>
+                        {/* A peça nova pode sair com desconto: quem vende digita (% ou R$ por peça), sem valores prontos */}
+                        <ItemDiscountEditor
+                          unitPrice={rep.price}
+                          quantity={selectedQuantity}
+                          unitDiscount={rep.unitDiscount}
+                          onApply={(d) => setReplacements((prev) => new Map(prev).set(item.sale_item_id, { ...rep, unitDiscount: d }))}
+                          onClear={() => setReplacements((prev) => new Map(prev).set(item.sale_item_id, { ...rep, unitDiscount: undefined }))}
+                        />
+                        </>
                       ) : (
                         <AppButton
                           label={needsPick ? 'Escolher peça nova' : 'Trocar por outra peça'}
@@ -518,9 +543,18 @@ A devolução já está registrada.`,
               <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
                 <Text style={styles.summaryTitle}>Resumo da troca</Text>
                 {extras.map((e, i) => (
-                  <View key={`${e.variant_id}-${i}`} style={[styles.summaryRow, { alignItems: 'center' }]}>
-                    <Text style={[styles.summaryLabel, { flex: 1 }]} numberOfLines={2}>+ {e.label} ({formatCurrency(e.price)})</Text>
-                    <AppButton label="Tirar" variant="text" size="sm" onPress={() => setExtras((prev) => prev.filter((_, j) => j !== i))} />
+                  <View key={`${e.variant_id}-${i}`} style={{ marginBottom: 4 }}>
+                    <View style={[styles.summaryRow, { alignItems: 'center' }]}>
+                      <Text style={[styles.summaryLabel, { flex: 1 }]} numberOfLines={2}>+ {e.label} ({formatCurrency(e.price)})</Text>
+                      <AppButton label="Tirar" variant="text" size="sm" onPress={() => setExtras((prev) => prev.filter((_, j) => j !== i))} />
+                    </View>
+                    <ItemDiscountEditor
+                      unitPrice={e.price}
+                      quantity={1}
+                      unitDiscount={e.unitDiscount}
+                      onApply={(d) => setExtras((prev) => prev.map((x, j) => (j === i ? { ...x, unitDiscount: d } : x)))}
+                      onClear={() => setExtras((prev) => prev.map((x, j) => (j === i ? { ...x, unitDiscount: undefined } : x)))}
+                    />
                   </View>
                 ))}
                 <View style={styles.summaryRow}>
@@ -528,9 +562,15 @@ A devolução já está registrada.`,
                   <Text style={styles.summaryValue}>{formatCurrency(totalRefund)}</Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Valor das peças novas</Text>
+                  <Text style={styles.summaryLabel}>{newDiscount > 0.005 ? 'Valor das peças novas (com desconto)' : 'Valor das peças novas'}</Text>
                   <Text style={styles.summaryValue}>{formatCurrency(totalNew)}</Text>
                 </View>
+                {newDiscount > 0.005 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Desconto dado nas peças novas</Text>
+                    <Text style={styles.summaryValue}>{formatCurrency(newDiscount)}</Text>
+                  </View>
+                )}
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>{netToPay >= 0 ? 'Cliente paga agora' : allowRefund ? 'Diferença a devolver' : 'Falta completar'}</Text>
                   <Text style={[styles.summaryValue, styles.summaryTotal, { color: brandingColors.primary }]}>

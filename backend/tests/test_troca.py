@@ -311,3 +311,46 @@ async def test_peca_mais_barata_e_completada_com_outra_peca_na_mesma_troca(test_
     finally:
         # a loja de teste é compartilhada: devolve o padrão (a loja devolve dinheiro) para os outros testes
         await _config(async_session, t_id, allow_money_refund=True)
+
+
+async def test_peca_nova_da_troca_pode_ter_desconto_digitado(test_client, async_session, test_user):
+    """A peça devolvida valia R$ 100; a peça nova é de R$ 130 de tabela e sai com R$ 40 de desconto (R$ 90 cada).
+    O cliente recebe crédito de R$ 100 pela devolvida, então a peça nova (R$ 90) fica R$ 10 mais barata: com loja que devolve
+    dinheiro a diferença volta; o desconto fica gravado na venda da troca (preço cheio + desconto da linha)."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_b="130.00")
+    sale_id, item_id = await _vender(test_client, h, p, va, 1, "100.00")
+    item = {"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id, "replacement_unit_price": "90.00"}
+    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+        "reason": "Quis outra cor", "settlement_method": "cash", "items": [item]})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert float(body["total_refund"]) == 100.0 and float(body["net_amount"]) == -10.0
+    from app.models.sale import Payment, Sale, SaleItem
+    nova = (await async_session.execute(select(Sale).where(Sale.id == body["exchange_sale_id"]))).scalar_one()
+    assert float(nova.total_amount) == 90.0 and float(nova.subtotal) == 90.0   # o total é o que o cliente leva a pagar
+    it = (await async_session.execute(select(SaleItem).where(SaleItem.sale_id == nova.id))).scalar_one()
+    assert float(it.unit_price) == 130.0 and float(it.discount_amount) == 40.0 and float(it.subtotal) == 90.0
+    pagos = (await async_session.execute(select(Payment).where(Payment.sale_id == nova.id))).scalars().all()
+    assert pagos == []                                            # a loja devolveu os R$ 10: nada a cobrar
+
+
+async def test_peca_nova_com_desconto_em_loja_sem_reembolso_exige_completar_o_valor(test_client, async_session, test_user):
+    """Loja sem reembolso: o desconto deixa a peça nova abaixo do valor devolvido, então a troca é recusada até completar."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_b="130.00")
+    await _config(async_session, t_id, allow_money_refund=False)
+    try:
+        sale_id, item_id = await _vender(test_client, h, p, va, 1, "100.00")
+        base = {"reason": "Quis outra cor", "settlement_method": "cash"}
+        # sem desconto a peça de R$ 130 passa (cliente paga R$ 30); com R$ 40 de desconto vale R$ 90 (< R$ 100): recusa
+        r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+            **base, "items": [{"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id, "replacement_unit_price": "90.00"}]})
+        assert r.status_code == 400, r.text
+        r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+            **base, "items": [{"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id, "replacement_unit_price": "110.00"}]})
+        assert r.status_code == 201, r.text
+        assert float(r.json()["net_amount"]) == 10.0               # R$ 110 com desconto de R$ 20: o cliente paga R$ 10
+        from app.models.sale import Payment
+        pagos = (await async_session.execute(select(Payment).where(Payment.sale_id == r.json()["exchange_sale_id"]))).scalars().all()
+        assert [float(x.amount) for x in pagos] == [10.0]
+    finally:
+        await _config(async_session, t_id, allow_money_refund=True)

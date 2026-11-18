@@ -629,10 +629,15 @@ class ReturnService:
                 reason="troca_saida", ref=f"sale:{sale.id}",
             )
             cost = sum((Decimal(str(s['quantity_taken'])) * Decimal(str(s['unit_cost'])) for s in sources), Decimal('0'))
+            # Peça nova com desconto: guarda o preço cheio e o desconto da linha (igual à venda comum), para o relatório e o
+            # comprovante mostrarem o desconto; o subtotal e o total continuam sendo o que o cliente paga.
+            list_price = Decimal(str(rv.price or 0))
+            paid_unit = l['unit_price']
+            unit_discount = (list_price - paid_unit) if list_price > paid_unit else Decimal('0')
             self.db.add(SaleItem(
                 sale_id=sale.id, product_id=rv.product_id, variant_id=rv.id, quantity=l['quantity'],
-                unit_price=float(l['unit_price']), unit_cost=float(cost / l['quantity']),
-                subtotal=float(l['unit_price'] * l['quantity']), discount_amount=0,
+                unit_price=float(paid_unit + unit_discount), unit_cost=float(cost / l['quantity']),
+                subtotal=float(paid_unit * l['quantity']), discount_amount=float(unit_discount * l['quantity']),
                 sale_sources={"sources": sources}, tenant_id=tenant_id, is_active=True,
             ))
         if net > 0:

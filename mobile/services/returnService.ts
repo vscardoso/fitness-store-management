@@ -74,12 +74,14 @@ export interface ReturnItemRequest {
   restock?: boolean;
   /** troca: variação que o cliente leva no lugar */
   replacement_variant_id?: number;
+  /** troca: preço de cada peça nova já com o desconto (vazio = preço atual da peça) */
+  replacement_unit_price?: number;
 }
 
 export interface ReturnRequest {
   items: ReturnItemRequest[];
   /** troca: peças a mais que o cliente leva para completar o valor devolvido */
-  extra_pieces?: { variant_id: number; quantity?: number }[];
+  extra_pieces?: { variant_id: number; quantity?: number; unit_price?: number }[];
   reason: string;
   refund_method?: 'original' | 'store_credit' | 'cash';
   /** como o cliente paga a diferença da troca */

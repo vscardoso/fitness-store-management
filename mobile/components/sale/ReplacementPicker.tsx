@@ -27,7 +27,10 @@ import type { Product } from '@/types';
 export interface ReplacementChoice {
   variant_id: number;
   label: string;
+  /** Preço de tabela da peça nova (o desconto da troca, se houver, vem em `unitDiscount`). */
   price: number;
+  /** Desconto POR PEÇA em reais que quem vende deu nesta peça nova (digitado; vazio = sem desconto). */
+  unitDiscount?: number;
 }
 
 interface Props {
