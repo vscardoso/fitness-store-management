@@ -286,24 +286,28 @@ async def test_peca_mais_barata_e_completada_com_outra_peca_na_mesma_troca(test_
     p2_id, vtop_id = p2.id, vtop.id
     await _lote(async_session, t_id, [(vtop, p2, 3, 20)])
     await _config(async_session, t_id, allow_money_refund=False)
-    sale_id, item_id = await _vender(test_client, h, p, va, 1, "100.00")
-    base = {"reason": "Quer duas peças", "settlement_method": "cash"}
-    item = {"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id}
-    # só a peça mais barata: recusa, nada muda
-    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={**base, "items": [item]})
-    assert r.status_code == 400, r.text
-    # a peça extra não cobre o valor (R$ 60 + R$ 10 < R$ 100): recusa
-    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
-        **base, "items": [item], "extra_pieces": [{"variant_id": vtop_id, "quantity": 1, "unit_price": "10.00"}]})
-    assert r.status_code == 400, r.text
-    antes = await _estoque(async_session, vtop_id)
-    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
-        **base, "items": [item], "extra_pieces": [{"variant_id": vtop_id, "quantity": 1}]})
-    assert r.status_code == 201, r.text
-    body = r.json()
-    assert float(body["net_amount"]) == 10.0
-    async_session.expire_all()
-    assert await _estoque(async_session, vtop_id) == antes - 1
-    from app.models.sale import SaleItem
-    its = (await async_session.execute(select(SaleItem).where(SaleItem.sale_id == body["exchange_sale_id"]))).scalars().all()
-    assert sorted(i.variant_id for i in its) == sorted([vb.id, vtop_id])
+    try:
+        sale_id, item_id = await _vender(test_client, h, p, va, 1, "100.00")
+        base = {"reason": "Quer duas peças", "settlement_method": "cash"}
+        item = {"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id}
+        # só a peça mais barata: recusa, nada muda
+        r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={**base, "items": [item]})
+        assert r.status_code == 400, r.text
+        # a peça extra não cobre o valor (R$ 60 + R$ 10 < R$ 100): recusa
+        r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+            **base, "items": [item], "extra_pieces": [{"variant_id": vtop_id, "quantity": 1, "unit_price": "10.00"}]})
+        assert r.status_code == 400, r.text
+        antes = await _estoque(async_session, vtop_id)
+        r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+            **base, "items": [item], "extra_pieces": [{"variant_id": vtop_id, "quantity": 1}]})
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert float(body["net_amount"]) == 10.0
+        async_session.expire_all()
+        assert await _estoque(async_session, vtop_id) == antes - 1
+        from app.models.sale import SaleItem
+        its = (await async_session.execute(select(SaleItem).where(SaleItem.sale_id == body["exchange_sale_id"]))).scalars().all()
+        assert sorted(i.variant_id for i in its) == sorted([vb.id, vtop_id])
+    finally:
+        # a loja de teste é compartilhada: devolve o padrão (a loja devolve dinheiro) para os outros testes
+        await _config(async_session, t_id, allow_money_refund=True)
