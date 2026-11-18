@@ -255,3 +255,26 @@ async def test_devolucao_de_venda_paga_metade_em_dinheiro_devolve_so_a_parte_do_
     assert r.status_code == 201, r.text
     s = (await _atual(test_client, h))["session"]
     assert s["cash_refunds"] == 40.0 and s["expected_amount"] == 0.0                        # os 60 voltam no PIX, fora da gaveta
+
+async def test_troca_com_desconto_na_peca_nova_a_diferenca_e_a_devolucao_batem_no_caixa(test_client, async_session, test_user):
+    """Peça devolvida R$ 100. Peça nova de tabela R$ 130:
+    com R$ 26 de desconto (R$ 104) o cliente paga R$ 4 em dinheiro; com 50% (R$ 65) a loja devolve R$ 35 em dinheiro."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_a="100.00", price_b="130.00")
+    s1, i1 = await _vender(test_client, h, p, va, 1, "100.00")
+    s2, i2 = await _vender(test_client, h, p, va, 1, "100.00")
+    await _tick()
+    await _abrir(test_client, h, "100.00")
+    r = await test_client.post(f"/api/v1/returns/{s1}", headers=h, json={
+        "reason": "Quer outra", "settlement_method": "cash",
+        "items": [{"sale_item_id": i1, "quantity": 1, "replacement_variant_id": vb.id, "replacement_unit_price": "104.00"}]})
+    assert r.status_code == 201, r.text
+    assert float(r.json()["net_amount"]) == 4.0
+    s = (await _atual(test_client, h))["session"]
+    assert s["cash_sales"] == 4.0 and s["cash_refunds"] == 0 and s["expected_amount"] == 104.0
+    r = await test_client.post(f"/api/v1/returns/{s2}", headers=h, json={
+        "reason": "Quer outra", "settlement_method": "cash",
+        "items": [{"sale_item_id": i2, "quantity": 1, "replacement_variant_id": vb.id, "replacement_unit_price": "65.00"}]})
+    assert r.status_code == 201, r.text
+    assert float(r.json()["net_amount"]) == -35.0
+    s = (await _atual(test_client, h))["session"]
+    assert s["cash_sales"] == 4.0 and s["cash_refunds"] == 35.0 and s["expected_amount"] == 69.0   # 100 + 4 - 35

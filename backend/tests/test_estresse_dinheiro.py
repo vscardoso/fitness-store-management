@@ -266,12 +266,18 @@ async def test_dinheiro_aleatorio_bate_com_o_livro(test_client, async_session, t
             qtd = rng.randint(1, it["qtd"] - it["devolvido"])
             linha = {"sale_item_id": it["id"], "quantity": qtd}
             destino = None
+            unit_novo = None
             if acao == "trocar":
                 opcoes = [v for v in vids if v != it["v"] and await _estoque(async_session, v) >= qtd]
                 if not opcoes:
                     continue
                 destino = rng.choice(opcoes)
                 linha["replacement_variant_id"] = destino
+                # parte das trocas leva a peça nova com desconto digitado (preço de cada peça já com o desconto)
+                pct_novo = rng.choice((0, 0, 10, 20, 50))
+                unit_novo = q2(preco[destino] * (100 - pct_novo) / 100)
+                if pct_novo:
+                    linha["replacement_unit_price"] = str(unit_novo)
             elif acao == "defeito":
                 linha["restock"] = False
             r = await _devolver(test_client, h, s["id"], [linha], motivo=f"livro {passo}", settlement_method="cash")
@@ -289,7 +295,7 @@ async def test_dinheiro_aleatorio_bate_com_o_livro(test_client, async_session, t
                 cli[s["cliente"]]["pts"] -= s["pts"] * reembolso / s["total"]
                 cli[s["cliente"]]["gasto"] -= reembolso
             if destino is not None:
-                novo = preco[destino] * qtd
+                novo = unit_novo * qtd
                 assert D(str(corpo["net_amount"])) == novo - reembolso
                 assert await _pagamentos(async_session, corpo["exchange_sale_id"]) == max(D("0"), novo - reembolso)
                 livro["bruto"] += novo
@@ -297,9 +303,13 @@ async def test_dinheiro_aleatorio_bate_com_o_livro(test_client, async_session, t
                     cli[s["cliente"]]["pts"] += novo / 10
                     cli[s["cliente"]]["gasto"] += novo
                 rv = (await test_client.get(f"/api/v1/sales/{corpo['exchange_sale_id']}", headers=h)).json()
+                # a venda da troca guarda o preço cheio e o desconto da linha; o total é o que o cliente leva a pagar
+                assert D(str(rv["total_amount"])) == novo and D(str(rv["items"][0]["subtotal"])) == novo, f"[seed {seed}] venda da troca"
+                assert D(str(rv["items"][0]["unit_price"])) == preco[destino]
+                assert D(str(rv["items"][0]["discount_amount"])) == (preco[destino] - unit_novo) * qtd
                 vendas.append({"id": rv["id"], "total": novo, "sub": novo, "desc": D("0"), "cliente": s["cliente"], "pts": novo / 10,
                                "ativa": True, "teve_devolucao": False, "troca": True,
-                               "itens": [{"id": x["id"], "v": x["variant_id"], "qtd": x["quantity"], "preco": D(str(x["unit_price"])), "devolvido": 0} for x in rv["items"]]})
+                               "itens": [{"id": x["id"], "v": x["variant_id"], "qtd": x["quantity"], "preco": unit_novo, "devolvido": 0} for x in rv["items"]]})
 
         elif acao == "cancelar":
             ativas = [s for s in vendas if s["ativa"]]
@@ -437,3 +447,38 @@ async def test_recalculo_do_total_gasto_dos_clientes_antigos_bate_com_a_regra_no
     async_session.expire_all()
     assert (await _cliente_api(test_client, h, cid))[1:] == (D("730.00"), 2)
     assert await recalcula() == {}, "rodar de novo não muda nada"
+
+# ───────────────────────────────────────────────────────── troca com desconto na peça nova, conta feita à mão
+async def test_troca_com_desconto_na_peca_nova_bate_em_todas_as_telas(test_client, async_session, test_user):
+    """Vende 10 x R$ 100 a uma cliente; troca 2 por B (tabela R$ 120) com 10% de desconto digitado (R$ 108 cada).
+    Devolvido R$ 200; peças novas R$ 216; a cliente paga R$ 16 na hora.
+    Receita = 1000 + 216 - 200 = 1016. Custo = 10 de A (400) + 2 de B (60) - 2 de A que voltaram (80) = 380.
+    Cliente: pontos 100 - 20 + 21,6 = 101,6; total gasto 1016; uma compra só."""
+    t_id, h, p, va, vb = await _cenario_30(async_session, test_user, preco_a="100.00", preco_b="120.00")
+    antes = await _numeros(test_client, h)
+    cid = await _cliente(test_client, h, "Cliente Troca Com Desconto")
+    r = await _vende(test_client, h, [(p.id, va.id, 10, "100.00")], cliente=cid)
+    assert r.status_code in (200, 201), r.text
+    venda = r.json()
+    item = venda["items"][0]["id"]
+    r = await _devolver(test_client, h, venda["id"], [{"sale_item_id": item, "quantity": 2, "replacement_variant_id": vb.id,
+                                                       "replacement_unit_price": "108.00"}], settlement_method="pix")
+    assert r.status_code == 201, r.text
+    troca = r.json()
+    assert D(str(troca["total_refund"])) == D("200.00") and D(str(troca["net_amount"])) == D("16.00")
+    assert await _pagamentos(async_session, troca["exchange_sale_id"]) == D("16.00"), "a troca só recebe a diferença"
+
+    rv = (await test_client.get(f"/api/v1/sales/{troca['exchange_sale_id']}", headers=h)).json()
+    assert D(str(rv["total_amount"])) == D("216.00") and D(str(rv["subtotal"])) == D("216.00")
+    li = rv["items"][0]
+    assert (D(str(li["unit_price"])), D(str(li["discount_amount"])), D(str(li["subtotal"]))) == (D("120.00"), D("24.00"), D("216.00"))
+
+    _confere(_delta(await _numeros(test_client, h), antes), receita=D("1016"), custo=D("380"), vendas=1, devolucoes=D("200"))
+    pts, gasto, compras = await _cliente_api(test_client, h, cid)
+    assert abs(pts - D("101.6")) <= D("0.05") and gasto == D("1016") and compras == 1, (pts, gasto, compras)
+    await confere_conservacao(async_session, [va.id, vb.id])
+
+    # devolver depois UMA das peças novas devolve o que ela custou COM desconto (R$ 108), não os R$ 120 de tabela
+    r = await _devolver(test_client, h, troca["exchange_sale_id"], [{"sale_item_id": li["id"], "quantity": 1}])
+    assert r.status_code == 201, r.text
+    assert D(str(r.json()["total_refund"])) == D("108.00"), r.json()

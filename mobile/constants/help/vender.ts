@@ -153,12 +153,12 @@ export const VENDER: HelpEntry[] = [
     ],
     goodToKnow: [
       'A peça devolvida volta ao estoque; marque “Veio com defeito” para ela não voltar e poder ir ao fornecedor.',
-      'Na troca, se a peça nova custa mais, a cliente paga a diferença na hora.',
+      'Na troca, a cliente paga a diferença na hora. A peça nova pode sair com desconto: toque em “Dar desconto” e digite em % ou em R$ por peça.',
       'Dinheiro devolvido em espécie sai do caixa aberto, e os pontos da cliente são estornados.',
       'Venda com troca ou devolução não pode ser cancelada.',
     ],
     related: ['vendas'],
-    sources: ['app/sales/[id].tsx', 'components/sale/ReturnModal.tsx', 'components/sale/ReplacementPicker.tsx', 'components/receipt/ReceiptActions.tsx'],
+    sources: ['app/sales/[id].tsx', 'components/sale/ReturnModal.tsx', 'components/sale/ReplacementPicker.tsx', 'components/sale/ItemDiscountEditor.tsx', 'components/receipt/ReceiptActions.tsx'],
   },
   {
     id: 'condicionais',
