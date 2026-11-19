@@ -205,7 +205,6 @@ export default function WhatsappConversationScreen() {
           scrollEventThrottle={100}
         />
       )}
-      <DebugViewport inset={keyboard} />
       <View style={[styles.footer, { backgroundColor: c.surface, borderTopColor: c.border, paddingBottom: (keyboard > 0 ? keyboard : keyboardOpen ? 0 : insets.bottom) + 10 }]}>
         {suggestions.length > 0 && (
           <View style={[styles.suggest, { backgroundColor: c.surface, borderColor: c.border }]}>
@@ -293,26 +292,3 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 42, maxHeight: 130, borderWidth: 1, borderRadius: 21, paddingHorizontal: 14, paddingVertical: 9, fontSize: 15 },
   sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
 });
-
-// TEMPORARIO (diagnostico do teclado no iPhone): mostra os numeros reais do iOS. Remover depois.
-function DebugViewport({ inset }: { inset: number }) {
-  const [t, setT] = useState('');
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.visualViewport) return;
-    const vv = window.visualViewport;
-    const upd = () =>
-      setT(
-        `inner ${Math.round(window.innerHeight)} vv ${Math.round(vv.height)} off ${Math.round(vv.offsetTop)} ` +
-          `scrollY ${Math.round(window.scrollY)} screen ${screen.height} inset ${inset}`,
-      );
-    upd();
-    vv.addEventListener('resize', upd);
-    vv.addEventListener('scroll', upd);
-    return () => {
-      vv.removeEventListener('resize', upd);
-      vv.removeEventListener('scroll', upd);
-    };
-  }, [inset]);
-  if (!t) return null;
-  return <Text style={{ fontSize: 11, backgroundColor: '#FEF08A', color: Colors.light.black, padding: 2 }}>{t}</Text>;
-}
