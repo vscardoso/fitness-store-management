@@ -341,7 +341,7 @@ export const DINHEIRO: HelpEntry[] = [
     open: '/expenses/resultado',
     purpose: 'Responde quanto sobrou das vendas no mês: o lucro do mês e a conta que chega nele.',
     steps: [
-      'Use as setas ao lado do mês para trocar de mês. No mês atual, os valores são até hoje.',
+      'Escolha “Mês”, “7 dias”, “30 dias” ou “Escolher datas” (as duas datas saem do calendário). No “Mês”, as setas trocam de mês e, no mês atual, os valores são até hoje.',
       'No alto está o lucro do mês. Logo abaixo, a conta que chega nele: vendeu, menos o custo das peças, menos os gastos. Toque numa linha para ler o que ela inclui.',
       'Veja em “Para onde foram os gastos da loja” quanto foi cada categoria e, no fim, o que sobrou da venda de cada produto.',
       'Para ver o dinheiro que está nas contas, toque em “Ver o dinheiro das contas”.',
@@ -350,12 +350,14 @@ export const DINHEIRO: HelpEntry[] = [
       { label: 'Lucro do mês', text: 'o que sobrou depois de pagar as peças e os gastos. É o resultado das vendas: o que ainda vai receber (fiado e cartão) já está dentro, então não é o saldo das contas.' },
       { label: 'Quanto você vendeu', text: 'o que as clientes pagaram no mês, já sem as devoluções.' },
       { label: 'Custo das peças vendidas', text: 'o que você pagou pelas peças que saíram.' },
+      { label: 'Lucro das vendas', text: 'vendeu menos o custo das peças, antes dos gastos da loja. É o número para comparar períodos diferentes.' },
       { label: 'Gastos da loja', text: 'aluguel, luz, salários, peças perdidas e outros gastos.' },
     ],
     goodToKnow: [
       'Venda cancelada não conta; devolução desconta no dia em que aconteceu.',
       'O custo das peças já inclui as despesas e o desconto de cada compra.',
       'Se aparecer “Nenhum gasto lançado neste mês”, o lucro está maior do que é: lance os gastos da loja.',
+      'Em 7 dias, 30 dias ou datas escolhidas só entram os gastos lançados nessas datas, então o lucro final de poucos dias pode sair maior que o do mês. A tela mostra os dois lado a lado; para comparar períodos, olhe o “Lucro das vendas”.',
     ],
     roles: ['admin'],
     related: ['despesas', 'relatorio-vendas'],

@@ -30,9 +30,15 @@ import type { Sale } from '@/types';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopSalesTable from '@/components/sale/DesktopSalesTable';
 import { saleCodesText } from '@/utils/saleCodes';
+import { paymentSummary } from '@/utils/paymentLabel';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+const PAY_ICON: Record<string, string> = {
+  card: 'card-outline', cash: 'cash-outline', pix: 'qr-code-outline', fiado: 'time-outline', points: 'gift-outline',
+  transfer: 'swap-horizontal-outline', mixed: 'wallet-outline',
+};
+
 const statusMap: Record<string, { label: string; color: string; icon: string }> = {
   pending:            { label: 'Pendente',     color: Colors.light.warning,             icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, icon: 'checkmark-circle-outline' },
@@ -134,6 +140,7 @@ function MobileSalesListScreen() {
     const status = statusMap[item.status] || statusMap.pending;
     const formattedDate = formatDayMonth(item.created_at);
     const formattedTime = formatClock(item.created_at);
+    const pay = paymentSummary(item as any);
 
     return (
       <TouchableOpacity
@@ -158,8 +165,18 @@ function MobileSalesListScreen() {
               </View>
             </View>
 
-            {/* Valor em destaque */}
-            <Money style={[styles.amount, { color: brandingColors.primary }]} value={Number(item.total_amount)} />
+            {/* Valor em destaque + como foi pago (PIX, cartão, dinheiro, fiado) */}
+            <View style={styles.amountRow}>
+              <View style={styles.amountWrap}>
+                <Money style={[styles.amount, { color: brandingColors.primary }]} value={Number(item.total_amount)} />
+              </View>
+              {!!pay.text && (
+                <View style={styles.payPill} accessibilityLabel={`Pagamento: ${pay.text}`}>
+                  <Ionicons name={PAY_ICON[pay.kind ?? 'mixed'] as any} size={13} color={Colors.light.textSecondary} />
+                  <Text style={styles.payPillText} numberOfLines={1}>{pay.text}</Text>
+                </View>
+              )}
+            </View>
 
             {!!saleCodesText(item, 3) && (
               <Text style={styles.metaText} numberOfLines={1}>{saleCodesText(item, 3)}</Text>
@@ -444,6 +461,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  amountWrap: { flex: 1, minWidth: 0 },
+  payPill: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0, maxWidth: '58%', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: Colors.light.backgroundSecondary, borderWidth: 1, borderColor: Colors.light.border },
+  payPillText: { fontSize: 12, fontWeight: '600', color: Colors.light.textSecondary, flexShrink: 1 },
   saleNumberRow: {
     flexDirection: 'row',
     alignItems: 'center',

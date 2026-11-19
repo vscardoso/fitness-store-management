@@ -125,6 +125,7 @@ export const VENDER: HelpEntry[] = [
     parts: [
       { label: 'Situação', text: 'cada venda aparece como “Concluída”, “Cancelada”, “Dev. Parcial” ou “Devolvida”.' },
       { label: 'Receita no período', text: 'soma só das vendas concluídas do período escolhido.' },
+      { label: 'Como foi pago', text: 'embaixo do valor de cada venda: PIX, cartão de crédito (com as parcelas), cartão de débito, dinheiro ou fiado.' },
     ],
     web: [
       'No computador a lista vira tabela: clique no título de uma coluna para ordenar.',
@@ -148,7 +149,7 @@ export const VENDER: HelpEntry[] = [
     ],
     parts: [
       { label: 'Pagamento', text: 'como a venda foi paga, com as parcelas do crédito.' },
-      { label: 'Rentabilidade', text: 'quanto custaram as peças, quanto sobrou de lucro e a margem de lucro (a parte do valor vendido que é lucro). Cada peça mostra o seu lucro em reais e em porcentagem. Só gerente e admin veem.' },
+      { label: 'Rentabilidade', text: 'quanto custaram as peças, quanto sobrou de lucro e a margem de lucro (a parte do valor vendido que é lucro). Cada peça mostra quanto custou (por peça) e o seu lucro em reais e em porcentagem. Só gerente e admin veem.' },
       { label: 'Devoluções', text: 'cada troca ou devolução já feita nesta venda, com valor e motivo.' },
     ],
     goodToKnow: [

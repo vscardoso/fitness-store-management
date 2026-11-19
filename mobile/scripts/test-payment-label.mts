@@ -1,6 +1,6 @@
 // Testes do nome da forma de pagamento. Rodar: node scripts/test-payment-label.mts
 import assert from 'node:assert/strict';
-import { PAYMENT_LABEL, paymentLine, paymentText } from '../utils/paymentLabel.ts';
+import { PAYMENT_LABEL, paymentLine, paymentSummary, paymentText } from '../utils/paymentLabel.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
@@ -27,5 +27,22 @@ t('linha de pagamento: nome, parcelas e valor separados (a venda de 2 meios pass
   assert.deepEqual(paymentLine({ payment_method: 'ON_ACCOUNT', amount: 10 }, brl), { label: 'Fiado', detail: null, amount: 'R$ 10,00' });
   assert.equal(paymentLine({ method: 'cash', amount: 5, installments: 6 }, brl).detail, null);   // parcela só vale no crédito
   assert.equal(paymentLine({ amount: 1 }, brl).label, 'Não informado');
+});
+t('resumo do pagamento no cartão da lista: PIX, cartão, dinheiro, fiado', () => {
+  assert.deepEqual(paymentSummary({ payment_method: 'pix', payments: [{ payment_method: 'pix' }] }), { text: 'PIX', kind: 'pix' });
+  assert.deepEqual(paymentSummary({ payments: [{ payment_method: 'credit_card', installments: 3 }] }), { text: 'Cartão de crédito · 3x', kind: 'card' });
+  assert.deepEqual(paymentSummary({ payments: [{ payment_method: 'credit_card', installments: 1 }] }), { text: 'Cartão de crédito', kind: 'card' });
+  assert.deepEqual(paymentSummary({ payments: [{ payment_method: 'debit_card' }] }), { text: 'Cartão de débito', kind: 'card' });
+  assert.deepEqual(paymentSummary({ payments: [{ payment_method: 'cash' }] }), { text: 'Dinheiro', kind: 'cash' });
+  assert.deepEqual(paymentSummary({ payment_method: 'ON_ACCOUNT', payments: [{ payment_method: 'on_account' }] }), { text: 'Fiado', kind: 'fiado' });
+});
+t('resumo com duas formas junta as duas; a mesma forma repetida aparece uma vez', () => {
+  assert.deepEqual(paymentSummary({ payments: [{ payment_method: 'cash' }, { payment_method: 'pix' }] }), { text: 'Dinheiro + PIX', kind: 'mixed' });
+  assert.deepEqual(paymentSummary({ payments: [{ method: 'pix' }, { method: 'pix' }] }), { text: 'PIX', kind: 'pix' });
+});
+t('resumo sem lista de pagamentos usa a forma principal; venda sem pagamento fica sem texto', () => {
+  assert.deepEqual(paymentSummary({ payment_method: 'credit_card' }), { text: 'Cartão de crédito', kind: 'card' });
+  assert.deepEqual(paymentSummary({ payments: [] }), { text: '', kind: null });
+  assert.deepEqual(paymentSummary({ payment_method: 'pending' }), { text: '', kind: null });
 });
 console.log(`${n} testes passaram`);

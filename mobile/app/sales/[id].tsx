@@ -400,6 +400,12 @@ export default function SaleDetailsScreen() {
                     <Text style={styles.itemQtyPrice}>
                       {item.quantity} × {formatCurrency(item.unit_price)}
                     </Text>
+                    {/* custo de cada peça (só quem pode ver custo: para vendedor e caixa o servidor manda nulo) */}
+                    {item.unit_cost != null && (
+                      <Text style={styles.itemQtyPrice} testID={`item-custo-${item.id}`}>
+                        custo {formatCurrency(Number(item.unit_cost))} {item.quantity > 1 ? 'por peça' : 'a peça'}
+                      </Text>
+                    )}
                     {lineDiscount > 0 && (
                       <Text style={[styles.itemQtyPrice, { color: Colors.light.successDark }]}>
                         desconto de {formatCurrency(lineDiscount)} na peça

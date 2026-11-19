@@ -35,3 +35,41 @@ export function paymentLine(
   if (key === 'credit_card') detail = inst > 1 ? `${inst}x de ${money(amount / inst)}` : 'à vista';
   return { label: LONG_LABEL[key] ?? (key || 'Não informado'), detail, amount: money(amount) };
 }
+
+export type PaymentKind = 'card' | 'cash' | 'pix' | 'fiado' | 'points' | 'transfer' | 'mixed';
+
+const SUMMARY_LABEL: Record<string, string> = {
+  cash: 'Dinheiro', pix: 'PIX', debit_card: 'Cartão de débito', credit_card: 'Cartão de crédito', transfer: 'Transferência',
+  bank_transfer: 'Transferência', installments: 'Parcelado', on_account: 'Fiado', loyalty_points: 'Pontos',
+};
+const SUMMARY_KIND: Record<string, PaymentKind> = {
+  cash: 'cash', pix: 'pix', debit_card: 'card', credit_card: 'card', installments: 'card', on_account: 'fiado',
+  loyalty_points: 'points', transfer: 'transfer', bank_transfer: 'transfer',
+};
+
+/**
+ * Como a venda foi paga, em uma linha para o cartão da lista de vendas: "PIX", "Cartão de crédito · 3x",
+ * "Dinheiro + PIX". Venda sem pagamento (cancelada, pendente) devolve texto vazio. `kind` escolhe o ícone.
+ */
+export function paymentSummary(sale: {
+  payment_method?: unknown;
+  payments?: Array<{ payment_method?: unknown; method?: unknown; installments?: number | null }> | null;
+}): { text: string; kind: PaymentKind | null } {
+  const list = (sale.payments ?? []).map((p) => ({
+    key: String(p.payment_method ?? p.method ?? '').toLowerCase(),
+    installments: Number(p.installments) || 1,
+  })).filter((p) => p.key);
+  const items = list.length ? list : (sale.payment_method ? [{ key: String(sale.payment_method).toLowerCase(), installments: 1 }] : []);
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  const kinds = new Set<PaymentKind>();
+  for (const it of items) {
+    const base = SUMMARY_LABEL[it.key];
+    if (!base || seen.has(it.key)) continue;
+    seen.add(it.key);
+    parts.push(it.key === 'credit_card' && it.installments > 1 ? `${base} · ${it.installments}x` : base);
+    kinds.add(SUMMARY_KIND[it.key] ?? 'mixed');
+  }
+  if (parts.length === 0) return { text: '', kind: null };
+  return { text: parts.join(' + '), kind: parts.length > 1 ? 'mixed' : [...kinds][0] };
+}

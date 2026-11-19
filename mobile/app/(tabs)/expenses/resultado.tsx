@@ -4,6 +4,8 @@
  * Abaixo, a conta que fecha nele (soma das linhas = o número do topo), na ordem em que o dinheiro anda.
  * É resultado das vendas, NÃO o dinheiro em mão (fiado e cartão a receber entram): o dinheiro das contas está no Financeiro.
  * Todo valor vem do servidor (ExpenseService._build_period_result). Mês em andamento diz "até hoje".
+ * Em 7 dias, 30 dias ou datas escolhidas só entram os gastos com data dentro do período: por isso o lucro final de poucos dias
+ * pode sair maior que o do mês. A tela mostra o "Lucro das vendas" (antes dos gastos) e compara com o mês inteiro lado a lado.
  */
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
@@ -19,7 +21,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { getMonthlyResult, getResultByRange } from '@/services/expenseService';
 import { isoToBr, rangeFor } from '@/utils/periodRange';
 import { formatCurrency, formatPercent } from '@/utils/format';
-import { resultLines, type ResultLine } from '@/utils/resultMonth';
+import { compareWithMonth, grossProfit, resultLines, sameMonth, type MonthCompare, type ResultLine } from '@/utils/resultMonth';
 import { Colors, theme } from '@/constants/Colors';
 import type { MonthlyResult, ExpenseByCategoryItem } from '@/types/expense';
 import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
@@ -60,6 +62,15 @@ export default function MonthlyResultScreen() {
     queryFn: () => (isMonth ? getMonthlyResult(year, month) : getResultByRange(range!.start, range!.end)),
     enabled: isMonth || !!range,
   });
+
+  // Período que cabe dentro de UM mês: busca o mês inteiro (mesma consulta e cache da aba Mês) para mostrar os dois lado a lado
+  const cmpMonth = !isMonth && range ? sameMonth(range.start, range.end) : null;
+  const monthQ = useQuery({
+    queryKey: ['monthly-result', cmpMonth?.year, cmpMonth?.month],
+    queryFn: () => getMonthlyResult(cmpMonth!.year, cmpMonth!.month),
+    enabled: !!cmpMonth,
+  });
+  const compare = data && monthQ.data && cmpMonth ? compareWithMonth(data, monthQ.data) : null;
 
   const prevMonth = () => {
     if (month === 1) { setMonth(12); setYear(y => y - 1); }
@@ -151,6 +162,7 @@ export default function MonthlyResultScreen() {
             <View style={styles.columns}>
               <View style={styles.leftCol}>
                 <Answer data={data} onFinance={goFinance} isMonth={isMonth} />
+                {!isMonth && range && <PeriodExplain data={data} range={range} compare={compare} monthName={cmpMonth ? MONTHS[cmpMonth.month - 1] : ''} />}
                 <Account data={data} isMonth={isMonth} />
                 <Attention data={data} onAddExpense={goAddExpense} isCurrent={isCurrent} isMonth={isMonth} />
               </View>
@@ -162,6 +174,7 @@ export default function MonthlyResultScreen() {
           ) : (
             <View style={styles.stack}>
               <Answer data={data} onFinance={goFinance} isMonth={isMonth} />
+              {!isMonth && range && <PeriodExplain data={data} range={range} compare={compare} monthName={cmpMonth ? MONTHS[cmpMonth.month - 1] : ''} />}
               <Account data={data} isMonth={isMonth} />
               <Attention data={data} onAddExpense={goAddExpense} isCurrent={isCurrent} isMonth={isMonth} />
               <ExpenseBreakdown items={data.expenses_by_category} total={data.total_expenses} />
@@ -193,7 +206,11 @@ function Answer({ data, onFinance, isMonth }: { data: MonthlyResult; onFinance: 
       ) : (
         <Text style={[styles.answerNote, { color: tone }]}>{`Você gastou mais do que vendeu ${isMonth ? 'neste mês' : 'neste período'}.`}</Text>
       )}
-      <Text style={styles.answerWhat}>Vendas menos o custo das peças e os gastos. É o resultado das vendas, não o dinheiro que está na conta.</Text>
+      <Text style={styles.answerWhat}>
+        {isMonth
+          ? 'Vendas menos o custo das peças e os gastos. É o resultado das vendas, não o dinheiro que está na conta.'
+          : 'Vendas menos o custo das peças e os gastos lançados nestas datas. É o resultado das vendas, não o dinheiro que está na conta.'}
+      </Text>
       <AppButton variant="ghost" size="sm" label="Ver o dinheiro das contas" icon="wallet-outline" onPress={onFinance} />
     </AppCard>
   );
@@ -210,11 +227,77 @@ function Account({ data, isMonth }: { data: MonthlyResult; isMonth: boolean }) {
     expenses: { label: 'Gastos da loja', hint: `Aluguel, luz, salários, peças perdidas e outros gastos ${isMonth ? 'do mês' : 'do período'}. As despesas de uma compra já estão no custo das peças.` },
     gifts: { label: 'Brindes dados', hint: 'O que você pagou pelas peças que deu sem cobrar.' },
   };
+  const gross = grossProfit(data);
+  const revenue = Number(data.revenue);
   return (
     <AppCard title="Como chegamos nesse lucro">
       {resultLines(data).map((l) => (
-        <PLRow key={l.key} label={TEXT[l.key].label} sub={TEXT[l.key].sub} hint={TEXT[l.key].hint} value={l.value} sign={l.sign} />
+        <React.Fragment key={l.key}>
+          <PLRow label={TEXT[l.key].label} sub={TEXT[l.key].sub} hint={TEXT[l.key].hint} value={l.value} sign={l.sign} />
+          {l.key === 'cmv' && (
+            <PLRow
+              subtotal
+              label="Lucro das vendas"
+              sub={revenue > 0 ? `${formatPercent((gross / revenue) * 100, 0)} do que você vendeu` : undefined}
+              hint={`Vendeu menos o custo das peças, antes dos gastos da loja. É o número certo para comparar períodos diferentes: os gastos entram na conta no dia em que foram lançados, então mudam de um período para outro.`}
+              value={gross}
+              sign="+"
+            />
+          )}
+        </React.Fragment>
       ))}
+    </AppCard>
+  );
+}
+
+/**
+ * Só em 7 dias, 30 dias ou datas escolhidas. Responde a dúvida "por que o lucro de poucos dias saiu maior que o do mês?":
+ * o gasto entra no dia em que foi lançado, então o que foi lançado fora das datas não está nesta conta.
+ * Quando o período cabe num mês, mostra os dois lado a lado (mesmos números das duas abas).
+ */
+function PeriodExplain({ data, range, compare, monthName }: { data: MonthlyResult; range: { start: string; end: string }; compare: MonthCompare | null; monthName: string }) {
+  const dates = `${isoToBr(range.start)} a ${isoToBr(range.end)}`;
+  if (!compare) {
+    // período que passa de um mês para o outro: não há "o mês" para comparar, só avisar o que entra
+    return (
+      <AppCard tone="info" title="O que entra nesta conta">
+        <Text style={styles.stateText}>
+          {`Entram só os gastos e brindes lançados de ${dates}. O que foi lançado em outras datas fica de fora, por isso o lucro final de períodos diferentes não deve ser comparado. Para comparar, use o “Lucro das vendas”.`}
+        </Text>
+      </AppCard>
+    );
+  }
+  const LABEL: Record<MonthCompare['rows'][number]['key'], string> = {
+    revenue: 'Quanto você vendeu', gross: 'Lucro das vendas', expenses: 'Gastos da loja', gifts: 'Brindes dados', net: 'Lucro final',
+  };
+  const rows = compare.rows.filter((r) => r.key !== 'gifts' || r.period !== 0 || r.month !== 0);
+  const net = compare.rows.find((r) => r.key === 'net')!;
+  return (
+    <AppCard tone="info" title={`Comparado com ${monthName} inteiro`}>
+      <View style={styles.cmpHead}>
+        <Text style={styles.cmpHeadLabel} />
+        <Text style={styles.cmpHeadCol} numberOfLines={1}>Estas datas</Text>
+        <Text style={styles.cmpHeadCol} numberOfLines={1}>{monthName}</Text>
+      </View>
+      {rows.map((r) => {
+        const strong = r.key === 'net' || r.key === 'gross';
+        return (
+          <View key={r.key} style={styles.cmpRow} testID={`comparar-${r.key}`}>
+            <Text style={[styles.cmpLabel, strong && styles.cmpStrong]} numberOfLines={2}>{LABEL[r.key]}</Text>
+            <Text style={[styles.cmpVal, strong && styles.cmpStrong]} numberOfLines={1}>{formatCurrency(r.period)}</Text>
+            <Text style={[styles.cmpVal, strong && styles.cmpStrong]} numberOfLines={1}>{formatCurrency(r.month)}</Text>
+          </View>
+        );
+      })}
+      {compare.outside > 0.005 ? (
+        <Text style={styles.stateText} testID="comparar-explica">
+          {`Entram só os gastos e brindes lançados de ${dates}. ${formatCurrency(compare.outside)} de gastos e brindes de ${monthName} foram lançados em outras datas e ficam de fora${compare.periodHigher ? `: por isso o lucro final destas datas (${formatCurrency(net.period)}) saiu maior que o do mês (${formatCurrency(net.month)}), mesmo com menos vendas` : ''}. Para comparar períodos, olhe o “Lucro das vendas”.`}
+        </Text>
+      ) : (
+        <Text style={styles.stateText} testID="comparar-explica">
+          {`Todos os gastos e brindes de ${monthName} foram lançados dentro destas datas. A diferença entre as duas colunas é só de vendas.`}
+        </Text>
+      )}
     </AppCard>
   );
 }
@@ -250,7 +333,7 @@ function PeriodChip({ text, on, color, icon, onPress }: { text: string; on: bool
 }
 
 function PLRow({
-  label, value, sign, hint, sub,
+  label, value, sign, hint, sub, subtotal,
 }: {
   label: string;
   hint?: string;
@@ -258,13 +341,15 @@ function PLRow({
   value: number;
   /** "+" entra no lucro, "-" sai dele. Zero é neutro e sem sinal. */
   sign: '+' | '-';
+  /** Linha de soma parcial ("=" em vez de "+" ou "−"), com fundo próprio no lugar de um traço divisor. */
+  subtotal?: boolean;
 }) {
   // a explicação fica recolhida: quem já leu não precisa lê-la de novo toda vez
   const [open, setOpen] = useState(false);
   const zero = Math.abs(value) < 0.005;
-  const color = zero ? ZERO : sign === '+' ? POS : COST;
+  const color = zero ? ZERO : subtotal ? (value >= 0 ? POS : NEG) : sign === '+' ? POS : COST;
   return (
-    <View>
+    <View style={subtotal ? styles.subtotalBox : undefined}>
       <TouchableOpacity
         style={styles.plRow}
         onPress={hint ? () => setOpen((v) => !v) : undefined}
@@ -274,11 +359,11 @@ function PLRow({
         accessibilityLabel={`${label}, ${zero ? '' : sign === '-' ? 'menos ' : ''}${formatCurrency(Math.abs(value))}`}
       >
         <View style={styles.plTexts}>
-          <Text style={styles.plRowLabel}>{label}</Text>
+          <Text style={[styles.plRowLabel, subtotal && styles.plRowLabelBold]}>{label}</Text>
           {!!sub && <Text style={styles.plRowSub}>{sub}</Text>}
         </View>
         <View style={styles.plValue}>
-          {!zero && <Text style={[styles.plSign, { color }]}>{sign === '-' ? '−' : '+'}</Text>}
+          {!zero && <Text style={[styles.plSign, { color }]}>{subtotal ? '=' : sign === '-' ? '−' : '+'}</Text>}
           <Money value={Math.abs(value)} size={16} minSize={11} color={color} style={styles.plMoney} />
         </View>
         {!!hint && <Ionicons name={open ? 'chevron-up' : 'information-circle-outline'} size={20} color={Colors.light.textSecondary} />}
@@ -336,6 +421,15 @@ const styles = StyleSheet.create({
   plRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, minHeight: 44 },
   plTexts: { flex: 1, minWidth: 0 },
   plRowLabel: { fontSize: 14, color: Colors.light.text },
+  plRowLabelBold: { fontWeight: theme.fontWeight.bold },
+  subtotalBox: { backgroundColor: Colors.light.backgroundSecondary, borderRadius: theme.borderRadius.md, paddingHorizontal: theme.spacing.sm },
+  cmpHead: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm },
+  cmpHeadLabel: { flex: 1.3 },
+  cmpHeadCol: { flex: 1, fontSize: 12, fontWeight: theme.fontWeight.bold, color: Colors.light.textSecondary, textAlign: 'right' },
+  cmpRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, minHeight: 32 },
+  cmpLabel: { flex: 1.3, fontSize: 13, color: Colors.light.text },
+  cmpVal: { flex: 1, fontSize: 13, color: Colors.light.text, textAlign: 'right' },
+  cmpStrong: { fontWeight: theme.fontWeight.bold },
   plRowSub: { fontSize: 12, color: Colors.light.textSecondary },
   plValue: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   plSign: { fontSize: 16, fontWeight: theme.fontWeight.bold },
