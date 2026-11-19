@@ -25,7 +25,7 @@ async def _receber(c, h, cid, valor, **kw):
 
 
 async def test_d03_bordas_de_parcela_minima(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=0.01)
     cid = await _cliente(async_session, t_id)
     r = await _venda(test_client, h, p, va, cid, _fiado("12.00", 12), preco="12.00")
     assert r.status_code in (200, 201), r.text

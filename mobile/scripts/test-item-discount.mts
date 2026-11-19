@@ -79,4 +79,22 @@ t('rótulo de porcentagem', () => {
   assert.equal(percentLabel(7.04), '7%');
 });
 
+t('com custo (gerente e admin): desconto que leva a peça abaixo do custo é recusado e diz o máximo', () => {
+  // peça de R$ 89,90 com custo de R$ 40,00: o máximo é R$ 49,90 por peça (a peça sai por R$ 40,00, no custo)
+  const r = discountFromInput('percent', '60', 89.9, 40);        // 60% = R$ 35,96 a peça: abaixo do custo
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.ok(r.message.includes('abaixo do custo') && r.message.includes('R$ 49,90'), r.message);
+  assert.equal(discountFromInput('value', '49,90', 89.9, 40).ok, true);    // no custo ainda vende
+  assert.equal(discountFromInput('value', '49,91', 89.9, 40).ok, false);   // um centavo abaixo não
+  assert.equal(discountFromInput('percent', '30', 89.9, 40).ok, true);
+});
+t('sem custo conhecido (vendedor, caixa) a tela não recusa: o servidor decide', () => {
+  assert.equal(discountFromInput('percent', '60', 89.9).ok, true);
+  assert.equal(discountFromInput('percent', '60', 89.9, 0).ok, true);
+});
+t('peça que já está no custo não aceita desconto nenhum', () => {
+  const r = discountFromInput('value', '1', 40, 40);
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.ok(r.message.includes('já está no custo'), r.message);
+});
 console.log(`${n} testes passaram`);

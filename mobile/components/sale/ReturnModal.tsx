@@ -315,9 +315,9 @@ A devolução já está registrada.`,
       setDialog({
         visible: true,
         type: 'success',
-        title: 'Devolução Concluída',
+        title: hasExchange ? 'Troca Concluída' : 'Devolução Concluída',
         message: hasExchange
-          ? `Troca concluída.${netToPay > 0.005 ? ` Diferença recebida: ${formatCurrency(netToPay)}.` : ''}\n\nO estoque foi atualizado automaticamente.`
+          ? `Troca concluída.${netToPay > 0.005 ? ` Diferença recebida: ${formatCurrency(netToPay)} (${settlementLabel(settlement)}).` : ''}\n\nO estoque foi atualizado. Os detalhes da troca e o comprovante estão na tela da venda.`
           : `A devolução de ${formatCurrency(totalRefund)} foi processada com sucesso.\n\nO estoque foi atualizado automaticamente.`,
         confirmText: 'OK',
         cancelText: canNotify ? 'Avisar o cliente' : '',

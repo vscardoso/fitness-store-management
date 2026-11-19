@@ -18,17 +18,18 @@ D = Decimal
 _n = itertools.count(1)
 
 
-async def _cenario(db, test_user, *, price_a="100.00", price_b="100.00", stock_b=10):
-    """Loja 1: produto com a variação A (vendida) e B (para trocar). Entrada de 10 de A e `stock_b` de B a R$ 40."""
+async def _cenario(db, test_user, *, price_a="100.00", price_b="100.00", stock_b=10, custo=40):
+    """Loja 1: produto com a variação A (vendida) e B (para trocar). Entrada de 10 de A e `stock_b` de B a R$ 40 (`custo`).
+    A loja não vende abaixo do custo: teste que vende por menos de R$ 40 passa um `custo` menor."""
     from app.models.product_variant import ProductVariant
     t_id, token, cat = await _loja_api(db, test_user)
     p, va = await _produto(db, t_id, cat, "Legging Troca", price_a)
     vb = ProductVariant(product_id=p.id, sku=f"TRC-{next(_n)}-B", color="Azul", size="M", price=D(price_b), tenant_id=t_id)
     db.add(vb)
     await db.flush()
-    itens = [(va, p, 10, 40)]
+    itens = [(va, p, 10, custo)]
     if stock_b:
-        itens.append((vb, p, stock_b, 40))
+        itens.append((vb, p, stock_b, custo))
     await _lote(db, t_id, itens)
     ids = [SimpleNamespace(id=x.id) for x in (p, va, vb)]
     await db.commit()

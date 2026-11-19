@@ -25,16 +25,18 @@ interface Props {
   onClear: () => void;
   /** Mais compacto (carrinho do notebook). */
   dense?: boolean;
+  /** Custo por peça (só para quem vê custo): o desconto não pode levar a peça abaixo dele. */
+  unitCost?: number;
 }
 
-export default function ItemDiscountEditor({ unitPrice, quantity, unitDiscount = 0, onApply, onClear, dense }: Props) {
+export default function ItemDiscountEditor({ unitPrice, quantity, unitDiscount = 0, onApply, onClear, dense, unitCost }: Props) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<DiscountKind>('percent');
   const [text, setText] = useState('');
   const [touched, setTouched] = useState(false);
 
   const has = unitDiscount > 0;
-  const parsed = text.trim() ? discountFromInput(kind, text, unitPrice) : null;
+  const parsed = text.trim() ? discountFromInput(kind, text, unitPrice, unitCost) : null;
   const error = touched && parsed && !parsed.ok ? parsed.message : '';
 
   const openEditor = () => { setText(''); setTouched(false); setOpen(true); };
@@ -42,7 +44,7 @@ export default function ItemDiscountEditor({ unitPrice, quantity, unitDiscount =
 
   const apply = () => {
     setTouched(true);
-    const r = discountFromInput(kind, text, unitPrice);
+    const r = discountFromInput(kind, text, unitPrice, unitCost);
     if (!r.ok) return;
     onApply(r.unitDiscount);
     close();

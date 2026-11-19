@@ -290,7 +290,7 @@ async def test_cancelar_venda_com_recebimento_desfeito_e_vencidos_vendedor(test_
 
 
 async def test_cliente_com_varios_fiados_ordem_global_por_vencimento_e_vencidos(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=20)
     cid = await _cliente(async_session, t_id)
     outro = await _cliente(async_session, t_id, "Outra Cliente")
     hoje = date.today()

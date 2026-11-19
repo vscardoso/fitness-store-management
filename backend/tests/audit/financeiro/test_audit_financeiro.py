@@ -48,7 +48,7 @@ async def _confere(client, h, livro, passo):
 @pytest.mark.parametrize("semente", [7, 2026, 31415])
 async def test_livro_sequencia_aleatoria(test_client, async_session, test_user, semente):
     rnd = random.Random(semente)
-    t_id, h, p, va, vb = await _cenario(async_session, test_user, stock_b=80)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, stock_b=80, custo=5)
     await _zerar_implantacao(async_session, t_id)
     d = (await _implantar(test_client, h, payables=[])).json()
     L = Livro(*(_conta(d, n)["id"] for n in ("Gaveta", "Maquininha a receber", "Nubank", "Itaú")))

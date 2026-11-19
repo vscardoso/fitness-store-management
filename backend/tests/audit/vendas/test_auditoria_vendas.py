@@ -97,7 +97,7 @@ async def test_desconto_no_item_e_na_venda_e_imposto(test_client, async_session,
 
 
 async def test_arredondamento_em_centavos(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=5)
     # 3 x 33.333 = 99.999 -> 100.00
     r = await _post(test_client, h, [_item(p, va, 3, preco="33.333")], [{"amount": "100.00", "payment_method": "cash"}])
     assert r.status_code == 201, r.text

@@ -100,8 +100,15 @@ async def test_saude_de_loja_sem_vendas_nao_inventa_numeros(test_client, async_s
 
 
 async def test_lote_vendido_abaixo_do_custo_aparece_como_prejuizo(test_client, async_session, test_user):
+    from app.models.sale import Payment, Sale, SaleItem
     t_id, h, p, va, vb = await _cenario(async_session, test_user)      # custo 40
-    await _vender(test_client, h, p, va, 2, "30.00")                    # vende por 30: prejuízo de R$ 20 no lote
+    # O sistema não vende mais abaixo do custo (piso de preço), mas a loja tem venda ANTIGA assim: vende a R$ 100 e reescreve a
+    # venda como se tivesse saído a R$ 30 (prejuízo de R$ 20 no lote).
+    sale_id, item_id = await _vender(test_client, h, p, va, 2, "100.00")
+    await async_session.execute(update(SaleItem).where(SaleItem.id == item_id).values(unit_price=30, subtotal=60, discount_amount=0))
+    await async_session.execute(update(Sale).where(Sale.id == sale_id).values(subtotal=60, total_amount=60))
+    await async_session.execute(update(Payment).where(Payment.sale_id == sale_id).values(amount=60))
+    await async_session.commit()
     f = await _saude(test_client, h, t_id)
     assert f["roi"]["negative_count"] == 1
     neg = f["roi"]["negative_entries"][0]

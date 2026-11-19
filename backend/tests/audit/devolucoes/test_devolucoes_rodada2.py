@@ -91,7 +91,7 @@ async def test_centavo_e_desconto_no_item_e_na_venda_juntos(test_client, async_s
 
 
 async def test_tres_parciais_seguidas_e_depois_total(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=5)
     s = await _venda(test_client, h, [(p, va, 7, "33.33", "0")], "5.00", "228.31")
     assert D(str(s["total_amount"])) == D("228.31")
     item = s["items"][0]["id"]

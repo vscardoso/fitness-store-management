@@ -72,7 +72,7 @@ async def test_implantacao_tudo_ou_nada_e_so_uma_vez(test_client, async_session,
 
 
 async def test_vendas_devolucoes_e_caixa_caem_na_conta_certa(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=20)
     await _zerar_implantacao(async_session, t_id)
     # venda de ontem (antes do corte) não entra
     antiga, _ = await _vender(test_client, h, p, va, 1, "100.00")

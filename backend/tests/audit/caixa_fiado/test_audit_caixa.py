@@ -19,7 +19,7 @@ async def _mov(c, h, kind, amount, reason):
 
 
 async def test_livro_do_caixa_passo_a_passo_com_centavos(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=0.01)
     await _zerar_implantacao(async_session, t_id)
     assert (await _implantar(test_client, h, payables=[])).status_code == 200
     livro = {"abertura": D("37.15"), "vendas": D(0), "dev": D(0), "sup": D(0), "sang": D(0)}
@@ -88,7 +88,7 @@ async def test_erros_de_caixa_nunca_500_e_com_frase(test_client, async_session, 
 
 
 async def test_sangria_maior_que_saldo_considera_vendas_em_dinheiro_e_nao_pix(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=5)
     await _abrir(test_client, h, "0")
     await _pix(test_client, h, p, va, 1, "500.00")
     assert (await _mov(test_client, h, "withdrawal", 1, "sangria")).status_code == 400   # PIX não é dinheiro

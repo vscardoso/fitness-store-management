@@ -57,8 +57,9 @@ export function lineNet(unitPrice: number, quantity: number, unitDiscount: numbe
  * Converte o que foi digitado em desconto por peça.
  * `kind` 'percent': 0 < % < 100. `kind` 'value': 0 < R$ por peça < preço da peça.
  * Desconto que deixaria a peça de graça é recusado (peça sem cobrança é Brinde, com o custo registrado).
+ * Com `unitCost` (gerente e admin, que veem custo) recusa também o desconto que leva a peça abaixo do custo.
  */
-export function discountFromInput(kind: DiscountKind, raw: string, unitPrice: number): DiscountResult {
+export function discountFromInput(kind: DiscountKind, raw: string, unitPrice: number, unitCost?: number): DiscountResult {
   const typed = parseTypedNumber(raw);
   if (typed === null) return { ok: false, message: kind === 'percent' ? 'Digite o desconto em %, por exemplo 15.' : 'Digite o desconto em R$ por peça.' };
   const priceCents = toCents(unitPrice);
@@ -77,6 +78,17 @@ export function discountFromInput(kind: DiscountKind, raw: string, unitPrice: nu
   if (discountCents <= 0) return { ok: false, message: 'Esse desconto é menor que 1 centavo por peça.' };
   if (discountCents > priceCents) return { ok: false, message: `O desconto não pode ser maior que o preço da peça (${brl(unitPrice)}).` };
   if (discountCents === priceCents) return { ok: false, message: 'A peça ficaria de graça. Para dar a peça sem cobrança, use Brindes no menu Mais.' };
+  // Piso: a peça não sai por menos do que custou (quem decide mesmo é o servidor; aqui é o aviso na hora, só para quem vê custo)
+  const costCents = unitCost && unitCost > 0 ? toCents(unitCost) : 0;
+  if (costCents > 0 && priceCents - discountCents < costCents) {
+    const maxCents = Math.max(0, priceCents - costCents);
+    return {
+      ok: false,
+      message: maxCents > 0
+        ? `Esse desconto deixa a peça abaixo do custo (cerca de ${brl(unitCost as number)}). O máximo é ${brl(fromCents(maxCents))} por peça.`
+        : `Esta peça já está no custo (cerca de ${brl(unitCost as number)}): não dá para dar desconto.`,
+    };
+  }
   const unitDiscount = fromCents(discountCents);
   return { ok: true, unitDiscount, percent: percentOf(unitDiscount, unitPrice) };
 }

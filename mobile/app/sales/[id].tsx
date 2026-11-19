@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   Text,
+  TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -58,6 +59,79 @@ const paymentLabel: Record<string, string> = {
   on_account: 'Fiado',
   loyalty_points: 'Pontos de Fidelidade',
 };
+
+const settlementName: Record<string, string> = { cash: 'dinheiro', pix: 'PIX', debit_card: 'débito', credit_card: 'crédito' };
+
+/**
+ * Uma devolução ou troca da venda. Troca mostra o que voltou, o que a cliente levou (a peça nova da venda da troca, com link),
+ * e a diferença: quanto ela pagou na hora ou quanto a loja devolveu. Devolução comum mostra o reembolso.
+ */
+function ReturnBlock({ ret, onOpenSale }: { ret: SaleReturn; onOpenSale: (id: number) => void }) {
+  const isExchange = !!ret.exchange_sale_id;
+  const { data: exchange, isLoading } = useQuery<SaleWithDetails>({
+    queryKey: ['sale', ret.exchange_sale_id],
+    queryFn: () => getSaleById(ret.exchange_sale_id as number),
+    enabled: isExchange,
+  });
+  const net = Number(ret.net_amount ?? 0);
+  const how = ret.settlement_method ? settlementName[ret.settlement_method] ?? ret.settlement_method : '';
+  return (
+    <View>
+      <View style={styles.returnMeta}>
+        <View style={styles.returnHead}>
+          <Text style={styles.returnNumber}>{ret.return_number}</Text>
+          {isExchange && (
+            <View style={styles.exchangeBadge}><Text style={styles.exchangeBadgeText}>Troca</Text></View>
+          )}
+        </View>
+        <Text style={styles.returnDate}>{formatDateTime(ret.created_at)}</Text>
+      </View>
+      {isExchange && <Text style={styles.returnGroupLabel}>Voltou</Text>}
+      {ret.items.map((item, idx) => (
+        <View key={idx} style={styles.returnItem}>
+          <Text style={styles.returnItemName} numberOfLines={1}>{item.product_name}</Text>
+          <Text style={styles.returnItemQty}>×{item.quantity_returned}</Text>
+          <Text style={styles.returnItemVal}>{formatCurrency(item.refund_amount)}</Text>
+        </View>
+      ))}
+      {isExchange ? (
+        <>
+          <Text style={styles.returnGroupLabel}>Levou</Text>
+          {isLoading && <Text style={styles.returnItemQty}>Carregando a peça nova...</Text>}
+          {(exchange?.items ?? []).map((it) => (
+            <View key={it.id} style={styles.returnItem} testID={`troca-levou-${it.id}`}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.returnItemName} numberOfLines={1}>{it.product?.name || `Produto ${it.product_id}`}</Text>
+                {(!!it.variant_code || !!it.variant_label) && (
+                  <Text style={styles.returnItemQty}>{[it.variant_code, it.variant_label].filter(Boolean).join(' · ')}</Text>
+                )}
+              </View>
+              <Text style={styles.returnItemQty}>×{it.quantity}</Text>
+              <Text style={[styles.returnItemVal, { color: Colors.light.successDark }]}>{formatCurrency(Number(it.subtotal))}</Text>
+            </View>
+          ))}
+          <View style={styles.returnTotal}>
+            <Text style={styles.returnTotalLabel}>Diferença</Text>
+            <Text style={[styles.returnTotalValue, { color: net > 0.005 ? Colors.light.successDark : Colors.light.textSecondary }]} testID="troca-diferenca">
+              {net > 0.005 ? `Cliente pagou ${formatCurrency(net)}${how ? ` (${how})` : ''}`
+                : net < -0.005 ? `Loja devolveu ${formatCurrency(-net)}${how ? ` (${how})` : ''}` : 'Sem diferença a pagar'}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => onOpenSale(ret.exchange_sale_id as number)} style={styles.exchangeLink} accessibilityRole="link">
+            <Text style={styles.exchangeLinkText}>{`Ver a venda da troca${ret.exchange_sale_number ? ` ${ret.exchange_sale_number}` : ''}`}</Text>
+            <Ionicons name="chevron-forward" size={14} color={Colors.light.info} />
+          </TouchableOpacity>
+        </>
+      ) : (
+        <View style={styles.returnTotal}>
+          <Text style={styles.returnTotalLabel}>Reembolso</Text>
+          <Text style={styles.returnTotalValue}>{formatCurrency(ret.total_refund)}</Text>
+        </View>
+      )}
+      {!!ret.reason && <Text style={styles.returnReason}>Motivo: {ret.reason}</Text>}
+    </View>
+  );
+}
 
 const paymentIcon: Record<string, string> = {
   cash: 'cash',
@@ -544,31 +618,14 @@ export default function SaleDetailsScreen() {
             <View style={styles.sectionHeader}>
               <Ionicons name="refresh-outline" size={17} color={Colors.light.error} />
               <Text style={[styles.sectionTitle, { color: Colors.light.error }]}>
-                Devoluções ({returns.length})
+                {returns.some((r) => r.exchange_sale_id) ? 'Trocas e devoluções' : 'Devoluções'} ({returns.length})
               </Text>
             </View>
 
             {returns.map((ret, i) => (
               <View key={ret.id}>
                 {i > 0 && <View style={[styles.itemDivider, { marginVertical: 14 }]} />}
-                <View style={styles.returnMeta}>
-                  <Text style={styles.returnNumber}>{ret.return_number}</Text>
-                  <Text style={styles.returnDate}>{formatDateTime(ret.created_at)}</Text>
-                </View>
-                {ret.items.map((item, idx) => (
-                  <View key={idx} style={styles.returnItem}>
-                    <Text style={styles.returnItemName} numberOfLines={1}>{item.product_name}</Text>
-                    <Text style={styles.returnItemQty}>×{item.quantity_returned}</Text>
-                    <Text style={styles.returnItemVal}>{formatCurrency(item.refund_amount)}</Text>
-                  </View>
-                ))}
-                <View style={styles.returnTotal}>
-                  <Text style={styles.returnTotalLabel}>Reembolso</Text>
-                  <Text style={styles.returnTotalValue}>{formatCurrency(ret.total_refund)}</Text>
-                </View>
-                {ret.reason && (
-                  <Text style={styles.returnReason}>Motivo: {ret.reason}</Text>
-                )}
+                <ReturnBlock ret={ret} onOpenSale={(id) => router.push(`/sales/${id}` as any)} />
               </View>
             ))}
 
@@ -585,6 +642,11 @@ export default function SaleDetailsScreen() {
 
         {sale.status !== 'pending' && (
           <View style={{ marginTop: 16 }}>
+            {returns.length > 0 && (
+              <Text style={styles.receiptCaption}>
+                {returns.some((r) => r.exchange_sale_id) ? 'O comprovante já mostra a troca e a diferença paga.' : 'O comprovante já mostra a devolução e o valor devolvido.'}
+              </Text>
+            )}
             <ReceiptActions saleId={sale.id} saleNumber={sale.sale_number} />
           </View>
         )}
@@ -875,6 +937,13 @@ const styles = StyleSheet.create({
 
   // ── Devoluções ────────────────────────────────────────────
   returnMeta: { marginBottom: theme.spacing.sm },
+  returnHead: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  exchangeBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: Colors.light.infoLight },
+  exchangeBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.light.info },
+  returnGroupLabel: { fontSize: 12, fontWeight: '700', color: Colors.light.textSecondary, marginTop: 6 },
+  exchangeLink: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', paddingVertical: 8 },
+  exchangeLinkText: { fontSize: theme.fontSize.sm, fontWeight: '600', color: Colors.light.info },
+  receiptCaption: { fontSize: 12, color: Colors.light.textSecondary, marginBottom: 6, textAlign: 'center' },
   returnNumber: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
   returnDate: { fontSize: theme.fontSize.xxs + 1, color: Colors.light.textSecondary, marginTop: 1 },
   returnItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },

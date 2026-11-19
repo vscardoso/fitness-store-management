@@ -74,7 +74,7 @@ async def test_indice_unico_barra_dois_caixas_abertos_mesmo_fora_da_api(async_se
 
 
 async def test_esperado_soma_so_dinheiro_do_turno_e_mostra_as_outras_formas(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=20)
     await _vender(test_client, h, p, va, 1, "100.00")           # ANTES de abrir: não entra
     await _tick()
     await _abrir(test_client, h, "100.10")
@@ -156,7 +156,7 @@ async def test_suprimento_e_sangria_mexem_no_esperado_e_sangria_nao_passa_do_que
 
 
 async def test_fechar_guarda_a_fotografia_e_nao_muda_depois(test_client, async_session, test_user):
-    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, custo=20)
     await _abrir(test_client, h, "100.00")
     await _vender(test_client, h, p, va, 2, "40.00")
     await _pix(test_client, h, p, va, 1, "25.00")

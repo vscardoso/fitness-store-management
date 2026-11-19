@@ -629,6 +629,15 @@ class ReturnService:
                 reason="troca_saida", ref=f"sale:{sale.id}",
             )
             cost = sum((Decimal(str(s['quantity_taken'])) * Decimal(str(s['unit_cost'])) for s in sources), Decimal('0'))
+            # Nunca abaixo do custo: a peça nova da troca segue a mesma regra da venda (desfaz a troca inteira se recusar)
+            from app.services.price_floor import below_cost_message, is_below_cost
+            if is_below_cost(l['unit_price'] * l['quantity'], cost):
+                from app.models.product import Product as _Product
+                pname = (await self.db.execute(select(_Product.name).where(_Product.id == rv.product_id))).scalar_one_or_none()
+                raise ValueError(below_cost_message(
+                    f"A peça nova ({pname})" if pname else "A peça nova", l['quantity'], l['unit_price'] * l['quantity'],
+                    has_discount=Decimal(str(rv.price or 0)) > l['unit_price'],
+                ))
             # Peça nova com desconto: guarda o preço cheio e o desconto da linha (igual à venda comum), para o relatório e o
             # comprovante mostrarem o desconto; o subtotal e o total continuam sendo o que o cliente paga.
             list_price = Decimal(str(rv.price or 0))

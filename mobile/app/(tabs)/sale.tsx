@@ -630,6 +630,7 @@ function MobileSaleScreen() {
                       unitPrice={item.unit_price}
                       quantity={item.quantity}
                       unitDiscount={item.unit_discount}
+                      unitCost={fifoCosts?.[String(item.product_id)]?.average_unit_cost}
                       onApply={(d) => cart.setItemUnitDiscount(item.cart_key, d)}
                       onClear={() => cart.setItemUnitDiscount(item.cart_key, 0)}
                     />
