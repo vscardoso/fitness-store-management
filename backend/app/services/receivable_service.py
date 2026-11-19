@@ -185,17 +185,22 @@ class ReceivableService:
         if customer_id:
             stmt = stmt.where(Receivable.customer_id == customer_id)
         rows = (await self.db.execute(stmt)).scalars().all()
-        total = overdue = this_week = D0
+        total = overdue = this_week = from_sales = from_opening = D0
         customers = set()
         for r in rows:
             left = outstanding(r)
             total += left
+            if r.origin == ORIGIN_OPENING:
+                from_opening += left     # fiado anterior ao app: não tem venda, por isso não aparece no relatório de vendas
+            else:
+                from_sales += left
             customers.add(r.customer_id)
             if r.due_date < today:
                 overdue += left
             elif r.due_date <= week:
                 this_week += left
         return {"open_total": float(total), "overdue_total": float(overdue), "due_this_week": float(this_week),
+                "open_from_sales": float(from_sales), "open_from_opening": float(from_opening),
                 "customers": len(customers), "installments": len(rows)}
 
     async def payments(self, tenant_id: int, receivable_id: int) -> List[Dict[str, Any]]:

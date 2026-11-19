@@ -31,6 +31,9 @@ export interface ReceivableSummary {
   open_total: number;
   overdue_total: number;
   due_this_week: number;
+  /** De onde vem o "A receber": parcelas de vendas e fiado anterior ao app (sem venda). Servidor antigo não manda. */
+  open_from_sales?: number;
+  open_from_opening?: number;
   customers: number;
   installments: number;
 }

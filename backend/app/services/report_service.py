@@ -19,6 +19,7 @@ from app.core.timezone import get_period_range_utc, now_brazil
 from app.schemas.report import (
     SalesReportResponse,
     PaymentMethodBreakdown,
+    FiadoSituation,
     TopProduct,
     PeriodComparison,
     DaySales,
@@ -143,6 +144,20 @@ class ReportService:
             )
             for method, v in sorted(led.by_payment.items(), key=lambda kv: -kv[1]["total"])
         ]
+        # Fiado: a linha conta o que foi VENDIDO no fiado no período; a tela Fiado conta o que FALTA receber (de todas as vendas e do
+        # fiado anterior ao app). Aqui a linha diz o que já foi recebido, devolvido e o que falta, para as duas telas fecharem.
+        fiado_line = next((p for p in payment_breakdown if p.method == PaymentMethod.ON_ACCOUNT.value), None)
+        if fiado_line is not None:
+            from app.models.receivable import RECEIVABLE_CANCELED, Receivable
+            from app.services.receivable_service import outstanding
+            parcelas = (await db.execute(
+                select(Receivable).join(Sale, Sale.id == Receivable.sale_id).where(
+                    base_filter, Receivable.tenant_id == tenant_id, Receivable.is_active == True))).scalars().all()  # noqa: E712
+            fiado_line.fiado = FiadoSituation(
+                received=float(sum((r.received_amount or 0) for r in parcelas)),
+                returned=float(sum((r.abated_amount or 0) for r in parcelas)),
+                open=float(sum((outstanding(r) for r in parcelas if r.status != RECEIVABLE_CANCELED), 0)),
+            )
 
         # 4. Top produtos (por variação), líquidos do que voltou no período
         ret_by_variant = {

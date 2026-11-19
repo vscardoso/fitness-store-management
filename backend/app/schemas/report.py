@@ -7,12 +7,21 @@ from datetime import datetime
 from decimal import Decimal
 
 
+class FiadoSituation(BaseModel):
+    """Situação, hoje, do fiado vendido no período. O relatório conta a VENDA no fiado (total da linha); a tela Fiado conta o que
+    FALTA receber de tudo (inclusive fiado anterior ao app). Total da linha = recebido + devolvido + falta receber."""
+    received: float = Field(0, description="Já recebido das parcelas dessas vendas")
+    returned: float = Field(0, description="Abatido por devolução")
+    open: float = Field(0, description="Ainda falta receber dessas vendas")
+
+
 class PaymentMethodBreakdown(BaseModel):
     """Breakdown por forma de pagamento"""
     method: str = Field(..., description="Forma de pagamento")
     total: float = Field(..., description="Total em R$")
     count: int = Field(..., description="Quantidade de vendas")
     percentage: float = Field(..., description="Percentual do total")
+    fiado: Optional[FiadoSituation] = Field(None, description="Só na linha do fiado: o que já foi recebido, devolvido e o que falta")
 
 
 class TopProduct(BaseModel):

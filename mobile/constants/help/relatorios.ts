@@ -56,6 +56,7 @@ export const RELATORIOS: HelpEntry[] = [
       { label: 'Mais vendidos', text: 'as 15 peças que mais deram receita.' },
     ],
     goodToKnow: [
+      'Nas formas de pagamento, o Fiado é o que foi vendido no período, mesmo o já pago ou devolvido. Embaixo aparece quanto foi recebido, devolvido e quanto falta. O total a receber, com o fiado de antes do app, está na tela Fiado.',
       'Venda cancelada não conta; devolução desconta no dia em que aconteceu.',
       'Com mais de 62 dias, o gráfico passa a ser mês a mês.',
       'A comparação usa o mesmo número de dias logo antes do período.',

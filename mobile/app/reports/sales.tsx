@@ -4,7 +4,7 @@
  */
 import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Platform } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -31,6 +31,7 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import PeriodFilter, { SALES_REPORT_PERIOD_OPTIONS } from '@/components/PeriodFilter';
 import DateRangeFields from '@/components/ui/DateRangeFields';
 import { isoToBr } from '@/utils/periodRange';
+import { FIADO_REPORT_NOTE, fiadoSituationText } from '@/utils/fiadoLabel';
 import type { PeriodFilterValue } from '@/components/PeriodFilter';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
@@ -47,6 +48,7 @@ const escapeHtml = (v: string) =>
 export default function SalesReportScreen() {
   const desktopContent = useDesktopContentStyle();
   const { goBack } = useBackToList('/(tabs)/more');
+  const router = useRouter();
   const brandingColors = useBrandingColors();
   const storeName = useBrandingStore((s) => s.branding.name);
   const [period, setPeriod] = useState<PeriodFilterType>('this_month');
@@ -177,6 +179,10 @@ export default function SalesReportScreen() {
         <tr>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${
             paymentLabels[item.method] || item.method
+          }${
+            fiadoSituationText(item.fiado, formatCurrency)
+              ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">${fiadoSituationText(item.fiado, formatCurrency)}</div>`
+              : ''
           }</td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${
             item.count
@@ -418,6 +424,11 @@ export default function SalesReportScreen() {
               ${paymentRows}
             </tbody>
           </table>
+          ${
+            report.payment_breakdown.some((b) => !!b.fiado)
+              ? `<div style="font-size: 11px; color: #6b7280; margin-top: 8px;">${FIADO_REPORT_NOTE}</div>`
+              : ''
+          }
         </div>
 
         <div class="section">
@@ -854,6 +865,9 @@ export default function SalesReportScreen() {
                           {paymentLabels[item.method] || item.method}
                         </Text>
                         <Text style={styles.paymentCount}>{item.count} vendas</Text>
+                        {!!fiadoSituationText(item.fiado, formatCurrency) && (
+                          <Text style={styles.paymentFiado} testID="relatorio-fiado-situacao">{fiadoSituationText(item.fiado, formatCurrency)}</Text>
+                        )}
                       </View>
                       <View style={styles.paymentValues}>
                         <Text style={styles.paymentTotal}>{formatCurrency(item.total)}</Text>
@@ -861,6 +875,14 @@ export default function SalesReportScreen() {
                       </View>
                     </View>
                   ))
+                )}
+                {report.payment_breakdown.some((b) => !!b.fiado) && (
+                  <View style={styles.fiadoNote} testID="relatorio-fiado-nota">
+                    <Text style={styles.paymentCount}>{FIADO_REPORT_NOTE}</Text>
+                    <TouchableOpacity onPress={() => router.push('/finance/receivables' as any)} accessibilityRole="button" accessibilityLabel="Ver o fiado" hitSlop={8}>
+                      <Text style={[styles.fiadoLink, { color: brandingColors.primary }]}>Ver o fiado</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
 
@@ -1198,6 +1220,20 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
     marginTop: theme.spacing.xxs,
+  },
+  paymentFiado: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.text,
+    fontWeight: '600',
+    marginTop: theme.spacing.xxs,
+  },
+  fiadoNote: {
+    gap: theme.spacing.xs,
+    paddingTop: theme.spacing.sm,
+  },
+  fiadoLink: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
   },
   paymentValues: {
     alignItems: 'flex-end',

@@ -252,6 +252,7 @@ export const DINHEIRO: HelpEntry[] = [
     ],
     parts: [
       { label: 'A receber', text: 'tudo que as clientes ainda devem, com o vencido e o que vence nos próximos 7 dias ao lado.' },
+      { label: 'Vendas no fiado e Fiado anterior ao app', text: 'embaixo do total, de onde vem o valor. Não é o Fiado do Relatório de vendas, que conta o que foi vendido no período. Só aparece com fiado de antes do app.' },
       { label: 'Cobrar agora', text: 'aparece só quando há parcela vencida; toque em “Ver vencidas” para listar só elas.' },
       { label: 'Tem parcela vencida', text: 'selo na cliente que já passou do prazo; o cartão dela fica com borda vermelha.' },
     ],

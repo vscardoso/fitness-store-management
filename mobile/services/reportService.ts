@@ -9,6 +9,8 @@ export interface PaymentBreakdown {
   total: number;
   count: number;
   percentage: number;
+  /** Só na linha do Fiado: o que já foi recebido, devolvido e o que ainda falta receber dessas vendas. */
+  fiado?: { received: number; returned: number; open: number } | null;
 }
 
 export interface TopProduct {

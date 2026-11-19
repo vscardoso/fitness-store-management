@@ -31,6 +31,7 @@ import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import { dateToIso } from '@/utils/dateBr';
 import { FIADO_INTERVALS, type FiadoInterval, defaultFirstDue, dueDates, splitAmount } from '@/utils/fiadoPlan';
+import { fiadoSplitText } from '@/utils/fiadoLabel';
 import {
   RECEIVE_METHODS, cancelReceivable, createOpeningFiado, listReceivablePayments, listReceivables, receiveFiado,
   undoReceivablePayment, type Receivable, type ReceivableFilter, type ReceiveMethod,
@@ -121,6 +122,7 @@ export default function ReceivablesScreen() {
   const s = data?.summary;
   const today = new Date();
   const overdueTotal = s?.overdue_total ?? 0;
+  const split = fiadoSplitText(s, formatCurrency);
   const startOpening = () => {
     setSheetError('');
     setOpening({ customer: null, amount: '', count: 1, interval: 30, first: defaultFirstDue(30), description: '' });
@@ -144,6 +146,7 @@ export default function ReceivablesScreen() {
       <Text style={styles.eyebrow}>A RECEBER</Text>
       <Text style={styles.big}>{formatCurrency(s?.open_total ?? 0)}</Text>
       <Text style={styles.itemSub}>{s?.customers ?? 0} cliente(s) · {s?.installments ?? 0} parcela(s) em aberto</Text>
+      {!!split && <Text style={styles.itemSub} testID="fiado-origem">{split}</Text>}
       {(overdueTotal > 0 || !!s?.due_this_week) && (
         <View style={styles.pills}>
           {overdueTotal > 0 && <Badge label={`Vencido ${formatCurrency(overdueTotal)}`} variant="error" size="md" />}
