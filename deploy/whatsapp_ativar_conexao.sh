@@ -100,7 +100,7 @@ for _ in $(seq 1 40); do
   sleep 2
 done
 [[ "${ok:-0}" == "1" ]] || { echo "O backend não voltou a responder em 80 s. Veja: docker logs --tail 50 provador-backend" >&2; exit 1; }
-docker exec provador-backend python - <<'PY'
+docker exec -i provador-backend python - <<'PY'
 from app.core.config import settings as s
 print("APP_ID:", s.WHATSAPP_CLOUD_APP_ID or "VAZIO")
 print("ES_CONFIG_ID:", s.WHATSAPP_CLOUD_ES_CONFIG_ID or "VAZIO")
