@@ -22,6 +22,14 @@ async def _zerar_implantacao(db, t_id):
     await db.commit()
 
 
+async def _so_um_admin(db, t_id, user):
+    """Mudança em banco com mais de um administrador vira PEDIDO de aprovação (202). Os testes que apagam transferência ou mexem em saldo
+    esperam o caso de uma loja com um administrador só (vale na hora, com o motivo registrado); a loja 1 é reaproveitada e pode ter outros."""
+    from app.models.user import User, UserRole
+    await db.execute(update(User).where(User.tenant_id == t_id, User.role == UserRole.ADMIN, User.id != user.id).values(is_active=False))
+    await db.commit()
+
+
 async def _implantar(client, h, **extra):
     body = {"start_date": date.today().isoformat(), "cash_balance": "150.00", "card_balance": "300.00",
             "banks": [{"name": "Nubank", "balance": "1000.00", "receives_pix": True}, {"name": "Itaú", "balance": "-50.00"}],

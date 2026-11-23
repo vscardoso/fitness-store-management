@@ -8,7 +8,7 @@ from app.core.timezone import today_brazil
 from app.models.sale import Payment
 from app.models.store import Store
 from app.services.finance_service import FinanceService, card_expected_date, run_card_auto_settlement
-from tests.test_financeiro import _conta, _implantar, _pagar_com, _zerar_implantacao
+from tests.test_financeiro import _conta, _implantar, _pagar_com, _so_um_admin, _zerar_implantacao
 from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse)
 from tests.test_troca import _cenario
 
@@ -47,6 +47,7 @@ async def _vender_no_dia(client, db, h, p, v, metodo, valor, dia):
 async def _cenario_cartao(test_client, async_session, test_user):
     """Financeiro implantado há 10 dias; duas vendas no cartão em dias diferentes (R$ 100 e R$ 50)."""
     t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _so_um_admin(async_session, t_id, test_user)
     await _zerar_implantacao(async_session, t_id)
     inicio = (today_brazil() - timedelta(days=10)).isoformat()
     assert (await _implantar(test_client, h, start_date=inicio)).status_code == 200

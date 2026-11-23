@@ -5,7 +5,7 @@ import pytest
 
 from app.core.timezone import today_brazil
 from app.services.finance_service import card_expected_date
-from tests.test_financeiro import _conta, _implantar, _pagar_com, _zerar_implantacao
+from tests.test_financeiro import _conta, _implantar, _pagar_com, _so_um_admin, _zerar_implantacao
 from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse)
 from tests.test_troca import _cenario
 
@@ -74,6 +74,7 @@ async def test_previsao_repasse_sem_taxa_e_com_taxa(test_client, async_session, 
 
 async def test_repasse_recusa_valor_errado_e_apagar_desfaz_a_taxa(test_client, async_session, test_user):
     t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _so_um_admin(async_session, t_id, test_user)
     await _zerar_implantacao(async_session, t_id)
     assert (await _implantar(test_client, h)).status_code == 200
     ruim = [({"gross": "100", "received": "101"}, "maior"), ({"gross": "999999", "received": "999999"}, "só R$"),
