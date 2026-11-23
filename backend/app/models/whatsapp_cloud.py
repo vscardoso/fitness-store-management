@@ -36,6 +36,8 @@ class WhatsAppCloudNumber(BaseModel):
     # nunca vai em resposta de API nem em log.
     access_token_encrypted = Column(Text, nullable=True)
     connected_at = Column(DateTime(timezone=True), nullable=True)
+    # quando vence a autorização que a loja deu à Meta (a configuração de 60 dias); nulo = a Meta não informou vencimento
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
     connection_status = Column(String(20), nullable=True)      # connected, disconnected, attention (nulo = ligado à mão)
     connection_event = Column(String(60), nullable=True)       # último evento do account_update (ex.: PARTNER_REMOVED)
     connection_event_at = Column(DateTime(timezone=True), nullable=True)

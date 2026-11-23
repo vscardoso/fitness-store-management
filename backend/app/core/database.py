@@ -218,7 +218,7 @@ _SQLITE_EXTRA_COLUMNS = {
         ("greeting_enabled", "BOOLEAN NOT NULL DEFAULT 0"), ("greeting_text", "TEXT"),
         ("away_enabled", "BOOLEAN NOT NULL DEFAULT 0"), ("away_text", "TEXT"), ("business_hours", "TEXT"),
         ("is_coexistence", "BOOLEAN NOT NULL DEFAULT 0"), ("business_id", "VARCHAR(64)"),
-        ("access_token_encrypted", "TEXT"), ("connected_at", "DATETIME"), ("connection_status", "VARCHAR(20)"),
+        ("access_token_encrypted", "TEXT"), ("connected_at", "DATETIME"), ("token_expires_at", "DATETIME"), ("connection_status", "VARCHAR(20)"),
         ("connection_event", "VARCHAR(60)"), ("connection_event_at", "DATETIME"), ("connection_detail", "TEXT"),
         ("contacts_sync_requested_at", "DATETIME"), ("history_sync_requested_at", "DATETIME"),
         ("history_sync_status", "VARCHAR(20)"), ("history_sync_progress", "INTEGER"), ("history_sync_phase", "INTEGER"),

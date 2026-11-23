@@ -63,7 +63,37 @@ class AppNotificationService:
                 )
         return state
 
+    async def sync_whatsapp_alerts(self, db: AsyncSession, tenant_id: int) -> None:
+        """Alerta "a autorização do WhatsApp vence em N dias" (ou "venceu"): um por número e por situação; some quando a loja reconecta."""
+        from app.models.whatsapp_cloud import WhatsAppCloudNumber
+        from app.services.whatsapp_connect_service import token_state, token_warning
+        numbers = (await db.execute(select(WhatsAppCloudNumber).where(
+            WhatsAppCloudNumber.tenant_id == tenant_id, WhatsAppCloudNumber.is_active == True,  # noqa: E712
+        ))).scalars().all()
+        wanted: dict[str, tuple[str, str]] = {}
+        for n in numbers:
+            state, days = token_state(n)
+            if state in ("expiring", "expired"):
+                title = "WhatsApp: autorização venceu" if state == "expired" else "WhatsApp: autorização perto de vencer"
+                wanted[f"whatsapp_token:{n.id}:{state}"] = (title, token_warning(n) or title)
+        existing = (await db.execute(select(AppNotification).where(
+            AppNotification.tenant_id == tenant_id, AppNotification.is_active == True,  # noqa: E712
+            AppNotification.kind == "whatsapp_token"))).scalars().all()
+        have = {e.dedupe_key for e in existing}
+        changed = False
+        for e in existing:
+            if e.dedupe_key not in wanted:
+                e.is_active = False
+                changed = True
+        for key, (title, body) in wanted.items():
+            if key not in have:
+                db.add(AppNotification(tenant_id=tenant_id, kind="whatsapp_token", dedupe_key=key, title=title, body=body))
+                changed = True
+        if changed:
+            await db.commit()
+
     async def sync_stock_alerts(self, db: AsyncSession, tenant_id: int) -> None:
+        await self.sync_whatsapp_alerts(db, tenant_id)
         state = await self._stock_state(db, tenant_id)
         existing = (await db.execute(
             select(AppNotification).where(
@@ -153,6 +183,8 @@ class AppNotificationService:
         if user_ids:
             if len(pending) == 1:
                 title, body = pending[0].title, pending[0].body
+            elif any(n.kind not in ("low_stock", "out_of_stock") for n in pending):
+                title, body = "Avisos do Provador", "; ".join(n.title for n in pending[:3]) + (f" e mais {len(pending) - 3}" if len(pending) > 3 else "")
             else:
                 names = ", ".join(n.title.split(": ", 1)[-1] for n in pending[:3])
                 extra = f" e mais {len(pending) - 3}" if len(pending) > 3 else ""

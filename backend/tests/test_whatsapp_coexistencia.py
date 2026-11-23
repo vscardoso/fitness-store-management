@@ -63,7 +63,7 @@ class GraphFalsa:
     """Graph API falsa. `falhar` = {chave: resposta}; chave = "oauth", "subscribe", "number", "smb_app_state_sync",
     "history" ou "rede:<chave>" para simular queda de rede."""
 
-    def __init__(self, monkeypatch, falhar=None):
+    def __init__(self, monkeypatch, falhar=None, expires_in=5183999, debug_expires_at=None):
         self.chamadas = []
         self.falhar = falhar or {}
 
@@ -73,7 +73,12 @@ class GraphFalsa:
             self.chamadas.append((request.method, path, dict(request.url.params), body, request.headers.get("authorization")))
             if path.endswith("/oauth/access_token"):
                 key = "oauth"
-                ok = httpx.Response(200, json={"access_token": TOKEN_NEGOCIO, "token_type": "bearer"})
+                corpo = {"access_token": TOKEN_NEGOCIO, "token_type": "bearer"}
+                if expires_in is not None:
+                    corpo["expires_in"] = expires_in            # a Meta manda o vencimento da configuração de 60 dias
+                ok = httpx.Response(200, json=corpo)
+            elif path.endswith("/debug_token"):
+                key, ok = "debug", httpx.Response(200, json={"data": {"expires_at": debug_expires_at if debug_expires_at is not None else 0}})
             elif path.endswith("/subscribed_apps"):
                 key, ok = "subscribe", httpx.Response(200, json={"success": True})
             elif path.endswith("/smb_app_data"):
@@ -114,7 +119,7 @@ async def test_conexao_coexistencia_troca_codigo_inscreve_pede_agenda_e_historic
     pnid = f"PN-COEX-{store.id}"
     r = await test_client.post(CONNECT, json=_corpo(pnid), headers=h)
     assert r.status_code == 200, r.text
-    assert TOKEN_NEGOCIO not in r.text and "token" not in json.dumps(r.json()).replace("has_business_token", "")
+    assert TOKEN_NEGOCIO not in r.text and "token" not in json.dumps(r.json()).replace("has_business_token", "").replace("token_expires_at", "").replace("token_days_left", "").replace("token_status", "")
     out = r.json()
     assert out["is_coexistence"] and out["connection_status"] == "connected" and out["has_business_token"]
     assert out["display_phone_number"] == "+55 34 99650-0091" and out["history_sync"]["status"] == "requested"
@@ -392,3 +397,81 @@ async def test_saudacao_e_ausencia_nao_disparam_na_coexistencia(client, session_
     # nem a trava foi tomada (a decisão já pula a coexistência; o envio em segundo plano confere de novo)
     for t in (t_coex, t_coex2):
         assert [(c.last_greeting_at, c.last_away_at) for c in await _conv(session_maker, t)] == [(None, None)]
+
+
+# ── Vencimento da autorização (configuração de 60 dias) ───────────────────
+
+async def _numero(db, pnid):
+    db.expire_all()
+    return (await db.execute(select(WhatsAppCloudNumber).where(WhatsAppCloudNumber.phone_number_id == pnid))).scalar_one()
+
+
+async def test_vencimento_vem_da_troca_do_codigo_e_nao_avisa_enquanto_longe(test_client, async_session, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    _sem_override()
+    store, h = await _admin(async_session)
+    GraphFalsa(monkeypatch, expires_in=60 * 86400)
+    pnid = f"PN-VENC-{store.id}"
+    r = await test_client.post(CONNECT, json=_corpo(pnid), headers=h)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["token_status"] == "ok" and j["token_days_left"] == 60 and j["warning"] is None
+    n = await _numero(async_session, pnid)
+    exp = n.token_expires_at if n.token_expires_at.tzinfo else n.token_expires_at.replace(tzinfo=timezone.utc)
+    assert abs((exp - (datetime.now(timezone.utc) + timedelta(days=60))).total_seconds()) < 120
+    assert "expires" not in json.dumps(j).replace("token_expires_at", "")           # o token em si nunca sai
+
+
+async def test_perto_de_vencer_avisa_na_tela_e_na_caixa_e_reconectar_limpa(test_client, async_session, monkeypatch):
+    _sem_override()
+    store, h = await _admin(async_session)
+    pnid = f"PN-VENC2-{store.id}"
+    GraphFalsa(monkeypatch, expires_in=10 * 86400 - 3600)                           # faltam 10 dias (e algumas horas)
+    r = await test_client.post(CONNECT, json=_corpo(pnid), headers=h)
+    j = r.json()
+    assert j["token_status"] == "expiring" and j["token_days_left"] == 10
+    assert "vence em 10 dias" in j["warning"] and "Conectar" in j["warning"]
+    s = (await test_client.get(STATUS, headers=h)).json()["numbers"][0]
+    assert s["token_status"] == "expiring" and "vence em 10 dias" in s["warning"]
+
+    inbox = (await test_client.get("/api/v1/notifications/inbox", headers=h)).json()
+    itens = inbox["items"] if isinstance(inbox, dict) else inbox
+    av = [x for x in itens if x["kind"] == "whatsapp_token"]
+    assert len(av) == 1 and "perto de vencer" in av[0]["title"] and "vence em 10 dias" in av[0]["body"]
+    again = (await test_client.get("/api/v1/notifications/inbox", headers=h)).json()
+    assert len([x for x in (again["items"] if isinstance(again, dict) else again) if x["kind"] == "whatsapp_token"]) == 1   # não duplica
+
+    # reconectar renova: o aviso some
+    GraphFalsa(monkeypatch, expires_in=60 * 86400)
+    r = await test_client.post(CONNECT, json=_corpo(pnid), headers=h)
+    assert r.status_code == 200 and r.json()["token_status"] == "ok" and r.json()["warning"] is None
+    final = (await test_client.get("/api/v1/notifications/inbox", headers=h)).json()
+    assert not [x for x in (final["items"] if isinstance(final, dict) else final) if x["kind"] == "whatsapp_token"]
+
+
+async def test_vencido_e_sem_vencimento_conhecido(test_client, async_session, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app.services.whatsapp_connect_service import token_state
+    _sem_override()
+    store, h = await _admin(async_session)
+    pnid = f"PN-VENC3-{store.id}"
+    GraphFalsa(monkeypatch, expires_in=60 * 86400)
+    await test_client.post(CONNECT, json=_corpo(pnid), headers=h)
+    n = await _numero(async_session, pnid)
+    n.token_expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    await async_session.commit()
+    s = (await test_client.get(STATUS, headers=h)).json()["numbers"][0]
+    assert s["token_status"] == "expired" and s["token_days_left"] == 0 and "venceu" in s["warning"]
+    inbox = (await test_client.get("/api/v1/notifications/inbox", headers=h)).json()
+    assert [x["title"] for x in (inbox["items"] if isinstance(inbox, dict) else inbox) if x["kind"] == "whatsapp_token"] == ["WhatsApp: autorização venceu"]
+
+    # a Meta não manda expires_in: pergunta ao debug_token; 0 = não vence = sem vencimento conhecido, nada de aviso
+    GraphFalsa(monkeypatch, expires_in=None, debug_expires_at=0)
+    r = await test_client.post(CONNECT, json=_corpo(pnid), headers=h)
+    assert r.json()["token_status"] is None and r.json()["token_days_left"] is None and r.json()["warning"] is None
+    # com data no debug_token, usa a data
+    futuro = int((datetime.now(timezone.utc) + timedelta(days=5)).timestamp())
+    GraphFalsa(monkeypatch, expires_in=None, debug_expires_at=futuro)
+    r = await test_client.post(CONNECT, json=_corpo(pnid), headers=h)
+    assert r.json()["token_status"] == "expiring" and r.json()["token_days_left"] in (5, 6)
+    assert token_state(await _numero(async_session, pnid))[0] == "expiring"

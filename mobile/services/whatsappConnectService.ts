@@ -25,6 +25,10 @@ export interface WaConnectedNumber {
   connection_event_at: string | null;
   connection_detail: string | null;
   warning: string | null;
+  /** Vencimento da autorização dada à Meta (configuração de 60 dias); nulo = a Meta não informou. */
+  token_expires_at: string | null;
+  token_days_left: number | null;
+  token_status: 'ok' | 'expiring' | 'expired' | null;
   contacts_sync_requested_at: string | null;
   history_sync: WaHistorySync;
 }

@@ -13,7 +13,8 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
-import { formatDateTime } from '@/utils/format';
+import { formatDate, formatDateTime } from '@/utils/format';
+import { plural } from '@/utils/plural';
 import { parseApiError } from '@/utils/apiError';
 import {
   finishWhatsappEmbeddedSignup, getWhatsappConnectStatus, type WaConnectedNumber,
@@ -57,6 +58,9 @@ function NumberCard({ n }: { n: WaConnectedNumber }) {
           : 'Usado só pelo Provador.'}
       </Text>
       {!!n.connected_at && <Text style={styles.small}>Conectado em {formatDateTime(n.connected_at)}</Text>}
+      {!!n.token_expires_at && n.token_status === 'ok' && (
+        <Text style={styles.small}>{`Autorização com a Meta vale até ${formatDate(n.token_expires_at)} (${plural(n.token_days_left ?? 0, 'dia', 'dias')}).`}</Text>
+      )}
       {!!n.warning && <Text style={[styles.note, { color: Colors.light.warning, fontWeight: '700' }]}>{n.warning}</Text>}
       {n.is_coexistence && !!hist && (
         <Text style={styles.small}>
@@ -83,6 +87,7 @@ export default function WhatsappConnectScreen() {
   });
 
   const ready = !!data?.app_id && !!data?.config_id;
+  const renew = (data?.numbers ?? []).some((n) => n.token_status === 'expiring' || n.token_status === 'expired');
   const isWeb = Platform.OS === 'web';
 
   const connect = async () => {
@@ -157,7 +162,7 @@ export default function WhatsappConnectScreen() {
                 disabled={!isWeb || !ready || busy}
                 style={{ alignSelf: 'flex-start', marginTop: 4 }}
               >
-                Conectar
+                {renew ? 'Renovar a conexão' : 'Conectar'}
               </Button>
             </View>
           </>

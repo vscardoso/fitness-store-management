@@ -22,7 +22,7 @@ os envios do Provador ainda usam o token global WHATSAPP_CLOUD_ACCESS_TOKEN (o t
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -73,6 +73,51 @@ def _meta_code(data: dict):
     return (err or {}).get("code") if isinstance(err, dict) else None
 
 
+TOKEN_WARN_DAYS = 15   # a partir daqui a tela e a caixa de alertas avisam que a autorização está perto de vencer
+
+
+async def _token_expiry(token: str, exchange: dict, now: datetime) -> Optional[datetime]:
+    """Quando a autorização vence. A troca do código costuma trazer `expires_in` (segundos); senão pergunta à Meta (`debug_token`,
+    `expires_at` 0 = não vence). Qualquer falha devolve None (sem vencimento conhecido): nunca derruba a conexão."""
+    exp = exchange.get("expires_in")
+    if isinstance(exp, (int, float)) and not isinstance(exp, bool) and exp > 0:
+        return now + timedelta(seconds=float(exp))
+    try:
+        status, dbg = await _graph("GET", "debug_token", params={
+            "input_token": token, "access_token": f"{settings.WHATSAPP_CLOUD_APP_ID}|{settings.WHATSAPP_CLOUD_APP_SECRET}"})
+        at = ((dbg or {}).get("data") or {}).get("expires_at") if status == 200 else None
+        if isinstance(at, (int, float)) and not isinstance(at, bool) and at > 0:
+            return datetime.fromtimestamp(float(at), tz=timezone.utc)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("WhatsApp conexão: não consegui ler o vencimento do token (%s)", type(exc).__name__)
+    return None
+
+
+def token_state(n: WhatsAppCloudNumber, now: Optional[datetime] = None) -> tuple[Optional[str], Optional[int]]:
+    """('ok' | 'expiring' | 'expired' | None, dias que faltam). None = sem vencimento conhecido."""
+    exp = getattr(n, "token_expires_at", None)
+    if exp is None:
+        return None, None
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    secs = (exp - now).total_seconds()
+    if secs <= 0:
+        return "expired", 0
+    days = int(secs // 86400) + (1 if secs % 86400 else 0)     # dia começado conta: faltam 14 dias e meio = 15
+    return ("expiring" if days <= TOKEN_WARN_DAYS else "ok"), days
+
+
+def token_warning(n: WhatsAppCloudNumber, now: Optional[datetime] = None) -> Optional[str]:
+    state, days = token_state(n, now)
+    if state == "expired":
+        return "A autorização do WhatsApp da loja venceu. Toque em Conectar para renovar (o número e as conversas continuam como estão)."
+    if state == "expiring":
+        quando = "vence hoje" if days <= 1 else f"vence em {days} dias"
+        return f"A autorização do WhatsApp da loja {quando}. Toque em Conectar para renovar antes."
+    return None
+
+
 def is_configured() -> bool:
     return bool(settings.WHATSAPP_CLOUD_APP_ID and settings.WHATSAPP_CLOUD_APP_SECRET)
 
@@ -105,6 +150,7 @@ async def connect_embedded_signup(
         "client_id": settings.WHATSAPP_CLOUD_APP_ID, "client_secret": settings.WHATSAPP_CLOUD_APP_SECRET, "code": code,
     })
     token = data.get("access_token") if status == 200 else None
+    exchange = data if status == 200 and isinstance(data, dict) else {}
     if not token or not isinstance(token, str):
         logger.warning("WhatsApp conexão: troca do código recusada (HTTP %s, código Meta %s)", status, _meta_code(data))
         raise ConnectError(
@@ -149,6 +195,7 @@ async def connect_embedded_signup(
     number.verified_name = (str(info.get("verified_name") or "")[:120] or number.verified_name)
     number.is_coexistence = bool(coexistence)
     number.access_token_encrypted = secret_box.encrypt(token)
+    number.token_expires_at = await _token_expiry(token, exchange, now)
     number.connected_at = now
     number.connection_status = "connected"
     number.connection_event = "EMBEDDED_SIGNUP"
@@ -198,7 +245,10 @@ def number_status(n: WhatsAppCloudNumber) -> dict:
         "connection_event": n.connection_event,
         "connection_event_at": _iso(n.connection_event_at),
         "connection_detail": detail,
-        "warning": WARNINGS.get(n.connection_status or ""),
+        "warning": WARNINGS.get(n.connection_status or "") or token_warning(n),
+        "token_expires_at": _iso(getattr(n, "token_expires_at", None)),
+        "token_days_left": token_state(n)[1],
+        "token_status": token_state(n)[0],
         "contacts_sync_requested_at": _iso(n.contacts_sync_requested_at),
         "history_sync": {
             "status": n.history_sync_status,
