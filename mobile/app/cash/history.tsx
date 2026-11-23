@@ -68,9 +68,9 @@ export default function CashHistoryScreen() {
         {!isLoading && !error && (data?.length ?? 0) === 0 && (
           <EmptyState
             icon="cash-outline"
-            title="Nenhum caixa aberto ainda"
-            description="Cada vez que você abre e fecha o caixa, o resultado da contagem aparece aqui."
-            actionLabel="Abrir o caixa"
+            title="Nenhuma conferência ainda"
+            description="Cada vez que você abre e fecha o caixa do turno para conferir a gaveta, o resultado da contagem aparece aqui."
+            actionLabel="Ir para a gaveta"
             onAction={() => router.push('/cash' as any)}
           />
         )}

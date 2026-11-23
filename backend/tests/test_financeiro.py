@@ -315,3 +315,39 @@ async def test_gaveta_e_um_numero_so_o_do_financeiro_e_retirada_nao_passa_dele(t
     assert r.status_code == 400 and "110,00" in r.json()["detail"]         # o turno deixaria (150), a gaveta só tem 110
     r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 110, "reason": "sangria"})
     assert r.status_code in (200, 201), r.text
+
+
+async def test_tirar_e_colocar_na_gaveta_sem_caixa_aberto(test_client, async_session, test_user):
+    """Depositar R$ 100 no banco, pagar ou guardar não exige abrir o caixa: vale o saldo da gaveta no Financeiro."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _zerar_implantacao(async_session, t_id)
+    # sem Financeiro implantado continua exigindo caixa aberto (não há saldo para valer)
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 10, "reason": "outro"})
+    assert r.status_code == 409 and "caixa aberto" in r.json()["detail"]
+
+    d = (await _implantar(test_client, h, payables=[])).json()          # gaveta 150, Nubank 1000
+    nu = _conta(d, "Nubank")["id"]
+    assert (await test_client.get("/api/v1/cash/current", headers=h)).json()["open"] is False
+
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 100, "reason": "sangria", "account_id": nu})
+    assert r.status_code in (200, 201), r.text
+    assert r.json()["drawer"]["expected"] == 50.0 and r.json()["moved"]["transfer_id"]
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    assert _conta(d, "Gaveta")["balance"] == 50.0 and _conta(d, "Nubank")["balance"] == 1100.0
+    assert d["total"] == 1400.0                                         # R$ 100 mudou de conta, o total não muda
+
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 20, "reason": "pagamento"})
+    assert r.status_code in (200, 201) and r.json()["drawer"]["expected"] == 30.0
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 5, "reason": "guardar"})
+    assert r.status_code in (200, 201) and r.json()["drawer"]["expected"] == 25.0
+
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 26, "reason": "outro"})
+    assert r.status_code == 400 and "25,00" in r.json()["detail"]       # não passa do que a gaveta tem
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "supply", "amount": 15, "reason": "aporte"})
+    assert r.status_code in (200, 201) and r.json()["drawer"]["expected"] == 40.0
+
+    # abrir o caixa depois parte do saldo da gaveta; o que foi movimentado antes não entra de novo no turno
+    r = await test_client.post("/api/v1/cash/open", headers=h, json={"opening_amount": 40, "align_drawer": True})
+    assert r.status_code == 201, r.text
+    cur = (await test_client.get("/api/v1/cash/current", headers=h)).json()
+    assert cur["session"]["expected_amount"] == 40.0 and cur["drawer"]["expected"] == 40.0 and cur["drawer"]["other"] == 0.0

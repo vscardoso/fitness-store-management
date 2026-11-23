@@ -38,7 +38,7 @@ D0 = Decimal("0.00")
 MAX_AMOUNT = Decimal("1000000")
 REASONS = {
     KIND_SUPPLY: {"troco": "Reforço de troco", "aporte": "Dinheiro colocado no caixa", "outro": "Outro"},
-    KIND_WITHDRAWAL: {"sangria": "Retirada para guardar ou depositar", "pagamento": "Pagamento feito com dinheiro do caixa", "outro": "Outro"},
+    KIND_WITHDRAWAL: {"sangria": "Depósito no banco", "pagamento": "Pagamento feito com dinheiro da gaveta", "guardar": "Guardado fora da gaveta", "outro": "Outro"},
 }
 
 
@@ -301,7 +301,7 @@ class CashRegisterService:
         value = _money(amount, "Valor", allow_zero=False)
         s = await self._open_session(tenant_id, lock=True)   # trava o turno: duas sangrias juntas não furam o saldo
         if s is None:
-            raise CashConflict("Não há caixa aberto. Abra o caixa primeiro.")
+            return await self._move_without_session(tenant_id, user, kind, value, reason, note, account_id)
         if kind == KIND_WITHDRAWAL:
             have = _num((await self._live_totals(s, tenant_id, datetime.utcnow()))["expected_amount"])
             drawer = await self._drawer(tenant_id)
@@ -317,6 +317,28 @@ class CashRegisterService:
         ))
         await self.db.commit()
         return await self._view(s, tenant_id)
+
+    async def _move_without_session(self, tenant_id: int, user: User, kind: str, value: Decimal, reason: str,
+                                    note: Optional[str], account_id: Optional[int]) -> Dict[str, Any]:
+        """Colocar ou tirar dinheiro da gaveta SEM caixa aberto: vale o saldo da gaveta no Financeiro (o caixa do turno só
+        serve para conferir a contagem). Sem Financeiro implantado não há saldo para valer: abre o caixa."""
+        from app.models.store import Store
+        await self.db.execute(select(Store.id).where(Store.id == tenant_id).with_for_update())   # duas retiradas juntas não furam o saldo
+        drawer = await self._drawer(tenant_id)
+        if not drawer["started"] or drawer["expected"] is None:
+            raise CashConflict("Não há caixa aberto. Abra o caixa primeiro.")
+        have = _num(drawer["expected"])
+        if kind == KIND_WITHDRAWAL and value > have:
+            raise CashError(f"Não há esse dinheiro na gaveta: o sistema espera R$ {have:.2f}.".replace(".", ","))
+        transfer_id = await self._linked_transfer(tenant_id, user, kind, value, account_id) if account_id else None
+        self.db.add(CashMovement(
+            tenant_id=tenant_id, session_id=None, kind=kind, amount=value, reason=reason,
+            note=(note or "").strip()[:500] or None, created_by_id=user.id, created_by_name=_who(user), is_active=True,
+            transfer_id=transfer_id,
+        ))
+        await self.db.commit()
+        return {"open": False, "session": None, "last_closed": None, "drawer": await self._drawer(tenant_id),
+                "moved": {"kind": kind, "amount": float(value), "reason": reason, "transfer_id": transfer_id}}
 
     async def _linked_transfer(self, tenant_id: int, user: User, kind: str, value: Decimal, account_id: int) -> int:
         """Retirada para uma conta (ex.: depósito no banco) ou reforço vindo de uma conta: grava a transferência

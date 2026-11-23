@@ -26,7 +26,7 @@ export default function CashStatusCard() {
       onPress={() => router.push('/cash' as any)}
       activeOpacity={0.8}
       accessibilityRole="button"
-      accessibilityLabel={s ? 'Caixa aberto: ver, colocar, retirar ou fechar' : 'Caixa fechado: abrir o caixa'}
+      accessibilityLabel={s ? 'Conferência aberta: colocar, tirar ou fechar' : 'Gaveta: colocar ou tirar dinheiro'}
     >
       <View style={[styles.icon, { backgroundColor: (s ? Colors.light.success : brand.primary) + '18' }]}>
         <Ionicons name="cash-outline" size={20} color={s ? Colors.light.success : brand.primary} />
@@ -34,14 +34,14 @@ export default function CashStatusCard() {
       <View style={styles.texts}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Caixa da gaveta</Text>
-          <Badge label={s ? 'Aberto' : 'Fechado'} variant={s ? 'success' : 'neutral'} size="sm" />
+          {!!s && <Badge label="Conferindo" variant="success" size="sm" />}
         </View>
         <Text style={styles.note} numberOfLines={2}>
           {s
-            ? `Aberto desde ${formatDateTime(s.opened_at)}. Toque para colocar, retirar ou fechar.`
+            ? `Conferência aberta desde ${formatDateTime(s.opened_at)}. Toque para colocar, tirar ou fechar.`
             : data?.last_closed
-              ? `Último fechamento: ${formatCurrency(data.last_closed.counted_amount)} contados. Toque para abrir o caixa do turno.`
-              : 'Toque para abrir o caixa do turno.'}
+              ? `Toque para colocar ou tirar dinheiro. Última conferência: ${formatCurrency(data.last_closed.counted_amount)} contados.`
+              : 'Toque para colocar ou tirar dinheiro da gaveta.'}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />

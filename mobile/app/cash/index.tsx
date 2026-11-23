@@ -1,6 +1,7 @@
 /**
- * Caixa da loja: abre com o dinheiro que já está na gaveta, mostra quanto DEVE ter agora (vendas em dinheiro,
- * devoluções, suprimentos e sangrias), e fecha contando o dinheiro. O caixa é opcional: sem ele as vendas seguem normais.
+ * Gaveta da loja: UM número (quanto tem na gaveta agora, o mesmo da conta Gaveta do Financeiro) e duas ações sempre à mão,
+ * Colocar e Tirar, com ou sem caixa aberto. "Tirar" faz uma pergunta só: para onde vai o dinheiro (banco, pagar algo, guardar).
+ * O caixa do turno é opcional e serve para CONFERIR: conta o dinheiro, compara com o sistema e mostra as vendas em dinheiro.
  * PIX e cartão não vão para a gaveta: aparecem à parte só para conferir com a maquininha e o banco.
  */
 import React, { useMemo, useState } from 'react';
@@ -34,19 +35,18 @@ import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
 import { getFinanceOverview } from '@/services/financeService';
 import { goBackOr } from '@/utils/navBack';
 
-// Mesmos motivos do servidor (app/services/cash_register_service.py, REASONS); o servidor recusa qualquer outro.
-const REASONS: Record<MovementKind, { id: string; label: string }[]> = {
-  supply: [
-    { id: 'troco', label: 'Reforço de troco' },
-    { id: 'aporte', label: 'Dinheiro colocado no caixa' },
-    { id: 'outro', label: 'Outro' },
-  ],
-  withdrawal: [
-    { id: 'sangria', label: 'Guardar ou depositar' },
-    { id: 'pagamento', label: 'Pagamento feito com o caixa' },
-    { id: 'outro', label: 'Outro' },
-  ],
-};
+// Uma pergunta só ("para onde vai" / "de onde vem"): cada resposta já é o motivo que o servidor guarda (REASONS em
+// app/services/cash_register_service.py) e, quando é um banco, a conta da transferência.
+type Dest = { key: string; label: string; reason: string; accountId: number | null };
+const SUPPLY_FIXED: Dest[] = [
+  { key: 'aporte', label: 'De fora (do bolso)', reason: 'aporte', accountId: null },
+  { key: 'troco', label: 'Troco para o caixa', reason: 'troco', accountId: null },
+];
+const WITHDRAWAL_FIXED: Dest[] = [
+  { key: 'pagamento', label: 'Pagar algo', reason: 'pagamento', accountId: null },
+  { key: 'guardar', label: 'Guardar fora da gaveta', reason: 'guardar', accountId: null },
+  { key: 'outro', label: 'Outro', reason: 'outro', accountId: null },
+];
 
 const METHOD_LABEL: Record<string, string> = {
   pix: 'PIX',
@@ -76,9 +76,10 @@ export default function CashScreen() {
   const [aligned, setAligned] = useState<{ text: string; warn: boolean } | null>(null);
   const [moveKind, setMoveKind] = useState<MovementKind | null>(null);
   const [moveAmount, setMoveAmount] = useState('');
-  const [moveReason, setMoveReason] = useState('');
+  const [moveDest, setMoveDest] = useState('');
   const [moveNote, setMoveNote] = useState('');
-  const [moveAccount, setMoveAccount] = useState<number | null>(null);
+  const [showOpen, setShowOpen] = useState(false);
+  const [done, setDone] = useState('');
   const [closing, setClosing] = useState(false);
   const [counted, setCounted] = useState('');
   const [closeNote, setCloseNote] = useState('');
@@ -124,11 +125,13 @@ export default function CashScreen() {
     onError: fail,
   });
   const move = useMutation({
-    mutationFn: () => addCashMovement(moveKind as MovementKind, parseMoneyBr(moveAmount) as number, moveReason, moveNote.trim(), moveAccount),
-    onSuccess: () => {
+    mutationFn: () => addCashMovement(moveKind as MovementKind, parseMoneyBr(moveAmount) as number, chosenDest?.reason ?? 'outro', moveNote.trim(), chosenDest?.accountId ?? null),
+    onSuccess: (r: any) => {
+      const now = r?.drawer?.started ? r.drawer.expected : r?.session?.expected_amount;
+      setDone(`${moveKind === 'supply' ? 'Colocado' : 'Tirado'}: ${formatCurrency(parseMoneyBr(moveAmount) ?? 0)}${chosenDest ? ` (${chosenDest.label})` : ''}.${typeof now === 'number' ? ` Agora há ${formatCurrency(now)} na gaveta.` : ''}`);
       setMoveKind(null);
       setError('');
-      refresh();
+      queryClient.invalidateQueries();
     },
     onError: fail,
   });
@@ -150,13 +153,20 @@ export default function CashScreen() {
   const startMove = (kind: MovementKind) => {
     setMoveKind(kind);
     setMoveAmount('');
-    setMoveReason(REASONS[kind][0].id);
+    setMoveDest('');
     setMoveNote('');
-    setMoveAccount(null);
+    setDone('');
     setError('');
   };
   // bancos do Financeiro para onde a retirada vai (depósito) / de onde o reforço vem (saque)
   const otherAccounts = finance?.started ? finance.accounts.filter((a) => a.kind === 'bank') : [];
+  const banks: Dest[] = otherAccounts.map((a) => (
+    moveKind === 'supply'
+      ? { key: `bank:${a.id}`, label: `Do ${a.name}`, reason: 'aporte', accountId: a.id }
+      : { key: `bank:${a.id}`, label: `Depositar no ${a.name}`, reason: 'sangria', accountId: a.id }
+  ));
+  const dests: Dest[] = moveKind === 'supply' ? [...SUPPLY_FIXED, ...banks] : [...banks, ...WITHDRAWAL_FIXED];
+  const chosenDest = dests.find((d) => d.key === moveDest) ?? null;
 
   const openValue = parseMoneyBr(openAmount);
   const moveValue = parseMoneyBr(moveAmount);
@@ -170,39 +180,43 @@ export default function CashScreen() {
   const openReasonShort = openDiff !== 0 && openReason.trim().length < openReasonMin;
   const closeReasonShort = closeDiff !== 0 && (closeReason.trim() || closeNote.trim()).length < closeReasonMin;
   // UM número para a gaveta: o do Financeiro quando ele está implantado (o mesmo da conta Gaveta); senão, o do turno
-  const drawerNow = session ? (drawerExpected != null ? drawerExpected : session.expected_amount) : null;
+  const hasDrawer = !!session || drawerExpected != null;
+  const drawerNow = session ? (drawerExpected != null ? drawerExpected : session.expected_amount) : drawerExpected;
   const drawerOther = drawerExpected != null ? (data?.drawer?.other ?? 0) : 0;
   const liveDiff = session && drawerNow !== null && countedValue !== null ? differenceText(countedValue - drawerNow, formatCurrency) : null;
   const others = useMemo(() => Object.entries(session?.other_methods ?? {}), [session]);
 
   const sheetOpen = moveKind !== null || closing;
   const subtitle = session
-    ? `Aberto desde ${formatDateTime(session.opened_at)}${session.opened_by ? ` por ${session.opened_by}` : ''}`
-    : 'Fechado';
+    ? `Conferência aberta desde ${formatDateTime(session.opened_at)}${session.opened_by ? ` por ${session.opened_by}` : ''}`
+    : 'Sem conferência aberta';
 
-  // Com o caixa aberto: o que deve ter na gaveta e as ações do turno (esquerda) e de onde veio o valor (direita)
-  const hero = session && (
+  // O número da gaveta e as duas ações sempre à mão; a conferência (caixa do turno) é um passo à parte, opcional
+  const hero = hasDrawer && (
     <View style={styles.card} testID="cash-expected">
-      <Text style={styles.eyebrow}>DEVE TER NA GAVETA AGORA</Text>
-      <Text style={styles.big}>{formatCurrency(drawerNow ?? session.expected_amount)}</Text>
-      <Text style={styles.small}>{session.sales_count} venda{session.sales_count === 1 ? '' : 's'} no turno</Text>
+      <Text style={styles.eyebrow}>NA GAVETA AGORA</Text>
+      <Text style={styles.big}>{formatCurrency(drawerNow ?? 0)}</Text>
+      {!!session && <Text style={styles.small}>{session.sales_count} venda{session.sales_count === 1 ? '' : 's'} desde que a conferência abriu</Text>}
       <View style={styles.actions}>
-        <AppButton label="Colocar dinheiro" variant="secondary" icon="add" onPress={() => startMove('supply')} style={styles.flex} />
-        <AppButton label="Retirar dinheiro" variant="secondary" icon="remove" onPress={() => startMove('withdrawal')} style={styles.flex} />
+        <AppButton label="Colocar" variant="secondary" icon="add" onPress={() => startMove('supply')} style={styles.flex} />
+        <AppButton label="Tirar" variant="secondary" icon="remove" onPress={() => startMove('withdrawal')} style={styles.flex} />
       </View>
-      <AppButton
-        label="Fechar caixa"
-        variant="outlined"
-        icon="lock-closed-outline"
-        onPress={() => {
-          setClosing(true);
-          setCounted('');
-          setCloseNote('');
-          setError('');
-        }}
-        fullWidth
-        style={styles.btn}
-      />
+      {!!done && <Text style={[styles.note, { color: Colors.light.success }]} testID="cash-done">{done}</Text>}
+      {!!session && (
+        <AppButton
+          label="Conferir e fechar o caixa"
+          variant="outlined"
+          icon="lock-closed-outline"
+          onPress={() => {
+            setClosing(true);
+            setCounted('');
+            setCloseNote('');
+            setError('');
+          }}
+          fullWidth
+          style={styles.btn}
+        />
+      )}
     </View>
   );
   const details = session && (
@@ -283,9 +297,19 @@ export default function CashScreen() {
           </View>
         )}
 
-        {!isLoading && !session && (
+        {!isLoading && !session && hasDrawer && hero}
+
+        {!isLoading && !session && hasDrawer && !showOpen && (
           <View style={styles.card}>
-            <Text style={styles.title}>Abrir o caixa</Text>
+            <Text style={styles.title}>Conferir a gaveta</Text>
+            <Text style={styles.note}>Opcional. Conte o dinheiro e compare com o sistema; dali em diante o app mostra as vendas em dinheiro do turno.</Text>
+            <AppButton label="Abrir o caixa do turno" variant="outlined" icon="lock-open-outline" onPress={() => setShowOpen(true)} fullWidth style={styles.btn} />
+          </View>
+        )}
+
+        {!isLoading && !session && (!hasDrawer || showOpen) && (
+          <View style={styles.card}>
+            <Text style={styles.title}>Abrir o caixa do turno</Text>
             <Text style={styles.note}>Conte o dinheiro da gaveta e informe. Dali em diante o app soma as vendas em dinheiro.</Text>
             {drawerExpected != null && (
               <Text style={styles.note} testID="cash-drawer-expected">
@@ -338,7 +362,7 @@ export default function CashScreen() {
           </View>
         )}
 
-        {session && (isDesktop ? (
+        {!!session && (isDesktop ? (
           <View style={styles.columns}>
             <View style={styles.col}>{hero}</View>
             <View style={styles.col}>{details}</View>
@@ -354,8 +378,8 @@ export default function CashScreen() {
       <BottomSheet
         visible={moveKind !== null}
         onDismiss={() => setMoveKind(null)}
-        title={moveKind === 'supply' ? 'Colocar dinheiro no caixa' : 'Retirar dinheiro do caixa'}
-        subtitle={session ? `Agora há ${formatCurrency(drawerNow ?? session.expected_amount)} na gaveta` : undefined}
+        title={moveKind === 'supply' ? 'Colocar dinheiro na gaveta' : 'Tirar dinheiro da gaveta'}
+        subtitle={hasDrawer ? `Agora há ${formatCurrency(drawerNow ?? 0)} na gaveta` : undefined}
         icon={moveKind === 'supply' ? 'add-circle-outline' : 'remove-circle-outline'}
         actions={[
           { label: 'Cancelar', variant: 'secondary', onPress: () => setMoveKind(null) },
@@ -363,7 +387,7 @@ export default function CashScreen() {
             label: 'Confirmar',
             onPress: () => move.mutate(),
             loading: move.isPending,
-            disabled: moveValue === null || moveValue <= 0 || move.isPending,
+            disabled: moveValue === null || moveValue <= 0 || !chosenDest || move.isPending,
           },
         ]}
       >
@@ -376,41 +400,24 @@ export default function CashScreen() {
           placeholder="0,00"
           style={styles.input}
         />
-        <Text style={styles.label}>Motivo</Text>
+        <Text style={styles.label}>{moveKind === 'supply' ? 'De onde vem o dinheiro?' : 'Para onde vai o dinheiro?'}</Text>
         <View style={styles.chips}>
-          {(moveKind ? REASONS[moveKind] : []).map((r) => (
+          {dests.map((d) => (
             <TouchableOpacity
-              key={r.id}
-              onPress={() => setMoveReason(r.id)}
-              style={[styles.chip, moveReason === r.id && { backgroundColor: brand.primary, borderColor: brand.primary }]}
+              key={d.key}
+              onPress={() => setMoveDest(d.key)}
+              style={[styles.chip, moveDest === d.key && { backgroundColor: brand.primary, borderColor: brand.primary }]}
             >
-              <Text style={[styles.chipText, moveReason === r.id && { color: Colors.light.white }]}>{r.label}</Text>
+              <Text style={[styles.chipText, moveDest === d.key && { color: Colors.light.white }]}>{d.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        {otherAccounts.length > 0 && (
-          <>
-            <Text style={styles.label}>{moveKind === 'supply' ? 'De onde veio o dinheiro?' : 'Para onde foi o dinheiro?'}</Text>
-            <View style={styles.chips}>
-              {[{ id: null as number | null, name: moveKind === 'supply' ? 'De fora (ex.: do bolso)' : 'Saiu da loja (pagamento, outro)' },
-                ...otherAccounts.map((a) => ({ id: a.id as number | null, name: a.name }))].map((o) => (
-                <TouchableOpacity
-                  key={o.id ?? 'fora'}
-                  onPress={() => setMoveAccount(o.id)}
-                  style={[styles.chip, moveAccount === o.id && { backgroundColor: brand.primary, borderColor: brand.primary }]}
-                >
-                  <Text style={[styles.chipText, moveAccount === o.id && { color: Colors.light.white }]}>{o.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {moveAccount !== null && (
-              <Text style={styles.small}>
-                {moveKind === 'supply'
-                  ? 'O valor sai dessa conta e entra na gaveta no Financeiro.'
-                  : 'O valor sai da gaveta e entra nessa conta no Financeiro (depósito). Não precisa transferir de novo.'}
-              </Text>
-            )}
-          </>
+        {chosenDest?.accountId != null && (
+          <Text style={styles.small}>
+            {moveKind === 'supply'
+              ? 'O valor sai dessa conta e entra na gaveta no Financeiro.'
+              : 'O valor sai da gaveta e entra no banco no Financeiro. Não precisa transferir de novo.'}
+          </Text>
         )}
         <TextInput mode="outlined" label="Observação (opcional)" value={moveNote} onChangeText={setMoveNote} style={styles.input} />
         {!!error && <Text style={styles.error}>{error}</Text>}
@@ -419,7 +426,7 @@ export default function CashScreen() {
       <BottomSheet
         visible={closing}
         onDismiss={() => setClosing(false)}
-        title="Fechar o caixa"
+        title="Conferir e fechar o caixa"
         subtitle={session ? `O sistema espera ${formatCurrency(drawerNow ?? session.expected_amount)}` : undefined}
         icon="lock-closed-outline"
         actions={[

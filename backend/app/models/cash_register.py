@@ -58,7 +58,8 @@ class CashMovement(BaseModel):
     __tablename__ = "cash_movements"
     __table_args__ = (Index("ix_cash_movements_session", "session_id"),)
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("cash_sessions.id", ondelete="CASCADE"), nullable=False)
+    # nulo = dinheiro colocado ou tirado da gaveta SEM caixa aberto (o Financeiro conta pelo tenant e pela data, não pelo turno)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("cash_sessions.id", ondelete="CASCADE"), nullable=True)
     kind: Mapped[str] = mapped_column(String(12), nullable=False, comment="supply | withdrawal")
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     reason: Mapped[str] = mapped_column(String(20), nullable=False)
