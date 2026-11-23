@@ -87,7 +87,7 @@ function MobileSalesListScreen() {
     queryKey: ['sales', skip, search, dateRange],
     queryFn: async () => {
       const params: any = { skip, limit: 50, ...dateRange };
-      if (search.trim().length > 0) params.sale_number = search.trim();
+      if (search.trim().length > 0) params.q = search.trim();
       return getSales(params);
     },
   });
@@ -270,7 +270,7 @@ function MobileSalesListScreen() {
           <Ionicons name="search-outline" size={18} color={Colors.light.textTertiary} style={{ flexShrink: 0 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar por número da venda..."
+            placeholder="Buscar por número, cliente, vendedor ou peça..."
             placeholderTextColor={Colors.light.textTertiary}
             value={search}
             onChangeText={(text) => { setSearch(text); setSkip(0); }}
@@ -306,7 +306,7 @@ function MobileSalesListScreen() {
             <EmptyState
               icon="receipt-outline"
               title="Nenhuma venda encontrada"
-              description={search ? 'Tente buscar por outro número' : 'As vendas realizadas aparecerão aqui'}
+              description={search ? 'Tente buscar por outro nome, número ou peça' : 'As vendas realizadas aparecerão aqui'}
             />
           }
         />

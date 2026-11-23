@@ -34,6 +34,8 @@ export const getSales = async (params?: PaginationParams & {
   seller_id?: number;
   start_date?: string;
   end_date?: string;
+  sale_number?: string;
+  q?: string;
 }): Promise<Sale[]> => {
   try {
     const { data } = await api.get<Sale[]>('/sales/', { params });

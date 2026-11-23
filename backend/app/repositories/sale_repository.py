@@ -5,12 +5,14 @@ from app.core.timezone import br_day_end_utc, br_day_start_utc
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, List, Optional, Sequence
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.product import Product
+from app.models.customer import Customer
+from app.models.user import User
 from app.models.product_variant import ProductVariant
 from app.repositories.base import BaseRepository
 
@@ -119,6 +121,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         seller_id: int | None = None,
         status: SaleStatus | str | None = None,
         sale_number: str | None = None,
+        q: str | None = None,
         skip: int = 0,
         limit: int = 100,
     ) -> Sequence[Sale]:
@@ -141,6 +144,24 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         if sale_number:
             # número exato, sem diferenciar caixa (o texto do usuário nunca vira curinga)
             conditions.append(func.lower(Sale.sale_number) == sale_number.strip().lower())
+        # Busca livre (q): cada palavra tem que aparecer no número da venda, no nome da cliente, no do vendedor ou
+        # numa peça da venda (nome, código, cor ou tamanho). O texto digitado nunca vira curinga.
+        for word in (q or "").split()[:6]:
+            esc = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pat = f"%{esc}%"
+            conditions.append(or_(
+                Sale.sale_number.ilike(pat, escape="\\"),
+                Sale.customer.has(Customer.full_name.ilike(pat, escape="\\")),
+                Sale.seller.has(User.full_name.ilike(pat, escape="\\")),
+                Sale.items.any(or_(
+                    SaleItem.product.has(Product.name.ilike(pat, escape="\\")),
+                    SaleItem.variant.has(or_(
+                        ProductVariant.sku.ilike(pat, escape="\\"),
+                        ProductVariant.color.ilike(pat, escape="\\"),
+                        ProductVariant.size.ilike(pat, escape="\\"),
+                    )),
+                )),
+            ))
         query = (
             select(Sale)
             .where(and_(*conditions))

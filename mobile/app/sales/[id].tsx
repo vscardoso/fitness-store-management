@@ -775,7 +775,7 @@ export default function SaleDetailsScreen() {
 
       <CustomerSelectionModal
         visible={customerPickerOpen} onDismiss={() => setCustomerPickerOpen(false)}
-        title="Atribuir cliente" subtitle="Escolha quem comprou. Os pontos de fidelidade não são gerados depois da venda."
+        title="Atribuir cliente" subtitle="Escolha quem comprou. A venda entra no total do cliente e gera os pontos de fidelidade."
         dismissLabel="Voltar" onSelectCustomer={(c) => handleAssignCustomer(c.id)}
       />
 

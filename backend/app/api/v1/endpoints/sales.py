@@ -185,6 +185,7 @@ async def list_sales(
     start_date: Optional[date] = Query(None, description="Data inicial (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Data final (YYYY-MM-DD)"),
     sale_number: Optional[str] = Query(None, description="Buscar por número da venda"),
+    q: Optional[str] = Query(None, max_length=80, description="Busca livre: número, cliente, vendedor ou peça"),
     status_filter: Optional[SaleStatus] = Query(None, alias="status", description="Filtrar por status da venda"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -239,6 +240,7 @@ async def list_sales(
             seller_id=seller_id,
             status=status_filter,
             sale_number=sale_number,
+            q=q,
             skip=skip,
             limit=limit,
         )
@@ -536,8 +538,8 @@ async def assign_sale_customer(
 ):
     """
     Só vale para venda concluída e sem cliente (trocar de cliente não entra).
-    Soma a venda no total comprado do cliente (para um cancelamento ou devolução depois estornar certo),
-    mas NÃO gera pontos de fidelidade retroativos.
+    Soma a venda no total comprado do cliente e gera os pontos de fidelidade dela agora (o cancelamento depois estorna os dois).
+    Fiado nunca entra aqui: venda no fiado já não é criada sem cliente.
     """
     sale = await SaleRepository(db).get_with_details(sale_id, tenant_id=tenant_id)
     if not sale:
@@ -549,16 +551,21 @@ async def assign_sale_customer(
     customer = await CustomerRepository(db).get(db, body.customer_id, tenant_id=tenant_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Cliente não encontrada")
+    if any(str(getattr(p.payment_method, "value", p.payment_method)).lower() == "on_account" for p in (sale.payments or [])):
+        raise HTTPException(status_code=400, detail="Venda no fiado precisa de cliente desde o começo; esta não pode ser atribuída depois.")
     sale.customer_id = customer.id
     customer.total_spent = float(Decimal(str(customer.total_spent or 0)) + Decimal(str(sale.total_amount)))
     customer.total_purchases = (customer.total_purchases or 0) + 1
+    from app.services.loyalty_service import LoyaltyService
+    pontos = await LoyaltyService(db).earn(customer, sale.id, Decimal(str(sale.total_amount)), tenant_id)
+    sale.loyalty_points_earned = float(pontos)
     await db.flush()
     await AuditService.log(db, "SALE_CUSTOMER_ASSIGNED",
         tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
         entity="sale", entity_id=sale_id,
-        detail={"customer_id": customer.id, "total": float(sale.total_amount)},
+        detail={"customer_id": customer.id, "total": float(sale.total_amount), "points": float(pontos)},
     )
-    return {"id": sale.id, "customer_id": customer.id, "customer_name": customer.full_name}
+    return {"id": sale.id, "customer_id": customer.id, "customer_name": customer.full_name, "points_earned": float(pontos)}
 
 
 # ============================================================================

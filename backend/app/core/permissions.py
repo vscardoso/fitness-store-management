@@ -53,6 +53,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     (WRITE, r"^/pdv/terminals(/|$)", ADMIN),
     ({"POST"}, r"^/pdv/(orders/\{sale_id\}|pix/\{payment_id\})/refund$", ADMIN),
     ({"POST"}, r"^/sales/\{sale_id\}/cancel$", ADMIN),
+    ({"PATCH"}, r"^/sales/\{sale_id\}/customer$", MANAGER),
     ({"GET"}, r"^/stock-entries/removals$", MANAGER),  # Saídas sem venda: mostra custo, gerente para cima
     ({"POST"}, r"^/reports/stock-check/writeoff$", ADMIN),  # baixa de estoque pela Conferência
     (ANY, r"^/stock-import(/|$)", MANAGER),  # importar estoque inicial por planilha
