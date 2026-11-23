@@ -246,6 +246,7 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Gestão</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />
+            <MenuItem icon="receipt-outline" title="Histórico de vendas" subtitle="Todas as vendas, com filtro e detalhe" onPress={() => router.push('/(tabs)/sales' as any)} iconColor={Colors.light.success} iconBg={Colors.light.successLight} />
             <MenuItem icon="qr-code-outline" title="Consultar Peça" subtitle="Bipe a etiqueta e veja preço e estoque" onPress={() => router.push('/products/consult' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
             <MenuItem icon="people-outline" title="Clientes" subtitle="Gerenciar clientes e fidelidade" onPress={() => router.push('/(tabs)/customers')} iconColor={Colors.light.info} iconBg={Colors.light.infoLight} />
             <MenuItem icon="swap-horizontal-outline" title="Condicionais" subtitle="Peças que estão com o cliente para experimentar" onPress={() => router.push('/(tabs)/conditional' as any)} iconColor={Colors.light.warning} iconBg={Colors.light.warningLight} />
