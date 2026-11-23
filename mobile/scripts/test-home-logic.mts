@@ -20,16 +20,14 @@ t('contagem inválida não quebra', () => {
 
 const pct = (v: number) => v.toFixed(1).replace('.', ',') + '%';
 const spct = (v: number) => (v > 0 ? '+' : '') + pct(v);
-t('dia com devolução maior que a venda (caso real de 22/11/2026): mostra o vendido e a devolução, não uma venda negativa', () => {
+t('dia com devolução maior que a venda (caso real de 22/11/2026): diz o vendido e o devolvido, não uma venda negativa', () => {
   // vendeu R$ 450,00 (1 venda), devolveu R$ 712,14 de uma venda de outro dia: líquido -R$ 262,14
-  assert.equal(norm(todayLine(-262.14, 1, money, 450, 712.14)), 'Hoje: R$ 450,00 em 1 venda');
-  const sub = todaySub({ net: -262.14, refunds: 712.14, profit: -262.14, margin: 0, count: 1, trend: 0 }, money, pct, spct)!;
-  assert.equal(norm(sub), 'Devolveu R$ 712,14 hoje · o dia ficou em R$ -262,14');
-  assert.ok(!/margem/.test(sub));                                  // margem de dia com líquido negativo não existe
+  assert.equal(norm(todayLine(-262.14, 1, money, 450, 712.14)), 'Hoje: R$ 450,00 em 1 venda · devolveu R$ 712,14');
+  assert.equal(todaySub({ net: -262.14, refunds: 712.14, profit: -262.14, margin: 0, count: 1, trend: 0 }, money, pct, spct), null);   // sem lucro nem margem
 });
-t('dia sem venda mas com devolução: convite em cima, devolução embaixo', () => {
-  assert.equal(todayLine(-50, 0, money, 0, 50), 'Hoje: nenhuma venda ainda');
-  assert.equal(norm(todaySub({ net: -50, refunds: 50, profit: -20, margin: 0, count: 0, trend: 0 }, money, pct, spct)!), 'Devolveu R$ 50,00 hoje · o dia ficou em R$ -50,00');
+t('dia sem venda mas com devolução: diz que não vendeu e quanto devolveu', () => {
+  assert.equal(norm(todayLine(-50, 0, money, 0, 50)), 'Hoje: nenhuma venda · devolveu R$ 50,00');
+  assert.equal(todayLine(0, 0, money, 0, 0), 'Hoje: nenhuma venda ainda');
 });
 t('dia normal continua igual: lucro, margem e variação; sem venda não há linha de baixo', () => {
   assert.equal(norm(todayLine(80, 1, money, 80, 0)), 'Hoje: R$ 80,00 em 1 venda');

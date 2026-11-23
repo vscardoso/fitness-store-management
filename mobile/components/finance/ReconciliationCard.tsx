@@ -5,6 +5,7 @@
  */
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 
@@ -31,6 +32,7 @@ function toneOf(r: ReconRow): string | undefined {
 }
 
 export default function ReconciliationCard() {
+  const router = useRouter();
   const { data } = useQuery({ queryKey: ['finance-reconciliation'], queryFn: () => getReconciliation(), refetchInterval: 60_000 });
   const [open, setOpen] = useState(false);
   const [showBridge, setShowBridge] = useState(false);
@@ -85,6 +87,17 @@ export default function ReconciliationCard() {
               ))}
               {Math.abs(bridge.residual) > 0.004 && <Row label="± Sobra sem explicação" value={`${bridge.residual > 0 ? '+' : '-'} ${formatCurrency(Math.abs(bridge.residual))}`} tone={Colors.light.warningDark} bold />}
               <Row label="= Aumento nas contas desde o começo do mês" value={formatCurrency(bridge.change_in_accounts)} bold />
+              {!!bridge.suspect_sales?.length && (
+                <View style={styles.bridge} testID="finance-suspects">
+                  <Text style={styles.adjTitle}>Vendas em que o valor pago não bate com o total</Text>
+                  {bridge.suspect_sales.map((v) => (
+                    <TouchableOpacity key={v.sale_id} onPress={() => router.push(`/sales/${v.sale_id}` as any)} accessibilityRole="link" style={styles.row}>
+                      <Text style={[styles.label, styles.link]} numberOfLines={1}>{v.sale_number}</Text>
+                      <Text style={styles.value}>{`vendeu ${formatCurrency(v.total)} · pagou ${formatCurrency(v.paid)}`}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <Text style={styles.note}>
                 {`Das contas, ${formatCurrency(bridge.available)} está disponível (gaveta e bancos) e ${formatCurrency(bridge.card_receivable)} ainda está na maquininha.`}
               </Text>

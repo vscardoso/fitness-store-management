@@ -340,6 +340,8 @@ export interface ReconciliationBridge {
   sold: number; spent: number; should_be_left: number; change_in_accounts: number; residual: number;
   status: 'ok' | 'unexplained'; card_receivable: number; available: number;
   lines: { key: string; label: string; amount: number }[];
+  /** Só com sobra sem explicação: vendas do mês em que o valor pago não bate com o total (onde esse dinheiro costuma estar). */
+  suspect_sales?: { sale_id: number; sale_number: string; total: number; paid: number; difference: number }[];
 }
 /** Começou + entrou - saiu = deveria ter, contra o que as contas mostram. A diferença é o que foi corrigido à mão. */
 export const getReconciliation = async (year?: number, month?: number): Promise<Reconciliation> =>

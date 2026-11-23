@@ -131,3 +131,40 @@ async def test_ponte_explica_onde_foi_cada_real_e_nao_sobra_nada_sem_explicacao(
     assert pt["owner"] == -25.0 and pt["adjustments"] == -3.0
     assert b["residual"] == 0 and b["status"] == "ok", b
     assert round(b["should_be_left"] + sum(pt.values()), 2) == b["change_in_accounts"]
+
+
+async def test_troca_nao_deixa_sobra_sem_explicacao_o_credito_da_peca_devolvida_paga_a_nova(test_client, async_session, test_user):
+    """Caso real de novembro de 2026 (R$ 299,85 sem explicação): na troca a venda da peça nova entra inteira, mas o crédito da peça devolvida
+    paga parte dela (ou toda), então só a diferença vira pagamento. A ponte tem uma linha para isso e a sobra sem explicação é ZERO."""
+    from sqlalchemy import select
+    from app.models.product_variant import ProductVariant
+    t_id, h, p, va, ids = await _loja(test_client, async_session, test_user)
+    vb = (await async_session.execute(select(ProductVariant).where(ProductVariant.product_id == p.id, ProductVariant.id != va.id))).scalars().first()
+    venda = await _pagar_com(test_client, h, p, va, "cash", "100.00")
+    item_id = venda["items"][0]["id"]
+    r = await test_client.post(f"/api/v1/returns/{venda['id']}", headers=h, json={
+        "reason": "Tamanho não serviu", "items": [{"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id}]})
+    assert r.status_code == 201, r.text                                                   # troca no mesmo preço: nenhum dinheiro novo entra
+
+    rec = await _rec(test_client, h)
+    b = rec["bridge"]
+    linhas = {ln["key"]: ln["amount"] for ln in b["lines"]}
+    assert linhas["exchange_credit"] == -100.0                                           # o crédito de R$ 100 pagou a peça nova
+    assert b["residual"] == 0 and b["status"] == "ok", b
+    assert round(b["should_be_left"] + sum(linhas.values()), 2) == b["change_in_accounts"]
+
+
+async def test_sobra_sem_explicacao_aponta_a_venda_cujo_pagamento_nao_bate(test_client, async_session, test_user):
+    """Se sobrar dinheiro sem explicação, o app lista as vendas do mês em que o valor pago não bate com o total (onde ele costuma estar)."""
+    from sqlalchemy import update as upd
+    from app.models.sale import Payment
+    t_id, h, p, va, ids = await _loja(test_client, async_session, test_user)
+    venda = await _pagar_com(test_client, h, p, va, "cash", "100.00")
+    await async_session.execute(upd(Payment).where(Payment.sale_id == venda["id"]).values(amount=70))    # só R$ 70 entraram de uma venda de R$ 100
+    await async_session.commit()
+    rec = await _rec(test_client, h)
+    b = rec["bridge"]
+    assert b["status"] == "unexplained" and abs(b["residual"]) == 30.0
+    assert [(x["sale_id"], x["total"], x["paid"], x["difference"]) for x in b["suspect_sales"]] == [(venda["id"], 100.0, 70.0, 30.0)]
+    base = await _rec(test_client, h, year=2026, month=1)
+    assert base["status"] == "empty"

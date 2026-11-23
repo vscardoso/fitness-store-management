@@ -15,7 +15,7 @@ from decimal import ROUND_HALF_UP, Decimal
 import logging
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import make_aware, now_brazil, to_utc, today_brazil
@@ -828,6 +828,21 @@ class FinanceService:
         points = _q(f["sales"].get(PaymentMethod.LOYALTY_POINTS.value, D0))
         fiado_received = total("receivables_received")
         noncash_refunds = _q(led.refunds) - total("refunds")
+        # Troca: a venda da peça nova entra inteira nas vendas, mas o crédito da peça devolvida paga parte dela (ou toda), então só a
+        # DIFERENÇA vira pagamento. Sem esta linha, a devolução da troca era somada de volta ("não saiu em dinheiro") sem a venda
+        # correspondente ter entrado, e sobrava a diferença como "sem explicação" (caso real: R$ 299,85, novembro de 2026).
+        from app.core.timezone import get_period_range_utc
+        s_utc, e_utc = get_period_range_utc(d0, d1)
+        exchange_ids = select(SaleReturn.exchange_sale_id).where(
+            SaleReturn.tenant_id == tenant_id, SaleReturn.exchange_sale_id.isnot(None), SaleReturn.is_active == True)  # noqa: E712
+        ex_rows = (await self.db.execute(
+            select(Sale.total_amount, func.coalesce(func.sum(Payment.amount), 0))
+            .select_from(Sale)
+            .outerjoin(Payment, and_(Payment.sale_id == Sale.id, Payment.is_active == True, Payment.status == "confirmed"))  # noqa: E712
+            .where(Sale.tenant_id == tenant_id, Sale.is_active == True, Sale.id.in_(exchange_ids),  # noqa: E712
+                   Sale.status.in_(VALID_STATUS), Sale.created_at >= s_utc, Sale.created_at <= e_utc)
+            .group_by(Sale.id, Sale.total_amount))).all()
+        exchange_credit = _q(sum((max(_q(tot) - _q(paid), D0) for tot, paid in ex_rows), D0))
         lines = [
             ("expenses_noacct", "Despesas lançadas sem conta (não saíram de nenhuma conta)", expenses_noacct),
             ("purchases_noacct", "Compras de mercadoria sem conta (ainda não saíram de nenhuma conta)", purchases_noacct),
@@ -835,6 +850,7 @@ class FinanceService:
             ("fiado_received", "Fiado recebido no mês (de vendas deste ou de meses antes)", fiado_received),
             ("points", "Vendido com pontos de fidelidade (não entra dinheiro)", -points),
             ("noncash_refunds", "Devoluções que não saíram em dinheiro ou que contam em outro mês (crédito, abatimento de fiado, estorno de venda de outro mês)", noncash_refunds),
+            ("exchange_credit", "Troca: o crédito da peça devolvida pagou a peça nova (não entrou dinheiro)", -exchange_credit),
             ("cash_net", "Caixa da gaveta (dinheiro colocado menos tirado)", cash_net),
             ("owner", "Retiradas de sócio, empréstimos e faturas (não são despesa)", other_in - other_out),
             ("adjustments", "Correções feitas à mão (Corrigir saldo, contagem do caixa, fechamento)", adj_total),
@@ -842,13 +858,27 @@ class FinanceService:
         explained = sum((v for _, _, v in lines), D0)
         change = closing - opening
         residual = _q(change - (should_be_left + explained))
+        # Se ainda sobrou algo sem explicação, aponta as vendas do mês cujo valor pago não bate com o total (fora as trocas, já explicadas):
+        # é onde esse dinheiro costuma estar. O app mostra a lista para a pessoa abrir cada venda.
+        suspects: List[Dict[str, Any]] = []
+        if residual != 0:
+            odd = (await self.db.execute(
+                select(Sale.id, Sale.sale_number, Sale.total_amount, func.coalesce(func.sum(Payment.amount), 0))
+                .select_from(Sale)
+                .outerjoin(Payment, and_(Payment.sale_id == Sale.id, Payment.is_active == True, Payment.status == "confirmed"))  # noqa: E712
+                .where(Sale.tenant_id == tenant_id, Sale.is_active == True, Sale.id.not_in(exchange_ids),  # noqa: E712
+                       Sale.status.in_(VALID_STATUS), Sale.created_at >= s_utc, Sale.created_at <= e_utc)
+                .group_by(Sale.id, Sale.sale_number, Sale.total_amount)
+                .order_by(Sale.id))).all()
+            suspects = [{"sale_id": sid, "sale_number": num, "total": float(_q(tot)), "paid": float(_q(paid)), "difference": float(_q(tot) - _q(paid))}
+                        for sid, num, tot, paid in odd if abs(_q(tot) - _q(paid)) > Decimal("0.004")][:10]
         card = next((a for a in accounts if a.kind == KIND_CARD), None)
         card_balance = _q(_q(card.opening_balance) + self.net(f["by_account"][card.id])) if card else D0
         f2 = lambda v: float(_q(v))  # noqa: E731
         return {
             "sold": f2(sold), "spent": f2(spent), "should_be_left": f2(should_be_left),
             "lines": [{"key": k, "label": lbl, "amount": f2(v)} for k, lbl, v in lines if _q(v) != 0],
-            "change_in_accounts": f2(change), "residual": float(residual),
+            "change_in_accounts": f2(change), "residual": float(residual), "suspect_sales": suspects,
             "card_receivable": f2(card_balance), "available": f2(closing - card_balance),
             "status": "ok" if residual == 0 else "unexplained",
         }

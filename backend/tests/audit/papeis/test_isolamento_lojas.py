@@ -242,8 +242,9 @@ async def test_B_usa_o_proprio_caixa_e_o_proprio_fiado_sem_encostar_em_A(test_cl
     antes = await _foto_de_A(test_client, m)
     hb = m["hb"]["admin"]
     r = await test_client.post(f"{API}/cash/movements", headers=hb, json={"kind": "supply", "amount": 10, "reason": "troco"})
-    assert r.status_code == 409          # B não tem caixa aberto: não "pega carona" no caixa aberto de A
-    r = await test_client.post(f"{API}/cash/open", headers=hb, json={"opening_amount": "20.00"})
+    assert r.status_code == 201          # sem caixa aberto, mexe na gaveta de B no Financeiro dele: não "pega carona" no caixa aberto de A (a foto de A não muda, conferida no fim)
+    # abre alinhando a gaveta do Financeiro (como o app faz): a retirada vale o saldo da gaveta, que passa a ser os 20 contados
+    r = await test_client.post(f"{API}/cash/open", headers=hb, json={"opening_amount": "20.00", "align_drawer": True, "reason": "contagem do dia"})
     assert r.status_code == 201, r.text  # B abre o seu mesmo com o de A aberto
     r = await test_client.post(f"{API}/cash/movements", headers=hb, json={"kind": "withdrawal", "amount": 15, "reason": "sangria"})
     assert r.status_code in (200, 201), r.text

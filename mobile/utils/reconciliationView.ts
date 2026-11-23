@@ -41,7 +41,7 @@ export function buildReconView(d: Reconciliation, brl: (n: number) => string): R
     : status === 'unexplained' ? `${brl(residual)} sem explicação`
       : 'Você corrigiu o dinheiro à mão neste mês';
   const hint = status === 'unexplained'
-    ? 'O app não sabe de onde veio nem para onde foi esse dinheiro. Toque em “Ver para onde foi o dinheiro” e confira.'
+    ? 'O app não sabe de onde veio nem para onde foi esse dinheiro. Toque em “Ver para onde foi o dinheiro”: lá estão as vendas em que o valor pago não bate com o total.'
     : null;
   return { tone: status === 'ok' ? 'ok' : 'warn', status, title, hint, rows };
 }
