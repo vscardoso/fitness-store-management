@@ -274,6 +274,12 @@ class SaleItem(BaseModel):
         default=Decimal(0),
         comment="Discount applied to this item"
     )
+
+    # Parte do desconto GERAL da venda que ficou nesta linha (regra "mesmo lucro em todas", 23/11/2026). Nula em vendas
+    # antigas: nelas a parte é dividida pelo valor da linha (`general_discount_share`).
+    sale_discount_share: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2), nullable=True, comment="Parte do desconto geral da venda nesta linha (R$)"
+    )
     
     # FIFO Tracking - Rastreabilidade de origem (de quais entradas saiu)
     sale_sources: Mapped[Dict[str, Any] | None] = mapped_column(

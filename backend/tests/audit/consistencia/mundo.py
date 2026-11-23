@@ -41,6 +41,7 @@ class Line:
     qty: int
     price: Decimal
     disc: Decimal = D("0")
+    share: Decimal = D("0")                       # parte do desconto geral da venda nesta linha (gravada pelo servidor)
     sources: list = field(default_factory=list)   # [[Layer, taken, returned]]
     returned: int = 0                             # total devolvido (volta ou defeito)
     defect: int = 0
@@ -91,14 +92,29 @@ class Book:
         for ln, it in zip(lines, items_resp):
             ln.item_id = it["id"]
             ln.sources = self.take(ln.variant_id, ln.qty)
+            ln.share = D(str(it.get("sale_discount_share") or 0))
         sub = sum((ln.price * ln.qty - ln.disc for ln in lines), D("0"))
+        if discount > 0:
+            # conferência independente da divisão "mesmo lucro em todas" (23/11/2026): os pedaços somam o desconto, nenhum
+            # passa da linha, e toda linha que levou desconto geral fica com o mesmo valor/custo (até 1 centavo por linha)
+            assert sum((ln.share for ln in lines), D("0")) == q2(discount), "livro: partes do desconto geral != desconto"
+            ratios = []
+            for ln in lines:
+                net = ln.price * ln.qty - ln.disc
+                assert D("0") <= ln.share <= net, "livro: parte do desconto fora da linha"
+                cost = sum((l.cost * t for l, t, _r in ln.sources), D("0"))
+                if ln.share > 0 and cost > 0:
+                    ratios.append(((net - ln.share) / cost, D("0.02") / cost))
+            if ratios:
+                k = ratios[0][0]
+                assert all(abs(r - k) <= tol + ratios[0][1] for r, tol in ratios), f"livro: lucro diferente entre as peças {ratios}"
         s = SaleRec(sale_id, lines, q2(sub), q2(discount), q2(sub - discount), exchange)
         self.sales.append(s)
         return s
 
     def line_net(self, s: SaleRec, ln: Line) -> Decimal:
         """Quanto a loja ficou com a linha inteira (preço - desconto do item - parte do desconto da venda)."""
-        return (ln.price * ln.qty - ln.disc) * (s.total / s.subtotal if s.subtotal > 0 else D(1))
+        return ln.price * ln.qty - ln.disc - ln.share
 
     def ret(self, s: SaleRec, ln: Line, qty: int, restock: bool, refund: Decimal):
         s.had_return = True

@@ -276,16 +276,19 @@ async def period_by_product(
     sale_filter = [*tenant(Sale.tenant_id), Sale.is_active == True, Sale.status.in_(VALID_STATUS), *in_range(Sale.created_at)]  # noqa: E712
     items = (await db.execute(
         select(SaleItem.sale_id, SaleItem.product_id, SaleItem.quantity, SaleItem.unit_cost, SaleItem.subtotal,
-               SaleItem.unit_price, Sale.total_amount)
+               SaleItem.unit_price, Sale.total_amount, SaleItem.sale_discount_share)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .where(and_(*sale_filter), SaleItem.is_active == True))).all()  # noqa: E712
     sub_by_sale: dict = defaultdict(lambda: D0)
-    for sid, _pid, qty, _c, sub, price, _t in items:
+    for sid, _pid, qty, _c, sub, price, _t, _sh in items:
         sub_by_sale[sid] += _d(sub) if sub is not None else _d(price) * int(qty)
-    for sid, pid, qty, cost, sub, price, total in items:
+    for sid, pid, qty, cost, sub, price, total, stored in items:
         item_sub = _d(sub) if sub is not None else _d(price) * int(qty)
         base = sub_by_sale[sid]
-        share = (item_sub / base * _d(total)) if base > 0 else D0
+        if stored is not None:   # parte do desconto geral gravada na venda (mesmo lucro em todas)
+            share = item_sub - _d(stored)
+        else:
+            share = (item_sub / base * _d(total)) if base > 0 else D0
         r = rows[pid]
         r["revenue"] += share
         r["gross"] += share
@@ -365,17 +368,20 @@ async def period_by_variant(
     sale_filter = [*tenant(Sale.tenant_id), Sale.is_active == True, Sale.status.in_(VALID_STATUS), *in_range(Sale.created_at)]  # noqa: E712
     items = (await db.execute(
         select(SaleItem.sale_id, SaleItem.product_id, SaleItem.variant_id, SaleItem.quantity, SaleItem.unit_cost,
-               SaleItem.subtotal, SaleItem.unit_price, Sale.total_amount)
+               SaleItem.subtotal, SaleItem.unit_price, Sale.total_amount, SaleItem.sale_discount_share)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .where(and_(*sale_filter), SaleItem.is_active == True))).all()  # noqa: E712
     sub_by_sale: dict = defaultdict(lambda: D0)
-    for sid, _p, _v, qty, _c, sub, price, _t in items:
+    for sid, _p, _v, qty, _c, sub, price, _t, _sh in items:
         sub_by_sale[sid] += _d(sub) if sub is not None else _d(price) * int(qty)
-    for sid, pid, vid, qty, cost, sub, price, total in items:
+    for sid, pid, vid, qty, cost, sub, price, total, stored in items:
         item_sub = _d(sub) if sub is not None else _d(price) * int(qty)
         base = sub_by_sale[sid]
         r = rows[(pid, vid)]
-        r["revenue"] += (item_sub / base * _d(total)) if base > 0 else D0
+        if stored is not None:   # parte do desconto geral gravada na venda (mesmo lucro em todas)
+            r["revenue"] += item_sub - _d(stored)
+        else:
+            r["revenue"] += (item_sub / base * _d(total)) if base > 0 else D0
         r["cost"] += _d(cost) * int(qty)
         r["sold"] += int(qty)
 

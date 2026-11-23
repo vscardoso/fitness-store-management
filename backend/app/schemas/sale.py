@@ -134,6 +134,7 @@ class SaleItemResponse(BaseModel):
     unit_cost: Optional[Decimal] = None
     discount_amount: Decimal
     subtotal: Decimal
+    sale_discount_share: Optional[Decimal] = None  # parte do desconto geral nesta linha (nula em venda antiga)
     cost_total: Optional[float] = None
     profit: Optional[float] = None
     margin_percent: Optional[float] = None
@@ -234,7 +235,9 @@ class SaleResponse(BaseModel):
                 continue
             item_subtotal = float(item.subtotal)
             # Distribute global discount proportionally by item subtotal weight
-            if gross_subtotal > 0 and sale_discount > 0:
+            if item.sale_discount_share is not None:
+                item_discount_share = float(item.sale_discount_share)
+            elif gross_subtotal > 0 and sale_discount > 0:
                 item_discount_share = sale_discount * (item_subtotal / gross_subtotal)
             else:
                 item_discount_share = 0.0

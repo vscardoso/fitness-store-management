@@ -67,16 +67,17 @@ async def test_venda_com_cinco_pecas_e_cinco_descontos_total_lucro_e_custo(test_
     assert await _estoque(async_session, va.id) == 7 and await _estoque(async_session, vb.id) == 8
 
 
-async def test_desconto_da_venda_vem_por_cima_e_e_rateado_pelo_valor_liquido(test_client, async_session, test_user):
+async def test_desconto_da_venda_vem_por_cima_e_deixa_o_mesmo_lucro_em_todas(test_client, async_session, test_user):
     t_id, h, p, va, vb = await _cenario(async_session, test_user)
     A, B = (p.id, va.id), (p.id, vb.id)
-    # linhas líquidas: 90 + 140 = 230; desconto geral de 23 (10%) rateado: 9 e 14
+    # linhas líquidas: 90 + 140 = 230, custo 40 + 80; desconto geral de 23 dividido para o mesmo lucro (23/11/2026):
+    # cada linha vale custo x 1,725 = 69 e 138 (partes 21 e 2)
     r = await _vender(test_client, h, [(A, 1, "100.00", "10.00"), (B, 2, "100.00", "60.00")], desconto_venda="23.00")
     assert r.status_code in (200, 201), r.text
     s = r.json()
     assert (float(s["subtotal"]), float(s["discount_amount"]), float(s["total_amount"])) == (230.0, 23.0, 207.0)
-    # receita líquida das linhas: 81 e 126; custo 40 e 80; lucro 41 e 46 = 87
-    assert [i["profit"] for i in s["items"]] == [41.0, 46.0] and s["total_profit"] == 87.0
+    # lucro 29 e 58 = 87 (a mesma margem, 42%, nas duas linhas; o total não muda)
+    assert [i["profit"] for i in s["items"]] == [29.0, 58.0] and s["total_profit"] == 87.0
 
 
 async def test_devolver_uma_peca_devolve_o_que_ela_custou_ja_com_o_desconto(test_client, async_session, test_user):

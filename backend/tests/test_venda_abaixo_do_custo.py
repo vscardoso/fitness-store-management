@@ -245,3 +245,48 @@ async def test_caso_real_yasmim_50_por_cento_geral_passa(test_client, async_sess
                   {"product_id": pb.id, "variant_id": vb.id, "quantity": 1, "unit_price": "139.90"}],
         "payments": [{"amount": "199.85", "payment_method": "credit_card"}]})
     assert r.status_code in (200, 201), r.text
+    # mesmo lucro em todas: Short Top R$ 75,62 cada e Calça R$ 48,61 (todas ~7,4% de lucro, nenhuma no prejuízo)
+    itens = {i["product_id"]: i for i in r.json()["items"]}
+    assert D(str(itens[pa.id]["sale_discount_share"])) == D("108.56")       # 2 peças: 2 x 54,28
+    assert D(str(itens[pb.id]["sale_discount_share"])) == D("91.29")
+    for it in itens.values():
+        assert it["profit"] >= 0, it
+
+
+async def test_divisao_mesmo_lucro_contas_puras():
+    from app.services.price_floor import allocate_same_margin as a
+    nets = [D("129.90"), D("129.90"), D("139.90")]
+    r = a(nets, [D(70), D(70), D(45)], D("199.85"))
+    assert sum(r) == D("199.85")
+    assert [n - x for n, x in zip(nets, r)] == [D("75.62"), D("75.62"), D("48.61")]
+    # no limite (venda inteira no custo) todas ficam no custo, lucro zero em todas
+    r = a([D(100), D(50)], [D(40), D(40)], D(70))
+    assert [D(100) - r[0], D(50) - r[1]] == [D(40), D(40)]
+    # peça de margem baixa fica sem desconto geral; nunca há pedaço negativo nem maior que a linha
+    r = a([D(100), D(50)], [D(90), D(10)], D(20))
+    assert r == [D(0), D("20.00")]
+    # sem custo conhecido: divide pelo valor
+    assert a([D(100), D(50)], [D(0), D(0)], D(30)) == [D("20.00"), D("10.00")]
+
+
+async def test_devolver_uma_peca_estorna_o_valor_dela_no_mesmo_lucro(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    pa, va = await _produto(async_session, t_id, cat, f"Short Top D {next(_n)}", "129.90")
+    pb, vb = await _produto(async_session, t_id, cat, f"Calca D {next(_n)}", "139.90")
+    await _lote(async_session, t_id, [(va, pa, 2, 70), (vb, pb, 1, 45)])
+    ids = [SimpleNamespace(id=x.id) for x in (pa, va, pb, vb)]
+    await async_session.commit()
+    pa, va, pb, vb = ids
+    h = {"Authorization": f"Bearer {token}"}
+    r = await test_client.post("/api/v1/sales/", headers=h, json={
+        "payment_method": "cash", "discount_amount": "199.85",
+        "items": [{"product_id": pa.id, "variant_id": va.id, "quantity": 2, "unit_price": "129.90"},
+                  {"product_id": pb.id, "variant_id": vb.id, "quantity": 1, "unit_price": "139.90"}],
+        "payments": [{"amount": "199.85", "payment_method": "cash"}]})
+    assert r.status_code in (200, 201), r.text
+    sale = r.json()
+    linha = next(i for i in sale["items"] if i["product_id"] == pa.id)
+    r = await test_client.post(f"/api/v1/returns/{sale['id']}", headers=h, json={
+        "items": [{"sale_item_id": linha["id"], "quantity": 1}], "reason": "Não serviu no corpo", "refund_method": "cash"})
+    assert r.status_code in (200, 201), r.text
+    assert D(str(r.json()["total_refund"])) == D("75.62")

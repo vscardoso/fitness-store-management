@@ -474,9 +474,13 @@ export default function SaleDetailsScreen() {
             const itemSubtotal = Number(item.subtotal);
             const saleSubtotal = Number(sale.subtotal);
             const saleDiscount = Number(sale.discount_amount);
-            const discountShare = hasDiscount && saleSubtotal > 0
-              ? saleDiscount * (itemSubtotal / saleSubtotal)
-              : 0;
+            // parte do desconto geral desta peça: a gravada pela venda (mesmo lucro em todas) ou, em venda antiga, pelo valor
+            const storedShare = (item as any).sale_discount_share;
+            const discountShare = storedShare != null
+              ? Number(storedShare)
+              : hasDiscount && saleSubtotal > 0
+                ? saleDiscount * (itemSubtotal / saleSubtotal)
+                : 0;
             const effectiveSubtotal = itemSubtotal - discountShare;
             const lineDiscount = Number((item as any).discount_amount ?? 0);
             const grossLine = Number(item.unit_price) * item.quantity;

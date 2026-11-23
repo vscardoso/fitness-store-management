@@ -188,6 +188,7 @@ def _run_alembic_upgrade() -> None:
 
 # Colunas adicionadas depois da criação das tabelas (SQLite dev). Postgres usa Alembic.
 _SQLITE_EXTRA_COLUMNS = {
+    "sale_items": [("sale_discount_share", "NUMERIC(10,2)")],
     "users": [("finance_approver", "BOOLEAN NOT NULL DEFAULT 1")],
     "sales": [("idempotency_key", "VARCHAR(80)"), ("idempotency_hash", "VARCHAR(64)")],
     "stock_entries": [("supplier_id", "INTEGER"), ("discount_amount", "NUMERIC(10,2) NOT NULL DEFAULT 0"),

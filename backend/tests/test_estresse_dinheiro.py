@@ -249,8 +249,12 @@ async def test_dinheiro_aleatorio_bate_com_o_livro(test_client, async_session, t
             assert await _pagamentos(async_session, corpo["id"]) == total, f"[seed {seed}] pagamentos != total (troco gravado?)"
             vendas.append({"id": corpo["id"], "total": total, "sub": sub, "desc": desc, "cliente": cliente,
                            "pts": total / 10, "ativa": True, "teve_devolucao": False,
-                           "itens": [{"id": it["id"], "v": it["variant_id"], "qtd": it["quantity"], "preco": preco[it["variant_id"]], "devolvido": 0}
+                           "itens": [{"id": it["id"], "v": it["variant_id"], "qtd": it["quantity"], "preco": preco[it["variant_id"]], "devolvido": 0,
+                                      "parte": D(str(it.get("sale_discount_share") or 0)), "estornado": D("0")}
                                      for it in corpo["items"]]})
+            # desconto geral dividido entre as linhas (mesmo lucro em todas): os pedaços somam o desconto e nenhum passa da linha
+            assert sum(i["parte"] for i in vendas[-1]["itens"]) == desc, f"[seed {seed}] partes do desconto != {desc}"
+            assert all(D("0") <= i["parte"] <= i["preco"] * i["qtd"] for i in vendas[-1]["itens"])
             livro["bruto"] += total
             livro["vendas"] += 1
             if cliente:
@@ -284,10 +288,14 @@ async def test_dinheiro_aleatorio_bate_com_o_livro(test_client, async_session, t
             hist.append(f"{passo}: {acao} venda {s['id']} {linha} -> {r.status_code}")
             assert r.status_code == 201, f"[seed {seed}] {r.text}\n" + "\n".join(hist[-6:])
             corpo = r.json()
-            bruto_linha = it["preco"] * qtd
-            pct = (s["desc"] / s["sub"] * 100) if s["desc"] > 0 else D("0")
-            reembolso = bruto_linha - (bruto_linha * pct / 100).quantize(C) if pct > 0 else bruto_linha
+            # pago pela linha = preço x qtd - parte do desconto geral; a última devolução da linha leva o que falta
+            pago_linha = it["preco"] * it["qtd"] - it["parte"]
+            if it["devolvido"] + qtd >= it["qtd"]:
+                reembolso = pago_linha - it["estornado"]
+            else:
+                reembolso = min(pago_linha - it["estornado"], (pago_linha * qtd / it["qtd"]).quantize(C))
             assert D(str(corpo["total_refund"])) == reembolso, f"[seed {seed}] reembolso {corpo['total_refund']} != {reembolso}"
+            it["estornado"] += reembolso
             it["devolvido"] += qtd
             s["teve_devolucao"] = True
             livro["devolvido"] += reembolso
@@ -309,7 +317,7 @@ async def test_dinheiro_aleatorio_bate_com_o_livro(test_client, async_session, t
                 assert D(str(rv["items"][0]["discount_amount"])) == (preco[destino] - unit_novo) * qtd
                 vendas.append({"id": rv["id"], "total": novo, "sub": novo, "desc": D("0"), "cliente": s["cliente"], "pts": novo / 10,
                                "ativa": True, "teve_devolucao": False, "troca": True,
-                               "itens": [{"id": x["id"], "v": x["variant_id"], "qtd": x["quantity"], "preco": unit_novo, "devolvido": 0} for x in rv["items"]]})
+                               "itens": [{"id": x["id"], "v": x["variant_id"], "qtd": x["quantity"], "preco": unit_novo, "devolvido": 0, "parte": D(str(x.get("sale_discount_share") or 0)), "estornado": D("0")} for x in rv["items"]]})
 
         elif acao == "cancelar":
             ativas = [s for s in vendas if s["ativa"]]

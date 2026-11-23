@@ -930,7 +930,9 @@ class StockEntryService:
             qty = sum(int(t["quantity_taken"]) for t in taken)
             net_item = Decimal(str(si.subtotal or 0))   # subtotal JÁ é líquido do desconto do item (qtd x preço - desconto)
             # desconto dado na VENDA inteira (não no item): rateia pelo peso do item, igual ao money_ledger (receita = parte do total pago)
-            if sale_subtotal and Decimal(str(sale_subtotal)) > 0 and sale_total is not None:
+            if si.sale_discount_share is not None:   # parte do desconto geral gravada na venda (mesmo lucro em todas)
+                net_item = net_item - Decimal(str(si.sale_discount_share))
+            elif sale_subtotal and Decimal(str(sale_subtotal)) > 0 and sale_total is not None:
                 net_item = net_item * Decimal(str(sale_total)) / Decimal(str(sale_subtotal))
             out["units"] += qty
             out["revenue"] += net_item * Decimal(qty) / Decimal(si.quantity)

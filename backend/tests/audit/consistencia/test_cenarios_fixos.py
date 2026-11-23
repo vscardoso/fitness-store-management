@@ -44,9 +44,12 @@ async def test_devolucao_com_desconto_no_item_e_na_venda(test_client, async_sess
     """Item com desconto + desconto na venda inteira: o estorno proporcional nunca passa do que a cliente pagou pela peça."""
     t_id, h, ids, book = await mundo(async_session, test_user)
     r, s = await vende(test_client, h, ids, book, [(ids.a, 4, "100"), (ids.b, 1, "0")], desconto="52")
-    # subtotal 4*100-100 + 120 = 420; total 368; item A pago = 300 * 368/420
+    # subtotal 4*100-100 + 120 = 420; total 368; o desconto geral é dividido para o mesmo lucro (23/11/2026):
+    # item A pago = 300 - a parte dele gravada pela venda
     assert r.status_code == 201 and q2(r.json()["total_amount"]) == D("368.00")
-    pago_a = D("300") * D("368") / D("420")
+    linha_a = r.json()["items"][0]
+    pago_a = D("300") - D(str(linha_a["sale_discount_share"]))
+    assert D("0") <= D(str(linha_a["sale_discount_share"])) <= D("52")
     rr = await devolve(test_client, h, book, s, s.lines[0], 4)
     assert rr.status_code == 201, rr.text
     estorno = D(str(rr.json()["total_refund"]))

@@ -18,7 +18,7 @@ from app.repositories.product_repository import ProductRepository
 from app.repositories.sale_repository import SaleRepository
 from app.schemas.sale import SaleCreate
 from app.services.fifo_service import FIFOService
-from app.services.price_floor import below_cost_message, below_cost_sale_message, is_below_cost
+from app.services.price_floor import allocate_same_margin, below_cost_message, below_cost_sale_message, is_below_cost
 from app.services.inventory_service import InventoryService
 from app.services.payment_discount_service import PaymentDiscountService
 from app.services.stock_lock import lock_stock
@@ -347,6 +347,7 @@ class SaleService:
             # do desconto geral se as outras compensam.
             sale_goods_net = Decimal('0')
             sale_goods_cost = Decimal('0')
+            created_lines: list = []   # (SaleItem, valor líquido da linha, custo da linha) para dividir o desconto geral
             for line_idx, item_data in enumerate(sale_data.items):
                 item_subtotal = (
                     Decimal(str(item_data.unit_price)) * item_data.quantity
@@ -402,9 +403,14 @@ class SaleService:
                     is_active=True
                 )
                 self.db.add(sale_item)
+                created_lines.append((sale_item, item_subtotal, total_cost))
 
             if discount_amount > 0 and is_below_cost(sale_goods_net - discount_amount, sale_goods_cost):
                 raise ValueError(below_cost_sale_message(sale_goods_net - discount_amount, discount_amount))
+            # Desconto geral dividido para todas as peças ficarem com o mesmo lucro (nenhuma abaixo do custo)
+            shares = allocate_same_margin([n for _, n, _ in created_lines], [c for _, _, c in created_lines], discount_amount)
+            for (si, _n, _c), share in zip(created_lines, shares):
+                si.sale_discount_share = share
             
             await self.db.flush()
             

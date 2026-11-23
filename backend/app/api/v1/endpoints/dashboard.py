@@ -944,7 +944,8 @@ async def _entry_sales_economics(db: AsyncSession, tenant_id: int) -> Dict[int, 
     voltaram numa devolução e o custo daquela camada). Só vendas válidas (concluída, parcialmente devolvida, devolvida).
     """
     rows = (await db.execute(
-        select(SaleItem.quantity, SaleItem.subtotal, SaleItem.sale_sources, Sale.subtotal, Sale.total_amount)
+        select(SaleItem.quantity, SaleItem.subtotal, SaleItem.sale_sources, Sale.subtotal, Sale.total_amount,
+               SaleItem.sale_discount_share)
         .join(Sale, Sale.id == SaleItem.sale_id)
         .where(SaleItem.tenant_id == tenant_id, SaleItem.is_active == True, Sale.is_active == True,  # noqa: E712
                Sale.status.in_((SaleStatus.COMPLETED, SaleStatus.PARTIALLY_REFUNDED, SaleStatus.REFUNDED)),
@@ -952,13 +953,16 @@ async def _entry_sales_economics(db: AsyncSession, tenant_id: int) -> Dict[int, 
     )).all()
     item_ids: set = set()
     parsed = []
-    for qty, item_subtotal, sources, sale_subtotal, sale_total in rows:
+    for qty, item_subtotal, sources, sale_subtotal, sale_total, stored_share in rows:
         src = (sources or {}).get("sources") if isinstance(sources, dict) else None
         if not src or not qty:
             continue
         # parte do total da venda que cabe a este item (desconto geral e arredondamento já dentro)
-        ratio = float(sale_total) / float(sale_subtotal) if sale_subtotal and float(sale_subtotal) > 0 else 1.0
-        share = float(item_subtotal or 0) * ratio
+        if stored_share is not None:   # parte do desconto geral gravada na venda (mesmo lucro em todas)
+            share = float(item_subtotal or 0) - float(stored_share)
+        else:
+            ratio = float(sale_total) / float(sale_subtotal) if sale_subtotal and float(sale_subtotal) > 0 else 1.0
+            share = float(item_subtotal or 0) * ratio
         parsed.append((int(qty), share, src))
         item_ids.update(int(x["entry_item_id"]) for x in src if x.get("entry_item_id") is not None)
     entry_of = {}

@@ -84,9 +84,12 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
               const variantLabel = (item as any).variant_label;
               const name = item.product?.name || item.product?.description || 'Produto';
               const itemSubtotal = Number(item.subtotal);
-              const discountShare = Number(sale.discount_amount) > 0 && Number(sale.subtotal) > 0
-                ? Number(sale.discount_amount) * (itemSubtotal / Number(sale.subtotal))
-                : 0;
+              const storedShare = (item as any).sale_discount_share;
+              const discountShare = storedShare != null
+                ? Number(storedShare)
+                : Number(sale.discount_amount) > 0 && Number(sale.subtotal) > 0
+                  ? Number(sale.discount_amount) * (itemSubtotal / Number(sale.subtotal))
+                  : 0;
               const effectiveSubtotal = itemSubtotal - discountShare;
               const lineDiscount = Number((item as any).discount_amount ?? 0);
               const grossLine = Number(item.unit_price) * item.quantity;

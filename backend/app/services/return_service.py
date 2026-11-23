@@ -39,12 +39,11 @@ CENT = Decimal('0.01')
 
 
 def line_paid_amount(item: SaleItem, sale: Sale) -> Decimal:
-    """O que o cliente pagou pela LINHA: (qtd x preço - desconto do item) x (1 - desconto da venda proporcional)."""
+    """O que o cliente pagou pela LINHA: qtd x preço - desconto do item - parte do desconto geral (gravada na venda; em venda
+    antiga, proporcional ao valor da linha)."""
     base = Decimal(str(item.quantity)) * Decimal(str(item.unit_price)) - Decimal(str(item.discount_amount or 0))
-    subtotal = Decimal(str(sale.subtotal or 0))
-    discount = Decimal(str(sale.discount_amount or 0))
-    if subtotal > 0 and discount > 0:
-        base = base * (subtotal - discount) / subtotal
+    from app.services.price_floor import general_discount_share
+    base = base - general_discount_share(base, getattr(item, 'sale_discount_share', None), sale.subtotal, sale.discount_amount)
     return max(Decimal('0'), base).quantize(CENT)
 
 
