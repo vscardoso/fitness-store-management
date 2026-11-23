@@ -140,9 +140,9 @@ async def test_desconto_da_venda_inteira_tambem_nao_leva_a_peca_para_baixo_do_cu
     assert r.status_code in (200, 201), r.text
 
 
-async def test_desconto_geral_e_rateado_entre_as_linhas(test_client, async_session, test_user):
-    """Duas peças na venda: A (R$ 100, custo 40) e B (R$ 50, custo 40). R$ 30 de desconto geral rateado por valor (20 em A, 10 em B)
-    deixa B em R$ 40: no custo, passa. Com R$ 33 sobram R$ 38,90 em B (abaixo): a venda inteira é recusada."""
+async def test_desconto_geral_vale_contra_a_venda_inteira(test_client, async_session, test_user):
+    """Regra do Victor (23/11/2026): desconto GERAL é conferido contra a venda inteira. A (R$ 100, custo 40) e B (R$ 50, custo 40):
+    custo total 80, então até R$ 70 de desconto geral passa, mesmo que no rateio B fique abaixo dos R$ 40 dela."""
     from app.models.product_variant import ProductVariant
     t_id, token, cat = await _loja_api(async_session, test_user)
     pa, va = await _produto(async_session, t_id, cat, f"Piso A {next(_n)}", "100.00")
@@ -160,11 +160,12 @@ async def test_desconto_geral_e_rateado_entre_as_linhas(test_client, async_sessi
                       {"product_id": pb.id, "variant_id": vb.id, "quantity": 1, "unit_price": "50.00"}],
             "payments": [{"amount": str(D("150.00") - D(desc)), "payment_method": "cash"}]})
     ea, eb = await _estoque(async_session, va.id), await _estoque(async_session, vb.id)
-    r = await venda("33.00")
+    r = await venda("70.01")
     assert r.status_code == 400, r.text
+    assert "venda inteira" in r.text and "desconto geral" in r.text and "80" not in r.json().get("detail", "")
     async_session.expire_all()
     assert (await _estoque(async_session, va.id), await _estoque(async_session, vb.id)) == (ea, eb)   # tudo ou nada
-    r = await venda("30.00")
+    r = await venda("70.00")
     assert r.status_code in (200, 201), r.text
 
 
@@ -225,3 +226,22 @@ async def test_venda_recusada_pelo_desconto_geral_explica_o_desconto_geral(test_
     r = await _vender(test_client, h, p, v, 1, "89.90", extra={"discount_amount": "60.00"})
     assert r.status_code == 400, r.text
     assert "desconto geral" in r.text
+
+
+
+async def test_caso_real_yasmim_50_por_cento_geral_passa(test_client, async_session, test_user):
+    """23/11/2026: 2 Conjuntos Short Top (R$ 129,90, custo 70) + Calça Ciclista (R$ 139,90, custo 45), desconto geral R$ 199,85.
+    No rateio o Short Top ficava em R$ 64,95 (abaixo de 70), mas a venda inteira (R$ 199,85) passa do custo (R$ 185)."""
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    pa, va = await _produto(async_session, t_id, cat, f"Short Top {next(_n)}", "129.90")
+    pb, vb = await _produto(async_session, t_id, cat, f"Calca Ciclista {next(_n)}", "139.90")
+    await _lote(async_session, t_id, [(va, pa, 2, 70), (vb, pb, 1, 45)])
+    ids = [SimpleNamespace(id=x.id) for x in (pa, va, pb, vb)]
+    await async_session.commit()
+    pa, va, pb, vb = ids
+    r = await test_client.post("/api/v1/sales/", headers={"Authorization": f"Bearer {token}"}, json={
+        "payment_method": "credit_card", "discount_amount": "199.85",
+        "items": [{"product_id": pa.id, "variant_id": va.id, "quantity": 2, "unit_price": "129.90"},
+                  {"product_id": pb.id, "variant_id": vb.id, "quantity": 1, "unit_price": "139.90"}],
+        "payments": [{"amount": "199.85", "payment_method": "credit_card"}]})
+    assert r.status_code in (200, 201), r.text

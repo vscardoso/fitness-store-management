@@ -60,3 +60,10 @@ def below_cost_message(name: str, quantity: int, line_net, *, has_discount: bool
     else:
         tail = "Confira o preço de venda no cadastro do produto."
     return f"{quando} O sistema não vende abaixo do custo. {tail}"
+
+
+def below_cost_sale_message(sale_net, general_discount) -> str:
+    """Recusa pelo desconto geral: vale a venda inteira, não uma peça (sem dizer o custo)."""
+    from app.services.sale_receipt_service import brl
+    return (f"Com o desconto geral de {brl(cents(general_discount))}, a venda inteira sairia por {brl(cents(sale_net))}, "
+            "abaixo do que as peças custaram. O sistema não vende abaixo do custo. Diminua o desconto geral.")

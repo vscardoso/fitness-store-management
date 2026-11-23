@@ -18,7 +18,7 @@ from app.repositories.product_repository import ProductRepository
 from app.repositories.sale_repository import SaleRepository
 from app.schemas.sale import SaleCreate
 from app.services.fifo_service import FIFOService
-from app.services.price_floor import allocate_header_discount, below_cost_message, is_below_cost
+from app.services.price_floor import below_cost_message, below_cost_sale_message, is_below_cost
 from app.services.inventory_service import InventoryService
 from app.services.payment_discount_service import PaymentDiscountService
 from app.services.stock_lock import lock_stock
@@ -342,10 +342,11 @@ class SaleService:
             print(f" Criando {len(sale_data.items)} itens da venda...")
             # Piso de preço: o desconto da venda inteira (manual + forma de pagamento) é rateado entre as linhas para conferir,
             # linha a linha, que nenhuma peça sai por menos do que custou (o custo só se sabe depois do FIFO, abaixo).
-            header_shares = allocate_header_discount(
-                [Decimal(str(i.unit_price)) * i.quantity - Decimal(str(i.discount_amount)) for i in sale_data.items],
-                discount_amount,
-            )
+            # Regra (Victor, 23/11/2026): o desconto da PEÇA é conferido peça a peça; o desconto GERAL é conferido contra a
+            # venda inteira (peças líquidas - desconto geral >= custo de todas as peças). Uma peça pode ficar "abaixo" no rateio
+            # do desconto geral se as outras compensam.
+            sale_goods_net = Decimal('0')
+            sale_goods_cost = Decimal('0')
             for line_idx, item_data in enumerate(sale_data.items):
                 item_subtotal = (
                     Decimal(str(item_data.unit_price)) * item_data.quantity
@@ -377,15 +378,14 @@ class SaleService:
                 unit_cost = total_cost / item_data.quantity if item_data.quantity > 0 else Decimal('0')
 
                 # Nunca abaixo do custo (e 100% de desconto já foi recusado: é brinde). A transação inteira desfaz.
-                line_net = item_subtotal - header_shares[line_idx]
-                if is_below_cost(line_net, total_cost):
+                if is_below_cost(item_subtotal, total_cost):
                     prod = await self.product_repo.get(self.db, item_data.product_id, tenant_id=tenant_id)
                     raise ValueError(below_cost_message(
-                        prod.name if prod else f"Produto {item_data.product_id}", item_data.quantity, line_net,
-                        has_discount=bool(Decimal(str(item_data.discount_amount or 0))) or header_shares[line_idx] > 0,
-                        general_discount=discount_amount if header_shares[line_idx] > 0 else None,
-                        piece_discount=bool(Decimal(str(item_data.discount_amount or 0))),
+                        prod.name if prod else f"Produto {item_data.product_id}", item_data.quantity, item_subtotal,
+                        has_discount=bool(Decimal(str(item_data.discount_amount or 0))),
                     ))
+                sale_goods_net += item_subtotal
+                sale_goods_cost += total_cost
                 
                 # Criar SaleItem com rastreabilidade FIFO
                 sale_item = SaleItem(
@@ -402,6 +402,9 @@ class SaleService:
                     is_active=True
                 )
                 self.db.add(sale_item)
+
+            if discount_amount > 0 and is_below_cost(sale_goods_net - discount_amount, sale_goods_cost):
+                raise ValueError(below_cost_sale_message(sale_goods_net - discount_amount, discount_amount))
             
             await self.db.flush()
             
