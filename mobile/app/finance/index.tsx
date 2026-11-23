@@ -110,7 +110,7 @@ export default function FinanceHomeScreen() {
   const todoCount = (pending && pending.count > 0 ? 1 : 0) + (cardDue ? 1 : 0) + (fiadoOverdue ? 1 : 0) + (payOverdue ? 1 : 0) + (approvalsForMe > 0 ? 1 : 0);
 
   const accountHint = (a: FinanceAccount): string => {
-    if (a.kind === 'cash') return cash?.session ? 'caixa aberto' : 'caixa fechado';
+    if (a.kind === 'cash') return cash?.session ? 'conferindo' : 'dinheiro em espécie';
     if (a.kind === 'card') {
       const next = card?.items?.[0];
       return next ? `cai ${next.weekday}, ${next.expected_on.slice(8, 10)}/${next.expected_on.slice(5, 7)}` : 'a receber';

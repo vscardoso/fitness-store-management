@@ -849,7 +849,7 @@ class FinanceService:
             ("fiado_sold", "Vendido no fiado e ainda não recebido", -fiado_sold),
             ("fiado_received", "Fiado recebido no mês (de vendas deste ou de meses antes)", fiado_received),
             ("points", "Vendido com pontos de fidelidade (não entra dinheiro)", -points),
-            ("noncash_refunds", "Devoluções que não saíram em dinheiro ou que contam em outro mês (crédito, abatimento de fiado, estorno de venda de outro mês)", noncash_refunds),
+            ("noncash_refunds", "Devoluções que não saíram em dinheiro (crédito, fiado, estorno de outro mês)", noncash_refunds),
             ("exchange_credit", "Troca: o crédito da peça devolvida pagou a peça nova (não entrou dinheiro)", -exchange_credit),
             ("cash_net", "Caixa da gaveta (dinheiro colocado menos tirado)", cash_net),
             ("owner", "Retiradas de sócio, empréstimos e faturas (não são despesa)", other_in - other_out),
