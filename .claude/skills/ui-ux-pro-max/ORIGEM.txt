@@ -1,0 +1,1 @@
+Origem: github.com/nextlevelbuilder/ui-ux-pro-max-skill, commit e8b065f, copiada em 23/11/2026 (sem a pasta de testes). Licença MIT em LICENSE.

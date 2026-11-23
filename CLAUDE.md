@@ -49,9 +49,9 @@ Landing page em `web/` focada em conversão para download do app mobile.
 - Animações 150–300ms
 - Tokens semânticos (nunca hex hardcoded nos componentes)
 
-**Skill de design disponível:** `ui-ux-pro-max` em `.agents/skills/ui-ux-pro-max/`
+**Skill de design disponível:** `ui-ux-pro-max` em `.claude/skills/ui-ux-pro-max/` (instalada em 23/11/2026; usar ao criar ou revisar tela)
 ```bash
-python3 ../.agents/skills/ui-ux-pro-max/scripts/search.py "fitness store ecommerce landing" --design-system --persist -p "FitnessStore"
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "fitness store ecommerce landing" --design-system --persist -p "FitnessStore"
 ```
 
 ## Comandos
