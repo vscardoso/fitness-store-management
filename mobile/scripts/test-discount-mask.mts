@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { maskDiscountInput as m, parseBRL } from '../utils/priceFormatter.ts';
+assert.equal(m('1000', 'value'), '10,00');
+assert.equal(m('100000', 'value'), '1.000,00');
+assert.equal(parseBRL(m('100000', 'value')), 1000);
+assert.equal(m('abc', 'value'), '');
+assert.equal(m('10', 'percent'), '10');
+assert.equal(m('10,555', 'percent'), '10,55');
+assert.equal(m('10.5', 'percent'), '10,5');
+assert.equal(m('1000', 'percent'), '100');
+assert.equal(m(',5', 'percent'), '0,5');
+assert.equal(m('1,2,3', 'percent'), '1,23');
+assert.equal(parseBRL(m('12,5', 'percent')), 12.5);
+console.log('test-discount-mask: OK');

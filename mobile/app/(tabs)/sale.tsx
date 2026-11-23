@@ -48,6 +48,7 @@ import { Money } from '@/components/ui/PriceDisplay';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopPDV from '@/components/sale/DesktopPDV';
 import { plural } from '@/utils/plural';
+import { maskDiscountInput, parseBRL } from '@/utils/priceFormatter';
 
 /** Notebook (app web com 1024 px ou mais): PDV de balcão em duas colunas. Celular: o PDV de sempre. */
 export default function SaleScreen() {
@@ -157,7 +158,7 @@ function MobileSaleScreen() {
    * Aplicar desconto avulso ao carrinho
    */
   const handleApplyDiscount = () => {
-    const raw = parseFloat(discountInput.replace(',', '.'));
+    const raw = parseBRL(discountInput);
     if (isNaN(raw) || raw < 0) {
       haptics.warning();
       return;
@@ -199,7 +200,7 @@ function MobileSaleScreen() {
       setDiscountInput(String(cart.discountPercent).replace('.', ','));
     } else if (cart.discount > 0) {
       setDiscountType('value');
-      setDiscountInput(cart.discount.toFixed(2).replace('.', ','));
+      setDiscountInput(maskDiscountInput(cart.discount.toFixed(2), 'value'));
     }
     setDiscountVisible(true);
     setTimeout(() => discountInputRef.current?.focus(), 100);
@@ -692,13 +693,13 @@ function MobileSaleScreen() {
                   {/* Toggle R$ / % */}
                   <View style={styles.discountTypeToggle}>
                     <TouchableOpacity
-                      onPress={() => { setDiscountType('value'); setTimeout(() => discountInputRef.current?.focus(), 0); }}
+                      onPress={() => { setDiscountType('value'); setDiscountInput(''); setTimeout(() => discountInputRef.current?.focus(), 0); }}
                       style={[styles.discountTypeBtn, discountType === 'value' && styles.discountTypeBtnActive]}
                     >
                       <Text style={[styles.discountTypeBtnText, discountType === 'value' && styles.discountTypeBtnTextActive]}>R$</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => { setDiscountType('percent'); setTimeout(() => discountInputRef.current?.focus(), 0); }}
+                      onPress={() => { setDiscountType('percent'); setDiscountInput(''); setTimeout(() => discountInputRef.current?.focus(), 0); }}
                       style={[styles.discountTypeBtn, discountType === 'percent' && styles.discountTypeBtnActive]}
                     >
                       <Text style={[styles.discountTypeBtnText, discountType === 'percent' && styles.discountTypeBtnTextActive]}>%</Text>
@@ -707,9 +708,9 @@ function MobileSaleScreen() {
                   <TextInput
                     ref={discountInputRef}
                     value={discountInput}
-                    onChangeText={setDiscountInput}
+                    onChangeText={(t) => setDiscountInput(maskDiscountInput(t, discountType))}
                     keyboardType="decimal-pad"
-                    placeholder="0,00"
+                    placeholder={discountType === 'percent' ? '0' : '0,00'}
                     placeholderTextColor={Colors.light.textTertiary}
                     style={styles.discountInputField}
                     returnKeyType="done"

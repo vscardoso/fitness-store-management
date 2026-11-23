@@ -35,6 +35,7 @@ import { Money } from '@/components/ui/PriceDisplay';
 import { HelpIconButton } from '@/components/help/HelpHost';
 import type { Customer, ProductGrouped, ProductVariant } from '@/types';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { maskDiscountInput, parseBRL } from '@/utils/priceFormatter';
 
 const INK = DESK.ink;
 const MUTED = DESK.muted;
@@ -253,7 +254,7 @@ export default function DesktopPDV() {
   };
 
   const applyDiscount = () => {
-    const raw = parseFloat(discountInput.replace(/\./g, '').replace(',', '.'));
+    const raw = parseBRL(discountInput);
     if (isNaN(raw) || raw < 0) return;
     const value = discountType === 'percent' ? (cart.subtotal * raw) / 100 : raw;
     if (value > cart.subtotal) {
@@ -556,17 +557,17 @@ export default function DesktopPDV() {
             )}
             {discountOpen ? (
               <View style={styles.discountRow}>
-                <TouchableOpacity style={[styles.dtype, discountType === 'value' && styles.dtypeOn]} onPress={() => setDiscountType('value')}>
+                <TouchableOpacity style={[styles.dtype, discountType === 'value' && styles.dtypeOn]} onPress={() => { setDiscountType('value'); setDiscountInput(''); }}>
                   <Text style={[styles.dtypeText, discountType === 'value' && styles.dtypeTextOn]}>R$</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.dtype, discountType === 'percent' && styles.dtypeOn]} onPress={() => setDiscountType('percent')}>
+                <TouchableOpacity style={[styles.dtype, discountType === 'percent' && styles.dtypeOn]} onPress={() => { setDiscountType('percent'); setDiscountInput(''); }}>
                   <Text style={[styles.dtypeText, discountType === 'percent' && styles.dtypeTextOn]}>%</Text>
                 </TouchableOpacity>
                 <TextInput
                   value={discountInput}
-                  onChangeText={setDiscountInput}
+                  onChangeText={(t) => setDiscountInput(maskDiscountInput(t, discountType))}
                   onSubmitEditing={applyDiscount}
-                  placeholder="0,00"
+                  placeholder={discountType === 'percent' ? '0' : '0,00'}
                   placeholderTextColor={DESK.faint}
                   keyboardType="decimal-pad"
                   autoFocus

@@ -98,3 +98,20 @@ export const parseBRL = (text: string): number => {
   const n = parseFloat(normalized);
   return isNaN(n) ? 0 : n;
 };
+
+/**
+ * Máscara de porcentagem: só números e uma vírgula, até 2 casas, nunca passa de 100 ("10,5", "100").
+ */
+export const maskPercentBR = (text: string): string => {
+  let t = (text || '').replace(/\./g, ',').replace(/[^\d,]/g, '');
+  const i = t.indexOf(',');
+  if (i >= 0) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/,/g, '').slice(0, 2);
+  t = t.replace(/^0+(?=\d)/, '');
+  if (t.startsWith(',')) t = '0' + t;
+  const n = parseFloat(t.replace(',', '.'));
+  return !isNaN(n) && n > 100 ? '100' : t;
+};
+
+/** Campo de desconto (R$ ou %): aplica a máscara certa. */
+export const maskDiscountInput = (text: string, type: 'value' | 'percent'): string =>
+  type === 'percent' ? maskPercentBR(text) : maskCurrencyBR(text);
