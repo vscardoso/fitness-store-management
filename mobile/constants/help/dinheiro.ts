@@ -106,7 +106,7 @@ export const DINHEIRO: HelpEntry[] = [
       'O admin que contou o dinheiro e viu diferença toca na conta e em “Corrigir saldo”, informa quanto tem de verdade e o motivo. Em banco, isso vira um pedido que todos os administradores precisam aprovar.',
     ],
     parts: [
-      { label: 'Caixa da gaveta', text: 'se o caixa do turno está aberto e quanto deve ter na gaveta. Toque para abrir, colocar, retirar ou fechar.' },
+      { label: 'Caixa da gaveta', text: 'se o caixa do turno está aberto ou fechado. Quanto há na gaveta está na conta Gaveta, logo abaixo. Toque para abrir, colocar, retirar ou fechar.' },
       { label: 'Maquininha: quando cai no banco', text: 'a previsão do cartão por dia: segunda a quinta cai no dia seguinte; sexta, sábado e domingo caem na segunda.' },
       { label: 'Repasse automático', text: 'liga e desliga o lançamento automático. Cada repasse fica no Histórico de alterações e pode ser apagado.' },
       { label: 'Dinheiro agora', text: 'a soma da gaveta, dos bancos e do que a maquininha ainda vai pagar, com o botão Transferir.' },

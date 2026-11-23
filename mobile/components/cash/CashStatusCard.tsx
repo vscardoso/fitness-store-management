@@ -1,5 +1,5 @@
 /**
- * Linha do caixa da gaveta dentro do Financeiro: aberto (quanto deve ter na gaveta) ou fechado, com o toque que
+ * Linha do caixa da gaveta dentro do Financeiro: aberto ou fechado (sem número: o dinheiro da gaveta é o da conta Gaveta logo abaixo), com o toque que
  * leva à tela do caixa (abrir, colocar, retirar, fechar). O caixa faz parte do Financeiro, não é um menu à parte.
  */
 import React from 'react';
@@ -38,7 +38,7 @@ export default function CashStatusCard() {
         </View>
         <Text style={styles.note} numberOfLines={2}>
           {s
-            ? `Deve ter ${formatCurrency(s.expected_amount)} na gaveta · aberto desde ${formatDateTime(s.opened_at)}`
+            ? `Aberto desde ${formatDateTime(s.opened_at)}. Toque para colocar, retirar ou fechar.`
             : data?.last_closed
               ? `Último fechamento: ${formatCurrency(data.last_closed.counted_amount)} contados. Toque para abrir o caixa do turno.`
               : 'Toque para abrir o caixa do turno.'}

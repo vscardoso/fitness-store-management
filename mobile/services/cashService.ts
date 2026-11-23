@@ -44,7 +44,7 @@ export interface DrawerAlignment {
 }
 export interface CashCurrent {
   /** A gaveta no Financeiro: quanto o sistema espera nela agora (`expected` nulo = Financeiro ainda não implantado). */
-  drawer?: { started: boolean; account_id: number | null; expected: number | null };
+  drawer?: { started: boolean; account_id: number | null; expected: number | null; other?: number };
   open: boolean;
   session: CashSession | null;
   last_closed: { id: number; closed_at: string; counted_amount: number; difference: number } | null;

@@ -239,7 +239,7 @@ export const VENDER: HelpEntry[] = [
       'Se contou diferente do Financeiro, escreva o motivo. Até R$ 10 a gaveta é acertada na hora; acima disso, outro administrador aprova.',
     ],
     parts: [
-      { label: 'Valor grande', text: 'o dinheiro que deve ter na gaveta agora: abertura, mais vendas em dinheiro e colocado, menos devoluções e retiradas.' },
+      { label: 'Valor grande', text: 'o dinheiro que deve ter na gaveta agora, o mesmo da conta Gaveta no Financeiro. Embaixo está a conta: abertura, mais vendas em dinheiro e colocado, menos devoluções e retiradas, e os pagamentos e acertos feitos pela gaveta fora do turno.' },
       { label: 'Recebido de outras formas', text: 'PIX e cartão do turno, que não vão para a gaveta: use para conferir com a maquininha e o banco.' },
     ],
     goodToKnow: [

@@ -246,6 +246,10 @@ class CashRegisterService:
     async def current(self, tenant_id: int) -> Dict[str, Any]:
         r = await self._current(tenant_id)
         r["drawer"] = await self._drawer(tenant_id)
+        s = r.get("session")
+        if s and r["drawer"]["started"] and r["drawer"]["expected"] is not None:
+            # o que está na gaveta é UM número, o do Financeiro; `other` é o que o turno não enxerga (compra, despesa ou ajuste pago com a gaveta)
+            r["drawer"]["other"] = float(_q2(Decimal(str(r["drawer"]["expected"])) - Decimal(str(s["expected_amount"]))))
         return r
 
     async def _current(self, tenant_id: int) -> Dict[str, Any]:
@@ -300,6 +304,9 @@ class CashRegisterService:
             raise CashConflict("Não há caixa aberto. Abra o caixa primeiro.")
         if kind == KIND_WITHDRAWAL:
             have = _num((await self._live_totals(s, tenant_id, datetime.utcnow()))["expected_amount"])
+            drawer = await self._drawer(tenant_id)
+            if drawer["started"] and drawer["expected"] is not None:
+                have = min(have, _num(drawer["expected"]))      # a gaveta do Financeiro é a que vale: não dá para tirar mais do que ela tem
             if value > have:
                 raise CashError(f"Não há esse dinheiro no caixa: o sistema espera R$ {have:.2f}.".replace(".", ","))
         transfer_id = await self._linked_transfer(tenant_id, user, kind, value, account_id) if account_id else None

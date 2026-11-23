@@ -293,3 +293,25 @@ async def test_despesa_a_pagar_vira_despesa_ao_pagar_sem_contar_duas_vezes(test_
     assert (await async_session.execute(select(Expense).where(Expense.payable_id == aluguel["id"], Expense.is_active == True))).scalars().all() == []  # noqa: E712
     d = (await test_client.get(f"{API}/accounts", headers=h)).json()
     assert _conta(d, "Nubank")["balance"] == 1000.0 - 500 - 300
+
+
+async def test_gaveta_e_um_numero_so_o_do_financeiro_e_retirada_nao_passa_dele(test_client, async_session, test_user):
+    """Conta paga com a gaveta (fora do turno do caixa) baixa a gaveta do Financeiro. O caixa mostra esse número
+    (`drawer.expected`), `drawer.other` é a diferença para a conta do turno, e a retirada não passa do que a gaveta tem."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _zerar_implantacao(async_session, t_id)
+    d = (await _implantar(test_client, h, payables=[{"description": "Boleto", "amount": "40.00", "due_date": date.today().isoformat()}])).json()
+    gaveta = _conta(d, "Gaveta")["id"]
+    assert (await test_client.post("/api/v1/cash/open", headers=h, json={"opening_amount": 150})).status_code == 201
+    boleto = (await test_client.get(f"{API}/payables", headers=h)).json()["items"][0]
+    assert (await test_client.post(f"{API}/payables/{boleto['id']}/pay", headers=h, json={"account_id": gaveta})).status_code in (200, 201)
+
+    cur = (await test_client.get("/api/v1/cash/current", headers=h)).json()
+    assert cur["session"]["expected_amount"] == 150.0                      # a conta do turno não enxerga o boleto
+    assert cur["drawer"]["expected"] == 110.0 and cur["drawer"]["other"] == -40.0
+    assert cur["drawer"]["expected"] + (-cur["drawer"]["other"]) == cur["session"]["expected_amount"]
+
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 120, "reason": "sangria"})
+    assert r.status_code == 400 and "110,00" in r.json()["detail"]         # o turno deixaria (150), a gaveta só tem 110
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 110, "reason": "sangria"})
+    assert r.status_code in (200, 201), r.text

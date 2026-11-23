@@ -169,7 +169,10 @@ export default function CashScreen() {
   const closeReasonMin = Math.abs(closeDiff) > 10 ? 20 : 5;
   const openReasonShort = openDiff !== 0 && openReason.trim().length < openReasonMin;
   const closeReasonShort = closeDiff !== 0 && (closeReason.trim() || closeNote.trim()).length < closeReasonMin;
-  const liveDiff = session && countedValue !== null ? differenceText(countedValue - session.expected_amount, formatCurrency) : null;
+  // UM número para a gaveta: o do Financeiro quando ele está implantado (o mesmo da conta Gaveta); senão, o do turno
+  const drawerNow = session ? (drawerExpected != null ? drawerExpected : session.expected_amount) : null;
+  const drawerOther = drawerExpected != null ? (data?.drawer?.other ?? 0) : 0;
+  const liveDiff = session && drawerNow !== null && countedValue !== null ? differenceText(countedValue - drawerNow, formatCurrency) : null;
   const others = useMemo(() => Object.entries(session?.other_methods ?? {}), [session]);
 
   const sheetOpen = moveKind !== null || closing;
@@ -181,7 +184,7 @@ export default function CashScreen() {
   const hero = session && (
     <View style={styles.card} testID="cash-expected">
       <Text style={styles.eyebrow}>DEVE TER NA GAVETA AGORA</Text>
-      <Text style={styles.big}>{formatCurrency(session.expected_amount)}</Text>
+      <Text style={styles.big}>{formatCurrency(drawerNow ?? session.expected_amount)}</Text>
       <Text style={styles.small}>{session.sales_count} venda{session.sales_count === 1 ? '' : 's'} no turno</Text>
       <View style={styles.actions}>
         <AppButton label="Colocar dinheiro" variant="secondary" icon="add" onPress={() => startMove('supply')} style={styles.flex} />
@@ -211,6 +214,9 @@ export default function CashScreen() {
         <Line label="Devoluções pagas em dinheiro" value={session.cash_refunds} minus />
         <Line label="Dinheiro colocado" value={session.supplies} plus />
         <Line label="Dinheiro retirado" value={session.withdrawals} minus />
+        {Math.abs(drawerOther) >= 0.005 && (
+          <Line label="Pagamentos e acertos da gaveta no Financeiro" value={Math.abs(drawerOther)} plus={drawerOther > 0} minus={drawerOther < 0} />
+        )}
       </View>
 
       {others.length > 0 && (
@@ -349,7 +355,7 @@ export default function CashScreen() {
         visible={moveKind !== null}
         onDismiss={() => setMoveKind(null)}
         title={moveKind === 'supply' ? 'Colocar dinheiro no caixa' : 'Retirar dinheiro do caixa'}
-        subtitle={session ? `Agora há ${formatCurrency(session.expected_amount)} na gaveta` : undefined}
+        subtitle={session ? `Agora há ${formatCurrency(drawerNow ?? session.expected_amount)} na gaveta` : undefined}
         icon={moveKind === 'supply' ? 'add-circle-outline' : 'remove-circle-outline'}
         actions={[
           { label: 'Cancelar', variant: 'secondary', onPress: () => setMoveKind(null) },
@@ -414,7 +420,7 @@ export default function CashScreen() {
         visible={closing}
         onDismiss={() => setClosing(false)}
         title="Fechar o caixa"
-        subtitle={session ? `O sistema espera ${formatCurrency(session.expected_amount)}` : undefined}
+        subtitle={session ? `O sistema espera ${formatCurrency(drawerNow ?? session.expected_amount)}` : undefined}
         icon="lock-closed-outline"
         actions={[
           { label: 'Cancelar', variant: 'secondary', onPress: () => setClosing(false) },
@@ -435,8 +441,8 @@ export default function CashScreen() {
         {closeDiff !== 0 && (
           <>
             <Text style={[styles.small, { color: Colors.light.warningDark }]}>
-              {`Pelo Financeiro, a gaveta deveria ter ${formatCurrency(drawerExpected as number)}. ${Math.abs(closeDiff) > 10
-                ? 'Diferença acima de R$ 10: outro administrador precisa aprovar o acerto.' : 'A gaveta é acertada na hora, com o motivo.'}`}
+              {Math.abs(closeDiff) > 10
+                ? 'Diferença acima de R$ 10: outro administrador precisa aprovar o acerto da gaveta.' : 'A gaveta é acertada na hora, com o motivo.'}
             </Text>
             <TextInput mode="outlined" label={`Motivo da diferença (mínimo ${closeReasonMin} letras)`} value={closeReason} onChangeText={setCloseReason} style={styles.input} />
           </>
