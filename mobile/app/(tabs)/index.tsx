@@ -331,6 +331,8 @@ export default function DashboardScreen() {
           countToday={salesCountToday}
           profitToday={Number(profitToday)}
           marginToday={Number(marginToday)}
+          grossToday={dashboardStats?.sales?.gross_today != null ? Number(dashboardStats.sales.gross_today) : undefined}
+          refundsToday={Number(dashboardStats?.sales?.refunds_today || 0)}
           trendPercent={Number(salesTrendPercent)}
           onPress={() => router.push('/(tabs)/sale')}
         />

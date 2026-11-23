@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency, formatPercent, formatSignedPercent } from '@/utils/format';
-import { todayLine } from '@/utils/homeLogic';
+import { todayLine, todaySub } from '@/utils/homeLogic';
 
 interface Props {
   /** Cores da loja (gradiente do cartão). */
@@ -22,13 +22,19 @@ interface Props {
   /** Lucro e margem do dia (só quando há venda). */
   profitToday?: number;
   marginToday?: number;
+  /** Vendido e devolvido hoje (antes de descontar), para o dia com devolução não parecer uma venda negativa. */
+  grossToday?: number;
+  refundsToday?: number;
   /** Variação contra ontem, em %. */
   trendPercent?: number;
   onPress: () => void;
 }
 
-export default function SellCard({ gradient, showToday, totalToday, countToday, profitToday = 0, marginToday = 0, trendPercent = 0, onPress }: Props) {
-  const hasSales = countToday > 0;
+export default function SellCard({ gradient, showToday, totalToday, countToday, profitToday = 0, marginToday = 0, grossToday, refundsToday = 0, trendPercent = 0, onPress }: Props) {
+  const sub = todaySub(
+    { net: totalToday, refunds: refundsToday, profit: profitToday, margin: marginToday, count: countToday, trend: trendPercent },
+    formatCurrency, (v) => formatPercent(v, 1), formatSignedPercent,
+  );
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} accessibilityRole="button" accessibilityLabel="Nova venda" testID="home-sell-card">
       <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
@@ -38,13 +44,10 @@ export default function SellCard({ gradient, showToday, totalToday, countToday, 
         <View style={styles.body}>
           <Text style={styles.title}>Nova venda</Text>
           <Text style={styles.line} numberOfLines={2} testID="home-today-line">
-            {showToday ? todayLine(totalToday, countToday, formatCurrency) : 'Abrir o ponto de venda'}
+            {showToday ? todayLine(totalToday, countToday, formatCurrency, grossToday, refundsToday) : 'Abrir o ponto de venda'}
           </Text>
-          {showToday && hasSales && (
-            <Text style={styles.sub} numberOfLines={2} testID="home-today-profit">
-              Lucro de hoje {formatCurrency(profitToday)} · margem {formatPercent(marginToday, 1)}
-              {trendPercent !== 0 ? ` · ${formatSignedPercent(trendPercent)} vs ontem` : ''}
-            </Text>
+          {showToday && !!sub && (
+            <Text style={styles.sub} numberOfLines={2} testID="home-today-profit">{sub}</Text>
           )}
         </View>
         <Ionicons name="chevron-forward" size={24} color={Colors.light.white} />

@@ -3,10 +3,30 @@
  * sem abrir o app (`node scripts/test-home-logic.mts`). Sem imports, como `saleRefund.ts` (o node dos testes não resolve `./format`).
  */
 
-/** Frase do dia dentro do cartão "Nova venda". Sem venda vira convite, nunca um zero solto. */
-export function todayLine(total: number, count: number, money: (v: number) => string): string {
+/**
+ * Frase do dia dentro do cartão "Nova venda". Sem venda vira convite, nunca um zero solto. Com devolução no dia, a frase mostra o que
+ * foi VENDIDO (`gross`), e a devolução vai na linha de baixo (`todaySub`): "Hoje: -R$ 262,14 em 1 venda" parecia uma venda negativa.
+ */
+export function todayLine(total: number, count: number, money: (v: number) => string, gross?: number, refunds?: number): string {
   if (!(count > 0)) return 'Hoje: nenhuma venda ainda';
-  return `Hoje: ${money(total)} em ${count.toLocaleString('pt-BR')} ${count === 1 ? 'venda' : 'vendas'}`;
+  const shown = (refunds ?? 0) > 0 && gross !== undefined ? gross : total;
+  return `Hoje: ${money(shown)} em ${count.toLocaleString('pt-BR')} ${count === 1 ? 'venda' : 'vendas'}`;
+}
+
+/**
+ * Linha de baixo do cartão. Dia com devolução: diz quanto devolveu e como o dia ficou (pode ficar negativo, e isso é
+ * conta certa: a devolução abate no dia em que aconteceu), sem lucro nem margem, que não fazem sentido num dia assim.
+ * Dia sem devolução: lucro e margem (a margem só existe com venda líquida positiva).
+ */
+export function todaySub(
+  o: { net: number; refunds: number; profit: number; margin: number; count: number; trend: number },
+  money: (v: number) => string, pct: (v: number) => string, signedPct: (v: number) => string,
+): string | null {
+  if (o.refunds > 0) return `Devolveu ${money(o.refunds)} hoje · o dia ficou em ${money(o.net)}`;
+  if (!(o.count > 0)) return null;
+  const margin = o.net > 0 ? ` · margem ${pct(o.margin)}` : '';
+  const trend = o.trend !== 0 ? ` · ${signedPct(o.trend)} vs ontem` : '';
+  return `Lucro de hoje ${money(o.profit)}${margin}${trend}`;
 }
 
 /**

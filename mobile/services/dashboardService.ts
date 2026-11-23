@@ -24,6 +24,9 @@ export interface DashboardStats {
     average_ticket: number;
     profit_today: number;
     cmv_today: number;
+    /** vendido hoje antes de descontar devolução, e devolvido hoje (de qualquer venda) */
+    gross_today?: number;
+    refunds_today?: number;
     margin_today: number;
     total_yesterday?: number;
     count_yesterday?: number;

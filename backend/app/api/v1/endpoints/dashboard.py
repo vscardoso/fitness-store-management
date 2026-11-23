@@ -341,6 +341,8 @@ async def get_dashboard_stats(
         },
         "sales": {
             "total_today": total_sales_today,
+            "gross_today": float(_today.gross_sales),      # vendido hoje, antes de descontar devolução
+            "refunds_today": float(_today.refunds),        # devolvido hoje (de qualquer venda, inclusive de dias antes)
             "count_today": sales_count_today,
             "average_ticket": average_ticket,
             "profit_today": profit_today,

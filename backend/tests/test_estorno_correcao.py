@@ -94,3 +94,19 @@ async def _loja_volta_a_devolver_dinheiro(async_session):
     from sqlalchemy import update
     await async_session.execute(update(Store).where(Store.id == 1).values(allow_money_refund=True, return_window_days=7))
     await async_session.commit()
+
+
+async def test_inicio_mostra_vendido_e_devolvido_do_dia_quando_estorna_venda_de_outro_dia(test_client, async_session, test_user):
+    """Caso real de 22/11/2026: estornou uma venda de dias atrás (R$ 200) e lançou outra hoje (R$ 100). O dia fica em -R$ 100 (a devolução
+    abate no dia em que aconteceu), mas o Início precisa receber o vendido (gross_today) e o devolvido (refunds_today) para não mostrar
+    uma 'venda negativa'."""
+    t_id, admin, p, va, vb = await _cenario(async_session, test_user)
+    errada, item_errado = await _vender(test_client, admin, p, va, 2, "100.00")
+    await _atrasar(async_session, errada, 3)
+    certa, _ = await _vender(test_client, admin, p, va, 1, "100.00")
+    r = await test_client.post(f"/api/v1/returns/{errada}", headers=admin, json={
+        "reason": "Preço errado", "is_correction": True, "items": [{"sale_item_id": item_errado, "quantity": 2}]})
+    assert r.status_code == 201, r.text
+    s = (await test_client.get("/api/v1/dashboard/stats", headers=admin)).json()["sales"]
+    assert s["gross_today"] == 100.0 and s["refunds_today"] == 200.0
+    assert s["total_today"] == -100.0 and s["count_today"] == 1       # líquido do dia = vendido - devolvido

@@ -1,6 +1,6 @@
 // node scripts/test-home-logic.mts
 import assert from 'node:assert/strict';
-import { todayLine, shortcutIds, monthLines, monthNameOf, stockPace, paceLabel, paceAdvice, soldUnitsText } from '../utils/homeLogic.ts';
+import { todayLine, todaySub, shortcutIds, monthLines, monthNameOf, stockPace, paceLabel, paceAdvice, soldUnitsText } from '../utils/homeLogic.ts';
 
 let ok = 0;
 const t = (nome: string, fn: () => void) => { fn(); ok++; console.log('ok', nome); };
@@ -16,6 +16,28 @@ t('1 venda no singular, várias no plural', () => {
 });
 t('contagem inválida não quebra', () => {
   assert.equal(todayLine(10, NaN as any, money), 'Hoje: nenhuma venda ainda');
+});
+
+const pct = (v: number) => v.toFixed(1).replace('.', ',') + '%';
+const spct = (v: number) => (v > 0 ? '+' : '') + pct(v);
+t('dia com devolução maior que a venda (caso real de 22/11/2026): mostra o vendido e a devolução, não uma venda negativa', () => {
+  // vendeu R$ 450,00 (1 venda), devolveu R$ 712,14 de uma venda de outro dia: líquido -R$ 262,14
+  assert.equal(norm(todayLine(-262.14, 1, money, 450, 712.14)), 'Hoje: R$ 450,00 em 1 venda');
+  const sub = todaySub({ net: -262.14, refunds: 712.14, profit: -262.14, margin: 0, count: 1, trend: 0 }, money, pct, spct)!;
+  assert.equal(norm(sub), 'Devolveu R$ 712,14 hoje · o dia ficou em R$ -262,14');
+  assert.ok(!/margem/.test(sub));                                  // margem de dia com líquido negativo não existe
+});
+t('dia sem venda mas com devolução: convite em cima, devolução embaixo', () => {
+  assert.equal(todayLine(-50, 0, money, 0, 50), 'Hoje: nenhuma venda ainda');
+  assert.equal(norm(todaySub({ net: -50, refunds: 50, profit: -20, margin: 0, count: 0, trend: 0 }, money, pct, spct)!), 'Devolveu R$ 50,00 hoje · o dia ficou em R$ -50,00');
+});
+t('dia normal continua igual: lucro, margem e variação; sem venda não há linha de baixo', () => {
+  assert.equal(norm(todayLine(80, 1, money, 80, 0)), 'Hoje: R$ 80,00 em 1 venda');
+  assert.equal(norm(todaySub({ net: 100, refunds: 0, profit: 40, margin: 40, count: 2, trend: 12.5 }, money, pct, spct)!), 'Lucro de hoje R$ 40,00 · margem 40,0% · +12,5% vs ontem');
+  assert.equal(todaySub({ net: 0, refunds: 0, profit: 0, margin: 0, count: 0, trend: 0 }, money, pct, spct), null);
+});
+t('dia com líquido zero ou negativo sem devolução (venda abaixo do custo): lucro sem margem', () => {
+  assert.equal(norm(todaySub({ net: 0, refunds: 0, profit: -5, margin: 0, count: 1, trend: 0 }, money, pct, spct)!), 'Lucro de hoje R$ -5,00');
 });
 
 t('atalhos: quem gerencia vê Entradas, Financeiro, Etiquetas e Consultar; quem vende não vê dinheiro nem entrada', () => {
