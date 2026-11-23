@@ -41,6 +41,13 @@
   "handButton": 0,
   "oddWeight": 0
  },
+ "app/(tabs)/conditional/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1,
+  "handButton": 9,
+  "oddWeight": 1
+ },
  "app/(tabs)/conditional/create.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
@@ -53,13 +60,6 @@
   "staticPrimary": 0,
   "hexColors": 0,
   "handButton": 3,
-  "oddWeight": 1
- },
- "app/(tabs)/conditional/[id].tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 1,
-  "handButton": 9,
   "oddWeight": 1
  },
  "app/(tabs)/customers.tsx": {
@@ -76,34 +76,6 @@
   "handButton": 0,
   "oddWeight": 1
  },
- "app/(tabs)/expenses/create.tsx": {
-  "paperButton": 2,
-  "staticPrimary": 0,
-  "hexColors": 1,
-  "handButton": 0,
-  "oddWeight": 0
- },
- "app/(tabs)/expenses/edit.tsx": {
-  "paperButton": 2,
-  "staticPrimary": 0,
-  "hexColors": 1,
-  "handButton": 1,
-  "oddWeight": 0
- },
- "app/(tabs)/expenses/index.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 1,
-  "handButton": 0,
-  "oddWeight": 1
- },
- "app/(tabs)/expenses/resultado.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 2,
-  "handButton": 2,
-  "oddWeight": 1
- },
  "app/(tabs)/help.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
@@ -114,8 +86,8 @@
  "app/(tabs)/index.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
-  "hexColors": 25,
-  "handButton": 3,
+  "hexColors": 18,
+  "handButton": 2,
   "oddWeight": 3
  },
  "app/(tabs)/inventory.tsx": {
@@ -164,7 +136,7 @@
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 2,
-  "handButton": 4,
+  "handButton": 2,
   "oddWeight": 2
  },
  "app/(tabs)/sale.tsx": {
@@ -181,26 +153,12 @@
   "handButton": 0,
   "oddWeight": 2
  },
- "app/(tabs)/stock-losses/index.tsx": {
-  "paperButton": 0,
+ "app/(tabs)/team/[id].tsx": {
+  "paperButton": 3,
   "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 1,
-  "oddWeight": 2
- },
- "app/(tabs)/stock-losses/register.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 2,
+  "hexColors": 3,
+  "handButton": 3,
   "oddWeight": 0
- },
- "app/(tabs)/stock-losses/[id].tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 1,
-  "oddWeight": 1
  },
  "app/(tabs)/team/add.tsx": {
   "paperButton": 2,
@@ -216,12 +174,12 @@
   "handButton": 2,
   "oddWeight": 0
  },
- "app/(tabs)/team/[id].tsx": {
-  "paperButton": 3,
-  "staticPrimary": 0,
-  "hexColors": 3,
-  "handButton": 3,
-  "oddWeight": 0
+ "app/[...rest].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 1,
+  "hexColors": 0,
+  "handButton": 1,
+  "oddWeight": 2
  },
  "app/aceite-termos.tsx": {
   "paperButton": 0,
@@ -229,20 +187,6 @@
   "hexColors": 2,
   "handButton": 2,
   "oddWeight": 1
- },
- "app/cash/history.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 1
- },
- "app/cash/index.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 2
  },
  "app/categories/add.tsx": {
   "paperButton": 0,
@@ -272,6 +216,13 @@
   "handButton": 2,
   "oddWeight": 2
  },
+ "app/customers/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 17,
+  "handButton": 2,
+  "oddWeight": 0
+ },
  "app/customers/add.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
@@ -286,11 +237,11 @@
   "handButton": 2,
   "oddWeight": 0
  },
- "app/customers/[id].tsx": {
+ "app/entries/[id].tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
-  "hexColors": 17,
-  "handButton": 2,
+  "hexColors": 0,
+  "handButton": 4,
   "oddWeight": 0
  },
  "app/entries/add-stock.tsx": {
@@ -321,74 +272,11 @@
   "handButton": 1,
   "oddWeight": 3
  },
- "app/entries/[id].tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 4,
-  "oddWeight": 0
- },
  "app/etiquetas/fila.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 0,
   "handButton": 1,
-  "oddWeight": 1
- },
- "app/finance/accounts.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 1,
-  "oddWeight": 4
- },
- "app/finance/closing.tsx": {
-  "paperButton": 3,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 7
- },
- "app/finance/entries.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 3
- },
- "app/finance/index.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 5,
-  "handButton": 0,
-  "oddWeight": 4
- },
- "app/finance/payables.tsx": {
-  "paperButton": 3,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 2
- },
- "app/finance/receivables.tsx": {
-  "paperButton": 3,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 2
- },
- "app/finance/setup.tsx": {
-  "paperButton": 3,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 1,
-  "oddWeight": 2
- },
- "app/gifts/new.tsx": {
-  "paperButton": 1,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
   "oddWeight": 1
  },
  "app/gifts/[id].tsx": {
@@ -397,6 +285,13 @@
   "hexColors": 0,
   "handButton": 0,
   "oddWeight": 2
+ },
+ "app/gifts/new.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 0,
+  "handButton": 0,
+  "oddWeight": 1
  },
  "app/labels/index.tsx": {
   "paperButton": 0,
@@ -409,6 +304,13 @@
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 1,
+  "handButton": 0,
+  "oddWeight": 0
+ },
+ "app/looks/[id].tsx": {
+  "paperButton": 2,
+  "staticPrimary": 5,
+  "hexColors": 0,
   "handButton": 0,
   "oddWeight": 0
  },
@@ -426,19 +328,19 @@
   "handButton": 0,
   "oddWeight": 0
  },
- "app/looks/[id].tsx": {
-  "paperButton": 2,
-  "staticPrimary": 5,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 0
- },
  "app/notifications.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 0,
   "handButton": 0,
   "oddWeight": 1
+ },
+ "app/products/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 0,
+  "handButton": 3,
+  "oddWeight": 5
  },
  "app/products/consult.tsx": {
   "paperButton": 0,
@@ -475,26 +377,12 @@
   "handButton": 1,
   "oddWeight": 1
  },
- "app/products/[id].tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 3,
-  "oddWeight": 5
- },
  "app/reports/history.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 0,
   "handButton": 1,
   "oddWeight": 4
- },
- "app/reports/monthly.tsx": {
-  "paperButton": 2,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 6
  },
  "app/reports/sales-period.tsx": {
   "paperButton": 0,
@@ -517,17 +405,17 @@
   "handButton": 6,
   "oddWeight": 7
  },
- "app/reports/stock-counts/index.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 1,
-  "handButton": 1,
-  "oddWeight": 2
- },
  "app/reports/stock-counts/[id].tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 0,
+  "handButton": 1,
+  "oddWeight": 2
+ },
+ "app/reports/stock-counts/index.tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 1,
   "handButton": 1,
   "oddWeight": 2
  },
@@ -650,6 +538,13 @@
   "handButton": 0,
   "oddWeight": 2
  },
+ "app/suppliers/[id].tsx": {
+  "paperButton": 0,
+  "staticPrimary": 0,
+  "hexColors": 0,
+  "handButton": 3,
+  "oddWeight": 0
+ },
  "app/suppliers/edit/[id].tsx": {
   "paperButton": 2,
   "staticPrimary": 0,
@@ -678,13 +573,6 @@
   "handButton": 0,
   "oddWeight": 2
  },
- "app/suppliers/[id].tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 3,
-  "oddWeight": 0
- },
  "app/team/add.tsx": {
   "paperButton": 2,
   "staticPrimary": 0,
@@ -709,7 +597,7 @@
  "app/whatsapp/[id].tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
-  "hexColors": 1,
+  "hexColors": 0,
   "handButton": 3,
   "oddWeight": 0
  },
@@ -720,28 +608,21 @@
   "handButton": 0,
   "oddWeight": 0
  },
- "app/[...rest].tsx": {
+ "components/ErrorBoundary.tsx": {
+  "paperButton": 1,
+  "staticPrimary": 0,
+  "hexColors": 4,
+  "handButton": 0,
+  "oddWeight": 1
+ },
+ "components/FAB.tsx": {
   "paperButton": 0,
-  "staticPrimary": 1,
-  "hexColors": 0,
+  "staticPrimary": 0,
+  "hexColors": 10,
   "handButton": 1,
-  "oddWeight": 2
+  "oddWeight": 0
  },
  "components/branding/ProvadorLogo.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 1
- },
- "components/cash/CashParts.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 1
- },
- "components/cash/CashStatusCard.tsx": {
   "paperButton": 0,
   "staticPrimary": 0,
   "hexColors": 0,
@@ -775,27 +656,6 @@
   "hexColors": 0,
   "handButton": 2,
   "oddWeight": 1
- },
- "components/ErrorBoundary.tsx": {
-  "paperButton": 1,
-  "staticPrimary": 0,
-  "hexColors": 4,
-  "handButton": 0,
-  "oddWeight": 1
- },
- "components/expenses/ProductMonthList.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 0,
-  "handButton": 0,
-  "oddWeight": 1
- },
- "components/FAB.tsx": {
-  "paperButton": 0,
-  "staticPrimary": 0,
-  "hexColors": 10,
-  "handButton": 1,
-  "oddWeight": 0
  },
  "components/finance/CardScheduleCard.tsx": {
   "paperButton": 0,

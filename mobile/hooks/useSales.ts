@@ -60,6 +60,8 @@ export const useCreateSale = () => {
 
   return useMutation({
     mutationFn: (saleData: SaleCreate) => createSale(saleData),
+    // o checkout mostra o erro numa janela própria: sem isto aparecia também o aviso global (erro duplicado)
+    meta: { ownError: true },
     onSuccess: () => {
       // Invalida lista de vendas e totais do dia
       queryClient.invalidateQueries({ queryKey: ['sales'] });

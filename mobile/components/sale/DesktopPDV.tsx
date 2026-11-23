@@ -101,6 +101,7 @@ export default function DesktopPDV() {
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
   const [discountType, setDiscountType] = useState<'value' | 'percent'>('value');
+  const [discountError, setDiscountError] = useState('');
 
   // Mesma lista do seletor de produtos do PDV do celular (mesmo cache)
   const { data: products = [], isLoading } = useQuery({
@@ -255,12 +256,13 @@ export default function DesktopPDV() {
 
   const applyDiscount = () => {
     const raw = parseBRL(discountInput);
-    if (isNaN(raw) || raw < 0) return;
+    if (isNaN(raw) || raw <= 0) { setDiscountError('Digite o valor do desconto.'); return; }
     const value = discountType === 'percent' ? (cart.subtotal * raw) / 100 : raw;
     if (value > cart.subtotal) {
-      setDialog({ title: 'Desconto inválido', message: 'O desconto não pode ser maior que o subtotal.', type: 'warning', confirmText: 'Entendi' });
+      setDiscountError(`O desconto não pode passar do valor das peças (${formatCurrency(cart.subtotal)}).`);
       return;
     }
+    setDiscountError('');
     cart.setDiscount(Math.round(value * 100) / 100, discountType === 'percent' ? raw : null);
     setDiscountOpen(false);
     setDiscountInput('');
@@ -507,19 +509,20 @@ export default function DesktopPDV() {
             ) : (
               cart.items.map((item) => (
                 <View key={item.cart_key} style={styles.cartItemWrap}>
+                {/* nome inteiro (até 2 linhas) e a cor/tamanho sem cortar: duas cores do mesmo produto ficam distinguíveis */}
                 <View style={styles.cartItem}>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.cartName} numberOfLines={1}>{item.product.name}</Text>
-                    <Text style={styles.cartMeta} numberOfLines={1}>
+                    <Text style={styles.cartName} numberOfLines={2}>{item.product.name}</Text>
+                    <Text style={styles.cartMeta}>
                       {[niceLabel(item.variant_label), formatCurrency(item.unit_price)].filter(Boolean).join(' · ')}
                     </Text>
                   </View>
                   <View style={styles.qty}>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => changeQuantity(item.cart_key, item.quantity - 1)} accessibilityLabel="Tirar uma">
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => changeQuantity(item.cart_key, item.quantity - 1)} accessibilityLabel={item.quantity <= 1 ? `Tirar ${item.product.name} do carrinho` : `Diminuir quantidade de ${item.product.name}`}>
                       <Ionicons name="remove" size={14} color={INK} />
                     </TouchableOpacity>
                     <Text style={styles.qtyText}>{item.quantity}</Text>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => changeQuantity(item.cart_key, item.quantity + 1)} accessibilityLabel="Pôr mais uma">
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => changeQuantity(item.cart_key, item.quantity + 1)} accessibilityLabel={`Aumentar quantidade de ${item.product.name}`}>
                       <Ionicons name="add" size={14} color={INK} />
                     </TouchableOpacity>
                   </View>
@@ -556,6 +559,8 @@ export default function DesktopPDV() {
               </View>
             )}
             {discountOpen ? (
+              <View style={{ gap: 6 }}>
+              <Text style={styles.lineLabel}>Desconto na venda toda</Text>
               <View style={styles.discountRow}>
                 <TouchableOpacity style={[styles.dtype, discountType === 'value' && styles.dtypeOn]} onPress={() => { setDiscountType('value'); setDiscountInput(''); }}>
                   <Text style={[styles.dtypeText, discountType === 'value' && styles.dtypeTextOn]}>R$</Text>
@@ -565,7 +570,7 @@ export default function DesktopPDV() {
                 </TouchableOpacity>
                 <TextInput
                   value={discountInput}
-                  onChangeText={(t) => setDiscountInput(maskDiscountInput(t, discountType))}
+                  onChangeText={(t) => { setDiscountInput(maskDiscountInput(t, discountType)); if (discountError) setDiscountError(''); }}
                   onSubmitEditing={applyDiscount}
                   placeholder={discountType === 'percent' ? '0' : '0,00'}
                   placeholderTextColor={DESK.faint}
@@ -577,9 +582,11 @@ export default function DesktopPDV() {
                 <TouchableOpacity style={[styles.smallBtn, { backgroundColor: primary }]} onPress={applyDiscount}>
                   <Text style={styles.smallBtnText}>Aplicar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setDiscountOpen(false); setDiscountInput(''); }} accessibilityLabel="Cancelar desconto">
+                <TouchableOpacity onPress={() => { setDiscountOpen(false); setDiscountInput(''); setDiscountError(''); }} accessibilityRole="button" accessibilityLabel="Cancelar desconto">
                   <Ionicons name="close" size={18} color={MUTED} />
                 </TouchableOpacity>
+              </View>
+              {!!discountError && <Text style={{ fontSize: 12, color: Colors.light.error }} accessibilityLiveRegion="polite">{discountError}</Text>}
               </View>
             ) : (
               <View style={styles.line}>
@@ -591,7 +598,7 @@ export default function DesktopPDV() {
                 {cart.discount > 0 && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Text style={[styles.lineValue, { color: Colors.light.success }]}>- {formatCurrency(cart.discount)}</Text>
-                    <TouchableOpacity onPress={() => cart.setDiscount(0)} accessibilityLabel="Tirar o desconto">
+                    <TouchableOpacity onPress={() => cart.setDiscount(0)} accessibilityRole="button" accessibilityLabel="Tirar o desconto da venda toda">
                       <Ionicons name="close-circle" size={16} color={Colors.light.error} />
                     </TouchableOpacity>
                   </View>
@@ -706,7 +713,7 @@ const styles = StyleSheet.create({
   cartList: { flex: 1, minHeight: 120 },
   cartEmpty: { padding: 24, textAlign: 'center', color: MUTED, fontSize: 14, lineHeight: 21 },
   cartItemWrap: { borderBottomWidth: 1, borderBottomColor: SOFT_LINE },
-  cartItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  cartItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   cartDiscountSlot: { paddingHorizontal: 16, paddingBottom: 8 },
   cartTotalStrike: { fontSize: 12, color: MUTED, textDecorationLine: 'line-through' },
   cartName: { fontSize: 14, fontWeight: '600', color: INK },

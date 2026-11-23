@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
+import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import {
   View,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Keyboard,
   TouchableWithoutFeedback,
@@ -71,6 +70,7 @@ function MobileSaleScreen() {
   const [discountVisible, setDiscountVisible] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
   const [discountType, setDiscountType] = useState<'value' | 'percent'>('value');
+  const [discountError, setDiscountError] = useState('');
   const discountInputRef = useRef<any>(null);
 
   // Estado para controlar diálogos de confirmação
@@ -159,8 +159,9 @@ function MobileSaleScreen() {
    */
   const handleApplyDiscount = () => {
     const raw = parseBRL(discountInput);
-    if (isNaN(raw) || raw < 0) {
+    if (isNaN(raw) || raw <= 0) {
       haptics.warning();
+      setDiscountError('Digite o valor do desconto.');
       return;
     }
     const discountValue = discountType === 'percent'
@@ -168,17 +169,10 @@ function MobileSaleScreen() {
       : raw;
     if (discountValue > cart.subtotal) {
       haptics.warning();
-      setDialog({
-        visible: true,
-        type: 'warning',
-        title: 'Desconto inválido',
-        message: 'O desconto não pode ser maior que o subtotal.',
-        confirmText: 'Entendi',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
+      setDiscountError(`O desconto não pode passar do valor das peças (${formatCurrency(cart.subtotal)}).`);
       return;
     }
+    setDiscountError('');
     haptics.success();
     cart.setDiscount(discountValue, discountType === 'percent' ? raw : null);
     setDiscountVisible(false);
@@ -463,7 +457,7 @@ function MobileSaleScreen() {
   };
 
   return (
-    <KeyboardSafeView style={styles.container}>
+    <View style={styles.container}>
     <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss} accessible={false}>
     <View style={{ flex: 1 }}>
       
@@ -477,6 +471,8 @@ function MobileSaleScreen() {
         }] : []}
       />
 
+      {/* Tudo rola; só o Total e o Finalizar ficam presos embaixo (barra fixa) */}
+      <KeyboardAwareScreen style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} bottomPadding={16}>
         {/* Cliente selecionado */}
         <View style={styles.customerSection}>
           {cart.customer_id && selectedCustomer ? (
@@ -496,6 +492,9 @@ function MobileSaleScreen() {
                 onPress={() => cart.setCustomer(undefined)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Tirar a cliente desta venda"
+                style={styles.iconTap}
               >
                 <Ionicons name="close-circle" size={22} color={Colors.light.textTertiary} />
               </TouchableOpacity>
@@ -567,7 +566,7 @@ function MobileSaleScreen() {
               description="Use a barra de busca acima para encontrar e adicionar produtos à venda"
             />
           ) : (
-            <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <View>
               {cart.items.map((item) => (
                 <View key={item.cart_key} style={styles.cartItem}>
                   <View style={styles.cartItemContent}>
@@ -606,19 +605,27 @@ function MobileSaleScreen() {
                     <View style={styles.cartItemActions}>
                       <View style={styles.quantityControl}>
                         <TouchableOpacity
-                          style={[styles.qtyBtn, { backgroundColor: VALUE_COLORS.negative }]}
+                          style={styles.qtyBtn}
                           onPress={() => handleUpdateQuantity(item.cart_key, item.quantity - 1)}
                           activeOpacity={0.75}
+                          accessibilityRole="button"
+                          accessibilityLabel={item.quantity <= 1 ? `Tirar ${item.product.name} do carrinho` : `Diminuir quantidade de ${item.product.name}`}
                         >
-                          <Ionicons name="remove" size={14} color={Colors.light.white} />
+                          <Ionicons
+                            name={item.quantity <= 1 ? 'trash-outline' : 'remove'}
+                            size={18}
+                            color={item.quantity <= 1 ? Colors.light.error : Colors.light.text}
+                          />
                         </TouchableOpacity>
-                        <Text style={styles.quantity}>{item.quantity}</Text>
+                        <Text style={styles.quantity} accessibilityLabel={`Quantidade ${item.quantity}`}>{item.quantity}</Text>
                         <TouchableOpacity
-                          style={[styles.qtyBtn, { backgroundColor: brandingColors.primary }]}
+                          style={styles.qtyBtn}
                           onPress={() => handleUpdateQuantity(item.cart_key, item.quantity + 1)}
                           activeOpacity={0.75}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Aumentar quantidade de ${item.product.name}`}
                         >
-                          <Ionicons name="add" size={14} color={Colors.light.white} />
+                          <Ionicons name="add" size={18} color={brandingColors.primary} />
                         </TouchableOpacity>
                       </View>
                       {item.discount > 0 ? (
@@ -641,13 +648,13 @@ function MobileSaleScreen() {
                   </View>
                 </View>
               ))}
-            </ScrollView>
+            </View>
           )}
         </View>
 
-        {/* Footer com totais e botão de finalizar */}
+        {/* Detalhes da conta (rolam com o carrinho) */}
         {cart.items.length > 0 && (
-          <View style={styles.footer}>
+          <View style={styles.totalsCard}>
             <View style={styles.totalsContainer}>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>{cart.itemsDiscount > 0 ? 'Valor das peças' : 'Subtotal'}</Text>
@@ -674,8 +681,14 @@ function MobileSaleScreen() {
                   </View>
                   <View style={styles.discountRowRight}>
                     {cart.discount > 0 ? (
-                      <TouchableOpacity onPress={handleRemoveDiscount} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Ionicons name="close-circle" size={18} color={Colors.light.error} />
+                      <TouchableOpacity
+                        onPress={handleRemoveDiscount}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Tirar o desconto da venda toda"
+                        style={styles.iconTap}
+                      >
+                        <Ionicons name="close-circle" size={20} color={Colors.light.error} />
                       </TouchableOpacity>
                     ) : (
                       <Ionicons name="add-circle-outline" size={18} color={Colors.light.textSecondary} />
@@ -684,11 +697,10 @@ function MobileSaleScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Brinde (só admin e gerente: o próprio componente some para os outros papéis) */}
-              <CartGifts />
-
-              {/* Input inline de desconto */}
+              {/* Campo do desconto da venda toda, logo abaixo do subtotal */}
               {discountVisible && (
+                <View style={styles.discountEditor}>
+                <Text style={styles.discountEditorTitle}>Desconto na venda toda</Text>
                 <View style={styles.discountInputContainer}>
                   {/* Toggle R$ / % */}
                   <View style={styles.discountTypeToggle}>
@@ -708,7 +720,8 @@ function MobileSaleScreen() {
                   <TextInput
                     ref={discountInputRef}
                     value={discountInput}
-                    onChangeText={(t) => setDiscountInput(maskDiscountInput(t, discountType))}
+                    onChangeText={(t) => { setDiscountInput(maskDiscountInput(t, discountType)); if (discountError) setDiscountError(''); }}
+                    accessibilityLabel={discountType === 'percent' ? 'Desconto da venda toda em porcentagem' : 'Desconto da venda toda em reais'}
                     keyboardType="decimal-pad"
                     placeholder={discountType === 'percent' ? '0' : '0,00'}
                     placeholderTextColor={Colors.light.textTertiary}
@@ -717,13 +730,14 @@ function MobileSaleScreen() {
                     onSubmitEditing={handleApplyDiscount}
                   />
                   <AppButton label="Aplicar desconto" icon="checkmark" iconOnly size="sm" onPress={handleApplyDiscount} />
-                  <AppButton label="Cancelar desconto" icon="close" iconOnly size="sm" variant="outlined" onPress={() => { setDiscountVisible(false); setDiscountInput(''); }} />
+                  <AppButton label="Cancelar desconto" icon="close" iconOnly size="sm" variant="outlined" onPress={() => { setDiscountVisible(false); setDiscountInput(''); setDiscountError(''); }} />
+                </View>
+                {!!discountError && <Text style={styles.discountErrorText} accessibilityLiveRegion="polite">{discountError}</Text>}
                 </View>
               )}
-              <View style={[styles.totalRow, styles.totalRowFinal]}>
-                <Text style={styles.totalFinalLabel}>Total</Text>
-                <Money style={styles.totalFinalValue} value={Number(cart.total)} />
-              </View>
+
+              {/* Brinde (só admin e gerente: o próprio componente some para os outros papéis) */}
+              <CartGifts />
               {cartProfit && (
                 <View style={styles.profitRow}>
                   <View style={styles.profitRowLeft}>
@@ -743,11 +757,20 @@ function MobileSaleScreen() {
                 </View>
               )}
             </View>
+          </View>
+        )}
+      </KeyboardAwareScreen>
 
+        {/* Barra fixa: Total e Finalizar sempre à vista, acima da barra de abas */}
+        {cart.items.length > 0 && (
+          <View style={styles.footer}>
+            <View style={styles.footerTotal}>
+              <Text style={styles.totalFinalLabel}>Total</Text>
+              <Money style={styles.totalFinalValue} value={Number(cart.total)} />
+            </View>
             <AppButton
               variant="primary"
               size="lg"
-              fullWidth
               icon="cash-outline"
               label="Finalizar Venda"
               onPress={handleCheckout}
@@ -784,7 +807,7 @@ function MobileSaleScreen() {
         />
     </View>
     </TouchableWithoutFeedback>
-    </KeyboardSafeView>
+    </View>
   );
 }
 
@@ -995,12 +1018,30 @@ const createStyles = (brand: string) => StyleSheet.create({
   quantityControl: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     marginBottom: theme.spacing.xs,
   },
+  // alvo de toque de 44 (regra de acessibilidade): antes 28 e colados, tirava peça sem querer
   qtyBtn: {
-    width: 28, height: 28, borderRadius: theme.borderRadius.sm,
+    width: 44, height: 44, borderRadius: theme.borderRadius.md,
     justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card,
   },
+  iconTap: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  totalsCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    marginHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+  },
+  discountEditor: { marginBottom: theme.spacing.sm, gap: 6 },
+  discountEditorTitle: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: Colors.light.text },
+  discountErrorText: { fontSize: theme.fontSize.sm, color: Colors.light.error },
+  footerTotal: { flex: 1, minWidth: 0 },
   quantity: {
     marginHorizontal: theme.spacing.sm,
     fontSize: theme.fontSize.base - 1,
@@ -1015,12 +1056,18 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.text,
     flexShrink: 0,
   },
+  // barra fixa (Total + Finalizar): o espaço de baixo deixa o botão redondo do carrinho, que sobe da barra de abas,
+  // sem cobrir o Finalizar
   footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
     backgroundColor: Colors.light.card,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm + 2,
+    paddingBottom: 30,
     elevation: 8,
     shadowColor: Colors.light.black,
     shadowOffset: { width: 0, height: -2 },
@@ -1187,7 +1234,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   checkoutButton: {
-    width: '100%',
+    flexShrink: 0,
   },
   fab: {
     position: 'absolute',

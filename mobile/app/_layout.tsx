@@ -75,7 +75,8 @@ const queryClient = new QueryClient({
     },
     onError: (error, _variables, _context, mutation) => {
       // Só mostra erro global se a mutation não tem um onError próprio
-      if (!mutation.options.onError) {
+      // `meta.ownError`: a tela mostra o erro ela mesma (no mutate), então o aviso global não repete a mesma frase
+      if (!mutation.options.onError && !(mutation.options.meta as any)?.ownError) {
         showApiError(error);
       }
     },
