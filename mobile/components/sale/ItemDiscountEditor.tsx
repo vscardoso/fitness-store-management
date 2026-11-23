@@ -64,7 +64,10 @@ export default function ItemDiscountEditor({ unitPrice, quantity, unitDiscount =
           {pct} de desconto: {formatCurrency(unitNet(unitPrice, unitDiscount))} {quantity > 1 ? 'cada' : ''}
           {quantity > 1 ? ` (${formatCurrency(lineNet(unitPrice, quantity, unitDiscount))})` : ''}
         </Text>
-        <AppButton variant="text" size="sm" label="Mudar" onPress={openEditor} />
+        <View style={styles.appliedActions}>
+          <AppButton variant="text" size="sm" label="Tirar" onPress={onClear} />
+          <AppButton variant="text" size="sm" label="Mudar" onPress={openEditor} />
+        </View>
       </View>
     );
   }
@@ -105,6 +108,7 @@ export default function ItemDiscountEditor({ unitPrice, quantity, unitDiscount =
 }
 
 const styles = StyleSheet.create({
+  appliedActions: { flexDirection: 'row', alignItems: 'center' },
   link: { alignSelf: 'flex-start' },
   linkDense: { alignSelf: 'flex-start', height: 28 },
   appliedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.xs },
