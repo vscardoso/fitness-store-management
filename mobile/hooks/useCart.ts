@@ -63,6 +63,7 @@ export const useCart = () => {
     gifts: store.gifts,
     payments: store.payments,
     discount: store.discount,
+    discountPercent: store.discountPercent ?? null,
     customer_id: store.customer_id,
     notes: store.notes,
     subtotal: store.subtotal,

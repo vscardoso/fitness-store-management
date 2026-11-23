@@ -179,7 +179,7 @@ function MobileSaleScreen() {
       return;
     }
     haptics.success();
-    cart.setDiscount(discountValue);
+    cart.setDiscount(discountValue, discountType === 'percent' ? raw : null);
     setDiscountVisible(false);
     setDiscountInput('');
     Keyboard.dismiss();
@@ -194,7 +194,10 @@ function MobileSaleScreen() {
 
   const handleOpenDiscount = () => {
     // Preenche o input com o valor atual formatado
-    if (cart.discount > 0) {
+    if (cart.discountPercent) {
+      setDiscountType('percent');
+      setDiscountInput(String(cart.discountPercent).replace('.', ','));
+    } else if (cart.discount > 0) {
       setDiscountType('value');
       setDiscountInput(cart.discount.toFixed(2).replace('.', ','));
     }
@@ -665,7 +668,7 @@ function MobileSaleScreen() {
                   <View style={styles.discountRowLeft}>
                     <Ionicons name="pricetag-outline" size={15} color={cart.discount > 0 ? Colors.light.success : Colors.light.textSecondary} />
                     <Text style={cart.discount > 0 ? styles.discountLabel : styles.discountAddLabel}>
-                      {cart.discount > 0 ? `Desconto geral  -${formatCurrency(cart.discount)}` : 'Desconto na venda toda'}
+                      {cart.discount > 0 ? `Desconto geral${cart.discountPercent ? ` (${String(cart.discountPercent).replace('.', ',')}%)` : ''}  -${formatCurrency(cart.discount)}` : 'Desconto na venda toda'}
                     </Text>
                   </View>
                   <View style={styles.discountRowRight}>

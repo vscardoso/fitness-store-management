@@ -260,7 +260,7 @@ export default function DesktopPDV() {
       setDialog({ title: 'Desconto inválido', message: 'O desconto não pode ser maior que o subtotal.', type: 'warning', confirmText: 'Entendi' });
       return;
     }
-    cart.setDiscount(Math.round(value * 100) / 100);
+    cart.setDiscount(Math.round(value * 100) / 100, discountType === 'percent' ? raw : null);
     setDiscountOpen(false);
     setDiscountInput('');
   };
@@ -584,7 +584,7 @@ export default function DesktopPDV() {
               <View style={styles.line}>
                 <TouchableOpacity onPress={() => setDiscountOpen(true)} disabled={cart.items.length === 0}>
                   <Text style={[styles.lineLabel, cart.discount > 0 ? { color: Colors.light.success } : { color: cart.items.length ? primary : MUTED }]}>
-                    {cart.discount > 0 ? 'Desconto geral' : '+ Desconto na venda toda'}
+                    {cart.discount > 0 ? (cart.discountPercent ? `Desconto geral (${String(cart.discountPercent).replace('.', ',')}%)` : 'Desconto geral') : '+ Desconto na venda toda'}
                   </Text>
                 </TouchableOpacity>
                 {cart.discount > 0 && (

@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Product, SaleItem, Payment, PaymentMethod } from '@/types';
 import type { ProductGrouped, ProductVariant as GroupedVariant } from '@/types';
 import { lineDiscount } from '@/utils/itemDiscount';
+import { effectiveGlobalDiscountCents } from '@/utils/cartDiscount';
 
 const cents = (v: number): number => Math.round((Number(v) + Number.EPSILON) * 100);
 /** Reais em centavos exatos (evita 359.59999999999997 na soma). */
@@ -67,6 +68,8 @@ interface CartState {
   gifts: CartGift[];
   payments: Payment[];
   discount: number;
+  /** Desconto geral dado em %: o valor (`discount`) é refeito sobre o subtotal a cada mudança do carrinho. */
+  discountPercent?: number | null;
   customer_id?: number;
   notes?: string;
   /** Timestamp ISO da primeira adição ao carrinho (para TTL) */
@@ -100,7 +103,8 @@ interface CartState {
   clearPayments: () => void;
 
   // Actions - Global
-  setDiscount: (discount: number) => void;
+  /** Desconto geral em reais, ou em % quando `percent` vem (acompanha o carrinho). Nunca passa do subtotal. */
+  setDiscount: (discount: number, percent?: number | null) => void;
   setCustomer: (customer_id?: number) => void;
   setNotes: (notes: string) => void;
   clear: () => void;
@@ -121,6 +125,7 @@ export const useCartStore = create<CartState>()(
       gifts: [],
       payments: [],
       discount: 0,
+      discountPercent: null,
       customer_id: undefined,
       notes: undefined,
       persisted_at: undefined,
@@ -290,7 +295,8 @@ export const useCartStore = create<CartState>()(
        * Limpar todos os items
        */
       clearItems: () => {
-        set({ items: [] });
+        // carrinho vazio não guarda desconto geral (senão ele aparece na próxima venda)
+        set({ items: [], discount: 0, discountPercent: null });
         get().calculateTotals();
       },
 
@@ -331,8 +337,9 @@ export const useCartStore = create<CartState>()(
       /**
        * Definir desconto global
        */
-      setDiscount: (discount: number) => {
-        set({ discount: Math.max(0, discount) });
+      setDiscount: (discount: number, percent?: number | null) => {
+        const pct = percent != null && percent > 0 ? Math.min(percent, 100) : null;
+        set({ discount: Math.max(0, discount), discountPercent: pct });
         get().calculateTotals();
       },
 
@@ -377,6 +384,7 @@ export const useCartStore = create<CartState>()(
           gifts: [],
           payments: [],
           discount: 0,
+          discountPercent: null,
           customer_id: undefined,
           notes: undefined,
           persisted_at: undefined,
@@ -395,13 +403,12 @@ export const useCartStore = create<CartState>()(
       calculateTotals: () => {
         const items = get().items;
         const payments = get().payments;
-        const globalDiscount = get().discount;
-
         // Subtotal dos items (com o desconto de cada peça), em centavos exatos
         const subtotalCents = items.reduce(
           (sum, item) => sum + cents(item.unit_price) * item.quantity - cents(item.discount),
           0,
         );
+        const globalDiscount = money(effectiveGlobalDiscountCents(subtotalCents, get().discount, get().discountPercent));
         const itemsDiscountCents = items.reduce((sum, item) => sum + cents(item.discount), 0);
         const subtotal = money(subtotalCents);
         const itemsDiscount = money(itemsDiscountCents);
@@ -419,6 +426,8 @@ export const useCartStore = create<CartState>()(
         const remaining = Math.max(0, money(cents(total) - cents(totalPaid)));
 
         set({
+          discount: globalDiscount,
+          ...(items.length === 0 ? { discountPercent: null } : {}),
           subtotal,
           itemsDiscount,
           total,
@@ -444,6 +453,7 @@ export const useCartStore = create<CartState>()(
         gifts: state.gifts,
         // payments NÃO persiste — são específicos da sessão (evita pagamentos fantasma)
         discount: state.discount,
+        discountPercent: state.discountPercent,
         customer_id: state.customer_id,
         notes: state.notes,
         persisted_at: state.persisted_at,
@@ -459,6 +469,7 @@ export const useCartStore = create<CartState>()(
             state.gifts = [];
             state.payments = [];
             state.discount = 0;
+            state.discountPercent = null;
             state.customer_id = undefined;
             state.notes = undefined;
             state.persisted_at = undefined;
@@ -468,11 +479,13 @@ export const useCartStore = create<CartState>()(
         // Fix 2: recalcular totais após rehydration (evita total zerado)
         state.gifts = state.gifts ?? [];
         const items = state.items ?? [];
-        const globalDiscount = state.discount ?? 0;
         const subtotalCents = items.reduce(
           (sum, item) => sum + cents(item.unit_price) * item.quantity - cents(item.discount),
           0,
         );
+        if (items.length === 0) state.discountPercent = null;
+        const globalDiscount = money(effectiveGlobalDiscountCents(subtotalCents, state.discount ?? 0, state.discountPercent));
+        state.discount = globalDiscount;
         state.subtotal = money(subtotalCents);
         state.itemsDiscount = money(items.reduce((sum, item) => sum + cents(item.discount), 0));
         state.total = Math.max(0, money(subtotalCents - cents(globalDiscount)));
