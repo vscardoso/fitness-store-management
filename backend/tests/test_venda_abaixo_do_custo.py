@@ -208,3 +208,20 @@ async def test_peca_nova_da_troca_abaixo_do_custo_e_recusada_e_nada_muda(test_cl
     item["replacement_unit_price"] = "40.00"                                                          # no custo: passa
     r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={"reason": "Quis outra cor", "settlement_method": "cash", "items": [item]})
     assert r.status_code == 201, r.text
+
+
+async def test_mensagem_do_desconto_geral_nao_fala_de_desconto_na_peca():
+    """Caso real (23/11/2026): 50% de desconto geral numa venda de 3 peças; a recusa soava como desconto naquela peça."""
+    from app.services.price_floor import below_cost_message
+    m = below_cost_message("Conjunto Short Top", 1, D("64.95"), has_discount=True, general_discount=D("199.85"))
+    assert m.startswith("Com o desconto geral de R$ 199,85")
+    assert "R$ 64,95" in m and m.endswith("Diminua o desconto geral.")
+    m2 = below_cost_message("Conjunto", 1, D("64.95"), has_discount=True, general_discount=D("50"), piece_discount=True)
+    assert "desta peça ou o desconto geral" in m2
+
+
+async def test_venda_recusada_pelo_desconto_geral_explica_o_desconto_geral(test_client, async_session, test_user):
+    _t, h, p, v = await _cenario(async_session, test_user)
+    r = await _vender(test_client, h, p, v, 1, "89.90", extra={"discount_amount": "60.00"})
+    assert r.status_code == 400, r.text
+    assert "desconto geral" in r.text

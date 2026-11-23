@@ -39,12 +39,24 @@ def is_below_cost(line_net, line_cost) -> bool:
     return cents(line_net) < cents(line_cost)
 
 
-def below_cost_message(name: str, quantity: int, line_net, *, has_discount: bool) -> str:
+def below_cost_message(name: str, quantity: int, line_net, *, has_discount: bool, general_discount=None,
+                       piece_discount: bool = False) -> str:
+    """Frase da recusa. `general_discount` (desconto da venda inteira, R$) muda a frase quando é ele que leva a peça abaixo do
+    custo: a pessoa deu desconto geral, então a mensagem não pode soar como desconto naquela peça."""
     from app.services.sale_receipt_service import brl
-    price = brl(cents(line_net))
+    total = brl(cents(line_net))
+    general = cents(general_discount) if general_discount else Decimal("0")
     if quantity > 1:
-        quando = f"{name} ({quantity} peças) sairia por {brl(cents(line_net))} no total, abaixo do que as peças custaram."
+        quando = f"{name} ({quantity} peças) sairia por {total} no total, abaixo do que as peças custaram."
     else:
-        quando = f"{name} sairia por {price}, abaixo do que a peça custou."
-    tail = "Diminua o desconto." if has_discount else "Confira o preço de venda no cadastro do produto."
+        quando = f"{name} sairia por {total}, abaixo do que a peça custou."
+    if general > 0 and not piece_discount:
+        return (f"Com o desconto geral de {brl(general)}, que se divide entre as peças pelo valor de cada uma, "
+                f"{quando[0].lower() + quando[1:]} O sistema não vende abaixo do custo. Diminua o desconto geral.")
+    if general > 0 and piece_discount:
+        tail = "Diminua o desconto desta peça ou o desconto geral."
+    elif has_discount:
+        tail = "Diminua o desconto."
+    else:
+        tail = "Confira o preço de venda no cadastro do produto."
     return f"{quando} O sistema não vende abaixo do custo. {tail}"

@@ -383,6 +383,8 @@ class SaleService:
                     raise ValueError(below_cost_message(
                         prod.name if prod else f"Produto {item_data.product_id}", item_data.quantity, line_net,
                         has_discount=bool(Decimal(str(item_data.discount_amount or 0))) or header_shares[line_idx] > 0,
+                        general_discount=discount_amount if header_shares[line_idx] > 0 else None,
+                        piece_discount=bool(Decimal(str(item_data.discount_amount or 0))),
                     ))
                 
                 # Criar SaleItem com rastreabilidade FIFO
