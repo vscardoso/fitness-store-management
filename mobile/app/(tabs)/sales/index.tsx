@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
   Text,
   TextInput,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -34,6 +34,7 @@ import { paymentSummary } from '@/utils/paymentLabel';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 const PAY_ICON: Record<string, string> = {
   card: 'card-outline', cash: 'cash-outline', pix: 'qr-code-outline', fiado: 'time-outline', points: 'gift-outline',
   transfer: 'swap-horizontal-outline', mixed: 'wallet-outline',
@@ -83,13 +84,21 @@ function MobileSalesListScreen() {
     return { start_date: fmt(start), end_date: fmt(now) };
   }, [selectedPeriod]);
 
-  const { data: sales, isLoading, isError, refetch, isRefetching } = useQuery({
-    queryKey: ['sales', skip, search, dateRange],
+  // a busca só vai ao servidor 400 ms depois da última letra, e a lista antiga fica na tela até a nova chegar (sem tela de carregando por letra)
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: sales, isLoading, isError, refetch, isRefetching, isFetching } = useQuery({
+    queryKey: ['sales', skip, debouncedSearch, dateRange],
     queryFn: async () => {
       const params: any = { skip, limit: 50, ...dateRange };
-      if (search.trim().length > 0) params.q = search.trim();
-      return getSales(params);
+      if (debouncedSearch.length > 0) params.q = debouncedSearch;
+      return getSales(params, { skipLoading: debouncedSearch.length > 0 });
     },
+    placeholderData: keepPreviousData,
   });
 
   useFocusEffect(
@@ -277,9 +286,10 @@ function MobileSalesListScreen() {
             autoCorrect={false}
             returnKeyType="search"
           />
+          {isFetching && search.length > 0 && <ActivityIndicator size="small" />}
           {search.length > 0 && (
             <TouchableOpacity
-              onPress={() => setSearch('')}
+              onPress={() => { setSearch(''); setDebouncedSearch(''); }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="close-circle" size={18} color={Colors.light.textTertiary} />

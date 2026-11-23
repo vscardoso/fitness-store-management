@@ -36,9 +36,10 @@ export const getSales = async (params?: PaginationParams & {
   end_date?: string;
   sale_number?: string;
   q?: string;
-}): Promise<Sale[]> => {
+}, opts?: { skipLoading?: boolean }): Promise<Sale[]> => {
   try {
-    const { data } = await api.get<Sale[]>('/sales/', { params });
+    // skipLoading: busca digitada não pode cobrir a tela com o carregando global a cada letra
+    const { data } = await api.get<Sale[]>('/sales/', { params, ...(opts?.skipLoading ? { headers: { 'X-Skip-Loading': 'true' } } : {}) });
     return data;
   } catch (error) {
     throw error;
