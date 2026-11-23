@@ -834,7 +834,7 @@ class FinanceService:
             ("fiado_sold", "Vendido no fiado e ainda não recebido", -fiado_sold),
             ("fiado_received", "Fiado recebido no mês (de vendas deste ou de meses antes)", fiado_received),
             ("points", "Vendido com pontos de fidelidade (não entra dinheiro)", -points),
-            ("noncash_refunds", "Devoluções que não saíram em dinheiro (crédito, abatimento de fiado)", noncash_refunds),
+            ("noncash_refunds", "Devoluções que não saíram em dinheiro ou que contam em outro mês (crédito, abatimento de fiado, estorno de venda de outro mês)", noncash_refunds),
             ("cash_net", "Caixa da gaveta (dinheiro colocado menos tirado)", cash_net),
             ("owner", "Retiradas de sócio, empréstimos e faturas (não são despesa)", other_in - other_out),
             ("adjustments", "Correções feitas à mão (Corrigir saldo, contagem do caixa, fechamento)", adj_total),

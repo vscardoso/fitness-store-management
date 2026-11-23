@@ -1,7 +1,7 @@
 """
 Modelo de devoluções de vendas.
 """
-from sqlalchemy import String, ForeignKey, Numeric, Text, Integer, JSON
+from sqlalchemy import Boolean, String, ForeignKey, Numeric, Text, Integer, JSON, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from decimal import Decimal
 from typing import List, TYPE_CHECKING, Any
@@ -89,6 +89,9 @@ class SaleReturn(BaseModel):
         nullable=True,
         comment="Saldo da troca: peças novas - valor devolvido (positivo: cliente paga; negativo: loja devolve)"
     )
+    # Estorno por erro de lançamento (só admin): a venda errada é apagada, então o abatimento conta no DIA DA VENDA, não no dia do estorno
+    is_correction: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+
     receivable_abated: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False,

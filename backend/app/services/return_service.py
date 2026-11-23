@@ -506,6 +506,7 @@ class ReturnService:
                 sale_id=sale.id,
                 status="completed",
                 reason=("Estorno por erro de lançamento: " + return_data.reason) if correction else return_data.reason,
+                is_correction=correction,
                 total_refund=float(total_refund),
                 refund_method=return_data.refund_method or "original",
                 receivable_abated=float(receivable_abated),

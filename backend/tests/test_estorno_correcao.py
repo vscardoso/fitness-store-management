@@ -96,17 +96,44 @@ async def _loja_volta_a_devolver_dinheiro(async_session):
     await async_session.commit()
 
 
-async def test_inicio_mostra_vendido_e_devolvido_do_dia_quando_estorna_venda_de_outro_dia(test_client, async_session, test_user):
-    """Caso real de 22/11/2026: estornou uma venda de dias atrás (R$ 200) e lançou outra hoje (R$ 100). O dia fica em -R$ 100 (a devolução
-    abate no dia em que aconteceu), mas o Início precisa receber o vendido (gross_today) e o devolvido (refunds_today) para não mostrar
-    uma 'venda negativa'."""
+async def test_inicio_mostra_vendido_e_devolvido_do_dia_quando_devolve_venda_de_outro_dia(test_client, async_session, test_user):
+    """Devolução COMUM de venda de dias atrás (R$ 200) com uma venda nova hoje (R$ 100): o dia fica em -R$ 100 (a devolução abate no dia em
+    que aconteceu), e o Início recebe o vendido (gross_today) e o devolvido (refunds_today) para não mostrar uma 'venda negativa'."""
     t_id, admin, p, va, vb = await _cenario(async_session, test_user)
-    errada, item_errado = await _vender(test_client, admin, p, va, 2, "100.00")
-    await _atrasar(async_session, errada, 3)
-    certa, _ = await _vender(test_client, admin, p, va, 1, "100.00")
-    r = await test_client.post(f"/api/v1/returns/{errada}", headers=admin, json={
-        "reason": "Preço errado", "is_correction": True, "items": [{"sale_item_id": item_errado, "quantity": 2}]})
+    antiga, item = await _vender(test_client, admin, p, va, 2, "100.00")
+    await _atrasar(async_session, antiga, 3)
+    await _vender(test_client, admin, p, va, 1, "100.00")
+    r = await test_client.post(f"/api/v1/returns/{antiga}", headers=admin, json={"reason": "Não serviu", "items": [{"sale_item_id": item, "quantity": 2}]})
     assert r.status_code == 201, r.text
     s = (await test_client.get("/api/v1/dashboard/stats", headers=admin)).json()["sales"]
     assert s["gross_today"] == 100.0 and s["refunds_today"] == 200.0
-    assert s["total_today"] == -100.0 and s["count_today"] == 1       # líquido do dia = vendido - devolvido
+    assert s["total_today"] == -100.0 and s["count_today"] == 1
+
+
+async def test_estorno_por_erro_conta_no_dia_da_venda_e_nao_no_dia_do_estorno(test_client, async_session, test_user):
+    """Caso real de 22/11/2026: a venda errada (R$ 200, de 3 dias atrás) é apagada hoje e refeita (R$ 100). O dia da venda errada volta a R$ 0
+    (e o custo também), hoje fica só com a venda nova, o mês não muda e o dinheiro (Financeiro) continua pela data real."""
+    from datetime import date, timedelta
+    from app.core.timezone import today_brazil
+    from app.services.money_ledger import period_totals
+    t_id, admin, p, va, vb = await _cenario(async_session, test_user)
+    errada, item = await _vender(test_client, admin, p, va, 2, "100.00")
+    await _atrasar(async_session, errada, 3)
+    await _vender(test_client, admin, p, va, 1, "100.00")
+    hoje = today_brazil()
+    dia_errada = (datetime.now(timezone.utc) - timedelta(days=3)).astimezone().date()
+    r = await test_client.post(f"/api/v1/returns/{errada}", headers=admin, json={
+        "reason": "Preço errado", "is_correction": True, "items": [{"sale_item_id": item, "quantity": 2}]})
+    assert r.status_code == 201, r.text
+
+    s = (await test_client.get("/api/v1/dashboard/stats", headers=admin)).json()["sales"]
+    assert s["total_today"] == 100.0 and s["refunds_today"] == 0.0 and s["count_today"] == 1   # hoje só a venda nova, sem devolução
+
+    async def tot(d0, d1):
+        await async_session.rollback()
+        return await period_totals(async_session, t_id, d0, d1)
+    t3 = await tot(hoje - timedelta(days=4), hoje - timedelta(days=2))      # o dia da venda errada
+    assert t3.gross_sales == 200 and t3.refunds == 200 and t3.revenue == 0 and t3.cost == 0 and t3.profit == 0
+    tm = await tot(hoje - timedelta(days=4), hoje)                          # a janela inteira: igual a antes (200 - 200 + 100)
+    assert tm.revenue == 100
+    assert t3.returns_count == 1 and (await tot(hoje, hoje)).returns_count == 0

@@ -23,7 +23,7 @@ from decimal import Decimal
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import get_period_range_utc
@@ -106,6 +106,13 @@ class MoneyTotals:
     @property
     def average_ticket(self) -> float:
         return float(self.revenue / self.sales_count) if self.sales_count else 0.0
+
+
+def return_day_col():
+    """Dia em que a devolução conta nos números de venda: o do estorno, EXCETO no estorno por erro de lançamento, que conta no
+    dia da venda apagada (a venda errada nunca existiu: o dia dela não pode ficar inflado e o dia do estorno negativo).
+    Dinheiro que saiu da conta (Financeiro, caixa) continua pela data real. Precisa de `Sale` na mesma consulta."""
+    return case((SaleReturn.is_correction.is_(True), Sale.created_at), else_=SaleReturn.created_at)
 
 
 async def period_totals(
@@ -197,12 +204,12 @@ async def period_totals(
     # 2. Devoluções feitas no período (de vendas não canceladas): abatem no dia da devolução
     ret_filter = [
         *tenant(SaleReturn.tenant_id), SaleReturn.is_active == True, SaleReturn.status == "completed",  # noqa: E712
-        Sale.status != SaleStatus.CANCELLED, *in_range(SaleReturn.created_at),
+        Sale.status != SaleStatus.CANCELLED, *in_range(return_day_col()),
     ]
     if seller_id:
         ret_filter.append(Sale.seller_id == seller_id)
     rets = (await db.execute(
-        select(SaleReturn.id, SaleReturn.created_at, SaleReturn.total_refund, Sale.seller_id)
+        select(SaleReturn.id, return_day_col(), SaleReturn.total_refund, Sale.seller_id)
         .join(Sale, Sale.id == SaleReturn.sale_id).where(and_(*ret_filter)))).all()
     for _rid, created, refund, seller in rets:
         amount = _d(refund)
@@ -213,7 +220,7 @@ async def period_totals(
             t.by_seller[seller]["refunds"] += amount
     if rets:
         ritems = (await db.execute(
-            select(ReturnItem.quantity_returned, ReturnItem.unit_cost, ReturnItem.restock, SaleReturn.created_at)
+            select(ReturnItem.quantity_returned, ReturnItem.unit_cost, ReturnItem.restock, return_day_col())
             .join(SaleReturn, SaleReturn.id == ReturnItem.return_id)
             .join(Sale, Sale.id == SaleReturn.sale_id)
             .where(and_(*ret_filter), ReturnItem.is_active == True))).all()  # noqa: E712
@@ -287,7 +294,7 @@ async def period_by_product(
 
     ret_filter = [
         *tenant(SaleReturn.tenant_id), SaleReturn.is_active == True, SaleReturn.status == "completed",  # noqa: E712
-        Sale.status != SaleStatus.CANCELLED, *in_range(SaleReturn.created_at),
+        Sale.status != SaleStatus.CANCELLED, *in_range(return_day_col()),
     ]
     ritems = (await db.execute(
         select(SaleReturn.id, SaleReturn.total_refund, ReturnItem.product_id, ReturnItem.quantity_returned,
@@ -374,7 +381,7 @@ async def period_by_variant(
 
     ret_filter = [
         *tenant(SaleReturn.tenant_id), SaleReturn.is_active == True, SaleReturn.status == "completed",  # noqa: E712
-        Sale.status != SaleStatus.CANCELLED, *in_range(SaleReturn.created_at),
+        Sale.status != SaleStatus.CANCELLED, *in_range(return_day_col()),
     ]
     ritems = (await db.execute(
         select(SaleReturn.id, SaleReturn.total_refund, ReturnItem.product_id, ReturnItem.variant_id,

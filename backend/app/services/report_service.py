@@ -9,6 +9,7 @@ from typing import Optional, List, Dict, Any
 
 from app.models.sale import Sale, SaleItem, PaymentMethod, SaleStatus
 from app.models.sale_return import SaleReturn
+from app.services.money_ledger import return_day_col
 from app.models.category import Category
 from app.models.user import User
 from app.utils.variant_code import format_variant_code
@@ -124,8 +125,8 @@ class ReportService:
             SaleReturn.tenant_id == tenant_id,
             SaleReturn.is_active == True,
             SaleReturn.status == "completed",
-            SaleReturn.created_at >= s_utc,
-            SaleReturn.created_at <= e_utc,
+            return_day_col() >= s_utc,
+            return_day_col() <= e_utc,
             Sale.status != SaleStatus.CANCELLED,
             ReturnItem.is_active == True,
         )
