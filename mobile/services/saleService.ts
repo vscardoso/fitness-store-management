@@ -107,6 +107,14 @@ export const cancelSale = async (id: number): Promise<Sale> => {
 };
 
 /**
+ * Atribuir cliente a uma venda concluída que ficou sem cliente (só administrador ou gerente)
+ */
+export const assignSaleCustomer = async (id: number, customerId: number): Promise<{ id: number; customer_id: number; customer_name: string }> => {
+  const { data } = await api.patch(`/sales/${id}/customer`, { customer_id: customerId });
+  return data;
+};
+
+/**
  * Obter total de vendas do dia
  */
 export const getDailySalesTotal = async (date?: string): Promise<{ total: number }> => {

@@ -7,6 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import date
+from decimal import Decimal
+from pydantic import BaseModel
+from app.repositories.customer_repository import CustomerRepository
 
 from app.core.database import get_db
 from app.schemas.sale import SaleCreate, SaleResponse, SaleWithDetails
@@ -514,6 +517,48 @@ async def get_sale_receipt_pdf(
     data = await rs.build_receipt_data(db, sale, tenant_id, change)
     pdf = rs.build_receipt_pdf(data, size)
     return pdf_response(pdf, f"comprovante-{sale.sale_number}.pdf", link=link, tenant_id=tenant_id)
+
+
+class SaleCustomerAssign(BaseModel):
+    customer_id: int
+
+
+@router.patch(
+    "/{sale_id}/customer",
+    summary="Atribuir cliente a uma venda que ficou sem cliente",
+)
+async def assign_sale_customer(
+    sale_id: int,
+    body: SaleCustomerAssign,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Só vale para venda concluída e sem cliente (trocar de cliente não entra).
+    Soma a venda no total comprado do cliente (para um cancelamento ou devolução depois estornar certo),
+    mas NÃO gera pontos de fidelidade retroativos.
+    """
+    sale = await SaleRepository(db).get_with_details(sale_id, tenant_id=tenant_id)
+    if not sale:
+        raise HTTPException(status_code=404, detail="Venda não encontrada")
+    if sale.customer_id:
+        raise HTTPException(status_code=400, detail="Esta venda já tem cliente. Só dá para atribuir em venda sem cliente.")
+    if getattr(sale.status, "value", sale.status) != SaleStatus.COMPLETED.value:
+        raise HTTPException(status_code=400, detail="Só dá para atribuir cliente em venda concluída, sem troca nem devolução.")
+    customer = await CustomerRepository(db).get(db, body.customer_id, tenant_id=tenant_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Cliente não encontrada")
+    sale.customer_id = customer.id
+    customer.total_spent = float(Decimal(str(customer.total_spent or 0)) + Decimal(str(sale.total_amount)))
+    customer.total_purchases = (customer.total_purchases or 0) + 1
+    await db.flush()
+    await AuditService.log(db, "SALE_CUSTOMER_ASSIGNED",
+        tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+        entity="sale", entity_id=sale_id,
+        detail={"customer_id": customer.id, "total": float(sale.total_amount)},
+    )
+    return {"id": sale.id, "customer_id": customer.id, "customer_name": customer.full_name}
 
 
 # ============================================================================

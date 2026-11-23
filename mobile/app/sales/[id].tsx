@@ -21,7 +21,9 @@ import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
-import { getSaleById } from '@/services/saleService';
+import { getSaleById, assignSaleCustomer } from '@/services/saleService';
+import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
+import { isManagerRole } from '@/utils/roles';
 import { checkReturnEligibility, getReturnHistory } from '@/services/returnService';
 import { confirmManualPayment, cancelOrder } from '@/services/pdvService';
 import { itemsDiscountOf } from '@/utils/itemDiscount';
@@ -161,6 +163,8 @@ export default function SaleDetailsScreen() {
   const [shareError, setShareError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [assigning, setAssigning] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const animated = useRef(false);
@@ -270,6 +274,28 @@ export default function SaleDetailsScreen() {
       setActionError(err?.response?.data?.detail ?? err?.message ?? 'Erro ao confirmar pagamento.');
     } finally {
       setConfirming(false);
+    }
+  };
+
+  // Venda concluída e sem cliente: administrador ou gerente pode atribuir o cliente depois
+  const canAssignCustomer = !!sale && !sale.customer_id && String(sale.status).toLowerCase() === 'completed' && isManagerRole(user?.role);
+
+  const handleAssignCustomer = async (customerId: number) => {
+    setCustomerPickerOpen(false);
+    setAssigning(true);
+    try {
+      await assignSaleCustomer(saleId, customerId);
+      haptics.success();
+      queryClient.invalidateQueries({ queryKey: ['sale', saleId] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customer'] });
+      refetch();
+    } catch (err: any) {
+      haptics.error();
+      setActionError(err?.response?.data?.detail ?? err?.message ?? 'Não consegui atribuir o cliente.');
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -569,7 +595,7 @@ export default function SaleDetailsScreen() {
         </View>
 
         {/* ── CLIENTE & VENDEDOR ────────────────────────────────── */}
-        {(sale.customer_id || sale.seller_name || sale.seller_id) && (
+        {(sale.customer_id || sale.seller_name || sale.seller_id || canAssignCustomer) && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Ionicons name="people-outline" size={17} color={brandingColors.primary} />
@@ -586,6 +612,17 @@ export default function SaleDetailsScreen() {
                   <Text style={styles.personName}>{sale.customer_name || '—'}</Text>
                 </View>
               </View>
+            )}
+
+            {canAssignCustomer && (
+              <AppButton
+                variant="outlined"
+                icon="person-add-outline"
+                label="Atribuir cliente"
+                loading={assigning}
+                onPress={() => setCustomerPickerOpen(true)}
+                style={{ marginBottom: theme.spacing.sm }}
+              />
             )}
 
             {(sale.seller_name || sale.seller_id) && (
@@ -734,6 +771,12 @@ export default function SaleDetailsScreen() {
         correction={correctionMode}
         onDismiss={() => setReturnModalVisible(false)}
         onSuccess={handleReturnSuccess}
+      />
+
+      <CustomerSelectionModal
+        visible={customerPickerOpen} onDismiss={() => setCustomerPickerOpen(false)}
+        title="Atribuir cliente" subtitle="Escolha quem comprou. Os pontos de fidelidade não são gerados depois da venda."
+        dismissLabel="Voltar" onSelectCustomer={(c) => handleAssignCustomer(c.id)}
       />
 
       <ConfirmDialog
