@@ -52,11 +52,15 @@ t('recusa: vazio, zero, maior que a peça e peça de graça', () => {
   const maior = discountFromInput('value', '150', 100);
   assert.equal(maior.ok, false);
   if (!maior.ok) assert.match(maior.message, /maior que o preço/);
-  for (const [kind, raw] of [['percent', '100'], ['percent', '120'], ['value', '100']] as const) {
+  for (const [kind, raw] of [['percent', '100'], ['value', '100']] as const) {
     const r = discountFromInput(kind, raw, 100);
     assert.equal(r.ok, false, `${kind} ${raw}`);
     if (!r.ok) assert.match(r.message, /Brindes/);
   }
+  // valor em reais digitado com o % marcado (caso real da troca de 24/11/2026): a frase manda tocar em R$
+  const emReais = discountFromInput('percent', '468,45', 859.9);
+  assert.equal(emReais.ok, false);
+  if (!emReais.ok) assert.match(emReais.message, /toque em R\$/);
 });
 
 t('peça sem preço e desconto menor que 1 centavo', () => {

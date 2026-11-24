@@ -68,7 +68,11 @@ export function discountFromInput(kind: DiscountKind, raw: string, unitPrice: nu
 
   let discountCents: number;
   if (kind === 'percent') {
-    if (typed >= 100) return { ok: false, message: 'O desconto tem que ser menor que 100%. Para dar a peça sem cobrança, use Brindes no menu Mais.' };
+    if (typed >= 100) {
+      // número grande com o % marcado quase sempre é valor em reais digitado no modo errado (caso real, troca de 24/11/2026)
+      if (typed > 100) return { ok: false, message: `O campo está em %, e ${String(raw).trim()}% passa de 100%. Se esse valor é em reais, toque em R$ e digite de novo.` };
+      return { ok: false, message: 'O desconto tem que ser menor que 100%. Para dar a peça sem cobrança, use Brindes no menu Mais.' };
+    }
     // preço com desconto arredondado ao centavo POR PEÇA
     const netCents = Math.round((priceCents * (100 - typed)) / 100);
     discountCents = priceCents - netCents;
