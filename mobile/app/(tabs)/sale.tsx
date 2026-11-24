@@ -590,13 +590,13 @@ function MobileSaleScreen() {
                           const netUnit = item.unit_price - (item.unit_discount ?? 0);
                           const marginPct = netUnit > 0 ? ((netUnit - cost) / netUnit) * 100 : 0;
                           const belowCost = netUnit < cost;
-                          const tone = belowCost ? VALUE_COLORS.negative : marginPct >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning;
-                          return (
-                            <View style={[styles.cartMarginBadge, { backgroundColor: tone + '18' }]}>
-                              <Text style={[styles.cartMarginText, { color: tone }]}>
-                                {belowCost ? 'abaixo do custo' : `lucro ${formatPercent(marginPct, 0)}`}
-                              </Text>
+                          // lucro é informação de apoio (só gerente/admin): texto cinza pequeno; selo vermelho só se ficar abaixo do custo
+                          return belowCost ? (
+                            <View style={[styles.cartMarginBadge, { backgroundColor: VALUE_COLORS.negative + '18' }]}>
+                              <Text style={[styles.cartMarginText, { color: VALUE_COLORS.negative }]}>abaixo do custo</Text>
                             </View>
+                          ) : (
+                            <Text style={styles.cartMarginPlain}>lucro {formatPercent(marginPct, 0)}</Text>
                           );
                         })()}
                       </View>
@@ -740,20 +740,13 @@ function MobileSaleScreen() {
               <CartGifts />
               {cartProfit && (
                 <View style={styles.profitRow}>
-                  <View style={styles.profitRowLeft}>
-                    <Ionicons name="trending-up" size={16} color={VALUE_COLORS.positive} />
-                    <Text style={styles.profitRowLabel}>Lucro estimado</Text>
-                  </View>
-                  <View style={styles.profitRowRight}>
-                    <Text style={[styles.profitRowValue, { color: cartProfit.profit >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                      {formatCurrency(cartProfit.profit)}
-                    </Text>
-                    <View style={[styles.profitRowBadge, { backgroundColor: cartProfit.margin >= 30 ? VALUE_COLORS.positive + '18' : VALUE_COLORS.warning + '18' }]}>
-                      <Text style={[styles.profitRowBadgeText, { color: cartProfit.margin >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning }]}>
-                        margem {formatPercent(cartProfit.margin, 1)}
-                      </Text>
-                    </View>
-                  </View>
+                  {/* informação de apoio: discreta; só fica vermelha quando a venda dá prejuízo */}
+                  <Text style={[styles.profitRowLabel, cartProfit.profit < 0 && { color: VALUE_COLORS.negative }]}>
+                    {cartProfit.profit < 0 ? 'Prejuízo estimado' : 'Lucro estimado'}
+                  </Text>
+                  <Text style={[styles.profitRowLabel, cartProfit.profit < 0 && { color: VALUE_COLORS.negative, fontWeight: theme.fontWeight.semibold }]}>
+                    {formatCurrency(cartProfit.profit)} · margem {formatPercent(cartProfit.margin, 1)}
+                  </Text>
                 </View>
               )}
             </View>
@@ -1007,6 +1000,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     paddingHorizontal: 5, paddingVertical: 2,
     borderRadius: theme.borderRadius.sm,
   },
+  cartMarginPlain: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary },
   cartMarginText: {
     fontSize: theme.fontSize.xxs,
     fontWeight: '700',

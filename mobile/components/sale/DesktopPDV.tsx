@@ -612,9 +612,12 @@ export default function DesktopPDV() {
             </View>
             {cartProfit && (
               <View style={styles.line}>
-                <Text style={styles.lineLabel}>Lucro estimado</Text>
-                <Text style={[styles.lineValue, { color: cartProfit.profit >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                  {formatCurrency(cartProfit.profit)} ({formatPercent(cartProfit.margin, 1)})
+                {/* apoio, discreto: vermelho só quando dá prejuízo */}
+                <Text style={[styles.lineLabel, { fontSize: 12 }, cartProfit.profit < 0 && { color: VALUE_COLORS.negative }]}>
+                  {cartProfit.profit < 0 ? 'Prejuízo estimado' : 'Lucro estimado'}
+                </Text>
+                <Text style={[{ fontSize: 12, color: MUTED }, cartProfit.profit < 0 && { color: VALUE_COLORS.negative, fontWeight: '600' }]}>
+                  {formatCurrency(cartProfit.profit)} · margem {formatPercent(cartProfit.margin, 1)}
                 </Text>
               </View>
             )}

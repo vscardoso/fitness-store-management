@@ -1142,9 +1142,13 @@ export default function CheckoutScreen() {
                           handleAddDirectPayment(paymentMethod);
                         }
                       }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: isSelected, checked: isSelected }}
+                      accessibilityLabel={isSelected ? `${method.label}, escolhido` : method.label}
                     >
+                      {/* escolhido = ícone de ✓ além da cor (a cor sozinha não basta) */}
                       <Ionicons
-                        name={method.icon as any}
+                        name={isSelected ? 'checkmark-circle' : (method.icon as any)}
                         size={18}
                         color={isSelected ? brandingColors.primary : Colors.light.textSecondary}
                       />
@@ -1470,6 +1474,9 @@ export default function CheckoutScreen() {
                           styles.methodChip,
                           selectedMethod === method.value && { backgroundColor: brandingColors.primary + '15', borderColor: brandingColors.primary },
                         ]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: selectedMethod === method.value, checked: selectedMethod === method.value }}
+                        accessibilityLabel={selectedMethod === method.value ? `${method.label}, escolhido` : method.label}
                         onPress={() => {
                           setSelectedMethod(method.value as PaymentMethod);
                           setInstallments(1);
@@ -1477,7 +1484,7 @@ export default function CheckoutScreen() {
                         }}
                       >
                         <Ionicons
-                          name={method.icon as any}
+                          name={selectedMethod === method.value ? 'checkmark-circle' : (method.icon as any)}
                           size={14}
                           color={selectedMethod === method.value ? brandingColors.primary : Colors.light.textSecondary}
                         />

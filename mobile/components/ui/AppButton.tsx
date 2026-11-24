@@ -185,6 +185,8 @@ export default function AppButton({
       activeOpacity={variant === 'ghost' || variant === 'text' ? 0.6 : 0.8}
       style={[
         styles.base,
+        // link (text) e fantasma não têm sombra: com ela "Dar desconto" parecia um botão grande ao lado do preço
+        (variant === 'ghost' || variant === 'text') && styles.flat,
         containerStyle,
         variant !== 'ghost' && variant !== 'text' && { backgroundColor: resolvedBg },
       ]}
@@ -267,6 +269,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     ...theme.shadows.sm,
   },
+  flat: { shadowOpacity: 0, elevation: 0, shadowColor: 'transparent' },
   gradientFill: {
     // LinearGradient ocupa 100% do TouchableOpacity
   },
