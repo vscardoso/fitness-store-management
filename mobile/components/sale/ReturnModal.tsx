@@ -3,7 +3,7 @@
  * Permite devolver itens de uma venda (parcial ou total)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -66,6 +66,7 @@ export default function ReturnModal({
   const brandingColors = useBrandingColors();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const submittingRef = useRef(false);
   const [eligibility, setEligibility] = useState<ReturnEligibility | null>(null);
   const [selectedItems, setSelectedItems] = useState<Map<number, number>>(new Map());
   const [reason, setReason] = useState('');
@@ -253,7 +254,11 @@ export default function ReturnModal({
 
   const executeReturn = async () => {
     if (!eligibility) return;
-    
+    // Trava síncrona: o estado `processing` só vale no próximo render, e dois toques seguidos em "Trocar" enviavam a troca duas vezes
+    // (a segunda era recusada por "excede o disponível (0)", caso real da venda #AB9, 25/11/2026).
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    closeDialog();
     setProcessing(true);
     haptics.heavy();
     
@@ -336,6 +341,7 @@ A devolução já está registrada.`,
         onConfirm: closeDialog,
       });
     } finally {
+      submittingRef.current = false;
       setProcessing(false);
     }
   };
