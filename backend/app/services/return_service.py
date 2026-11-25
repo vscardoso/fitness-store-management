@@ -603,6 +603,12 @@ class ReturnService:
                 f"A peça nova vale R$ {(-net):.2f} a menos que a devolvida e esta loja não devolve dinheiro. "
                 "Escolha uma peça de valor igual ou maior."
             )
+        if settlement_method == "on_account":
+            # Fiado: a diferença vira parcela a receber. Precisa de cliente e de diferença a pagar (não existe "devolver no fiado").
+            if not original.customer_id:
+                raise ValueError("Para pôr a diferença no fiado, a venda precisa ter cliente.")
+            if net <= 0:
+                raise ValueError("Não há diferença a pagar para pôr no fiado. Escolha como devolver ou pagar a diferença.")
         stamp = now_brazil().strftime('%Y%m%d%H%M%S%f')[:17]
         sale = Sale(
             sale_number=f"VENDA-{stamp}-{secrets.token_hex(2)[:3].upper()}",
@@ -654,6 +660,12 @@ class ReturnService:
                 sale_id=sale.id, amount=float(net), payment_method=PaymentMethod(settlement_method),
                 installments=1, status='confirmed', tenant_id=tenant_id, is_active=True,
             ))
+            if settlement_method == "on_account":
+                from app.services.receivable_service import ReceivableService
+                await ReceivableService(self.db).create_for_sale(
+                    tenant_id=tenant_id, sale_id=sale.id, customer_id=original.customer_id, amount=net,
+                    installments=1, first_due_date=None, interval_days=None, created_by=None,
+                )
         if original.customer_id:
             customer = (await self.db.execute(select(Customer).where(Customer.id == original.customer_id))).scalar_one_or_none()
             if customer:

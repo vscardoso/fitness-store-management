@@ -53,6 +53,8 @@ interface ReturnModalProps {
   onSuccess: () => void;
   /** Estorno por erro de lançamento (só admin): vale fora do prazo e devolve o dinheiro mesmo em loja que só troca */
   correction?: boolean;
+  /** A venda tem cliente: só assim a diferença da troca pode ir para o fiado */
+  hasCustomer?: boolean;
 }
 
 export default function ReturnModal({
@@ -62,6 +64,7 @@ export default function ReturnModal({
   onDismiss,
   onSuccess,
   correction = false,
+  hasCustomer = false,
 }: ReturnModalProps) {
   const brandingColors = useBrandingColors();
   const [loading, setLoading] = useState(true);
@@ -77,7 +80,7 @@ export default function ReturnModal({
   // Troca: peças a mais que o cliente leva para completar o valor (a primeira escolhida pode valer menos que a devolvida)
   const [extras, setExtras] = useState<ReplacementChoice[]>([]);
   const [pickerExtra, setPickerExtra] = useState(false);
-  const [settlement, setSettlement] = useState<'cash' | 'pix' | 'debit_card' | 'credit_card'>('cash');
+  const [settlement, setSettlement] = useState<'cash' | 'pix' | 'debit_card' | 'credit_card' | 'on_account'>('cash');
   const [dialog, setDialog] = useState<{
     visible: boolean;
     type: 'danger' | 'warning' | 'info' | 'success';
@@ -201,6 +204,8 @@ export default function ReturnModal({
   })();
   const hasExchange = replacements.size > 0 || extras.length > 0;
   const netToPay = hasExchange ? totalNew - totalRefund : 0;
+  // Fiado só vale com diferença a pagar e cliente na venda; fora disso volta para dinheiro (o servidor recusa fiado sem diferença)
+  const effectiveSettlement = settlement === 'on_account' && !(hasCustomer && netToPay > 0.005) ? 'cash' : settlement;
   const missingReplacement = !allowRefund && !hasExchange;
   // Loja que não devolve dinheiro: com peça marcada e nenhuma peça nova, o próximo passo é escolher a peça
   const needsPick = missingReplacement && selectedItems.size > 0 && !correction;
@@ -238,13 +243,20 @@ export default function ReturnModal({
       item => selectedItems.get(item.sale_item_id) === item.quantity_available_for_return
     );
 
+    const diffText = netToPay <= 0.005 ? 'Sem diferença a pagar.'
+      : effectiveSettlement === 'on_account'
+        ? `A diferença de ${formatCurrency(netToPay)} vai para o fiado da cliente (1 parcela, vence em 30 dias), somada ao que ela já deve.`
+        : `O cliente paga agora ${formatCurrency(netToPay)} de diferença (${settlementLabel(effectiveSettlement)}).`;
     haptics.warning();
     setDialog({
       visible: true,
       type: 'warning',
       title: hasExchange ? 'Confirmar a troca' : isFullReturn ? 'Devolução de toda a venda' : 'Devolução de parte da venda',
       message: hasExchange
-        ? `Trocar ${plural(selectedCount, 'peça', 'peças')}?\n\n${netToPay > 0.005 ? `O cliente paga agora ${formatCurrency(netToPay)} de diferença (${settlementLabel(settlement)}).` : 'Sem diferença a pagar.'}\nO estoque será atualizado.`
+        ? `Trocar ${plural(selectedCount, 'peça', 'peças')}?
+
+${diffText}
+O estoque será atualizado.`
         : `Devolver ${isFullReturn ? 'todas as peças' : plural(selectedCount, 'peça', 'peças')} e reembolsar ${formatCurrency(totalRefund)}?\n\nO estoque será atualizado.`,
       confirmText: hasExchange ? 'Trocar' : 'Devolver',
       cancelText: 'Cancelar',
@@ -283,7 +295,7 @@ export default function ReturnModal({
         reason: reason.trim(),
         extra_pieces: extras.length ? extras.map((e) => ({ variant_id: e.variant_id, quantity: 1, unit_price: e.unitDiscount ? netUnit(e) : undefined })) : undefined,
         refund_method: 'original',
-        settlement_method: settlement,
+        settlement_method: effectiveSettlement,
         is_correction: correction || undefined,
       });
       
@@ -322,7 +334,7 @@ A devolução já está registrada.`,
         type: 'success',
         title: hasExchange ? 'Troca Concluída' : 'Devolução Concluída',
         message: hasExchange
-          ? `Troca concluída.${netToPay > 0.005 ? ` Diferença recebida: ${formatCurrency(netToPay)} (${settlementLabel(settlement)}).` : ''}\n\nO estoque foi atualizado. Os detalhes da troca e o comprovante estão na tela da venda.`
+          ? `Troca concluída.${netToPay > 0.005 ? ` ${effectiveSettlement === 'on_account' ? 'Diferença no fiado' : 'Diferença recebida'}: ${formatCurrency(netToPay)} (${settlementLabel(effectiveSettlement)}).` : ''}\n\nO estoque foi atualizado. Os detalhes da troca e o comprovante estão na tela da venda.`
           : `A devolução de ${formatCurrency(totalRefund)} foi processada com sucesso.\n\nO estoque foi atualizado automaticamente.`,
         confirmText: 'OK',
         cancelText: canNotify ? 'Avisar o cliente' : '',
@@ -347,7 +359,7 @@ A devolução já está registrada.`,
   };
 
   const settlementLabel = (m: string) =>
-    ({ cash: 'dinheiro', pix: 'PIX', debit_card: 'débito', credit_card: 'crédito' } as Record<string, string>)[m] || m;
+    ({ cash: 'dinheiro', pix: 'PIX', debit_card: 'débito', credit_card: 'crédito', on_account: 'fiado' } as Record<string, string>)[m] || m;
 
   // Dias restantes
   const daysRemaining = eligibility 
@@ -578,15 +590,15 @@ A devolução já está registrada.`,
                   </View>
                 )}
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>{netToPay >= 0 ? 'Cliente paga agora' : allowRefund ? 'Diferença a devolver' : 'Falta completar'}</Text>
+                  <Text style={styles.summaryLabel}>{netToPay >= 0 ? (effectiveSettlement === 'on_account' ? 'Vai para o fiado' : 'Cliente paga agora') : allowRefund ? 'Diferença a devolver' : 'Falta completar'}</Text>
                   <Text style={[styles.summaryValue, styles.summaryTotal, { color: brandingColors.primary }]}>
                     {formatCurrency(Math.abs(netToPay))}
                   </Text>
                 </View>
                 {netToPay > 0.005 && (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                    {(['cash', 'pix', 'debit_card', 'credit_card'] as const).map((m) => (
-                      <Chip key={m} selected={settlement === m} onPress={() => setSettlement(m)} mode={settlement === m ? 'flat' : 'outlined'}>
+                    {((hasCustomer ? ['cash', 'pix', 'debit_card', 'credit_card', 'on_account'] : ['cash', 'pix', 'debit_card', 'credit_card']) as ('cash' | 'pix' | 'debit_card' | 'credit_card' | 'on_account')[]).map((m) => (
+                      <Chip key={m} selected={effectiveSettlement === m} onPress={() => setSettlement(m)} mode={effectiveSettlement === m ? 'flat' : 'outlined'}>
                         {settlementLabel(m).charAt(0).toUpperCase() + settlementLabel(m).slice(1)}
                       </Chip>
                     ))}

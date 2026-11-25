@@ -820,6 +820,7 @@ export default function SaleDetailsScreen() {
         saleId={saleId}
         saleNumber={sale.sale_number}
         correction={correctionMode}
+        hasCustomer={!!sale.customer_id}
         onDismiss={() => setReturnModalVisible(false)}
         onSuccess={handleReturnSuccess}
       />

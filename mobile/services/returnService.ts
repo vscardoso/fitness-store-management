@@ -85,7 +85,7 @@ export interface ReturnRequest {
   reason: string;
   refund_method?: 'original' | 'store_credit' | 'cash';
   /** como o cliente paga a diferença da troca */
-  settlement_method?: 'cash' | 'pix' | 'debit_card' | 'credit_card';
+  settlement_method?: 'cash' | 'pix' | 'debit_card' | 'credit_card' | 'on_account';
   /** Estorno por erro de lançamento (só admin): vale fora do prazo e devolve o dinheiro mesmo em loja que só troca */
   is_correction?: boolean;
 }

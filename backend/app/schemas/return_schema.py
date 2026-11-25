@@ -35,8 +35,8 @@ class SaleReturnCreate(BaseModel):
         default="original", 
         description="Método de reembolso: 'original' (mesmo da venda), 'store_credit', 'cash'"
     )
-    settlement_method: Literal["cash", "pix", "debit_card", "credit_card"] = Field(
-        "cash", description="Troca: como o cliente paga a diferença (se houver)"
+    settlement_method: Literal["cash", "pix", "debit_card", "credit_card", "on_account"] = Field(
+        "cash", description="Troca: como o cliente paga a diferença (se houver); on_account = fiado (vira parcela a receber da cliente)"
     )
     is_correction: bool = Field(
         False,

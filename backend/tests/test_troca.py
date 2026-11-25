@@ -355,3 +355,39 @@ async def test_peca_nova_com_desconto_em_loja_sem_reembolso_exige_completar_o_va
         assert [float(x.amount) for x in pagos] == [10.0]
     finally:
         await _config(async_session, t_id, allow_money_refund=True)
+
+
+async def test_troca_diferenca_no_fiado_vira_parcela_a_receber(test_client, async_session, test_user):
+    """Venda de cliente, troca por peça mais cara: a diferença vai para o fiado (pagamento on_account + 1 parcela), sem entrar no caixa."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_b="130.00")
+    c = await test_client.post("/api/v1/customers/", headers=h, json={"full_name": "Cliente Fiado Troca", "phone": "34988880077"})
+    assert c.status_code in (200, 201), c.text
+    cid = c.json()["id"]
+    r = await test_client.post("/api/v1/sales/", headers=h, json={
+        "customer_id": cid, "payment_method": "cash",
+        "items": [{"product_id": p.id, "variant_id": va.id, "quantity": 5, "unit_price": "100.00"}],
+        "payments": [{"amount": "500.00", "payment_method": "cash"}]})
+    assert r.status_code in (200, 201), r.text
+    sale_id, item_id = r.json()["id"], r.json()["items"][0]["id"]
+    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+        "reason": "Quer outra cor", "settlement_method": "on_account",
+        "items": [{"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id}]})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert float(body["net_amount"]) == 30.0 and body["settlement_method"] == "on_account"
+    async_session.expire_all()
+    from app.models.receivable import Receivable
+    from app.models.sale import Payment
+    pagos = (await async_session.execute(select(Payment).where(Payment.sale_id == body["exchange_sale_id"]))).scalars().all()
+    assert len(pagos) == 1 and float(pagos[0].amount) == 30.0 and str(pagos[0].payment_method).lower().endswith("on_account")
+    recs = (await async_session.execute(select(Receivable).where(Receivable.sale_id == body["exchange_sale_id"]))).scalars().all()
+    assert len(recs) == 1 and float(recs[0].amount) == 30.0 and recs[0].customer_id == cid and recs[0].status == "open"
+
+
+async def test_troca_fiado_exige_cliente_e_diferenca(test_client, async_session, test_user):
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_b="130.00")
+    sale_id, item_id = await _vender(test_client, h, p, va, 5, "100.00")          # venda sem cliente
+    r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+        "reason": "Troca", "settlement_method": "on_account",
+        "items": [{"sale_item_id": item_id, "quantity": 1, "replacement_variant_id": vb.id}]})
+    assert r.status_code == 400 and "cliente" in r.json()["detail"].lower()
