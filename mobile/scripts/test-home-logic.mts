@@ -1,6 +1,6 @@
 // node scripts/test-home-logic.mts
 import assert from 'node:assert/strict';
-import { todayLine, todaySub, shortcutIds, monthLines, monthNameOf, stockPace, paceLabel, paceAdvice, soldUnitsText } from '../utils/homeLogic.ts';
+import { todayLine, todaySub, shortcutIds, monthLines, monthNote, monthNameOf, stockPace, paceLabel, paceAdvice, soldUnitsText } from '../utils/homeLogic.ts';
 
 let ok = 0;
 const t = (nome: string, fn: () => void) => { fn(); ok++; console.log('ok', nome); };
@@ -62,6 +62,20 @@ t('brinde zerado ou ausente não vira linha (só admin tem; para os outros o ser
 t('valor que vem como texto do servidor é lido como número', () => {
   const l = monthLines({ revenue: '419.60' as any, cmv: '134.50' as any, total_expenses: '0.00' as any });
   assert.equal(l[0].value, 419.6);
+});
+t('frase do mês: lucro positivo diz que não é o dinheiro das contas', () => {
+  const brl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`;
+  const txt = monthNote({ revenue: 1000, cmv: 400, total_expenses: 100, net_profit: 500 }, brl);
+  assert.match(txt, /^Lucro: o que as vendas deixaram/);
+  assert.match(txt, /Não é o dinheiro das contas: ele está em Financeiro\.$/);
+});
+t('frase do mês negativo (caso real, nov/2026): explica que os gastos passaram do que as vendas deixaram', () => {
+  const brl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`;
+  const txt = monthNote({ revenue: 19907.35, cmv: 11103.43, total_expenses: 10379.55, gifts_total: 422, net_profit: -1997.63 }, brl);
+  assert.match(txt, /Os gastos e brindes do mês \(R\$ 10801,55\) passaram do que as vendas deixaram depois do custo das peças \(R\$ 8803,92\)/);
+  assert.match(txt, /Financeiro\.$/);
+  assert.ok(!/brindes/.test(monthNote({ revenue: 10, cmv: 8, total_expenses: 5, net_profit: -3 }, brl)));   // sem brinde, a frase não fala de brinde
+  assert.ok(!/—|--/.test(txt));                                                                          // sem travessão
 });
 t('nome do mês em português e minúsculo', () => {
   assert.equal(monthNameOf(new Date(2026, 10, 12)), 'novembro');

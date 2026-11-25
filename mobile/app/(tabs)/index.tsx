@@ -1047,10 +1047,12 @@ export default function DashboardScreen() {
                     <View style={[styles.tooltipIconContainer, { backgroundColor: Colors.light.successSoft }]}>
                       <Ionicons name="stats-chart-outline" size={20} color={VALUE_COLORS.positive} />
                     </View>
-                    <Text style={styles.tooltipTitle}>Sobrou no mês</Text>
+                    <Text style={styles.tooltipTitle}>Lucro do mês</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`Você vendeu, menos o que custaram as peças (com as despesas da compra), menos os gastos da loja (aluguel, luz...), é o que sobrou.
+                  <Text style={styles.tooltipText}>{`Você vendeu, menos o que custaram as peças (com as despesas da compra), menos os gastos da loja (aluguel, luz, salários...), é o lucro do mês. Retirada de sócia não é gasto: lance em Financeiro, Retiradas e empréstimos.
+
+Este número é lucro, não o dinheiro das contas. O dinheiro está em Financeiro.
 
 É sempre o mês de hoje, de 1º até agora. O filtro de período mais abaixo não muda este bloco.`}</Text>
                 </>

@@ -18,7 +18,7 @@ export const VENDER: HelpEntry[] = [
     ],
     parts: [
       { label: 'Últimas Vendas', text: 'as 4 vendas mais recentes; “Ver todas” abre a lista completa. Venda com devolução mostra o selo “Devolução parcial”, “Devolvida” ou “Cancelada”, o valor que a loja ficou e uma frase explicando, por exemplo: vendeu R$ 59,80 e devolveu R$ 39,89.' },
-      { label: 'Como está o mês', text: 'o que sobrou no mês em destaque e, embaixo, a conta: quanto você vendeu, o custo das peças e os gastos da loja. Toque para abrir o Resultado do Mês completo.' },
+      { label: 'Como está o mês', text: 'o lucro do mês em destaque e, embaixo, a conta: quanto você vendeu, o custo das peças e os gastos da loja. É lucro, não o dinheiro das contas (esse está em Financeiro). Toque para abrir o Resultado do Mês completo.' },
       { label: 'Seu Estoque', text: 'quanto você tem investido em peças, quanto entra se vender tudo e o lucro previsto.' },
       { label: 'Saúde do Estoque', text: 'peças que giram, peças paradas e compras que estão dando prejuízo.' },
     ],

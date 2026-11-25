@@ -9,7 +9,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency, formatInt, formatPercent } from '@/utils/format';
-import { monthLines, type MonthLine } from '@/utils/homeLogic';
+import { monthLines, monthNote, type MonthLine } from '@/utils/homeLogic';
 import { Money } from '@/components/ui/PriceDisplay';
 
 interface Props {
@@ -40,7 +40,7 @@ export default function MonthCard({ monthName, result, onInfo, onPress }: Props)
 
         <View style={styles.net}>
           <View style={styles.netLabelRow}>
-            <Text style={styles.netLabel}>Sobrou no mês</Text>
+            <Text style={styles.netLabel}>{positive ? 'Lucro do mês' : 'Resultado do mês'}</Text>
             <TouchableOpacity onPress={onInfo} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Como o resultado é calculado" testID="home-month-info">
               <Ionicons name="information-circle-outline" size={14} color={Colors.light.textTertiary} />
             </TouchableOpacity>
@@ -49,6 +49,7 @@ export default function MonthCard({ monthName, result, onInfo, onPress }: Props)
           <Text style={[styles.netSub, { color: positive ? VALUE_COLORS.positive : VALUE_COLORS.negative }]} testID="home-month-margin">
             {formatPercent(Number(result.net_margin_pct) || 0)} do que vendeu
           </Text>
+          <Text style={styles.netNote} testID="home-month-note">{monthNote(result as any, formatCurrency)}</Text>
         </View>
 
         <View style={styles.rows}>
@@ -79,6 +80,7 @@ const styles = StyleSheet.create({
   netLabel: { fontSize: theme.fontSize.md, color: Colors.light.textSecondary },
   netValue: { fontSize: theme.fontSize.xxxl, fontWeight: theme.fontWeight.extrabold },
   netSub: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  netNote: { marginTop: 4, fontSize: theme.fontSize.sm, color: Colors.light.textSecondary, lineHeight: 18 },
   rows: { gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   rowLabel: { flex: 1, minWidth: 0, fontSize: theme.fontSize.md, color: Colors.light.textSecondary },

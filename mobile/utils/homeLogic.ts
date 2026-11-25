@@ -55,6 +55,23 @@ export function monthLines(r: { revenue: number; cmv: number; total_expenses: nu
   return lines;
 }
 
+/**
+ * Frase do bloco do mês: diz que o número é LUCRO (não o dinheiro das contas, que está no Financeiro) e, quando está negativo,
+ * por quê: os gastos passaram do que as vendas deixaram depois do custo das peças. Só usa números que o bloco já mostra
+ * (vendeu, custo das peças, gastos, brindes). `money` formata em reais (ex.: formatCurrency).
+ */
+export function monthNote(
+  r: { revenue: number; cmv: number; total_expenses: number; net_profit: number; gifts_total?: number | null },
+  money: (n: number) => string,
+): string {
+  const net = Number(r.net_profit) || 0;
+  const base = 'Não é o dinheiro das contas: ele está em Financeiro.';
+  if (net >= 0) return `Lucro: o que as vendas deixaram depois do custo das peças e dos gastos. ${base}`;
+  const afterParts = (Number(r.revenue) || 0) - (Number(r.cmv) || 0);
+  const gastos = (Number(r.total_expenses) || 0) + (Number(r.gifts_total) || 0);
+  return `Os gastos${Number(r.gifts_total) > 0 ? ' e brindes' : ''} do mês (${money(gastos)}) passaram do que as vendas deixaram depois do custo das peças (${money(afterParts)}). ${base}`;
+}
+
 /** Nome do mês em minúsculas ("novembro"), para o título do bloco. */
 export function monthNameOf(d: Date): string {
   return d.toLocaleDateString('pt-BR', { month: 'long' });
