@@ -244,6 +244,8 @@ async def list_sales(
             skip=skip,
             limit=limit,
         )
+        from app.services.receivable_service import attach_fiado_status
+        await attach_fiado_status(db, tenant_id, sales)
 
         return sales
         
@@ -441,6 +443,8 @@ async def get_sale(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Venda com ID {sale_id} não encontrada"
             )
+        from app.services.receivable_service import attach_fiado_status
+        await attach_fiado_status(db, tenant_id, [sale])
         
         return sale
         

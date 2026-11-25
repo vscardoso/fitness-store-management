@@ -30,7 +30,7 @@ import type { Sale } from '@/types';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopSalesTable from '@/components/sale/DesktopSalesTable';
 import { saleCodesText } from '@/utils/saleCodes';
-import { paymentSummary } from '@/utils/paymentLabel';
+import { paymentSummary, fiadoPaymentText } from '@/utils/paymentLabel';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import ScreenLoader from '@/components/ui/ScreenLoader';
@@ -149,7 +149,11 @@ function MobileSalesListScreen() {
     const status = statusMap[item.status] || statusMap.pending;
     const formattedDate = formatDayMonth(item.created_at);
     const formattedTime = formatClock(item.created_at);
-    const pay = paymentSummary(item as any);
+    const pay0 = paymentSummary(item as any);
+    // "Concluída" não quer dizer paga: no fiado o cartão diz se já foi pago, quanto falta ou se venceu
+    const fiadoTxt = fiadoPaymentText(pay0.text, item.fiado_status, item.fiado_outstanding, formatCurrency);
+    const pay = { ...pay0, text: fiadoTxt.text };
+    const payColor = fiadoTxt.tone === 'paid' ? Colors.light.successDark : fiadoTxt.tone === 'overdue' ? Colors.light.error : Colors.light.textSecondary;
 
     return (
       <TouchableOpacity
@@ -180,9 +184,9 @@ function MobileSalesListScreen() {
                 <Money style={[styles.amount, { color: brandingColors.primary }]} value={Number(item.total_amount)} />
               </View>
               {!!pay.text && (
-                <View style={styles.payPill} accessibilityLabel={`Pagamento: ${pay.text}`}>
-                  <Ionicons name={PAY_ICON[pay.kind ?? 'mixed'] as any} size={13} color={Colors.light.textSecondary} />
-                  <Text style={styles.payPillText} numberOfLines={1}>{pay.text}</Text>
+                <View style={[styles.payPill, !!fiadoTxt.tone && { maxWidth: '72%', borderColor: payColor }]} accessibilityLabel={`Pagamento: ${pay.text}`}>
+                  <Ionicons name={(fiadoTxt.tone === 'paid' ? 'checkmark-circle-outline' : PAY_ICON[pay.kind ?? 'mixed']) as any} size={13} color={payColor} />
+                  <Text style={[styles.payPillText, { color: payColor }]} numberOfLines={1}>{pay.text}</Text>
                 </View>
               )}
             </View>

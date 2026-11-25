@@ -204,6 +204,9 @@ class SaleResponse(BaseModel):
     customer_name: Optional[str] = None
     seller_name: Optional[str] = None
     refunded_amount: float = 0.0   # quanto já foi devolvido/estornado desta venda (devolução parcial não é o total da venda)
+    # Só em venda com fiado: 'paid' (tudo recebido), 'open' (a vencer), 'overdue' (parcela vencida) ou None; e quanto ainda falta receber
+    fiado_status: Optional[str] = None
+    fiado_outstanding: Optional[float] = None
     # FIFO profit summary
     total_cost: Optional[float] = None
     total_profit: Optional[float] = None

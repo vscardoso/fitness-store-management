@@ -36,6 +36,34 @@ def outstanding(r: Receivable) -> Decimal:
     return max(D0, _q(r.amount) - _q(r.received_amount) - _q(r.abated_amount))
 
 
+async def attach_fiado_status(db: AsyncSession, tenant_id: int, sales: list) -> None:
+    """Põe em cada venda `fiado_status` ('paid' | 'open' | 'overdue' | None) e `fiado_outstanding` (quanto falta receber),
+    para a lista e a tela da venda mostrarem se o fiado já foi pago. Uma consulta só para todas as vendas. Parcela cancelada
+    (venda devolvida ou cancelada) não conta; venda sem parcela ativa fica sem estado."""
+    ids = [s.id for s in sales if getattr(s, "id", None)]
+    for s in sales:
+        s.fiado_status, s.fiado_outstanding = None, None
+    if not ids:
+        return
+    rows = (await db.execute(select(Receivable).where(
+        Receivable.tenant_id == tenant_id, Receivable.sale_id.in_(ids), Receivable.is_active == True,  # noqa: E712
+        Receivable.status != RECEIVABLE_CANCELED))).scalars().all()
+    por_venda: Dict[int, List[Receivable]] = {}
+    for r in rows:
+        por_venda.setdefault(r.sale_id, []).append(r)
+    hoje = today_brazil()
+    for s in sales:
+        rs = por_venda.get(s.id)
+        if not rs:
+            continue
+        falta = sum((outstanding(r) for r in rs), D0)
+        if falta <= 0:
+            s.fiado_status, s.fiado_outstanding = "paid", 0.0
+        else:
+            vencida = any(outstanding(r) > 0 and r.due_date < hoje for r in rs)
+            s.fiado_status, s.fiado_outstanding = ("overdue" if vencida else "open"), float(falta)
+
+
 def _refresh_status(r: Receivable) -> None:
     left = outstanding(r)
     received = _q(r.received_amount)

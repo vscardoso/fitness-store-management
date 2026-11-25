@@ -465,6 +465,9 @@ export interface Sale {
   updated_at?: string;
   customer_name?: string;
   seller_name?: string;
+  /** Só em venda com fiado: 'paid' (tudo recebido), 'open' (a vencer) ou 'overdue' (parcela vencida); e quanto ainda falta receber */
+  fiado_status?: 'paid' | 'open' | 'overdue' | null;
+  fiado_outstanding?: number | null;
   /** A lista de vendas já traz os itens (usados para mostrar os códigos das etiquetas) */
   items?: SaleItemResponse[];
 }

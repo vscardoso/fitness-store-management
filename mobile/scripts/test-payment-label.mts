@@ -1,6 +1,6 @@
 // Testes do nome da forma de pagamento. Rodar: node scripts/test-payment-label.mts
 import assert from 'node:assert/strict';
-import { PAYMENT_LABEL, paymentLine, paymentSummary, paymentText } from '../utils/paymentLabel.ts';
+import { PAYMENT_LABEL, fiadoPaymentText, paymentLine, paymentSummary, paymentText } from '../utils/paymentLabel.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
@@ -35,6 +35,16 @@ t('resumo do pagamento no cartão da lista: PIX, cartão, dinheiro, fiado', () =
   assert.deepEqual(paymentSummary({ payments: [{ payment_method: 'debit_card' }] }), { text: 'Cartão de débito', kind: 'card' });
   assert.deepEqual(paymentSummary({ payments: [{ payment_method: 'cash' }] }), { text: 'Dinheiro', kind: 'cash' });
   assert.deepEqual(paymentSummary({ payment_method: 'ON_ACCOUNT', payments: [{ payment_method: 'on_account' }] }), { text: 'Fiado', kind: 'fiado' });
+});
+t('fiado: o cartão diz se já foi pago, quanto falta ou se venceu (Concluída não quer dizer paga)', () => {
+  const brl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`;
+  assert.deepEqual(fiadoPaymentText('Fiado', 'paid', 0, brl), { text: 'Fiado pago', tone: 'paid' });
+  assert.deepEqual(fiadoPaymentText('Fiado', 'open', 60, brl), { text: 'Fiado · falta R$ 60,00', tone: 'open' });
+  assert.deepEqual(fiadoPaymentText('Fiado', 'overdue', 100, brl), { text: 'Fiado vencido · falta R$ 100,00', tone: 'overdue' });
+  assert.deepEqual(fiadoPaymentText('Dinheiro + Fiado', 'paid', 0, brl), { text: 'Dinheiro + Fiado pago', tone: 'paid' });
+  assert.deepEqual(fiadoPaymentText('Fiado', null, null, brl), { text: 'Fiado', tone: null });      // sem parcela ativa: como veio
+  assert.deepEqual(fiadoPaymentText('PIX', 'paid', 0, brl), { text: 'PIX', tone: null });           // sem fiado na forma de pagamento
+  assert.deepEqual(fiadoPaymentText('', 'paid', 0, brl), { text: '', tone: null });
 });
 t('resumo com duas formas junta as duas; a mesma forma repetida aparece uma vez', () => {
   assert.deepEqual(paymentSummary({ payments: [{ payment_method: 'cash' }, { payment_method: 'pix' }] }), { text: 'Dinheiro + PIX', kind: 'mixed' });

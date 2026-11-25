@@ -470,6 +470,15 @@ export default function SaleDetailsScreen() {
                     {p.method === 'credit_card' && (p.installments ?? 1) === 1 && (
                       <Text style={styles.paymentInstallments}>À vista</Text>
                     )}
+                    {p.method === 'on_account' && !!sale.fiado_status && (
+                      <Text
+                        style={[styles.paymentInstallments, { fontWeight: '700', color: sale.fiado_status === 'paid' ? Colors.light.successDark : sale.fiado_status === 'overdue' ? Colors.light.error : Colors.light.textSecondary }]}
+                        testID="fiado-estado"
+                      >
+                        {sale.fiado_status === 'paid' ? 'Fiado pago, já recebido'
+                          : `${sale.fiado_status === 'overdue' ? 'Vencido' : 'Em aberto'}: falta receber ${formatCurrency(Number(sale.fiado_outstanding) || 0)}`}
+                      </Text>
+                    )}
                   </View>
                   <Text style={styles.paymentMethodAmount}>{formatCurrency(p.amount)}</Text>
                 </View>

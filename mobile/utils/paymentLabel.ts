@@ -36,6 +36,21 @@ export function paymentLine(
   return { label: LONG_LABEL[key] ?? (key || 'Não informado'), detail, amount: money(amount) };
 }
 
+export type FiadoStatus = 'paid' | 'open' | 'overdue' | null | undefined;
+
+/**
+ * "Concluída" não quer dizer paga: no fiado quem diz é a parcela. Troca a palavra "Fiado" do resumo por "Fiado pago",
+ * "Fiado · falta R$ X" ou "Fiado vencido · falta R$ X". Sem estado (venda sem fiado, parcela cancelada) devolve o texto como veio.
+ */
+export function fiadoPaymentText(
+  text: string, status: FiadoStatus, outstanding: number | null | undefined, money: (n: number) => string,
+): { text: string; tone: 'paid' | 'open' | 'overdue' | null } {
+  if (!text || !status || !/Fiado/.test(text)) return { text, tone: null };
+  const falta = money(Number(outstanding) || 0);
+  const label = status === 'paid' ? 'Fiado pago' : status === 'overdue' ? `Fiado vencido · falta ${falta}` : `Fiado · falta ${falta}`;
+  return { text: text.replace('Fiado', label), tone: status };
+}
+
 export type PaymentKind = 'card' | 'cash' | 'pix' | 'fiado' | 'points' | 'transfer' | 'mixed';
 
 const SUMMARY_LABEL: Record<string, string> = {
