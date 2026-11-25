@@ -809,4 +809,4 @@ Pedido do Victor: "preciso conseguir alterar os valores lançados no financeiro"
 - **Venda da troca**: o aviso "Troca da venda X" virou cartão expansível (voltou, levou, diferença, link da venda original).
 - **Detalhe por categoria**: `GET /reports/sales/category?category=...` (+ período igual ao relatório); tocar numa linha de "Vendas por categoria" abre modelos, cor e tamanho em peças, líquidos do que voltou. Total bate com a linha da categoria (teste).
 - **Aprendizado**: `ambiente-teste.ps1` mata TODO uvicorn/spa-server (inclusive do outro dev). Para testar sem tocar no dele: backend em outra porta (8010), app em 8091, banco no scratchpad, e matar só por PID/linha de comando.
-- **Pendente (decisão do Victor)**: custo de 5 tênis da entrada COMPRAS-SÃO-PAULO-09 (R$ 60 a R$ 110, os outros estão em R$ 300); a venda #6D1 mostra lucro de 83% por causa disso.
+- **Resolvido (Victor, 25/11/2026)**: o custo dos 5 tênis da entrada COMPRAS-SÃO-PAULO-09 (R$ 60 a R$ 110, os outros em R$ 300) é o custo real, não é erro. Lucro de 83% da venda #6D1 está certo; não mexer nesses custos nem levantar a dúvida de novo.
