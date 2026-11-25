@@ -40,6 +40,13 @@ PAYMENT_LABELS = {
 WIDTHS_MM = {"58": 58.0, "80": 80.0, "a6": 105.0}
 
 
+def _diff_word(net: float, exchange: dict) -> str:
+    """Troca: 'paga', 'devolvida' ou 'no fiado' (a diferença que ficou na conta da cliente ainda não foi paga)."""
+    if net > 0:
+        return "no fiado" if exchange.get("settlement") == PAYMENT_LABELS["on_account"] else "paga"
+    return "devolvida"
+
+
 def _enum(v: Any) -> str:
     return str(getattr(v, "value", v) or "").lower()
 
@@ -307,7 +314,7 @@ def build_receipt_text(d: Dict[str, Any]) -> str:
                 out.append(f"- {it['quantity']}x {label}: {brl(it['total'])}")
             net = r["exchange"]["net_amount"]
             if net:
-                out.append(f"Diferença {'paga' if net > 0 else 'devolvida'}: {brl(abs(net))}")
+                out.append(f"Diferença {_diff_word(net, r['exchange'])}: {brl(abs(net))}")
         else:
             out.append(f"Estornado: {brl(r['refund'])} ({r['method']})")
     if d["returns"]:
@@ -474,7 +481,7 @@ def build_receipt_pdf(d: Dict[str, Any], size: str = "80") -> bytes:
                 p.pair(f"{it['quantity']} x {label}", brl(it["total"]), 8)
             net = r["exchange"]["net_amount"]
             if net:
-                p.pair("Diferença " + ("paga" if net > 0 else "devolvida"), brl(abs(net)), 8)
+                p.pair("Diferença " + _diff_word(net, r["exchange"]), brl(abs(net)), 8)
         else:
             p.pair("Estornado (" + r["method"] + ")", brl(r["refund"]), 8, bold=True)
     if d["returns"]:

@@ -382,6 +382,13 @@ async def test_troca_diferenca_no_fiado_vira_parcela_a_receber(test_client, asyn
     assert len(pagos) == 1 and float(pagos[0].amount) == 30.0 and str(pagos[0].payment_method).lower().endswith("on_account")
     recs = (await async_session.execute(select(Receivable).where(Receivable.sale_id == body["exchange_sale_id"]))).scalars().all()
     assert len(recs) == 1 and float(recs[0].amount) == 30.0 and recs[0].customer_id == cid and recs[0].status == "open"
+    # o comprovante da venda original diz que a diferença ficou no fiado, não que foi paga
+    rc = await test_client.get(f"/api/v1/sales/{sale_id}/receipt", headers=h)
+    assert rc.status_code == 200, rc.text
+    txt = rc.json().get("text") or rc.text
+    assert "Diferença no fiado" in txt and "Diferença paga" not in txt
+    pdf = await test_client.get(f"/api/v1/sales/{sale_id}/receipt/pdf?size=80", headers=h)
+    assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF"
 
 
 async def test_troca_fiado_exige_cliente_e_diferenca(test_client, async_session, test_user):

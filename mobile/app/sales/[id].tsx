@@ -104,7 +104,7 @@ const paymentLabel: Record<string, string> = {
   loyalty_points: 'Pontos de Fidelidade',
 };
 
-const settlementName: Record<string, string> = { cash: 'dinheiro', pix: 'PIX', debit_card: 'débito', credit_card: 'crédito' };
+const settlementName: Record<string, string> = { cash: 'dinheiro', pix: 'PIX', debit_card: 'débito', credit_card: 'crédito', on_account: 'fiado' };
 
 /**
  * Uma devolução ou troca da venda. Troca mostra o que voltou, o que a cliente levou (a peça nova da venda da troca, com link),
@@ -157,7 +157,7 @@ function ReturnBlock({ ret, onOpenSale, hideExchangeLink }: { ret: SaleReturn; o
           <View style={styles.returnTotal}>
             <Text style={styles.returnTotalLabel}>Diferença</Text>
             <Text style={[styles.returnTotalValue, { color: net > 0.005 ? Colors.light.successDark : Colors.light.textSecondary }]} testID="troca-diferenca">
-              {net > 0.005 ? `Cliente pagou ${formatCurrency(net)}${how ? ` (${how})` : ''}`
+              {net > 0.005 ? (ret.settlement_method === 'on_account' ? `Ficou no fiado: ${formatCurrency(net)}` : `Cliente pagou ${formatCurrency(net)}${how ? ` (${how})` : ''}`)
                 : net < -0.005 ? `Loja devolveu ${formatCurrency(-net)}${how ? ` (${how})` : ''}` : 'Sem diferença a pagar'}
             </Text>
           </View>
