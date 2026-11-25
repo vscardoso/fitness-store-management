@@ -14,6 +14,7 @@ from app.models.product import Product
 from app.models.customer import Customer
 from app.models.user import User
 from app.models.product_variant import ProductVariant
+from app.core.text_search import fold_text, folded
 from app.repositories.base import BaseRepository
 
 
@@ -146,19 +147,22 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             conditions.append(func.lower(Sale.sale_number) == sale_number.strip().lower())
         # Busca livre (q): cada palavra tem que aparecer no número da venda, no nome da cliente, no do vendedor ou
         # numa peça da venda (nome, código, cor ou tamanho). O texto digitado nunca vira curinga.
+        dialect = self.db.get_bind().dialect.name
         for word in (q or "").split()[:6]:
-            esc = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            # sem acento e sem diferença de maiúscula nos dois lados ("Tenis" acha "Tênis"); o texto digitado nunca vira curinga
+            esc = fold_text(word).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             pat = f"%{esc}%"
+            like = lambda col: folded(col, dialect).like(pat, escape="\\")  # noqa: E731
             conditions.append(or_(
-                Sale.sale_number.ilike(pat, escape="\\"),
-                Sale.customer.has(Customer.full_name.ilike(pat, escape="\\")),
-                Sale.seller.has(User.full_name.ilike(pat, escape="\\")),
+                like(Sale.sale_number),
+                Sale.customer.has(like(Customer.full_name)),
+                Sale.seller.has(like(User.full_name)),
                 Sale.items.any(or_(
-                    SaleItem.product.has(Product.name.ilike(pat, escape="\\")),
+                    SaleItem.product.has(like(Product.name)),
                     SaleItem.variant.has(or_(
-                        ProductVariant.sku.ilike(pat, escape="\\"),
-                        ProductVariant.color.ilike(pat, escape="\\"),
-                        ProductVariant.size.ilike(pat, escape="\\"),
+                        like(ProductVariant.sku),
+                        like(ProductVariant.color),
+                        like(ProductVariant.size),
                     )),
                 )),
             ))

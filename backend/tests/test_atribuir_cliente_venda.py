@@ -104,3 +104,25 @@ async def test_busca_do_historico_por_numero_parcial_cliente_vendedor_e_peca(tes
     assert {s1, s2} <= await ids("legging")               # nome da peça
     assert await ids("zzzxxx") == set()                   # nada
     assert await ids("%") == set() and await ids("_") == set()   # nunca vira curinga
+
+
+async def test_busca_ignora_acento_e_maiuscula(test_client, async_session, test_user):
+    """Caso real (loja 2, 25/11/2026): buscar "Tenis" não achava venda de "Tênis" cujo código não tinha TENIS; faltava 1 venda."""
+    from sqlalchemy import select
+    from app.models.product import Product
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    prod = (await async_session.execute(select(Product).where(Product.id == p.id))).scalar_one()
+    prod.name = "Tênis Corrida Açaí"
+    await async_session.commit()
+    cid = await _cliente(test_client, h, "José Conceição")
+    s1, _ = await _venda_com(test_client, h, p, va, cid)
+
+    async def ids(q):
+        r = await test_client.get("/api/v1/sales/", headers=h, params={"q": q})
+        assert r.status_code == 200, r.text
+        return {s["id"] for s in r.json()}
+
+    for q in ("Tenis", "TENIS", "tênis", "Tênis", "acai", "AÇAÍ", "jose", "José", "conceicao", "Conceição", "tenis acai"):
+        assert s1 in await ids(q), q
+    assert s1 not in await ids("sapato")
+    assert s1 not in await ids("%")      # o texto digitado continua sem virar curinga
