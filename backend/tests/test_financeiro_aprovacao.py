@@ -398,3 +398,40 @@ async def test_caixa_abre_e_fecha_conferindo_a_gaveta_do_financeiro(test_client,
     outro = next(uid for uid in heads if uid != al["approval"]["requested_by_id"])
     assert (await test_client.post(f"{API}/approvals/{al['approval']['id']}/approve", headers=heads[outro], json={})).status_code == 200
     assert (await _saldos(test_client, h))["Gaveta"] == 900.0
+
+
+async def test_push_avisa_pedido_voto_parcial_e_aplicado_e_abre_a_tela_de_pedidos(test_client, async_session, test_user, monkeypatch):
+    """Quem pediu e quem ainda não votou são avisados a cada passo; tocar no aviso abre /finance/approvals; uma etiqueta por pedido."""
+    from app.services import web_push_service
+    enviados = []
+
+    async def _captura(tenant_id, title, body, url="/", **kw):
+        enviados.append({"title": title, "body": body, "url": url, "tag": kw.get("tag"), "exclude": kw.get("exclude_user_id"), "roles": kw.get("roles")})
+        return {"sent": 1, "removed": 0}
+
+    monkeypatch.setattr(web_push_service, "notify_tenant", _captura)
+    t_id, h, p, va, ids, heads, admins = await _loja(test_client, async_session, test_user)
+    antes = await _saldos(test_client, h)
+    r = await test_client.post(f"{API}/accounts/{ids['Nubank']}/adjust", headers=h, json={"target_balance": "1500.00", "reason": MOTIVO})
+    assert r.status_code == 202, r.text
+    ap = r.json()["approval"]
+    assert len(enviados) == 1 and enviados[0]["url"] == "/finance/approvals" and enviados[0]["tag"] == f"aprovacao-{ap['id']}"
+    assert enviados[0]["exclude"] == ap["requested_by_id"] and "admin" in enviados[0]["roles"]      # quem pediu não recebe o próprio pedido
+
+    outros = [uid for uid in heads if uid != ap["requested_by_id"]]
+    assert len(outros) >= 2, "o cenário precisa de pelo menos 2 aprovadores além de quem pediu"
+    r = await test_client.post(f"{API}/approvals/{ap['id']}/approve", headers=heads[outros[0]], json={})
+    assert r.status_code == 200 and r.json()["status"] == "pending", r.text
+    parcial = enviados[-1]
+    assert len(enviados) == 2 and parcial["title"] == "Pedido de saldo: falta aprovar"
+    assert "aprovou" in parcial["body"] and "Falta aprovar:" in parcial["body"]
+    assert parcial["url"] == "/finance/approvals" and parcial["tag"] == f"aprovacao-{ap['id']}"
+    assert parcial["exclude"] == outros[0]                                   # quem acabou de aprovar não recebe
+
+    for uid in outros[1:]:
+        r = await test_client.post(f"{API}/approvals/{ap['id']}/approve", headers=heads[uid], json={})
+        assert r.status_code == 200, r.text
+    assert r.json()["status"] == "approved"
+    final = enviados[-1]
+    assert final["title"] == "Pedido de saldo aprovado e aplicado" and final["url"] == "/finance/approvals" and final["exclude"] is None
+    assert (await _saldos(test_client, h))["Nubank"] == 1500.0 != antes["Nubank"]

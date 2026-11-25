@@ -337,7 +337,7 @@ class FinanceApprovalService:
         await self.db.commit()
         await self._notify(tenant_id, user, ("Pedido para acertar a gaveta" if ctx.get("kind") == KIND_CASH
                                              else f"Pedido para mexer no saldo do banco: {OP_TITLE.get(op, op)}"),
-                           f"{_who(user)} quer: {ap.summary}. Abra e aprove ou recuse.")
+                           f"{_who(user)} quer: {ap.summary}. Abra e aprove ou recuse.", ap_id=ap.id)
         return await self.public(tenant_id, user, ap.id)
 
     # ── votar ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -399,7 +399,7 @@ class FinanceApprovalService:
             self.db.add(ap)
             await self._audit(tenant_id, user, "FINANCE_APPROVAL_REJECTED", ap, {"resumo": ap.summary, "motivo_da_recusa": comment})
             await self.db.commit()
-            await self._notify(tenant_id, user, "Pedido de saldo recusado", f"{_who(user)} recusou: {ap.summary}. Motivo: {comment}")
+            await self._notify(tenant_id, user, "Pedido de saldo recusado", f"{_who(user)} recusou: {ap.summary}. Motivo: {comment}", ap_id=ap_id)
             return await self.public(tenant_id, user, ap_id)
         approved_ids = {v.user_id for v in votes if v.vote == "approve"} | {user.id}
         required = await self._required_ids(tenant_id, ap)
@@ -407,6 +407,12 @@ class FinanceApprovalService:
         await self._audit(tenant_id, user, "FINANCE_APPROVAL_VOTED", ap, {"resumo": ap.summary, "voto": "aprovou", "comentario": comment})
         if not done:
             await self.db.commit()
+            # aprovou, mas ainda faltam outros: avisa quem pediu e quem ainda precisa votar (antes ninguém era avisado)
+            admins_now = await self._admins(tenant_id)
+            faltam = [a for a in admins_now if a.id in required and a.id not in approved_ids]
+            nomes = ", ".join(_who(a) for a in faltam) or "ninguém"
+            await self._notify(tenant_id, user, "Pedido de saldo: falta aprovar",
+                               f"{_who(user)} aprovou: {ap.summary}. Falta aprovar: {nomes}.", ap_id=ap_id)
             return await self.public(tenant_id, user, ap_id)
         ap.status, ap.decided_at = APPROVAL_APPROVED, _now()
         self.db.add(ap)
@@ -493,7 +499,7 @@ class FinanceApprovalService:
                                detail={"pedido": approval_id, "resumo": summary, "resultado": msg})
         await self.db.commit()
         await self._notify(tenant_id, None, "Pedido de saldo aprovado e aplicado" if ok else "Pedido aprovado, mas não aplicou",
-                           f"{summary}. {msg}")
+                           f"{summary}. {msg}", ap_id=approval_id)
 
     # ── mostrar ─────────────────────────────────────────────────────────────────────────────────────────────────
     async def public(self, tenant_id: int, user: User, approval_id: int) -> Dict[str, Any]:
@@ -546,6 +552,9 @@ class FinanceApprovalService:
                                user_email=getattr(user, "email", None), entity="finance_approval", entity_id=ap.id,
                                detail={"pedido": ap.id, **detail})
 
-    async def _notify(self, tenant_id: int, user: Optional[User], title: str, body: str) -> None:
+    async def _notify(self, tenant_id: int, user: Optional[User], title: str, body: str, ap_id: Optional[int] = None) -> None:
+        """Push para os outros administradores (quem fez a ação não recebe). Tocar abre direto a tela de pedidos de aprovação;
+        a etiqueta é uma por pedido, então um aviso novo do mesmo pedido substitui o anterior em vez de empilhar."""
         from app.services.audit_service import notify_other_admins
-        await notify_other_admins(tenant_id, user, title, body, url="/finance/approvals")
+        await notify_other_admins(tenant_id, user, title, body, url="/finance/approvals",
+                                  tag=f"aprovacao-{ap_id}" if ap_id else "aprovacao")

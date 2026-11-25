@@ -86,12 +86,12 @@ def category_of(action: str) -> str:
     return "outros"
 
 
-async def notify_other_admins(tenant_id: int, user, title: str, body: str, url: str = "/settings/audit") -> None:
+async def notify_other_admins(tenant_id: int, user, title: str, body: str, url: str = "/settings/audit", tag: str = "auditoria") -> None:
     """Avisa no celular os OUTROS administradores da loja (quem fez a ação não recebe). Nunca levanta erro."""
     try:
         from app.services import web_push_service
         await web_push_service.notify_tenant(
             tenant_id, title, body, url, roles=("admin",), exclude_user_id=getattr(user, "id", None),
-            tag="auditoria")
+            tag=tag)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Aviso aos outros administradores falhou (não crítico): {e}")
