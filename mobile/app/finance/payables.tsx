@@ -12,6 +12,7 @@ import { TextInput } from 'react-native-paper';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
+import { plural } from '@/utils/plural';
 import AppButton from '@/components/ui/AppButton';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
@@ -117,33 +118,21 @@ export default function PayablesScreen() {
       <Text style={styles.eyebrow}>A PAGAR</Text>
       <Text style={styles.big}>{formatCurrency(data?.open_total ?? 0)}</Text>
       {overdueCount > 0 && (
-        <View style={styles.pills}>
-          <Badge label={`${overdueCount} vencida(s) · ${formatCurrency(data?.overdue_total ?? 0)}`} variant="error" size="md" />
-        </View>
+        <TouchableOpacity style={styles.overdueRow} activeOpacity={0.8} onPress={() => { setFilter('open'); setOnlyOverdue(!onlyOverdue); }}
+          accessibilityRole="button" accessibilityLabel={`${plural(overdueCount, 'conta vencida', 'contas vencidas')}. ${onlyOverdue ? 'Mostrar todas' : 'Ver só as vencidas'}`} testID="contas-pagar-vencidas">
+          <Text style={styles.overdueText}>{`${plural(overdueCount, 'vencida', 'vencidas')}: ${formatCurrency(data?.overdue_total ?? 0)}`}</Text>
+          <Text style={styles.overdueAction}>{onlyOverdue ? 'Mostrar todas' : 'Ver só as vencidas'}</Text>
+        </TouchableOpacity>
       )}
       <AppButton variant="primary" size="md" fullWidth icon="add" label="Nova despesa a pagar" onPress={startForm} />
     </View>
   );
-
-  // "Pagar agora" só existe quando há conta vencida e a lista ainda mostra tudo
-  const todo = filter === 'open' && overdueCount > 0 && !onlyOverdue ? (
-    <View style={styles.todo} testID="contas-pagar-vencidas">
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={styles.todoTitle}>Pagar agora</Text>
-        <Text style={styles.itemSub}>{`${overdueCount} conta(s) vencida(s), ${formatCurrency(data?.overdue_total ?? 0)}`}</Text>
-      </View>
-      <AppButton variant="outlined" size="sm" label="Ver vencidas" onPress={() => setOnlyOverdue(true)} />
-    </View>
-  ) : null;
 
   const filters = (
     <View style={styles.filters}>
       {FILTERS.map((f) => (
         <Chip key={f.id} text={f.label} on={filter === f.id && !onlyOverdue} color={brand.primary} role="tab" onPress={() => pickFilter(f.id)} />
       ))}
-      {filter === 'open' && overdueCount > 0 && (
-        <Chip text={`Vencidas (${overdueCount})`} on={onlyOverdue} color={Colors.light.error} role="tab" onPress={() => setOnlyOverdue(!onlyOverdue)} />
-      )}
     </View>
   );
 
@@ -196,13 +185,12 @@ export default function PayablesScreen() {
       <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
         {isDesktop ? (
           <View style={styles.columns}>
-            <View style={styles.sideCol}>{hero}{todo}{filters}</View>
+            <View style={styles.sideCol}>{hero}{filters}</View>
             <View style={styles.listCol}>{list}</View>
           </View>
         ) : (
           <>
             {hero}
-            {todo}
             {filters}
             {list}
           </>
@@ -345,8 +333,9 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: theme.fontWeight.extrabold, letterSpacing: 1, color: Colors.light.textSecondary },
   big: { fontSize: 28, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  todo: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.light.warningLight, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.light.warning },
-  todoTitle: { fontSize: 14, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
+  overdueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.light.errorLight },
+  overdueText: { flex: 1, fontSize: 14, fontWeight: theme.fontWeight.bold, color: Colors.light.error },
+  overdueAction: { fontSize: 13, fontWeight: theme.fontWeight.semibold, color: Colors.light.error },
   label: { fontSize: 13, fontWeight: theme.fontWeight.bold, color: Colors.light.textSecondary },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: Colors.light.card },

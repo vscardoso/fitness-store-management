@@ -83,13 +83,45 @@ class ExpenseUpdate(BaseModel):
     account_id: Optional[int] = None
 
 
+class ExpensePendingApproval(BaseModel):
+    """Pedido de aprovação em andamento sobre esta despesa (despesa paga por banco só muda com todos os administradores)."""
+    id: int
+    kind: str                      # 'delete' (apagar) ou 'update' (mudar valor, dia ou conta)
+    requested_by_name: Optional[str] = None
+    approved_count: int = 0
+    required_count: int = 0
+
+
 class ExpenseResponse(ExpenseBase):
     id: int
     is_active: bool
     payable_id: Optional[int] = None  # veio de uma despesa a pagar (mudar valor/apagar = desfazer o pagamento)
     category: Optional[ExpenseCategoryResponse] = None
+    created_by_name: Optional[str] = None
+    pending_approval: Optional[ExpensePendingApproval] = None
 
     model_config = {"from_attributes": True}
+
+
+class ExpenseCategoryTotal(BaseModel):
+    category_id: Optional[int] = None
+    name: str
+    color: Optional[str] = None
+    icon: Optional[str] = None
+    total: Decimal
+    count: int
+
+
+class ExpensePeriodSummary(BaseModel):
+    """Resumo de um período para a tela de Despesas: tudo calculado no servidor (a tela não soma páginas da lista).
+    `store_*` é o gasto da loja (o que entra no resultado do mês); `lot_*` é o gasto de lote, que já está no custo das peças."""
+    start_date: date
+    end_date: date
+    store_total: Decimal
+    store_count: int
+    lot_total: Decimal
+    lot_count: int
+    by_category: List[ExpenseCategoryTotal]
 
 
 # ─────────────────────────────────────────────

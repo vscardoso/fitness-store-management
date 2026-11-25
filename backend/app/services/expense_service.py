@@ -213,10 +213,70 @@ class ExpenseService:
         from app.services.finance_service import FinanceService
         await FinanceService(self.db).ensure_open_month(tenant_id, day)
 
+    async def period_summary(self, start: date, end: date, tenant_id: Optional[int] = None) -> dict:
+        """Resumo do período para a tela de Despesas. Mesma regra do resultado do mês: gasto da loja = despesa SEM lote
+        (a de lote já está no custo das peças). Total, contagens e quebra por categoria saem daqui, não de somar a lista no app."""
+        def base(*conds):
+            stmt = select(func.coalesce(func.sum(Expense.amount), 0), func.count(Expense.id)).where(
+                Expense.is_active == True, Expense.expense_date >= start, Expense.expense_date <= end, *conds)  # noqa: E712
+            return stmt.where(Expense.tenant_id == tenant_id) if tenant_id is not None else stmt
+        store_total, store_count = (await self.db.execute(base(Expense.stock_entry_id.is_(None)))).one()
+        lot_total, lot_count = (await self.db.execute(base(Expense.stock_entry_id.isnot(None)))).one()
+        cat_stmt = (
+            select(ExpenseCategory.id, ExpenseCategory.name, ExpenseCategory.color, ExpenseCategory.icon,
+                   func.coalesce(func.sum(Expense.amount), 0), func.count(Expense.id))
+            .select_from(Expense).outerjoin(ExpenseCategory, ExpenseCategory.id == Expense.category_id)
+            .where(Expense.is_active == True, Expense.stock_entry_id.is_(None),  # noqa: E712
+                   Expense.expense_date >= start, Expense.expense_date <= end)
+            .group_by(ExpenseCategory.id, ExpenseCategory.name, ExpenseCategory.color, ExpenseCategory.icon)
+        )
+        if tenant_id is not None:
+            cat_stmt = cat_stmt.where(Expense.tenant_id == tenant_id)
+        rows = (await self.db.execute(cat_stmt)).all()
+        by_category = sorted(
+            ({"category_id": r[0], "name": r[1] or "Sem categoria", "color": r[2], "icon": r[3], "total": Decimal(str(r[4])), "count": int(r[5])}
+             for r in rows), key=lambda c: (-c["total"], c["name"]))
+        return {"start_date": start, "end_date": end, "store_total": Decimal(str(store_total)), "store_count": int(store_count),
+                "lot_total": Decimal(str(lot_total)), "lot_count": int(lot_count), "by_category": by_category}
+
+    async def attach_pending_approvals(self, expenses: List[Expense], tenant_id: Optional[int]) -> None:
+        """Põe em cada despesa `pending_approval` (pedido de apagar ou mudar esperando os administradores) ou None.
+        Uma consulta só para a lista inteira."""
+        from datetime import datetime, timezone
+        from app.models.finance import FinanceApproval, FinanceApprovalVote
+        for e in expenses:
+            e.pending_approval = None
+        ids = [e.id for e in expenses if getattr(e, "id", None)]
+        if not ids or tenant_id is None:
+            return
+        keys = {f"{op}:{i}": (op, i) for i in ids for op in ("expense_delete", "expense_update")}
+        aps = (await self.db.execute(select(FinanceApproval).where(
+            FinanceApproval.tenant_id == tenant_id, FinanceApproval.status == "pending",
+            FinanceApproval.dedupe_key.in_(list(keys))))).scalars().all()
+        now = datetime.now(timezone.utc)
+        aps = [a for a in aps if (a.expires_at is None or (a.expires_at if a.expires_at.tzinfo else a.expires_at.replace(tzinfo=timezone.utc)) > now)]
+        if not aps:
+            return
+        votes = (await self.db.execute(select(FinanceApprovalVote.approval_id, func.count(FinanceApprovalVote.id)).where(
+            FinanceApprovalVote.approval_id.in_([a.id for a in aps]), FinanceApprovalVote.vote == "approve")
+            .group_by(FinanceApprovalVote.approval_id))).all()
+        approved = {r[0]: int(r[1]) for r in votes}
+        from app.services.finance_approval_service import FinanceApprovalService
+        required = len(await FinanceApprovalService(self.db)._admins(tenant_id))
+        by_id = {e.id: e for e in expenses}
+        for a in aps:
+            op, eid = keys[a.dedupe_key]
+            e = by_id.get(eid)
+            if e is not None:
+                e.pending_approval = {"id": a.id, "kind": "delete" if op == "expense_delete" else "update",
+                                      "requested_by_name": a.requested_by_name, "approved_count": approved.get(a.id, 0),
+                                      "required_count": required}
+
     async def create_expense(
         self,
         data: ExpenseCreate,
         tenant_id: Optional[int] = None,
+        created_by_name: Optional[str] = None,
     ) -> Expense:
         from sqlalchemy.orm import selectinload
         from sqlalchemy import select as sa_select
@@ -226,7 +286,7 @@ class ExpenseService:
         await self._validate_account(data.account_id, tenant_id)
         if data.account_id:
             await self._ensure_open(tenant_id, data.expense_date)
-        obj = Expense(**data.model_dump(), tenant_id=tenant_id)
+        obj = Expense(**data.model_dump(), tenant_id=tenant_id, created_by_name=(created_by_name or None))
         self.db.add(obj)
         await self.db.flush()
         await self._reallocate({obj.stock_entry_id}, tenant_id)

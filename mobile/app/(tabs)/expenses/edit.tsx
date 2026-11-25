@@ -1,7 +1,10 @@
 /**
- * Editar despesa. O gasto (valor, descrição, dia, categoria) vem primeiro; observação e gasto fixo ficam em "Mais opções".
- * Conta de onde saiu o dinheiro e vínculo com lote não mudam aqui: aparecem só para leitura, com a saída (excluir e lançar de novo).
- * Salvar fica num rodapé fixo; Excluir (só admin) fica separado no fim, longe do botão principal.
+ * Despesa (detalhe). Lê primeiro, corrige depois:
+ *  1. Resumo no topo: valor, descrição, categoria e dia, de onde saiu o dinheiro, quem lançou e, se houver, o pedido de aprovação
+ *     em andamento ou a sugestão de que isto é retirada (antes essas respostas ficavam abaixo da dobra, depois do formulário).
+ *  2. "Corrigir": valor, descrição, dia e categoria; observação e gasto fixo ficam em "Mais opções".
+ *  3. Conta de onde saiu o dinheiro e vínculo com lote não mudam aqui (só leitura no resumo); para trocar, exclui e lança de novo.
+ * Salvar fica num rodapé fixo; Excluir (só admin) fica separado no fim, com o aviso do que acontece em despesa paga por banco.
  */
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
@@ -13,7 +16,11 @@ import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
-import { ChoiceChip, FormFooter, FormSection, MoreOptions } from '@/components/expenses/FormParts';
+import { FormFooter, FormSection, MoreOptions } from '@/components/expenses/FormParts';
+import { ApprovalNotice, CategoryDot, CategoryField, OwnerDrawNotice } from '@/components/expenses/ExpenseParts';
+import { Money } from '@/components/ui/PriceDisplay';
+import { accountLine } from '@/utils/expenseLogic';
+import { formatDateOnly } from '@/utils/dateOnly';
 import FormGrid from '@/components/layout/FormGrid';
 import {
   getExpense,
@@ -76,8 +83,9 @@ export default function EditExpenseScreen() {
   });
 
   // só para dizer, por extenso, de qual conta saiu o dinheiro (leitura)
-  const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview, enabled: !!expense?.account_id });
+  const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
   const paidWith = finance?.accounts.find((a) => a.id === expense?.account_id)?.name;
+  const acc = expense ? accountLine(expense, paidWith, !!finance?.started) : null;
 
   useEffect(() => {
     if (expense) {
@@ -158,16 +166,13 @@ export default function EditExpenseScreen() {
     );
   }
 
-  const parsedNow = unmaskCurrency(amount);
-  const summary = [parsedNow > 0 ? formatCurrency(parsedNow) : null, description.trim() || null].filter(Boolean).join(' · ');
   const moreFilled = [notes.trim() ? 'observação' : null, isRecurring ? 'gasto fixo' : null].filter(Boolean).join(', ');
-  const locked: string[] = [];
-  if (expense?.stock_entry_id) locked.push('Gasto de um lote: soma no custo das peças dele');
-  if (expense?.account_id) locked.push(paidWith ? `Pago com ${paidWith}` : 'Pago com uma conta do Financeiro');
+  const paidByBank = !!expense?.account_id && finance?.accounts.find((a) => a.id === expense.account_id)?.kind === 'bank';
+  const created = [expense?.created_by_name ? `Lançada por ${expense.created_by_name}` : null].filter(Boolean).join(' ');
 
   return (
     <View style={styles.container}>
-      <PageHeader title={description || 'Editar Despesa'} subtitle={expense?.category?.name} showBackButton />
+      <PageHeader title="Despesa" showBackButton />
 
       <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
@@ -175,8 +180,53 @@ export default function EditExpenseScreen() {
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={true}
         >
+          {/* 1. Resumo: as respostas antes do formulário */}
+          {!!expense && (
+            <View style={styles.summaryCard} testID="expense-detail-summary">
+              <View style={styles.summaryTop}>
+                <CategoryDot category={expense.category} size={48} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.summaryTitle} numberOfLines={2}>{expense.description}</Text>
+                  <Text style={styles.summaryMeta} numberOfLines={1}>
+                    {[expense.category?.name ?? 'Sem categoria', formatDateOnly(expense.expense_date) ?? expense.expense_date].join(' · ')}
+                  </Text>
+                </View>
+              </View>
+              <Money style={styles.summaryValue} value={Number(expense.amount)} />
+              {!!acc && (
+                <View style={styles.factRow}>
+                  <Ionicons
+                    name={acc.tone === 'ok' ? 'checkmark-circle-outline' : acc.tone === 'warn' ? 'alert-circle-outline' : 'layers-outline'}
+                    size={18} color={acc.tone === 'warn' ? Colors.light.warningDark : Colors.light.textSecondary} style={{ marginTop: 1 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.factText}>{acc.text}</Text>
+                    {!!acc.detail && <Text style={styles.help}>{acc.detail}</Text>}
+                  </View>
+                </View>
+              )}
+              {!expense.stock_entry_id && (
+                <View style={styles.factRow}>
+                  <Ionicons name="stats-chart-outline" size={18} color={Colors.light.textSecondary} style={{ marginTop: 1 }} />
+                  <Text style={[styles.factText, { flex: 1 }]}>Entra no resultado do mês</Text>
+                </View>
+              )}
+              {expense.is_recurring && (
+                <View style={styles.factRow}>
+                  <Ionicons name="repeat" size={18} color={Colors.light.textSecondary} style={{ marginTop: 1 }} />
+                  <Text style={[styles.factText, { flex: 1 }]}>{expense.recurrence_day ? `Gasto fixo, todo dia ${expense.recurrence_day}` : 'Gasto fixo'}</Text>
+                </View>
+              )}
+              {!!created && <Text style={styles.help}>{created}</Text>}
+            </View>
+          )}
+          {!!expense?.pending_approval && <ApprovalNotice pending={expense.pending_approval} onOpen={() => router.push('/finance/approvals' as any)} />}
+          {!expense?.stock_entry_id && (
+            <OwnerDrawNotice text={`${description} ${expense?.description ?? ''}`} onOpenDraws={() => router.push('/finance/entries' as any)} />
+          )}
+
+          {/* 2. Corrigir */}
           <FormGrid>
-            <FormSection title="O gasto">
+            <FormSection title="Corrigir">
               <TextInput
                 label="Valor *"
                 value={amount}
@@ -200,39 +250,11 @@ export default function EditExpenseScreen() {
                 mode="date"
                 maximumDate={new Date()}
               />
-              {(categories ?? []).length > 0 && (
-                <>
-                  <Text style={styles.fieldLabel}>Categoria</Text>
-                  <View style={styles.chips}>
-                    {(categories ?? []).map((cat) => {
-                      const selected = selectedCategory?.id === cat.id;
-                      return (
-                        <ChoiceChip
-                          key={cat.id}
-                          label={cat.name}
-                          icon={cat.icon as any}
-                          color={cat.color}
-                          selected={selected}
-                          onPress={() => setSelectedCategory(selected ? null : cat)}
-                        />
-                      );
-                    })}
-                  </View>
-                </>
+              <CategoryField categories={categories ?? []} value={selectedCategory} onChange={setSelectedCategory} />
+              {(!!expense?.account_id || !!expense?.stock_entry_id) && (
+                <Text style={styles.help}>A conta de onde saiu o dinheiro e o lote não mudam aqui. Para trocar, exclua a despesa e lance de novo.</Text>
               )}
             </FormSection>
-
-            {locked.length > 0 && (
-              <FormSection title="Não muda aqui">
-                {locked.map((line) => (
-                  <View key={line} style={styles.lockedRow}>
-                    <Ionicons name="lock-closed-outline" size={16} color={Colors.light.textSecondary} />
-                    <Text style={styles.lockedText}>{line}</Text>
-                  </View>
-                ))}
-                <Text style={styles.help}>Para trocar, exclua a despesa e lance de novo.</Text>
-              </FormSection>
-            )}
 
             <MoreOptions
               title="Mais opções"
@@ -271,15 +293,20 @@ export default function EditExpenseScreen() {
           </FormGrid>
 
           {canDelete && (
-            <AppButton
-              variant="danger-outline" size="md" fullWidth icon="trash-outline" label="Excluir Despesa"
-              onPress={() => setDeleteConfirm(true)} disabled={deleteMutation.isPending}
-            />
+            <View style={{ gap: 6 }}>
+              <AppButton
+                variant="danger-outline" size="md" fullWidth icon="trash-outline" label="Excluir Despesa"
+                onPress={() => setDeleteConfirm(true)} disabled={deleteMutation.isPending || !!expense?.pending_approval}
+              />
+              {paidByBank && !expense?.pending_approval && (
+                <Text style={styles.help}>Despesa paga por banco: o app pede um motivo e a aprovação dos administradores antes de apagar.</Text>
+              )}
+              {!!expense?.pending_approval && <Text style={styles.help}>Já existe um pedido em andamento para esta despesa.</Text>}
+            </View>
           )}
         </ScrollView>
 
         <FormFooter
-          summary={summary}
           primaryLabel="Salvar Alterações"
           onPrimary={handleSave}
           loading={updateMutation.isPending}
@@ -320,10 +347,17 @@ const styles = StyleSheet.create({
   content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl, gap: theme.spacing.sm },
   input: { backgroundColor: Colors.light.white },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  fieldLabel: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: Colors.light.textSecondary, marginTop: theme.spacing.xs },
   help: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary },
-  lockedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  lockedText: { fontSize: theme.fontSize.md, color: Colors.light.text, flex: 1 },
+  summaryCard: {
+    backgroundColor: Colors.light.card, borderRadius: theme.borderRadius.xl, borderWidth: 1, borderColor: Colors.light.border,
+    padding: theme.spacing.md, gap: 10, marginBottom: theme.spacing.xs,
+  },
+  summaryTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  summaryTitle: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: Colors.light.text },
+  summaryMeta: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
+  summaryValue: { fontSize: theme.fontSize.xxxl, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text, letterSpacing: -0.5 },
+  factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  factText: { fontSize: theme.fontSize.md, color: Colors.light.text },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
   switchLabel: { fontSize: 15, fontWeight: theme.fontWeight.semibold, color: Colors.light.text },
 });

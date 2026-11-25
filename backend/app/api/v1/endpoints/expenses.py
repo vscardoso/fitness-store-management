@@ -15,6 +15,7 @@ from app.schemas.expense import (
     ExpenseCategoryResponse,
     ExpenseCategoryUpdate,
     ExpenseCreate,
+    ExpensePeriodSummary,
     ExpenseResponse,
     ExpenseUpdate,
     MonthlyResultResponse,
@@ -160,6 +161,23 @@ async def result_by_period(
     return hide_gifts_in_result(await svc.result_by_days(days, tenant_id), current_user)
 
 
+@router.get("/summary", response_model=ExpensePeriodSummary)
+async def expenses_summary(
+    start_date: Optional[date] = Query(None, description="Data inicial (YYYY-MM-DD); padrão: dia 1 do mês"),
+    end_date: Optional[date] = Query(None, description="Data final (YYYY-MM-DD); padrão: hoje"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[int] = Depends(get_current_tenant_id),
+):
+    """Total do gasto da loja no período, quanto foi de lote e a quebra por categoria (a tela de Despesas usa isto)."""
+    today = today_brazil()
+    first = start_date or date(today.year, today.month, 1)
+    last = end_date or today
+    if first > last:
+        raise HTTPException(status_code=422, detail="A data inicial não pode ser depois da data final.")
+    return await ExpenseService(db).period_summary(first, last, tenant_id)
+
+
 @router.get("", response_model=List[ExpenseResponse])
 async def list_expenses(
     start_date: Optional[date] = Query(None, description="Data inicial (YYYY-MM-DD)"),
@@ -177,7 +195,7 @@ async def list_expenses(
     if end_date is None:
         end_date = today
     svc = ExpenseService(db)
-    return await svc.list_expenses(
+    rows = await svc.list_expenses(
         start_date=start_date,
         end_date=end_date,
         category_id=category_id,
@@ -185,6 +203,8 @@ async def list_expenses(
         skip=skip,
         limit=limit,
     )
+    await svc.attach_pending_approvals(rows, tenant_id)
+    return rows
 
 
 @router.get("/stock-losses", response_model=List[ExpenseResponse])
@@ -222,7 +242,7 @@ async def create_expense(
 ):
     svc = ExpenseService(db)
     try:
-        return await svc.create_expense(data, tenant_id)
+        return await svc.create_expense(data, tenant_id, created_by_name=(getattr(current_user, "full_name", None) or getattr(current_user, "email", None)))
     except FinanceConflict as e:
         await db.rollback()
         raise HTTPException(status_code=409, detail=str(e))
@@ -242,6 +262,7 @@ async def get_expense(
     exp = await svc.get_expense(expense_id, tenant_id)
     if not exp:
         raise HTTPException(status_code=404, detail="Despesa não encontrada")
+    await svc.attach_pending_approvals([exp], tenant_id)
     return exp
 
 

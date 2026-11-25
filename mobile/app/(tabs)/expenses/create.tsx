@@ -15,6 +15,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import { ChoiceChip, FormFooter, FormSection, MoreOptions } from '@/components/expenses/FormParts';
+import { CategoryField, OwnerDrawNotice } from '@/components/expenses/ExpenseParts';
 import { createExpense, getExpenseCategories } from '@/services/expenseService';
 import { getStockEntries } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
@@ -203,26 +204,9 @@ export default function CreateExpenseScreen() {
                   maximumDate={new Date()}
                 />
               )}
-              {(categories ?? []).length > 0 && (
-                <>
-                  <Text style={styles.fieldLabel}>Categoria</Text>
-                  <View style={styles.chips}>
-                    {(categories ?? []).map((cat) => {
-                      const selected = selectedCategory?.id === cat.id;
-                      return (
-                        <ChoiceChip
-                          key={cat.id}
-                          label={cat.name}
-                          icon={cat.icon as any}
-                          color={cat.color}
-                          selected={selected}
-                          onPress={() => setSelectedCategory(selected ? null : cat)}
-                        />
-                      );
-                    })}
-                  </View>
-                </>
-              )}
+              {/* retirada de sócio não é gasto da loja: avisa e leva para o lugar certo (não bloqueia) */}
+              <OwnerDrawNotice text={description} onOpenDraws={() => router.push('/finance/entries' as any)} />
+              <CategoryField categories={categories ?? []} value={selectedCategory} onChange={setSelectedCategory} />
             </FormSection>
 
             {/* Pago com: tira da conta escolhida (só com o financeiro implantado) */}

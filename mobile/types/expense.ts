@@ -20,6 +20,25 @@ export interface Expense {
   stock_entry_id?: number | null;
   account_id?: number | null;
   is_active: boolean;
+  /** Quem lançou (nome na hora do lançamento; vazio nas antigas). */
+  created_by_name?: string | null;
+  /** Pedido de apagar ou mudar esperando aprovação dos administradores (despesa paga por banco). */
+  pending_approval?: {
+    id: number; kind: 'delete' | 'update'; requested_by_name?: string | null; approved_count: number; required_count: number;
+  } | null;
+}
+
+/** Resumo do período calculado no servidor (GET /expenses/summary): a tela não soma a lista. */
+export interface ExpensePeriodSummary {
+  start_date: string;
+  end_date: string;
+  /** gasto da loja: o que entra no resultado do mês */
+  store_total: number;
+  store_count: number;
+  /** gasto de lote: já está no custo das peças */
+  lot_total: number;
+  lot_count: number;
+  by_category: { category_id: number | null; name: string; color?: string | null; icon?: string | null; total: number; count: number }[];
 }
 
 export interface ExpenseCreate {

@@ -5,6 +5,7 @@ import type {
   ExpenseCategory,
   ExpenseCategoryCreate,
   ExpenseCreate,
+  ExpensePeriodSummary,
   ExpenseUpdate,
   MonthlyResult,
 } from '@/types/expense';
@@ -33,6 +34,12 @@ export interface ListExpensesParams {
 
 export async function getExpenses(params?: ListExpensesParams): Promise<Expense[]> {
   const { data } = await api.get('/expenses', { params });
+  return data;
+}
+
+/** Total do gasto da loja no período, quanto foi de lote e a quebra por categoria (tudo calculado no servidor). */
+export async function getExpensesSummary(params?: { start_date?: string; end_date?: string }): Promise<ExpensePeriodSummary> {
+  const { data } = await api.get('/expenses/summary', { params });
   return data;
 }
 

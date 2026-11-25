@@ -120,6 +120,11 @@ class Expense(BaseModel):
         ForeignKey("payables.id", ondelete="SET NULL"), nullable=True, comment="despesa a pagar que gerou esta despesa"
     )
 
+    # quem lançou (nome na hora do lançamento; nulo nas despesas antigas e nas que nascem de uma conta a pagar)
+    created_by_name: Mapped[str | None] = mapped_column(
+        String(120), nullable=True, comment="nome de quem lançou a despesa"
+    )
+
     # Relacionamentos
     category: Mapped["ExpenseCategory | None"] = relationship(
         "ExpenseCategory",
