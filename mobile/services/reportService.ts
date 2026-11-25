@@ -44,6 +44,8 @@ export interface PeriodComparison {
 export interface DaySales { date: string; revenue: number; sales: number; profit: number }
 export interface WeekdaySales { weekday: number; revenue: number; sales: number }
 export interface CategorySales { category: string; pieces: number; revenue: number; profit: number; percentage: number }
+export interface CategoryItemSales { product_id: number; product_name: string; variant_id: number | null; variant: string; pieces: number; revenue: number; profit: number }
+export interface CategoryItemsReport { category: string; pieces: number; revenue: number; profit: number; models: number; items: CategoryItemSales[] }
 export interface SellerSales { seller_id: number; seller_name: string; sales: number; revenue: number; average_ticket: number; percentage: number }
 
 export interface SalesReport {
@@ -107,6 +109,12 @@ export type PeriodFilter = 'custom' | 'today' | 'yesterday' | 'last_7_days' | 'l
  */
 export const getSalesReport = async (period: PeriodFilter = 'this_month', range?: { start: string; end: string } | null): Promise<SalesReport> => {
   const response = await api.get('/reports/sales', { params: range ? { start_date: range.start, end_date: range.end } : { period } });
+  return response.data;
+};
+
+/** Modelos (com cor e tamanho) vendidos numa categoria, no mesmo período do relatório de vendas. */
+export const getSalesCategoryItems = async (category: string, period: PeriodFilter = 'this_month', range?: { start: string; end: string } | null): Promise<CategoryItemsReport> => {
+  const response = await api.get('/reports/sales/category', { params: range ? { category, start_date: range.start, end_date: range.end } : { category, period } });
   return response.data;
 };
 

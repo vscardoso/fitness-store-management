@@ -26,6 +26,8 @@ import {
   type TopProduct,
 } from '@/services/reportService';
 import { getSales } from '@/services/saleService';
+import { getSalesCategoryItems } from '@/services/reportService';
+import type { CategoryItemSales } from '@/services/reportService';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import PeriodFilter, { SALES_REPORT_PERIOD_OPTIONS } from '@/components/PeriodFilter';
@@ -951,16 +953,7 @@ export default function SalesReportScreen() {
                     <Text style={styles.cardTitle}>Vendas por categoria</Text>
                   </View>
                   {report.by_category!.map((c) => (
-                    <View key={c.category} style={styles.catRow}>
-                      <View style={styles.catTop}>
-                        <Text style={styles.catName} numberOfLines={1}>{c.category}</Text>
-                        <Text style={styles.catValue}>{formatCurrency(c.revenue)}</Text>
-                      </View>
-                      <View style={styles.hbarTrack}>
-                        <View style={[styles.hbarFill, { width: `${Math.max(2, c.percentage)}%`, backgroundColor: brandingColors.primary }]} />
-                      </View>
-                      <Text style={styles.catMeta}>{c.pieces} peças · {formatPercent(c.percentage, 0)} da receita · lucro {formatCurrency(c.profit)}</Text>
-                    </View>
+                    <CategoryRow key={c.category} c={c} period={period} range={activeRange} color={brandingColors.primary} />
                   ))}
                 </View>
               )}
@@ -1017,6 +1010,67 @@ export default function SalesReportScreen() {
   );
 }
 
+/** Linha de "Vendas por categoria": toque abre os modelos vendidos (modelo, cor e tamanho, em peças e já sem o que voltou). */
+function CategoryRow({ c, period, range, color }: {
+  c: { category: string; pieces: number; revenue: number; profit: number; percentage: number };
+  period: string; range: { start: string; end: string } | null; color: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['sales-category-items', c.category, period, range?.start, range?.end],
+    queryFn: () => getSalesCategoryItems(c.category, period as any, range),
+    enabled: open,
+  });
+  const models = new Map<number, { name: string; pieces: number; revenue: number; vars: CategoryItemSales[] }>();
+  for (const it of data?.items ?? []) {
+    const m = models.get(it.product_id) ?? { name: it.product_name, pieces: 0, revenue: 0, vars: [] };
+    m.pieces += it.pieces;
+    m.revenue += it.revenue;
+    m.vars.push(it);
+    models.set(it.product_id, m);
+  }
+  return (
+    <View style={styles.catRow}>
+      <TouchableOpacity onPress={() => setOpen((v) => !v)} activeOpacity={0.7} accessibilityRole="button"
+        accessibilityState={{ expanded: open }} accessibilityLabel={`${c.category}, ${open ? 'ocultar' : 'ver'} os modelos vendidos`} testID={`cat-${c.category}`}>
+        <View style={styles.catTop}>
+          <Text style={styles.catName} numberOfLines={1}>{c.category}</Text>
+          <Text style={styles.catValue}>{formatCurrency(c.revenue)}</Text>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.light.textSecondary} />
+        </View>
+        <View style={styles.hbarTrack}>
+          <View style={[styles.hbarFill, { width: `${Math.max(2, c.percentage)}%`, backgroundColor: color }]} />
+        </View>
+        <Text style={styles.catMeta}>{c.pieces} peças · {formatPercent(c.percentage, 0)} da receita · lucro {formatCurrency(c.profit)}</Text>
+      </TouchableOpacity>
+      {open && (
+        <View style={styles.catModels}>
+          {isLoading && <Text style={styles.catMeta}>Carregando os modelos...</Text>}
+          {isError && <Text style={styles.catMeta}>Não consegui abrir os modelos. Tente de novo.</Text>}
+          {!isLoading && !isError && models.size === 0 && <Text style={styles.catMeta}>Nenhuma peça vendida neste período.</Text>}
+          {Array.from(models.entries()).map(([pid, m]) => (
+            <View key={pid} style={styles.catModel} testID={`cat-model-${pid}`}>
+              <View style={styles.catTop}>
+                <Text style={styles.catModelName} numberOfLines={2}>{m.name}</Text>
+                <Text style={styles.catModelQty}>{m.pieces} {m.pieces === 1 ? 'peça' : 'peças'}</Text>
+              </View>
+              {m.vars.map((v) => (
+                <View key={`${pid}-${v.variant_id ?? 'x'}`} style={styles.catTop}>
+                  <Text style={[styles.catMeta, { flex: 1, minWidth: 0 }]} numberOfLines={1}>{v.variant || 'Sem cor ou tamanho'}</Text>
+                  <Text style={[styles.catMeta, { flexShrink: 0 }]}>{v.pieces} {v.pieces === 1 ? 'peça' : 'peças'} · {formatCurrency(v.revenue)}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+          {!!data && models.size > 0 && (
+            <Text style={styles.catMeta}>{data.pieces} {data.pieces === 1 ? 'peça' : 'peças'} em {data.models} {data.models === 1 ? 'modelo' : 'modelos'}, sem o que voltou.</Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1058,6 +1112,10 @@ const styles = StyleSheet.create({
   hbarFill: { height: 8, borderRadius: 4 },
   hbarValue: { width: 84, textAlign: 'right', fontSize: 12, fontWeight: '700', color: Colors.light.text },
   catRow: { paddingVertical: 7, gap: 4 },
+  catModels: { marginTop: 6, paddingLeft: 10, gap: 10, alignSelf: 'stretch', minWidth: 0, borderLeftWidth: 2, borderLeftColor: Colors.light.border },
+  catModel: { gap: 2 },
+  catModelName: { flex: 1, fontSize: theme.fontSize.sm, fontWeight: '600', color: Colors.light.text },
+  catModelQty: { flexShrink: 0, fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
   catTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   catName: { flex: 1, fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
   catValue: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
