@@ -21,7 +21,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
-import { getSaleById, assignSaleCustomer } from '@/services/saleService';
+import { getSaleById, getSaleBySaleNumber, assignSaleCustomer } from '@/services/saleService';
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { isManagerRole } from '@/utils/roles';
 import { checkReturnEligibility, getReturnHistory } from '@/services/returnService';
@@ -43,6 +43,48 @@ import type { SaleWithDetails } from '@/types';
 import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
 import ScreenLoader from '@/components/ui/ScreenLoader';
+/**
+ * Aviso "Troca da venda X" da venda criada pela troca: fechado mostra a linha; aberto mostra o que voltou, o que a cliente levou,
+ * a diferença e o link da venda original (mesmo bloco da tela da venda original).
+ */
+function ExchangeOriginCard({ sale, number, onOpenSale }: { sale: SaleWithDetails; number: string; onOpenSale: (id: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const { data: origin, isLoading: loadingOrigin, isError } = useQuery<SaleWithDetails>({
+    queryKey: ['sale-by-number', number], queryFn: () => getSaleBySaleNumber(number), enabled: open,
+  });
+  const { data: rets = [], isLoading: loadingRets } = useQuery<SaleReturn[]>({
+    queryKey: ['sale-returns', origin?.id], queryFn: () => getReturnHistory(origin!.id), enabled: open && !!origin?.id,
+  });
+  const ret = rets.find((r) => r.exchange_sale_id === sale.id);
+  return (
+    <View style={styles.notesCard}>
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity onPress={() => setOpen((v) => !v)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+          accessibilityRole="button" accessibilityState={{ expanded: open }} testID="troca-origem-toggle">
+          <Ionicons name="swap-horizontal-outline" size={16} color={Colors.light.info} />
+          <Text style={[styles.notesText, { flex: 1 }]}>{`Troca da venda ${number}`}</Text>
+          <Text style={styles.exchangeLinkText}>{open ? 'Ocultar' : 'Ver detalhes'}</Text>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.light.info} />
+        </TouchableOpacity>
+        {open && (
+          <View style={{ marginTop: 12 }}>
+            {(loadingOrigin || loadingRets) && <Text style={styles.returnItemQty}>Carregando a troca...</Text>}
+            {isError && <Text style={styles.returnItemQty}>Não consegui abrir a venda original.</Text>}
+            {!!ret && <ReturnBlock ret={ret} onOpenSale={onOpenSale} hideExchangeLink />}
+            {!!origin && !loadingRets && !ret && <Text style={styles.returnItemQty}>Não achei o registro da troca nesta venda.</Text>}
+            {!!origin && (
+              <TouchableOpacity onPress={() => onOpenSale(origin.id)} style={styles.exchangeLink} accessibilityRole="link">
+                <Text style={styles.exchangeLinkText}>{`Ver a venda original ${number}`}</Text>
+                <Ionicons name="chevron-forward" size={14} color={Colors.light.info} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
 const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
   pending:            { label: 'Pendente',     color: Colors.light.warning, icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, solid: true, icon: 'checkmark-circle' },
@@ -68,7 +110,7 @@ const settlementName: Record<string, string> = { cash: 'dinheiro', pix: 'PIX', d
  * Uma devolução ou troca da venda. Troca mostra o que voltou, o que a cliente levou (a peça nova da venda da troca, com link),
  * e a diferença: quanto ela pagou na hora ou quanto a loja devolveu. Devolução comum mostra o reembolso.
  */
-function ReturnBlock({ ret, onOpenSale }: { ret: SaleReturn; onOpenSale: (id: number) => void }) {
+function ReturnBlock({ ret, onOpenSale, hideExchangeLink }: { ret: SaleReturn; onOpenSale: (id: number) => void; hideExchangeLink?: boolean }) {
   const isExchange = !!ret.exchange_sale_id;
   const { data: exchange, isLoading } = useQuery<SaleWithDetails>({
     queryKey: ['sale', ret.exchange_sale_id],
@@ -119,10 +161,12 @@ function ReturnBlock({ ret, onOpenSale }: { ret: SaleReturn; onOpenSale: (id: nu
                 : net < -0.005 ? `Loja devolveu ${formatCurrency(-net)}${how ? ` (${how})` : ''}` : 'Sem diferença a pagar'}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => onOpenSale(ret.exchange_sale_id as number)} style={styles.exchangeLink} accessibilityRole="link">
-            <Text style={styles.exchangeLinkText}>{`Ver a venda da troca${ret.exchange_sale_number ? ` ${ret.exchange_sale_number}` : ''}`}</Text>
-            <Ionicons name="chevron-forward" size={14} color={Colors.light.info} />
-          </TouchableOpacity>
+          {!hideExchangeLink && (
+            <TouchableOpacity onPress={() => onOpenSale(ret.exchange_sale_id as number)} style={styles.exchangeLink} accessibilityRole="link">
+              <Text style={styles.exchangeLinkText}>{`Ver a venda da troca${ret.exchange_sale_number ? ` ${ret.exchange_sale_number}` : ''}`}</Text>
+              <Ionicons name="chevron-forward" size={14} color={Colors.light.info} />
+            </TouchableOpacity>
+          )}
         </>
       ) : (
         <View style={styles.returnTotal}>
@@ -646,7 +690,10 @@ export default function SaleDetailsScreen() {
         )}
 
         {/* ── OBSERVAÇÕES ───────────────────────────────────────── */}
-        {sale.notes && (
+        {sale.notes && /^Troca da venda /.test(sale.notes) && (
+          <ExchangeOriginCard sale={sale} number={sale.notes.replace(/^Troca da venda /, '').trim()} onOpenSale={(id) => router.push(`/sales/${id}` as any)} />
+        )}
+        {sale.notes && !/^Troca da venda /.test(sale.notes) && (
           <View style={styles.notesCard}>
             <Ionicons name="document-text-outline" size={16} color={Colors.light.info} />
             <Text style={styles.notesText}>{sale.notes}</Text>
