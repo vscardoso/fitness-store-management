@@ -5,7 +5,7 @@
  * com melhor UI/UX que o Alert.alert padrão.
  */
 
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { View, StyleSheet, ScrollView, Animated, Platform } from 'react-native';
 import { Portal, Modal, Text, Button, Surface, IconButton } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -14,6 +14,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopDialogStyle } from '@/hooks/useLayout';
 import WebDialogLayer from '@/components/ui/WebDialogLayer';
 import { MagnifierLoader } from '@/components/ui/MagnifierLoader';
+import { getBankReasonOpen, subscribeBankReasonOpen } from '@/services/bankApproval';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -46,6 +47,9 @@ export default function ConfirmDialog({
   loading = false,
 }: ConfirmDialogProps) {
   const brand = useBrandingColors();
+  // Enquanto o app pede o motivo de uma mudança no banco, esta janela se esconde: senão ficava por cima da folha do motivo
+  const askingReason = useSyncExternalStore(subscribeBankReasonOpen, getBankReasonOpen, () => false);
+  const shown = visible && !askingReason;
   const dialogDesktop = useDesktopDialogStyle();
   const isWeb = Platform.OS === 'web';
   const getTypeConfig = () => {
@@ -175,13 +179,13 @@ export default function ConfirmDialog({
   // Web: janela própria do navegador, sempre POR CIMA de qualquer folha ou janela aberta atrás (a versão com o Portal do
   // Paper ficava presa dentro da folha de baixo e saía cortada no notebook).
   if (Platform.OS === 'web') {
-    return <WebDialogLayer visible={visible} onDismiss={dismiss}>{card}</WebDialogLayer>;
+    return <WebDialogLayer visible={shown} onDismiss={dismiss}>{card}</WebDialogLayer>;
   }
 
   return (
     <Portal>
       <Modal
-        visible={visible}
+        visible={shown}
         onDismiss={dismiss}
         contentContainerStyle={[styles.modalContainer, dialogDesktop]}
       >

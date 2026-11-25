@@ -9,7 +9,7 @@ import { TextInput } from 'react-native-paper';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { registerReasonAsker } from '@/services/bankApproval';
+import { registerReasonAsker, setBankReasonOpen } from '@/services/bankApproval';
 
 const MIN = 20;
 
@@ -23,12 +23,14 @@ export default function BankApprovalHost() {
     registerReasonAsker(() => new Promise<string | null>((resolve) => {
       resolver.current = resolve;
       setReason('');
+      setBankReasonOpen(true);
       setOpen(true);
     }));
     return () => registerReasonAsker(null);
   }, []);
 
   const close = (value: string | null) => {
+    setBankReasonOpen(false);
     setOpen(false);
     resolver.current?.(value);
     resolver.current = null;

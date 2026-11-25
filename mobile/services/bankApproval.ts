@@ -50,6 +50,14 @@ export const isBankReasonRequired = (e: unknown): boolean => {
   return !!err && (err.status === 400 || err.status === undefined) && (msg.includes(REASON_NEEDLE) || msg.includes(DRAWER_REASON_NEEDLE));
 };
 
+// ── estado "pedindo o motivo": as janelas de confirmação se escondem enquanto isso (a janela de confirmação da web fica SEMPRE por
+// cima de qualquer folha e tapava a folha do motivo, deixando a tela presa no carregando) ─────────────────────────────
+let reasonOpen = false;
+const reasonListeners = new Set<() => void>();
+export const setBankReasonOpen = (v: boolean) => { reasonOpen = v; reasonListeners.forEach((l) => l()); };
+export const getBankReasonOpen = () => reasonOpen;
+export const subscribeBankReasonOpen = (l: () => void) => { reasonListeners.add(l); return () => { reasonListeners.delete(l); }; };
+
 // ── janela do motivo (montada uma vez na raiz: BankApprovalHost) ─────────────────────────────────────────────────
 type Asker = () => Promise<string | null>;
 let asker: Asker | null = null;
