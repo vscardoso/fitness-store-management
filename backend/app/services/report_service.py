@@ -26,6 +26,8 @@ from app.schemas.report import (
     DaySales,
     WeekdaySales,
     CategorySales,
+    CategoryItemSales,
+    CategoryItemsResponse,
     SellerSales,
     CashFlowReportResponse,
     TopCustomer,
@@ -355,6 +357,84 @@ class ReportService:
             by_category=by_category,
             by_seller=by_seller,
         )
+
+    async def get_category_items(
+        self, db: AsyncSession, tenant_id: int, category: str, period: str = "this_month",
+        seller_id: Optional[int] = None, custom_range: Optional[tuple] = None,
+    ) -> CategoryItemsResponse:
+        """Quais modelos (e cor/tamanho) foram vendidos numa categoria no período, em peças, líquidos do que voltou.
+        Mesmas regras do cartão "Vendas por categoria" do relatório de vendas (mesmos filtros, valor com o desconto da venda)."""
+        from app.models.sale_return import ReturnItem
+        from app.services.money_ledger import VALID_STATUS
+        if custom_range:
+            from datetime import time as _time
+            start_date = datetime.combine(custom_range[0], _time.min)
+            end_date = datetime.combine(custom_range[1], _time(23, 59, 59, 999999))
+        else:
+            start_date, end_date = self._get_period_dates(period)
+        s_utc, e_utc = get_period_range_utc(start_date.date(), end_date.date())
+        base_filter = and_(Sale.tenant_id == tenant_id, Sale.is_active == True, Sale.status.in_(VALID_STATUS),  # noqa: E712
+                           Sale.created_at >= s_utc, Sale.created_at <= e_utc)
+        ret_filter = and_(SaleReturn.tenant_id == tenant_id, SaleReturn.is_active == True, SaleReturn.status == "completed",  # noqa: E712
+                          return_day_col() >= s_utc, return_day_col() <= e_utc, Sale.status != SaleStatus.CANCELLED,
+                          ReturnItem.is_active == True)  # noqa: E712
+        if seller_id:
+            base_filter = and_(base_filter, Sale.seller_id == seller_id)
+            ret_filter = and_(ret_filter, Sale.seller_id == seller_id)
+        cat_expr = func.coalesce(Category.name, "Sem categoria")
+        rows: Dict[tuple, list] = {}
+        meta: Dict[tuple, tuple] = {}
+
+        def _label(color, size, sku) -> str:
+            return " · ".join(x for x in (color, size) if x) or (sku or "")
+
+        for r in (await db.execute(
+            select(
+                Product.id.label("pid"), Product.name.label("pname"), ProductVariant.id.label("vid"),
+                ProductVariant.color, ProductVariant.size, ProductVariant.sku,
+                func.coalesce(func.sum(SaleItem.quantity), 0).label("pieces"),
+                func.coalesce(func.sum(func.coalesce(SaleItem.subtotal - SaleItem.sale_discount_share, SaleItem.subtotal * Sale.total_amount / func.nullif(Sale.subtotal, 0), SaleItem.subtotal)), 0).label("rev"),
+                func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cost"),
+            )
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .outerjoin(ProductVariant, SaleItem.variant_id == ProductVariant.id)
+            .join(Product, Product.id == func.coalesce(SaleItem.product_id, ProductVariant.product_id))
+            .outerjoin(Category, Category.id == Product.category_id)
+            .where(base_filter, SaleItem.is_active == True, cat_expr == category)  # noqa: E712
+            .group_by(Product.id, Product.name, ProductVariant.id, ProductVariant.color, ProductVariant.size, ProductVariant.sku))).all():
+            k = (r.pid, r.vid)
+            rows[k] = [int(r.pieces), float(r.rev), float(r.cost)]
+            meta[k] = (r.pname, _label(r.color, r.size, r.sku))
+        for r in (await db.execute(
+            select(
+                Product.id.label("pid"), Product.name.label("pname"), ProductVariant.id.label("vid"),
+                ProductVariant.color, ProductVariant.size, ProductVariant.sku,
+                func.coalesce(func.sum(ReturnItem.quantity_returned), 0).label("pieces"),
+                func.coalesce(func.sum(ReturnItem.refund_amount), 0).label("rev"),
+                func.coalesce(func.sum(case((ReturnItem.restock == True, ReturnItem.quantity_returned * ReturnItem.unit_cost), else_=0)), 0).label("cost"),
+            )
+            .join(SaleReturn, SaleReturn.id == ReturnItem.return_id)
+            .join(Sale, Sale.id == SaleReturn.sale_id)
+            .join(Product, Product.id == ReturnItem.product_id)
+            .outerjoin(ProductVariant, ProductVariant.id == ReturnItem.variant_id)
+            .outerjoin(Category, Category.id == Product.category_id)
+            .where(ret_filter, cat_expr == category)
+            .group_by(Product.id, Product.name, ProductVariant.id, ProductVariant.color, ProductVariant.size, ProductVariant.sku))).all():
+            k = (r.pid, r.vid)
+            c = rows.setdefault(k, [0, 0.0, 0.0])
+            meta.setdefault(k, (r.pname, _label(r.color, r.size, r.sku)))
+            c[0] -= int(r.pieces)
+            c[1] -= float(r.rev)
+            c[2] -= float(r.cost)
+        items = [
+            CategoryItemSales(product_id=k[0], product_name=meta[k][0], variant_id=k[1], variant=meta[k][1],
+                              pieces=v[0], revenue=round(v[1], 2), profit=round(v[1] - v[2], 2))
+            for k, v in rows.items() if v[0] != 0 or abs(v[1]) > 0.004
+        ]
+        items.sort(key=lambda i: (-i.pieces, -i.revenue, i.product_name, i.variant))
+        return CategoryItemsResponse(
+            category=category, pieces=sum(i.pieces for i in items), revenue=round(sum(i.revenue for i in items), 2),
+            profit=round(sum(i.profit for i in items), 2), models=len({i.product_id for i in items}), items=items)
 
     async def get_cash_flow_report(
         self,

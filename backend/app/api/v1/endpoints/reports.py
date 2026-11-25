@@ -156,6 +156,29 @@ async def get_sales_report(
 
 
 @router.get(
+    "/sales/category",
+    summary="Modelos vendidos numa categoria",
+    description="Detalha uma linha de 'Vendas por categoria': quais modelos, cores e tamanhos saíram e quantas peças, líquidas do que voltou.",
+)
+async def get_sales_category_items(
+    category: str = Query(..., min_length=1, max_length=120, description="Nome da categoria, como aparece em 'Vendas por categoria'"),
+    period: str = Query("this_month", description="Mesmo período do relatório de vendas"),
+    seller_id: int | None = Query(None, description="Filtrar por vendedor (opcional)"),
+    start_date: str | None = Query(None, description="Período escolhido: data inicial AAAA-MM-DD (use junto com end_date)"),
+    end_date: str | None = Query(None, description="Período escolhido: data final AAAA-MM-DD"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    if current_user.role.value == "SELLER":
+        seller_id = current_user.id
+    custom = _custom_range(start_date, end_date)
+    return await ReportService().get_category_items(
+        db=db, tenant_id=tenant_id, category=category.strip(), period="custom" if custom else period,
+        seller_id=seller_id, custom_range=custom)
+
+
+@router.get(
     "/sales/pdf",
     summary="Relatório de vendas em PDF",
     description="Mesmo conteúdo do relatório de vendas, em PDF gerado no servidor (usado pelo app web, que não tem arquivo local).",

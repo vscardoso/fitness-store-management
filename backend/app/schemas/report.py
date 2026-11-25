@@ -69,6 +69,26 @@ class WeekdaySales(BaseModel):
     sales: int
 
 
+class CategoryItemSales(BaseModel):
+    """Uma variação (modelo, cor e tamanho) vendida dentro de uma categoria, líquida do que voltou."""
+    product_id: int
+    product_name: str
+    variant_id: Optional[int] = None
+    variant: str = ""
+    pieces: int
+    revenue: float
+    profit: float
+
+
+class CategoryItemsResponse(BaseModel):
+    category: str
+    pieces: int
+    revenue: float
+    profit: float
+    models: int
+    items: List[CategoryItemSales]
+
+
 class CategorySales(BaseModel):
     category: str
     pieces: int
