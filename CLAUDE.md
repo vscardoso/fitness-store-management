@@ -802,3 +802,11 @@ Pedido do Victor: "preciso conseguir alterar os valores lançados no financeiro"
 - Caso real que motivou: loja 2, venda 71 (R$ 712,14, 19/11) estornada em 22/11 e refeita como venda 81 (R$ 450,00): o início de 22/11 mostrava -R$ 262,14. Depois da mudança, 22/11 fica com R$ 450,00 e 19/11 sem os R$ 712,14.
 - Corrigido junto: `_SQLITE_EXTRA_COLUMNS` tinha a chave `sale_returns` duplicada (a segunda apagava a primeira e o SQLite de desenvolvimento perdia `receivable_abated`).
 - NÃO conferido: tela no navegador e a migração rodando em Postgres real (só o SQL gerado).
+
+### Troca no fiado, travas e detalhe por categoria (25/11/2026)
+- **Duplo toque na troca** (venda #AB9, loja 2): o aviso "Trocar" ficava aberto e aceitava 2 toques; a 2ª tentativa era recusada ("excede o disponível (0)"). `ReturnModal.executeReturn` agora tem trava síncrona (`submittingRef`) e fecha o aviso na hora. Testado na tela com duplo clique: 1 devolução só.
+- **Troca no fiado**: `settlement_method = "on_account"` na troca (só com cliente na venda e diferença > 0): cria pagamento `on_account` na venda da troca e 1 parcela a receber (30 dias). O crédito da peça devolvida abate a peça nova; a dívida da venda original não muda. Comprovante (texto e PDF) diz "Diferença no fiado"; tela da venda da troca diz "Ficou no fiado". Testado de ponta a ponta (tela, parcela, Financeiro fecha com residual 0,00).
+- **Venda da troca**: o aviso "Troca da venda X" virou cartão expansível (voltou, levou, diferença, link da venda original).
+- **Detalhe por categoria**: `GET /reports/sales/category?category=...` (+ período igual ao relatório); tocar numa linha de "Vendas por categoria" abre modelos, cor e tamanho em peças, líquidos do que voltou. Total bate com a linha da categoria (teste).
+- **Aprendizado**: `ambiente-teste.ps1` mata TODO uvicorn/spa-server (inclusive do outro dev). Para testar sem tocar no dele: backend em outra porta (8010), app em 8091, banco no scratchpad, e matar só por PID/linha de comando.
+- **Pendente (decisão do Victor)**: custo de 5 tênis da entrada COMPRAS-SÃO-PAULO-09 (R$ 60 a R$ 110, os outros estão em R$ 300); a venda #6D1 mostra lucro de 83% por causa disso.
