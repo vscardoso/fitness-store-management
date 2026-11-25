@@ -9,14 +9,19 @@ self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
   const title = data.title || 'Provador';
-  event.waitUntil(self.registration.showNotification(title, {
-    body: data.body || '',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: data.tag || undefined,
-    renotify: !!data.tag,
-    data: { url: data.url || '/' },
-  }));
+  event.waitUntil((async () => {
+    await self.registration.showNotification(title, {
+      body: data.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: data.tag || undefined,
+      renotify: !!data.tag,
+      data: { url: data.url || '/' },
+    });
+    // com o app aberto, a tela não espera o próximo ciclo: a página recarrega o que o aviso mudou
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) w.postMessage({ type: 'push', url: data.url || '/', tag: data.tag || null });
+  })());
 });
 
 // Toque na notificação: abre (ou traz para frente) o app na tela certa

@@ -30,8 +30,8 @@ export function CategoryDot({ category, size = 44 }: { category?: { color?: stri
   );
 }
 
-export function CategoryField({ label = 'Categoria', categories, value, onChange }: {
-  label?: string; categories: ExpenseCategory[]; value: ExpenseCategory | null; onChange: (c: ExpenseCategory | null) => void;
+export function CategoryField({ label = 'Categoria', categories, value, onChange, disabled }: {
+  label?: string; categories: ExpenseCategory[]; value: ExpenseCategory | null; onChange: (c: ExpenseCategory | null) => void; disabled?: boolean;
 }) {
   const brand = useBrandingColors();
   const [open, setOpen] = useState(false);
@@ -39,7 +39,7 @@ export function CategoryField({ label = 'Categoria', categories, value, onChange
   return (
     <View style={{ gap: 6 }}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TouchableOpacity style={styles.field} onPress={() => setOpen(true)} activeOpacity={0.75} accessibilityRole="button"
+      <TouchableOpacity style={[styles.field, disabled && { opacity: 0.5 }]} onPress={() => setOpen(true)} disabled={disabled} activeOpacity={0.75} accessibilityRole="button"
         accessibilityLabel={`${label}: ${value?.name ?? 'nenhuma'}. Toque para escolher`} testID="expense-category-field">
         {value ? <CategoryDot category={value} size={32} /> : <Ionicons name="pricetag-outline" size={22} color={Colors.light.textTertiary} />}
         <Text style={[styles.fieldText, !value && { color: Colors.light.textTertiary }]} numberOfLines={1}>{value?.name ?? 'Escolher categoria'}</Text>
@@ -112,7 +112,10 @@ export function ExpenseRow({ item, accountName, financeStarted, onPress }: {
           </View>
         )}
       </View>
-      <Text style={[styles.rowAmount, lot && { color: Colors.light.textSecondary }]}>{formatCurrency(item.amount)}</Text>
+      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+        <Text style={[styles.rowAmount, lot && { color: Colors.light.textSecondary }]}>{formatCurrency(item.amount)}</Text>
+        {!!pending && <Ionicons name="lock-closed-outline" size={16} color={Colors.light.warningDark} accessibilityLabel="Travada: pedido em andamento" />}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -125,7 +128,7 @@ export function ApprovalNotice({ pending, onOpen }: { pending: NonNullable<Expen
         <Ionicons name="hourglass-outline" size={20} color={Colors.light.warningDark} style={{ marginTop: 1 }} />
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={styles.noticeTitle}>{approvalText(pending)}</Text>
-          <Text style={styles.noticeText}>{`${pending.requested_by_name ? `${pending.requested_by_name} pediu. ` : ''}O saldo só muda depois que todos aprovarem.`}</Text>
+          <Text style={styles.noticeText}>{`${pending.requested_by_name ? `${pending.requested_by_name} pediu. ` : ''}O saldo só muda depois que todos aprovarem. Até lá a despesa fica travada: não dá para editar nem apagar.`}</Text>
         </View>
       </View>
       <AppButton variant="outlined" size="sm" icon="shield-checkmark-outline" label="Ver pedidos" onPress={onOpen} />

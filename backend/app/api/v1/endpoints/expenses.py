@@ -277,6 +277,7 @@ async def update_expense(
 ):
     svc = ExpenseService(db)
     try:
+        await svc.ensure_no_pending_approval(expense_id, tenant_id)
         held = await _gate_bank(db, tenant_id, current_user, "expense_update", expense_id, data.model_dump(exclude_unset=True, mode="json"), reason)
         if held is not None:
             return held
@@ -305,6 +306,7 @@ async def delete_expense(
 ):
     svc = ExpenseService(db)
     try:
+        await svc.ensure_no_pending_approval(expense_id, tenant_id)
         held = await _gate_bank(db, tenant_id, current_user, "expense_delete", expense_id, {}, reason)
         if held is not None:
             return held

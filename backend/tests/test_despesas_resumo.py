@@ -89,3 +89,29 @@ async def test_despesa_mostra_o_pedido_de_aprovacao_em_andamento(test_client, as
     # aprovado e aplicado: some o aviso
     await _aprovar_todos(test_client, heads, r.json()["approval"]["id"])
     assert (await test_client.get(f"/api/v1/expenses/{eid2}", headers=h)).json()["pending_approval"] is None
+
+
+async def test_despesa_com_pedido_em_andamento_fica_travada(test_client, async_session, test_user):
+    """Enquanto os administradores avaliam o pedido, nada edita nem apaga a despesa (nem campos que normalmente são diretos)."""
+    t_id, h, p, va, ids, heads, admins = await _loja(test_client, async_session, test_user)
+    r = await test_client.post("/api/v1/expenses", headers=h, json={
+        "amount": "40", "description": "Material", "expense_date": date.today().isoformat(), "account_id": ids["Nubank"]})
+    eid = r.json()["id"]
+    # antes do pedido: trocar a descrição é direto
+    assert (await test_client.put(f"/api/v1/expenses/{eid}", headers=h, json={"description": "Material 2"})).status_code == 200
+    r = await test_client.delete(f"/api/v1/expenses/{eid}", headers=h, params={"reason": MOTIVO})
+    assert r.status_code == 202, r.text
+    ap_id = r.json()["approval"]["id"]
+    # com o pedido de apagar em andamento: nada passa
+    r = await test_client.put(f"/api/v1/expenses/{eid}", headers=h, json={"description": "Por fora"})
+    assert r.status_code in (400, 409) and "esperando aprovação" in r.json()["detail"], r.text
+    r = await test_client.put(f"/api/v1/expenses/{eid}", headers=h, params={"reason": MOTIVO}, json={"amount": "99"})
+    assert r.status_code in (400, 409) and "esperando aprovação" in r.json()["detail"], r.text
+    r = await test_client.delete(f"/api/v1/expenses/{eid}", headers=h, params={"reason": MOTIVO})
+    assert r.status_code in (400, 409) and "esperando aprovação" in r.json()["detail"], r.text
+    d = (await test_client.get(f"/api/v1/expenses/{eid}", headers=h)).json()
+    assert d["description"] == "Material 2" and d["pending_approval"]["id"] == ap_id         # nada mudou
+    # cancelado o pedido, a despesa destrava
+    r = await test_client.post(f"/api/v1/finance/approvals/{ap_id}/cancel", headers=h)
+    assert r.status_code == 200, r.text
+    assert (await test_client.put(f"/api/v1/expenses/{eid}", headers=h, json={"description": "Material 3"})).status_code == 200

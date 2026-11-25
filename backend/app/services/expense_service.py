@@ -239,6 +239,19 @@ class ExpenseService:
         return {"start_date": start, "end_date": end, "store_total": Decimal(str(store_total)), "store_count": int(store_count),
                 "lot_total": Decimal(str(lot_total)), "lot_count": int(lot_count), "by_category": by_category}
 
+    async def ensure_no_pending_approval(self, expense_id: int, tenant_id: Optional[int]) -> None:
+        """Despesa com pedido de aprovação em andamento (apagar ou mudar) fica travada: nada a edita nem apaga até o pedido ser
+        decidido ou cancelado. Senão uma mudança "por fora" passava por cima do que os administradores estão avaliando."""
+        probe = Expense(id=expense_id)
+        await self.attach_pending_approvals([probe], tenant_id)
+        p = probe.pending_approval
+        if p:
+            what = "apagar" if p["kind"] == "delete" else "mudar"
+            raise ValueError(
+                f"Esta despesa tem um pedido para {what} esperando aprovação (pedido #{p['id']}). "
+                "Aguarde a decisão dos administradores ou cancele o pedido."
+            )
+
     async def attach_pending_approvals(self, expenses: List[Expense], tenant_id: Optional[int]) -> None:
         """Põe em cada despesa `pending_approval` (pedido de apagar ou mudar esperando os administradores) ou None.
         Uma consulta só para a lista inteira."""

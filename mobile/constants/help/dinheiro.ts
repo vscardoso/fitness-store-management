@@ -331,7 +331,7 @@ export const DINHEIRO: HelpEntry[] = [
       'Para apagar, toque em “Excluir Despesa” e confirme. Se a despesa foi paga por um banco, o app pede um motivo e um pedido segue para os administradores aprovarem.',
     ],
     goodToKnow: [
-      'Se houver um pedido em andamento, ele aparece no topo com “Ver pedidos”, e a despesa não pode ser apagada de novo até o pedido ser decidido.',
+      'Se houver um pedido em andamento, ele aparece no topo com “Ver pedidos” e a despesa fica travada (um cadeado na lista): não dá para editar nem apagar até o pedido ser decidido ou cancelado.',
       'De qual conta saiu e se é de lote não mudam aqui: para trocar, exclua e lance de novo.',
       'Excluir devolve o valor para a conta e refaz o custo do lote.',
       'Só o admin exclui.',

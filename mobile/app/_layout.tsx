@@ -92,6 +92,11 @@ const queryClient = new QueryClient({
 
 registerQueryClient(queryClient);
 // dinheiro nunca fica "velho": as telas que mostram saldo, extrato, caixa e relatório recarregam toda vez que abrem
+// pedidos de aprovação e despesas também: recarregam ao abrir e ao voltar para o app (antes ficavam 5 minutos "frescos" e a tela
+// mostrava "ainda não votou" depois de a pessoa já ter aprovado)
+for (const root of ['finance-approvals', 'finance-approvals-summary', 'expenses']) {
+  queryClient.setQueryDefaults([root], { staleTime: 0, refetchOnWindowFocus: true });
+}
 for (const root of ['finance', 'finance-payables', 'finance-transfers', 'finance-statement', 'finance-loans', 'finance-entries', 'finance-closings', 'finance-closing', 'cash', 'monthly-report', 'receivables']) {
   queryClient.setQueryDefaults([root], { staleTime: 0 });
 }
@@ -130,6 +135,17 @@ function AppLayout() {
   useEffect(() => startQueryPersist(queryClient, () => useAuthStore.getState().user?.id), []);
   // Trilha de navegação (telas e gestos de voltar) para achar o que aconteceu quando algo sai errado
   useEffect(() => startHistoryTrail(), []);
+  // aviso (push) chegando com o app aberto: recarrega pedidos de aprovação, despesas e Financeiro na hora
+  useEffect(() => {
+    const sw = (globalThis as any).navigator?.serviceWorker;
+    if (!sw?.addEventListener) return;
+    const onMessage = (e: { data?: { type?: string } }) => {
+      if (e.data?.type !== 'push') return;
+      queryClient.invalidateQueries({ predicate: (q) => ['finance-approvals', 'finance-approvals-summary', 'expenses', 'finance'].includes(String(q.queryKey[0])) });
+    };
+    sw.addEventListener('message', onMessage);
+    return () => sw.removeEventListener('message', onMessage);
+  }, []);
   useEffect(() => trailRoute(pathname), [pathname]);
   const loadUser = useAuthStore((state) => state.loadUser);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);

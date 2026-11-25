@@ -167,6 +167,8 @@ export default function EditExpenseScreen() {
   }
 
   const moreFilled = [notes.trim() ? 'observação' : null, isRecurring ? 'gasto fixo' : null].filter(Boolean).join(', ');
+  // Pedido de aprovação em andamento: a despesa fica só para leitura até os administradores decidirem (o servidor também recusa)
+  const locked = !!expense?.pending_approval;
   const paidByBank = !!expense?.account_id && finance?.accounts.find((a) => a.id === expense.account_id)?.kind === 'bank';
   const created = [expense?.created_by_name ? `Lançada por ${expense.created_by_name}` : null].filter(Boolean).join(' ');
 
@@ -230,6 +232,7 @@ export default function EditExpenseScreen() {
               <TextInput
                 label="Valor *"
                 value={amount}
+                disabled={locked}
                 onChangeText={(t) => setAmount(maskCurrencyBR(t))}
                 mode="outlined"
                 keyboardType="numeric"
@@ -239,6 +242,7 @@ export default function EditExpenseScreen() {
               <TextInput
                 label="Descrição *"
                 value={description}
+                disabled={locked}
                 onChangeText={setDescription}
                 mode="outlined"
                 style={styles.input}
@@ -249,8 +253,9 @@ export default function EditExpenseScreen() {
                 onChange={(d) => d && setExpenseDate(d)}
                 mode="date"
                 maximumDate={new Date()}
+                disabled={locked}
               />
-              <CategoryField categories={categories ?? []} value={selectedCategory} onChange={setSelectedCategory} />
+              <CategoryField categories={categories ?? []} value={selectedCategory} onChange={setSelectedCategory} disabled={locked} />
               {(!!expense?.account_id || !!expense?.stock_entry_id) && (
                 <Text style={styles.help}>A conta de onde saiu o dinheiro e o lote não mudam aqui. Para trocar, exclua a despesa e lance de novo.</Text>
               )}
@@ -265,6 +270,7 @@ export default function EditExpenseScreen() {
               <TextInput
                 label="Observações"
                 value={notes}
+                disabled={locked}
                 onChangeText={setNotes}
                 mode="outlined"
                 multiline
@@ -276,11 +282,12 @@ export default function EditExpenseScreen() {
                   <Text style={styles.switchLabel}>Despesa Recorrente</Text>
                   <Text style={styles.help}>Marca como gasto fixo do mês. O app não lança o próximo sozinho.</Text>
                 </View>
-                <Switch value={isRecurring} onValueChange={setIsRecurring} color={brandingColors.primary} />
+                <Switch value={isRecurring} onValueChange={setIsRecurring} color={brandingColors.primary} disabled={locked} />
               </View>
               {isRecurring && (
                 <TextInput
                   label="Dia do mês (1–31)"
+                  disabled={locked}
                   value={recurrenceDay}
                   onChangeText={setRecurrenceDay}
                   mode="outlined"
@@ -309,6 +316,8 @@ export default function EditExpenseScreen() {
         <FormFooter
           primaryLabel="Salvar Alterações"
           onPrimary={handleSave}
+          disabled={locked}
+          hint={locked ? 'Em análise: não dá para mudar até os administradores decidirem.' : undefined}
           loading={updateMutation.isPending}
           onSecondary={() => router.back()}
         />
