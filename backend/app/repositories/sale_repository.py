@@ -9,7 +9,8 @@ from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.sale import Payment, PaymentMethod, Sale, SaleItem, SaleStatus
+from app.models.receivable import Receivable, RECEIVABLE_CANCELED
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.user import User
@@ -123,6 +124,10 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         status: SaleStatus | str | None = None,
         sale_number: str | None = None,
         q: str | None = None,
+        fiado: str | None = None,
+        payment: str | None = None,
+        refunded: bool = False,
+        no_customer: bool = False,
         skip: int = 0,
         limit: int = 100,
     ) -> Sequence[Sale]:
@@ -142,6 +147,32 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             conditions.append(Sale.seller_id == seller_id)
         if status is not None:
             conditions.append(Sale.status == (status.value if isinstance(status, SaleStatus) else status))
+        # Filtros sugeridos (chips da tela): fiado pago / em aberto / vencido, forma de pagamento, devolvidas, sem cliente
+        if fiado in ("open", "overdue", "paid"):
+            from app.core.timezone import today_brazil
+            ativa = and_(Receivable.sale_id == Sale.id, Receivable.is_active == True,  # noqa: E712
+                         Receivable.status != RECEIVABLE_CANCELED)
+            falta = (Receivable.amount - Receivable.received_amount - Receivable.abated_amount) > 0
+            tem_parcela = select(Receivable.id).where(ativa).exists()
+            deve = select(Receivable.id).where(ativa, falta).exists()
+            vencida = select(Receivable.id).where(ativa, falta, Receivable.due_date < today_brazil()).exists()
+            if fiado == "paid":
+                conditions.append(and_(tem_parcela, ~deve))
+            elif fiado == "overdue":
+                conditions.append(vencida)
+            else:   # em aberto: deve e nenhuma parcela vencida (igual ao estado mostrado no cartão da venda)
+                conditions.append(and_(deve, ~vencida))
+        if payment:
+            grupos = {
+                "cash": [PaymentMethod.CASH], "pix": [PaymentMethod.PIX], "on_account": [PaymentMethod.ON_ACCOUNT],
+                "card": [PaymentMethod.CREDIT_CARD, PaymentMethod.DEBIT_CARD, PaymentMethod.INSTALLMENTS],
+            }
+            if payment in grupos:
+                conditions.append(Sale.payments.any(Payment.payment_method.in_(grupos[payment])))
+        if refunded:
+            conditions.append(Sale.status.in_([SaleStatus.REFUNDED.value, SaleStatus.PARTIALLY_REFUNDED.value]))
+        if no_customer:
+            conditions.append(Sale.customer_id.is_(None))
         if sale_number:
             # número exato, sem diferenciar caixa (o texto do usuário nunca vira curinga)
             conditions.append(func.lower(Sale.sale_number) == sale_number.strip().lower())

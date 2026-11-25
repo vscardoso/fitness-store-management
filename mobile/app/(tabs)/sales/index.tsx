@@ -7,8 +7,9 @@ import {
   TouchableOpacity,
   Text,
   TextInput,
+  ScrollView,
 } from 'react-native';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -31,6 +32,8 @@ import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopSalesTable from '@/components/sale/DesktopSalesTable';
 import { saleCodesText } from '@/utils/saleCodes';
 import { paymentSummary, fiadoPaymentText } from '@/utils/paymentLabel';
+import { FLAG_CHIPS, NO_FLAGS, flagsToParams, hasFlags, isChipOn, toggleChip } from '@/utils/salesFilters';
+import type { SalesFlags } from '@/utils/salesFilters';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import ScreenLoader from '@/components/ui/ScreenLoader';
@@ -57,7 +60,7 @@ export default function SalesListScreen() {
 function MobileSalesListScreen() {
   const router = useRouter();
   const brandingColors = useBrandingColors();
-  const [skip, setSkip] = useState(0);
+  const [flags, setFlags] = useState<SalesFlags>(NO_FLAGS);
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilterValue>('this_month');
@@ -91,15 +94,20 @@ function MobileSalesListScreen() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data: sales, isLoading, isError, refetch, isRefetching, isFetching } = useQuery({
-    queryKey: ['sales', skip, debouncedSearch, dateRange],
-    queryFn: async () => {
-      const params: any = { skip, limit: 50, ...dateRange };
+  // A lista carrega de 50 em 50 e ACUMULA as páginas (antes a página nova trocava a anterior e o começo da lista sumia)
+  const PAGE = 50;
+  const { data: pages, isLoading, isError, refetch, isRefetching, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ['sales', debouncedSearch, dateRange, flags],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const params: any = { skip: pageParam, limit: PAGE, ...dateRange, ...flagsToParams(flags) };
       if (debouncedSearch.length > 0) params.q = debouncedSearch;
-      return getSales(params, { skipLoading: debouncedSearch.length > 0 });
+      return getSales(params, { skipLoading: debouncedSearch.length > 0 || pageParam > 0 });
     },
+    getNextPageParam: (last, all) => (last.length === PAGE ? all.length * PAGE : undefined),
     placeholderData: keepPreviousData,
   });
+  const sales = useMemo(() => pages?.pages.flat(), [pages]);
 
   useFocusEffect(
     useCallback(() => {
@@ -136,7 +144,7 @@ function MobileSalesListScreen() {
   };
 
   const loadMore = () => {
-    if (sales && sales.length === 50) setSkip(prev => prev + 50);
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   };
 
   // ── Métricas rápidas ──
@@ -260,7 +268,7 @@ function MobileSalesListScreen() {
             </View>
             <PeriodFilter
               value={selectedPeriod}
-              onChange={(value) => { setSelectedPeriod(value); setSkip(0); }}
+              onChange={(value) => { setSelectedPeriod(value); }}
               compact
             />
           </View>
@@ -286,7 +294,7 @@ function MobileSalesListScreen() {
             placeholder="Buscar por número, cliente, vendedor ou peça..."
             placeholderTextColor={Colors.light.textTertiary}
             value={search}
-            onChangeText={(text) => { setSearch(text); setSkip(0); }}
+            onChangeText={(text) => { setSearch(text); }}
             autoCorrect={false}
             returnKeyType="search"
           />
@@ -299,6 +307,39 @@ function MobileSalesListScreen() {
               <Ionicons name="close-circle" size={18} color={Colors.light.textTertiary} />
             </TouchableOpacity>
           )}
+        </View>
+
+        {/* ── Filtros sugeridos: o app oferece os recortes que a loja mais usa; combinam com a busca e o período ── */}
+        <View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow} keyboardShouldPersistTaps="handled">
+            {hasFlags(flags) && (
+              <TouchableOpacity onPress={() => setFlags(NO_FLAGS)} style={[styles.flagChip, styles.flagChipClear]} activeOpacity={0.7}
+                accessibilityRole="button" accessibilityLabel="Limpar filtros" testID="flag-clear">
+                <Ionicons name="close-outline" size={14} color={Colors.light.textSecondary} />
+                <Text style={styles.flagChipText}>Limpar</Text>
+              </TouchableOpacity>
+            )}
+            {FLAG_CHIPS.map((c) => {
+              const on = isChipOn(flags, c);
+              const color = on ? Colors.light.onPrimary : c.tone === 'danger' ? Colors.light.error : Colors.light.textSecondary;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  onPress={() => setFlags((f) => toggleChip(f, c))}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
+                  style={[styles.flagChip, c.tone === 'danger' && !on && styles.flagChipDanger, on && { backgroundColor: c.tone === 'danger' ? Colors.light.error : brandingColors.primary, borderColor: 'transparent' }]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`${c.label}${on ? ', ligado' : ''}`}
+                  testID={`flag-${c.id}`}
+                >
+                  <Ionicons name={(on ? 'checkmark' : c.icon) as any} size={14} color={color} />
+                  <Text style={[styles.flagChipText, { color }]}>{c.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <FlatList
@@ -316,11 +357,14 @@ function MobileSalesListScreen() {
               colors={[brandingColors.primary]}
             />
           }
+          ListFooterComponent={isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
           ListEmptyComponent={
             <EmptyState
               icon="receipt-outline"
               title="Nenhuma venda encontrada"
-              description={search ? 'Tente buscar por outro nome, número ou peça' : 'As vendas realizadas aparecerão aqui'}
+              description={hasFlags(flags) ? 'Nenhuma venda com estes filtros neste período. Limpe os filtros ou escolha outro período.' : search ? 'Tente buscar por outro nome, número ou peça' : 'As vendas realizadas aparecerão aqui'}
+              actionLabel={hasFlags(flags) ? 'Limpar filtros' : undefined}
+              onAction={hasFlags(flags) ? () => setFlags(NO_FLAGS) : undefined}
             />
           }
         />
@@ -421,6 +465,14 @@ const styles = StyleSheet.create({
   },
 
   // ── Busca ──
+  chipsRow: { paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm, gap: 8, alignItems: 'center' },
+  flagChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, height: 34, paddingHorizontal: 12, borderRadius: 999,
+    backgroundColor: Colors.light.card, borderWidth: 1, borderColor: Colors.light.border,
+  },
+  flagChipDanger: { borderColor: Colors.light.error },
+  flagChipClear: { backgroundColor: Colors.light.backgroundSecondary },
+  flagChipText: { fontSize: 13, fontWeight: '600', color: Colors.light.textSecondary },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',

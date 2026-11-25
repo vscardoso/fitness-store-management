@@ -60,3 +60,57 @@ async def test_fiado_vencido_e_venda_devolvida_sem_estado(test_client, async_ses
         "reason": "Devolução total", "items": [{"sale_item_id": item_id, "quantity": 1}]})
     assert r.status_code == 201, r.text
     assert (await _lista(test_client, h, cid))[sale_id]["fiado_status"] is None
+
+
+async def test_filtros_sugeridos_da_lista_de_vendas(test_client, async_session, test_user):
+    """Chips da tela de vendas: fiado (pago, em aberto, vencido), forma de pagamento, devolvidas e sem cliente."""
+    from sqlalchemy import update
+    from app.models.receivable import Receivable
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    cid = await _cliente(async_session, t_id)
+
+    async def vender(cliente, forma, valor="100.00"):
+        j = {"payment_method": forma, "items": [{"product_id": p.id, "variant_id": va.id, "quantity": 1, "unit_price": "100.00"}],
+             "payments": [{"amount": valor, "payment_method": forma}]}
+        if cliente:
+            j["customer_id"] = cliente
+        r = await test_client.post("/api/v1/sales/", headers=h, json=j)
+        assert r.status_code in (200, 201), r.text
+        return r.json()["id"], r.json()["items"][0]["id"]
+
+    aberto, _ = await vender(cid, "on_account")
+    vencido, _ = await vender(cid, "on_account")
+    pago, _ = await vender(cid, "on_account")
+    pix, _ = await vender(cid, "pix")
+    dinheiro_sem_cliente, _ = await vender(None, "cash")
+    devolvida, item = await vender(cid, "pix")
+    await async_session.execute(update(Receivable).where(Receivable.sale_id == vencido).values(due_date=date.today() - timedelta(days=2)))
+    await async_session.commit()
+    r = await test_client.post("/api/v1/receivables/receive", headers=h, json={"receivable_id": (await _aberto(test_client, h, cid))["items"][0]["id"], "amount": "100,00", "payment_method": "pix"})
+    assert r.status_code == 200, r.text   # recebe a parcela mais antiga primeiro: a da venda "aberto"? confere abaixo
+    r = await test_client.post(f"/api/v1/returns/{devolvida}", headers=h, json={"reason": "devolveu", "items": [{"sale_item_id": item, "quantity": 1}]})
+    assert r.status_code == 201, r.text
+
+    async def ids(**params):
+        r = await test_client.get("/api/v1/sales/", headers=h, params=params)
+        assert r.status_code == 200, r.text
+        return {s["id"] for s in r.json()}
+
+    todas = await ids()
+    pagos = await ids(fiado="paid")
+    abertos = await ids(fiado="open")
+    vencidos = await ids(fiado="overdue")
+    assert len(pagos) == 1 and pagos <= {aberto, vencido, pago}           # a parcela recebida
+    assert pagos | abertos | vencidos == {aberto, vencido, pago}          # todo fiado cai em exatamente um estado
+    assert not (pagos & abertos) and not (pagos & vencidos) and not (abertos & vencidos)
+    assert vencido in vencidos or vencido in pagos
+    assert await ids(payment="pix") == {pix, devolvida}
+    assert await ids(payment="cash") == {dinheiro_sem_cliente}
+    assert await ids(payment="on_account") == {aberto, vencido, pago}
+    assert await ids(payment="card") == set()
+    assert await ids(refunded="true") == {devolvida}
+    assert await ids(no_customer="true") == {dinheiro_sem_cliente}
+    assert await ids(payment="pix", refunded="true") == {devolvida}        # filtros se combinam
+    assert await ids(fiado="paid", payment="pix") == set()
+    assert (await test_client.get("/api/v1/sales/", headers=h, params={"fiado": "xx"})).status_code == 422
+    assert todas >= {aberto, vencido, pago, pix, dinheiro_sem_cliente, devolvida}

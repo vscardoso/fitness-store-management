@@ -36,6 +36,11 @@ export const getSales = async (params?: PaginationParams & {
   end_date?: string;
   sale_number?: string;
   q?: string;
+  /** filtros sugeridos da lista de vendas (ver utils/salesFilters.ts) */
+  fiado?: 'open' | 'overdue' | 'paid';
+  payment?: 'cash' | 'pix' | 'card' | 'on_account';
+  refunded?: boolean;
+  no_customer?: boolean;
 }, opts?: { skipLoading?: boolean }): Promise<Sale[]> => {
   try {
     // skipLoading: busca digitada não pode cobrir a tela com o carregando global a cada letra
