@@ -20,7 +20,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 import { CreateShipmentDTO } from '@/types/conditional';
-import { getCustomers } from '@/services/customerService';
+import { getAllCustomers } from '@/services/customerService';
+import { customerMatches } from '@/utils/customerMatch';
 import { searchCep } from '@/services/cepService';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -154,7 +155,7 @@ export default function CreateConditionalShipmentScreen() {
   // Queries
   const { data: customers = [], isLoading: loadingCustomers } = useQuery({
     queryKey: ['customers'],
-    queryFn: () => getCustomers({}),
+    queryFn: () => getAllCustomers(),
     enabled: step === 1,
   });
 
@@ -442,13 +443,8 @@ export default function CreateConditionalShipmentScreen() {
   };
 
   const filteredCustomers = useMemo(() => {
-    const term = customerSearch.trim().toLowerCase();
-    if (!term) return customers;
-    const digits = term.replace(/\D/g, '');
-    return customers.filter((c) =>
-      c.full_name.toLowerCase().includes(term) ||
-      (digits.length >= 3 && (c.phone || '').replace(/\D/g, '').includes(digits))
-    );
+    if (!customerSearch.trim()) return customers;
+    return customers.filter((c) => customerMatches(c, customerSearch));
   }, [customers, customerSearch]);
   const totalValue = selectedProducts.reduce(
     (sum, p) => sum + p.price * p.quantity_sent,

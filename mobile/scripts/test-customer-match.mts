@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { customerMatches as m, byCustomerName } from '../utils/customerMatch.ts';
+const ana = { full_name: 'Ana Júlia Guarani', phone: '(34) 99876-5432', email: 'ana@exemplo.com', document_number: '123.456.789-00' };
+assert.ok(m(ana, 'Ana julia guarani'));
+assert.ok(m(ana, 'ana guarani'));
+assert.ok(m(ana, 'JÚLIA'));
+assert.ok(m(ana, '99876'));
+assert.ok(m(ana, '34998765432'));
+assert.ok(m(ana, '12345678900'));
+assert.ok(m(ana, 'ana@exe'));
+assert.ok(!m(ana, 'maria'));
+assert.ok(m(ana, ''));
+const l = [{ full_name: 'Zélia' }, { full_name: 'Ágata' }, { full_name: 'Bruna' }].sort(byCustomerName);
+assert.deepEqual(l.map((x) => x.full_name), ['Ágata', 'Bruna', 'Zélia']);
+console.log('test-customer-match: OK');

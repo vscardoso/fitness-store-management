@@ -4,6 +4,7 @@
  */
 
 import api from './api';
+import { byCustomerName } from '@/utils/customerMatch';
 import type { 
   Customer, 
   CustomerCreate, 
@@ -24,6 +25,25 @@ export const getCustomers = async (params?: PaginationParams & {
   } catch (error) {
     throw error;
   }
+};
+
+/**
+ * TODAS as clientes da loja, de 100 em 100 (o servidor não devolve mais que 100 por vez).
+ * Antes as telas pediam só a primeira página: com mais de 100 clientes, a cliente nova não aparecia na lista, no PDV nem
+ * no condicional (caso real da loja 2, 26/11/2026). Tela que lista ou escolhe cliente usa esta função.
+ */
+export const getAllCustomers = async (): Promise<Customer[]> => {
+  const PAGE = 100;
+  const all: Customer[] = [];
+  for (let page = 0; page < 200; page++) {
+    const { data } = await api.get<Customer[]>('/customers/', {
+      params: { skip: page * PAGE, limit: PAGE },
+      headers: page > 0 ? { 'X-Skip-Loading': 'true' } : undefined,
+    });
+    all.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return all.sort(byCustomerName);
 };
 
 /**

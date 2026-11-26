@@ -11,7 +11,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatPhone, formatCurrency } from '@/utils/format';
-import { getCustomers } from '@/services/customerService';
+import { getAllCustomers } from '@/services/customerService';
+import { customerMatches } from '@/utils/customerMatch';
 import EmptyState from '@/components/ui/EmptyState';
 import BottomSheet from '@/components/ui/BottomSheet';
 import type { Customer } from '@/types';
@@ -44,7 +45,7 @@ export default function CustomerSelectionModal({
     isError,
   } = useQuery({
     queryKey: ['customers'],
-    queryFn: () => getCustomers(),
+    queryFn: () => getAllCustomers(),
     enabled: visible,
   });
 
@@ -53,13 +54,7 @@ export default function CustomerSelectionModal({
   }, [visible]);
 
   const filteredCustomers = (customers ?? []).filter((customer: Customer) => {
-    const search = searchQuery.toLowerCase();
-    return (
-      customer.full_name.toLowerCase().includes(search) ||
-      customer.email?.toLowerCase().includes(search) ||
-      customer.phone?.includes(search) ||
-      customer.document_number?.includes(search)
-    );
+    return customerMatches(customer, searchQuery);
   });
 
   const handleSelectCustomer = (customer: Customer) => {

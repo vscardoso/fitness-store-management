@@ -23,7 +23,8 @@ import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import PageHeader from '@/components/layout/PageHeader';
-import { getCustomers } from '@/services/customerService';
+import { getAllCustomers } from '@/services/customerService';
+import { customerMatches } from '@/utils/customerMatch';
 import { formatPhone } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -56,7 +57,7 @@ export default function CustomersScreen() {
     isRefetching,
   } = useQuery({
     queryKey: ['customers'],
-    queryFn: () => getCustomers(),
+    queryFn: () => getAllCustomers(),
     enabled: isAuthenticated,
     retry: false,
   });
@@ -91,12 +92,7 @@ export default function CustomersScreen() {
 
   // ── Filtros ──
   const filteredCustomers = customers?.filter((customer: Customer) => {
-    const search = searchQuery.toLowerCase();
-    const matchesSearch =
-      customer.full_name.toLowerCase().includes(search) ||
-      customer.email?.toLowerCase().includes(search) ||
-      customer.phone?.includes(search) ||
-      customer.document_number?.includes(search);
+    const matchesSearch = customerMatches(customer, searchQuery);
     const matchesStatus =
       statusFilter === 'all' ||
       (statusFilter === 'active' && customer.is_active) ||
