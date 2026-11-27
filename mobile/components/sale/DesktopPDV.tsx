@@ -545,6 +545,8 @@ export default function DesktopPDV() {
                 </View>
               ))
             )}
+            {/* brinde junto do carrinho (é peça que sai), não no meio da conta */}
+            {cart.items.length > 0 && <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}><CartGifts dense /></View>}
           </ScrollView>
 
           <View style={styles.totals}>
@@ -605,7 +607,6 @@ export default function DesktopPDV() {
                 )}
               </View>
             )}
-            <CartGifts dense />
             <View style={[styles.line, { alignItems: 'baseline' }]}>
               <Text style={styles.totalLabel}>Total</Text>
               <Money style={styles.totalValue} value={Number(cart.total)} />

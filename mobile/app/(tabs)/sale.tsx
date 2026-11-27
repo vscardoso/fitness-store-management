@@ -463,8 +463,8 @@ function MobileSaleScreen() {
       
       {/* Header */}
       <PageHeader
-        title={user?.store_name || 'Provador'}
-        subtitle="Realize vendas rapidamente"
+        title="Nova venda"
+        subtitle={user?.store_name || 'Provador'}
         rightActions={cart.itemCount > 0 ? [{
           icon: 'refresh' as keyof typeof Ionicons.glyphMap,
           onPress: handleNewSale,
@@ -546,7 +546,7 @@ function MobileSaleScreen() {
         <View style={styles.cartSection}>
           <View style={styles.cartHeader}>
             <Text style={styles.cartTitle}>
-              Carrinho ({cart.itemCount} {cart.itemCount === 1 ? 'item' : 'itens'})
+              Carrinho · {cart.itemCount} {cart.itemCount === 1 ? 'peça' : 'peças'}
             </Text>
             {cart.items.length > 0 && (
               <TouchableOpacity
@@ -648,6 +648,8 @@ function MobileSaleScreen() {
                   </View>
                 </View>
               ))}
+              {/* Brinde junto do carrinho (só admin: o próprio componente some para os outros papéis) */}
+              <CartGifts />
             </View>
           )}
         </View>
@@ -736,8 +738,7 @@ function MobileSaleScreen() {
                 </View>
               )}
 
-              {/* Brinde (só admin e gerente: o próprio componente some para os outros papéis) */}
-              <CartGifts />
+
               {cartProfit && (
                 <View style={styles.profitRow}>
                   {/* informação de apoio: discreta; só fica vermelha quando a venda dá prejuízo */}
