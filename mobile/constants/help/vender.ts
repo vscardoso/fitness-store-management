@@ -74,12 +74,12 @@ export const VENDER: HelpEntry[] = [
     routes: ['/checkout'],
     purpose: 'Escolhe como a cliente pagou e grava a venda.',
     steps: [
-      'Confira o “Resumo do Carrinho”; para mudar alguma peça, toque em “Editar”.',
+      'No alto está o resumo (quantas peças e quanto dá); toque em “Ver as peças” para conferir e em “Editar” para mudar alguma. A cliente pode ser escolhida ou trocada aqui mesmo, em “Trocar”.',
       'Se a cliente tem pontos, o cartão “Pontos de” deixa usar como desconto (cashback). Depois toque na forma de pagamento: “Débito”, “Crédito”, “Dinheiro” ou “PIX”.',
-      'No crédito, escolha à vista ou o número de parcelas.',
+      'No crédito, toque à vista ou no número de parcelas: já fica valendo, sem outro botão.',
       'No dinheiro, digite quanto a cliente entregou para ver o troco.',
       'Se ela pagou com duas formas, toque em “Usar 2 métodos” e lance o valor de cada uma.',
-      'Toque em “Confirmar Venda”.',
+      'Confira o Total na barra de baixo e toque em “Confirmar Venda” (um botão só para qualquer forma de pagamento).',
     ],
     goodToKnow: [
       'Cartão e PIX são registro: confirme o pagamento na maquininha ou no app do banco antes de gravar.',

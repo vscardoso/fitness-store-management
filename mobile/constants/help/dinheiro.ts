@@ -243,7 +243,7 @@ export const DINHEIRO: HelpEntry[] = [
     open: '/finance/receivables',
     purpose: 'Quem deve para a loja, quanto e quando vence. Ao receber, o dinheiro entra na conta da forma de pagamento.',
     steps: [
-      'Para vender no fiado: no carrinho escolha a cliente, no pagamento toque em “Fiado”, escolha em quantas vezes, o intervalo e o vencimento e toque em “Confirmar fiado”.',
+      'Para vender no fiado: no carrinho escolha a cliente, no pagamento toque em “Fiado”, escolha em quantas vezes, o intervalo e o vencimento e toque em “Confirmar Venda”.',
       'Quando ela pagar, toque em “Receber” ao lado do nome, digite quanto ela pagou, escolha como pagou e toque em “Confirmar recebimento”. Pode ser só uma parte.',
       'Use os filtros “Em aberto”, “Vencidas”, “Pagas” e “Todas”.',
       'Fiado de antes do app (caderno, planilha): toque em “Lançar fiado antigo”, escolha a cliente, o valor, as vezes e o vencimento e toque em “Lançar”.',

@@ -6,7 +6,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavReady } from '@/hooks/useNavReady';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput } from 'react-native';
-import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
+import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
+import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -41,7 +42,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { Money } from '@/components/ui/PriceDisplay';
 import HScroll from '@/components/ui/HScroll';
 import { FEATURES } from '@/constants/features';
-import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import { dateToIso } from '@/utils/dateBr';
 import LoyaltyRedeemCard from '@/components/checkout/LoyaltyRedeemCard';
@@ -69,7 +70,7 @@ const installmentOptions = Array.from({ length: 12 }, (_, i) => ({
 
 export default function CheckoutScreen() {
   const desktopContent = useDesktopContentStyle();
-  const desktopFooter = useDesktopFooterStyle(16);
+  const isDesktop = useIsDesktop();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const cart = useCart();
@@ -101,6 +102,9 @@ export default function CheckoutScreen() {
   const [isMixedMode, setIsMixedMode] = useState(false);
   const [paymentDiscounts, setPaymentDiscounts] = useState<PaymentDiscount[]>([]);
   const [availableDiscount, setAvailableDiscount] = useState<PaymentDiscount | null>(null);
+  // resumo das peças recolhido no celular (a pessoa acabou de ver o carrinho); no notebook fica aberto
+  const [showItems, setShowItems] = useState(false);
+  const [customerModalVisible, setCustomerModalVisible] = useState(false);
 
   // Calcular total final com desconto aplicável
   // Se modo misto ou sem pagamentos: usa availableDiscount
@@ -935,28 +939,31 @@ export default function CheckoutScreen() {
     return paymentMethods.find(m => m.value === method)?.label || method;
   };
 
-  return (
-    <KeyboardSafeView style={styles.container}>
-      <PageHeader
-        title="Finalizar Venda"
-        subtitle={`${cart.itemCount} ${cart.itemCount === 1 ? 'item' : 'itens'}`}
-        showBackButton
-        onBack={handleGoBack}
-      />
 
-      <View style={styles.content}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, desktopContent]}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Resumo do Carrinho */}
+  const itemsOpen = isDesktop || showItems;
+  const summaryBlock = (<>
+          {/* Resumo: uma linha no celular (as peças abrem se tocar); no notebook a lista fica aberta */}
           <View style={styles.card}>
             <View style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>
-                  Resumo do Carrinho
-                </Text>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  disabled={isDesktop}
+                  onPress={() => setShowItems((v) => !v)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: itemsOpen }}
+                  accessibilityLabel={itemsOpen ? 'Esconder as peças' : 'Ver as peças'}
+                >
+                  <Text style={styles.sectionTitle}>
+                    {cart.itemCount} {cart.itemCount === 1 ? 'peça' : 'peças'} · {formatCurrency(cart.subtotal)}
+                  </Text>
+                  {!isDesktop && (
+                    <View style={styles.summaryToggle}>
+                      <Text style={styles.summaryToggleText}>{itemsOpen ? 'Esconder as peças' : 'Ver as peças'}</Text>
+                      <Ionicons name={itemsOpen ? 'chevron-up' : 'chevron-down'} size={14} color={brandingColors.primary} />
+                    </View>
+                  )}
+                </TouchableOpacity>
                 <AppButton
                   variant="outlined"
                   size="sm"
@@ -967,12 +974,14 @@ export default function CheckoutScreen() {
                 />
               </View>
 
+              {itemsOpen && (
+                <View style={{ marginTop: 8 }}>
               {cart.items.map((item, index) => (
                 <View key={item.cart_key ?? `${item.product_id}-${item.variant_id ?? 'base'}-${index}`}>
                   {index > 0 && <View style={styles.itemDivider} />}
                   <View style={styles.cartItem}>
                     <View style={styles.cartItemInfo}>
-                      <Text style={styles.cartItemName} numberOfLines={1}>
+                      <Text style={styles.cartItemName} numberOfLines={2}>
                         {item.product.name}
                       </Text>
                       {item.variant_label ? (
@@ -995,14 +1004,18 @@ export default function CheckoutScreen() {
                   </View>
                 </View>
               ))}
+                </View>
+              )}
             </View>
           </View>
 
-          {/* Cliente */}
-          {cart.customer_id && (
-            <View style={styles.section}>
-              <Text style={styles.label}>Cliente</Text>
-              {loadingCustomer ? (
+</>);
+  const customerBlock = (<>
+          {/* 8. Cliente: dá para escolher ou trocar aqui mesmo, sem voltar ao carrinho */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Cliente</Text>
+            {cart.customer_id ? (
+              loadingCustomer ? (
                 <ActivityIndicator size="small" style={styles.loader} />
               ) : customer ? (
                 <View style={styles.customerCard}>
@@ -1010,22 +1023,29 @@ export default function CheckoutScreen() {
                     <Ionicons name="person" size={20} color={brandingColors.primary} />
                     <View style={styles.customerDetails}>
                       <Text style={styles.customerName}>{customer.full_name}</Text>
-                      {customer.phone && (
+                      {!!customer.phone && (
                         <Text style={styles.customerPhone}>{customer.phone}</Text>
                       )}
                     </View>
                   </View>
-                  {customer.loyalty_points > 0 && (
-                    <View style={styles.loyaltyBadge}>
-                      <Ionicons name="star" size={14} color={Colors.light.warning} />
-                      <Text style={styles.loyaltyPoints}>{customer.loyalty_points}</Text>
-                    </View>
-                  )}
+                  <AppButton variant="text" size="sm" label="Trocar" onPress={() => setCustomerModalVisible(true)} />
                 </View>
-              ) : null}
-            </View>
-          )}
+              ) : null
+            ) : (
+              <TouchableOpacity
+                style={styles.customerPick}
+                onPress={() => setCustomerModalVisible(true)}
+                accessibilityRole="button"
+              >
+                <Ionicons name="person-add-outline" size={20} color={brandingColors.primary} />
+                <Text style={styles.customerPickText}>Escolher cliente (opcional)</Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+            )}
+          </View>
 
+</>);
+  const loyaltyBlock = (<>
           {/* Pontos de fidelidade como pagamento (cashback): só com cliente e sem integração de maquininha/PIX */}
           {cart.customer_id && customer && !FEATURES.maquininhas && !FEATURES.pixIntegrado && (
             <View style={styles.section}>
@@ -1039,6 +1059,9 @@ export default function CheckoutScreen() {
             </View>
           )}
 
+
+</>);
+  const paymentBlock = (<>
           {/* Formas de Pagamento */}
           <View style={styles.section}>
             <Text style={styles.label}>Formas de Pagamento</Text>
@@ -1078,21 +1101,22 @@ export default function CheckoutScreen() {
                         const paymentMethod = method.value as PaymentMethod;
                         setPendingFiado(false);
 
-                        // Fiado: precisa de cliente; mostra parcelas e vencimento antes de confirmar
+                        // Fiado: precisa de cliente; já vale em 1 vez e as vezes/vencimento mudam o pagamento na hora
                         if (paymentMethod === PaymentMethod.ON_ACCOUNT) {
                           if (!cart.customer_id) {
                             setDialog({
                               visible: true,
                               type: 'warning',
                               title: 'Fiado precisa de cliente',
-                              message: 'Volte ao carrinho e escolha a cliente que vai pagar depois.',
-                              confirmText: 'Entendi',
-                              cancelText: '',
-                              onConfirm: () => setDialog(d => ({ ...d, visible: false })),
+                              message: 'Escolha a cliente que vai pagar depois.',
+                              confirmText: 'Escolher cliente',
+                              cancelText: 'Agora não',
+                              onConfirm: () => { setDialog(d => ({ ...d, visible: false })); setCustomerModalVisible(true); },
                             });
                             return;
                           }
-                          if (cart.payments.length > 0) cart.clearPayments();
+                          cart.clearPayments();
+                          cart.addPayment(PaymentMethod.ON_ACCOUNT, calculateTotalWithDiscount(PaymentMethod.ON_ACCOUNT), fiadoInstallments);
                           setPendingCreditCard(false);
                           setPendingTerminal(false);
                           setSelectedMethod(paymentMethod);
@@ -1101,9 +1125,10 @@ export default function CheckoutScreen() {
                           return;
                         }
 
-                        // Cartão de crédito: sempre via maquininha Cielo — mostra seletor de parcelas antes de enviar
+                        // Cartão de crédito: já vale à vista; tocar numa parcela troca o pagamento (um botão só de confirmar, embaixo)
                         if (paymentMethod === PaymentMethod.CREDIT_CARD) {
-                          if (cart.payments.length > 0) cart.clearPayments();
+                          cart.clearPayments();
+                          cart.addPayment(PaymentMethod.CREDIT_CARD, calculateTotalWithDiscount(PaymentMethod.CREDIT_CARD), 1);
                           setSelectedMethod(paymentMethod);
                           setInstallments(1);
                           setTerminalPaymentType('credit_card');
@@ -1159,10 +1184,16 @@ export default function CheckoutScreen() {
                   );
                 })}
 
-                {cart.payments.length === 0 && !pendingCreditCard && !pendingFiado && (
+                {/* sempre à mão: a cliente pode decidir dividir depois de escolher uma forma */}
+                {(
                   <TouchableOpacity
                     style={[styles.paymentMethodChip, styles.mixedModeButton]}
+                    accessibilityRole="button"
                     onPress={() => {
+                      cart.clearPayments();
+                      setPendingCreditCard(false);
+                      setPendingFiado(false);
+                      setPendingTerminal(false);
                       setIsMixedMode(true);
                       setSelectedMethod(null);
                       haptics.selection();
@@ -1191,8 +1222,7 @@ export default function CheckoutScreen() {
                       <Text style={styles.installmentPickerHint}>Em quantas vezes ela vai pagar</Text>
                     </View>
                   </View>
-                  <HScroll showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
-                    <View style={styles.installmentChipsRow}>
+                  <View style={styles.installmentGrid}>
                       {installmentOptions.map((opt) => {
                         const tooMany = opt.value > maxFiadoInstallments(total);
                         return (
@@ -1200,7 +1230,14 @@ export default function CheckoutScreen() {
                           key={opt.value}
                           disabled={tooMany}
                           style={[styles.installmentChip, fiadoInstallments === opt.value && styles.installmentChipActive, tooMany && { opacity: 0.4 }]}
-                          onPress={() => { setFiadoInstallments(opt.value); haptics.selection(); }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: fiadoInstallments === opt.value, disabled: tooMany }}
+                          onPress={() => {
+                            setFiadoInstallments(opt.value);
+                            cart.clearPayments();
+                            cart.addPayment(PaymentMethod.ON_ACCOUNT, total, opt.value);
+                            haptics.selection();
+                          }}
                         >
                           <Text style={[styles.installmentChipText, fiadoInstallments === opt.value && styles.installmentChipTextActive]}>
                             {opt.value === 1 ? '1 vez' : opt.label}
@@ -1213,8 +1250,7 @@ export default function CheckoutScreen() {
                         </TouchableOpacity>
                         );
                       })}
-                    </View>
-                  </HScroll>
+                  </View>
                   {maxFiadoInstallments(total) < 12 && (
                     <Text style={styles.installmentPickerHint}>Parcela mínima R$ 1,00</Text>
                   )}
@@ -1243,20 +1279,7 @@ export default function CheckoutScreen() {
                   <Text style={[styles.installmentPickerHint, { marginTop: 8 }]}>
                     {values.map((v, k) => `${dates[k].toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}: ${formatCurrency(v)}`).join('  ·  ')}
                   </Text>
-                  <AppButton
-                    variant="primary"
-                    size="md"
-                    fullWidth
-                    icon="checkmark-circle-outline"
-                    label={fiadoInstallments === 1 ? 'Confirmar fiado' : `Confirmar fiado em ${fiadoInstallments}x`}
-                    onPress={() => {
-                      cart.clearPayments();
-                      cart.addPayment(PaymentMethod.ON_ACCOUNT, total, fiadoInstallments);
-                      setPendingFiado(false);
-                      haptics.success();
-                    }}
-                    style={{ marginTop: 12 }}
-                  />
+
                 </View>
               );
             })()}
@@ -1270,16 +1293,22 @@ export default function CheckoutScreen() {
                   </View>
                   <View style={styles.installmentPickerHeaderText}>
                     <Text style={styles.installmentPickerLabel}>Pagamento no cartão</Text>
-                    <Text style={styles.installmentPickerHint}>Escolha a quantidade de parcelas</Text>
+                    <Text style={styles.installmentPickerHint}>Toque em quantas vezes ela vai pagar</Text>
                   </View>
                 </View>
-                <HScroll showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
-                  <View style={styles.installmentChipsRow}>
+                <View style={styles.installmentGrid}>
                     {installmentOptions.map((opt) => (
                       <TouchableOpacity
                         key={opt.value}
                         style={[styles.installmentChip, installments === opt.value && styles.installmentChipActive]}
-                        onPress={() => { setInstallments(opt.value); haptics.selection(); }}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: installments === opt.value }}
+                        onPress={() => {
+                          setInstallments(opt.value);
+                          cart.clearPayments();
+                          cart.addPayment(PaymentMethod.CREDIT_CARD, calculateTotalWithDiscount(PaymentMethod.CREDIT_CARD), opt.value);
+                          haptics.selection();
+                        }}
                       >
                         <Text style={[styles.installmentChipText, installments === opt.value && styles.installmentChipTextActive]}>
                           {opt.label}
@@ -1291,20 +1320,7 @@ export default function CheckoutScreen() {
                         )}
                       </TouchableOpacity>
                     ))}
-                  </View>
-                </HScroll>
-                <AppButton
-                  variant="primary"
-                  size="md"
-                  fullWidth
-                  icon="checkmark-circle-outline"
-                  label={installments === 1 ? 'Confirmar à Vista' : `Confirmar ${installments}x`}
-                  onPress={() => {
-                    handleAddDirectPayment(PaymentMethod.CREDIT_CARD, installments);
-                    setPendingCreditCard(false);
-                  }}
-                  style={{ marginTop: 12 }}
-                />
+                </View>
               </View>
             )}
 
@@ -1416,26 +1432,6 @@ export default function CheckoutScreen() {
                   }}
                   style={{ marginTop: 12 }}
                 />
-              </View>
-            )}
-
-            {/* Resumo do crédito após confirmar */}
-            {!isMixedMode && !pendingCreditCard && cart.payments.length > 0 && cart.payments[0].method === PaymentMethod.CREDIT_CARD && (
-              <View style={styles.creditSummary}>
-                <Ionicons name="checkmark-circle" size={16} color={Colors.light.success} />
-                <Text style={styles.creditSummaryText}>
-                  {cart.payments[0].installments > 1
-                    ? `${cart.payments[0].installments}x de ${formatCurrency(cart.payments[0].amount / cart.payments[0].installments)}`
-                    : 'À vista'}
-                </Text>
-                <TouchableOpacity onPress={() => {
-                  const prev = cart.payments[0]?.installments || 1;
-                  cart.clearPayments();
-                  setInstallments(prev);
-                  setPendingCreditCard(true);
-                }}>
-                  <Text style={styles.creditSummaryChange}>Alterar</Text>
-                </TouchableOpacity>
               </View>
             )}
 
@@ -1587,10 +1583,13 @@ export default function CheckoutScreen() {
               )}
           </View>
 
+
+</>);
+  const cashBlock = (<>
           {/* Cálculo de Troco (se tiver dinheiro) */}
           {hasCashPayment && (
             <View style={styles.section}>
-              <Text style={styles.label}>Cálculo de Troco</Text>
+              <Text style={styles.label}>Quanto a cliente entregou em dinheiro?</Text>
 
               <View style={styles.cashInputContainer}>
                 <Text style={styles.inputPrefix}>R$</Text>
@@ -1598,6 +1597,7 @@ export default function CheckoutScreen() {
                   value={cashReceived}
                   onChangeText={(text) => setCashReceived(formatMoneyInput(text))}
                   keyboardType="numeric"
+                  accessibilityLabel="Valor entregue pela cliente em dinheiro"
                   style={styles.cashInput}
                   placeholder="0,00"
                   placeholderTextColor={Colors.light.textTertiary}
@@ -1615,6 +1615,9 @@ export default function CheckoutScreen() {
 
 
 
+
+</>);
+  const discountBlock = (<>
           {/* Desconto Disponivel */}
           {appliedDiscount && cart.payments.length === 0 && (
             <View style={styles.discountBanner}>
@@ -1631,6 +1634,9 @@ export default function CheckoutScreen() {
             </View>
           )}
 
+
+</>);
+  const totalsBlock = (<>
           {/* Totais */}
           <View style={[styles.card, styles.totalsCard]}>
             <View style={styles.cardContent}>
@@ -1686,10 +1692,6 @@ export default function CheckoutScreen() {
                 )}
               </View>
 
-              <View style={styles.totalHighlightBox}>
-                <Text style={styles.totalCaption}>Total da Venda</Text>
-                <Money style={styles.totalMainValue} value={Number(finalTotal)} />
-              </View>
 
               {/* Mostrar Total Pago e Restante APENAS no modo misto */}
               {isMixedMode && cart.payments.length > 0 && (
@@ -1714,24 +1716,73 @@ export default function CheckoutScreen() {
             </View>
           </View>
 
-          {/* Espaçamento para botão fixo */}
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
 
-        {/* Footer com botão de finalizar */}
-        <View style={[styles.footer, desktopFooter]}>
-          <AppButton
-            variant="primary"
-            size="lg"
-            fullWidth
-            onPress={handleFinalizeSale}
-            disabled={cart.items.length === 0 || cart.totalPaid < finalTotal || loading}
-            loading={loading}
-            icon="checkmark-circle-outline"
-            label={loading ? 'Processando...' : 'Confirmar Venda'}
-            style={styles.finalizeButton}
-          />
-        </View>
+</>);
+  const canConfirm = cart.items.length > 0 && cart.totalPaid >= finalTotal && !loading;
+  // 2. Total junto do botão: barra fixa no celular, fim da coluna da direita no notebook
+  const confirmBlock = (
+    <View style={[styles.footer, isDesktop && styles.footerDesk]}>
+      <View style={styles.footerTotal}>
+        <Text style={styles.footerTotalLabel}>Total</Text>
+        <Money style={styles.footerTotalValue} value={Number(finalTotal)} />
+      </View>
+      <AppButton
+        variant="primary"
+        size="lg"
+        onPress={handleFinalizeSale}
+        disabled={!canConfirm}
+        loading={loading}
+        icon="checkmark-circle-outline"
+        label={loading ? 'Processando...' : 'Confirmar Venda'}
+        style={styles.finalizeButton}
+      />
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <PageHeader
+        title="Finalizar Venda"
+        subtitle={`${cart.itemCount} ${cart.itemCount === 1 ? 'peça' : 'peças'}`}
+        showBackButton
+        onBack={handleGoBack}
+      />
+
+      <View style={styles.content}>
+        <KeyboardAwareScreen
+          style={styles.scrollView}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
+          bottomPadding={16}
+        >
+          {isDesktop ? (
+            <View style={styles.deskRow}>
+              <View style={styles.deskLeft}>
+                {summaryBlock}
+                {customerBlock}
+              </View>
+              <View style={styles.deskRight}>
+                {loyaltyBlock}
+                {paymentBlock}
+                {cashBlock}
+                {discountBlock}
+                {totalsBlock}
+                {confirmBlock}
+              </View>
+            </View>
+          ) : (
+            <>
+              {summaryBlock}
+              {customerBlock}
+              {loyaltyBlock}
+              {paymentBlock}
+              {cashBlock}
+              {discountBlock}
+              {totalsBlock}
+            </>
+          )}
+        </KeyboardAwareScreen>
+
+        {!isDesktop && confirmBlock}
       </View>
 
       {/* Confirm Dialog */}
@@ -1745,11 +1796,40 @@ export default function CheckoutScreen() {
         onConfirm={dialog.onConfirm}
         onCancel={() => setDialog({ ...dialog, visible: false })}
       />
-    </KeyboardSafeView>
+
+      <CustomerSelectionModal
+        visible={customerModalVisible}
+        onDismiss={() => setCustomerModalVisible(false)}
+        onSelectCustomer={(c: Customer) => {
+          // trocou a cliente: pontos e fiado eram da anterior
+          setPointsUse(0);
+          if (cart.payments.some((pm) => pm.method === PaymentMethod.ON_ACCOUNT)) { cart.clearPayments(); setPendingFiado(false); setSelectedMethod(null); }
+          cart.setCustomer(c.id);
+          setCustomerModalVisible(false);
+          haptics.light();
+        }}
+      />
+    </View>
   );
 }
 
 const createStyles = (brand: string) => StyleSheet.create({
+  summaryToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, minHeight: 24 },
+  summaryToggleText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: brand },
+  customerPick: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 14,
+    borderRadius: theme.borderRadius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  customerPickText: { flex: 1, fontSize: theme.fontSize.base, color: Colors.light.text },
+  installmentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  deskRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 20 },
+  deskLeft: { flex: 1, minWidth: 0 },
+  deskRight: { width: 440, flexShrink: 0 },
+  footerDesk: { marginTop: 4, borderRadius: theme.borderRadius.xl, borderWidth: 1, borderColor: Colors.light.border },
+  footerTotal: { flexShrink: 1, minWidth: 0 },
+  footerTotalLabel: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
+  footerTotalValue: { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.extrabold, color: Colors.light.text },
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -2205,7 +2285,9 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.light.border,
     backgroundColor: Colors.light.backgroundSecondary,
-    minWidth: 52,
+    minWidth: 72,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   installmentChipActive: {
     borderColor: brand,
@@ -2252,6 +2334,9 @@ const createStyles = (brand: string) => StyleSheet.create({
     height: 80,
   },
   footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 14,
@@ -2260,7 +2345,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderTopColor: Colors.light.border,
   },
   finalizeButton: {
-    alignSelf: 'stretch',
+    flex: 1,
   },
   discountBanner: {
     flexDirection: 'row',
